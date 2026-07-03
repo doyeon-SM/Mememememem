@@ -5,9 +5,9 @@ using Mem.Mem;
 namespace Mem.Capture
 {
     /// <summary>
-    /// 포켓볼 역할을 하는 캡슐. 머와 트리거 충돌하면 포획을 시도한다.
-    /// 최종 확률 = 등급별 HP브래킷 보정 + 머 데이터 기본 포획확률 + 캡슐 등급 어드밴티지 (0~100% 클램프).
-    /// 캡슐 등급 어드밴티지: 캡슐 등급이 머 등급보다 높은 단계당 +20%, 낮은 단계당 -20%.
+    /// 캡슐. 멤과 트리거 충돌하면 포획을 시도한다.
+    /// 최종 확률 = 등급별 HP브래킷 보정 + 멤 데이터 기본 포획확률 + 캡슐 등급 어드밴티지 (0~100% 클램프).
+    /// 캡슐 등급 어드밴티지: 캡슐 등급이 멤 등급보다 높은 단계당 +20%, 낮은 단계당 -20%.
     /// </summary>
     [RequireComponent(typeof(Collider))]
     public class Capsule : MonoBehaviour
@@ -29,6 +29,9 @@ namespace Mem.Capture
             TryCapture(mem);
         }
 
+        /// <summary>
+        /// 멤 포획 시도 함수
+        /// </summary>
         private void TryCapture(MemSpawnRuntime mem)
         {
             float finalRate = CalculateCaptureRate(mem);
@@ -61,6 +64,9 @@ namespace Mem.Capture
             // TODO: 이번 단계에서는 Mem/캡슐 오브젝트 처리(풀 반환 등)는 하지 않음
         }
 
+        /// <summary>
+        /// 멤 포획 확률 계산 함수
+        /// </summary>
         private float CalculateCaptureRate(MemSpawnRuntime mem)
         {
             MemData memData = mem.MemSO;

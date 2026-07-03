@@ -3,10 +3,10 @@ using UnityEngine;
 namespace Mem.Mem
 {
     /// <summary>
-    /// 개별 머(Mem) 정의 SO.
+    /// 개별 멤(Mem) 정의 SO.
     /// MemCatalogManager가 Mem_ID를 키로 딕셔너리에 로드하여 탐색하는 것을 전제로 함.
     /// </summary>
-    [CreateAssetMenu(fileName = "Mem_", menuName = "HDY/Mem/Mem Data", order = 0)]
+    [CreateAssetMenu(fileName = "Mem_", menuName = "Mem/Mem Data", order = 0)]
     public class MemData : ScriptableObject
     {
         [Header("식별")]

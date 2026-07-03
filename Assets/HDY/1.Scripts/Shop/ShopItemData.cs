@@ -5,9 +5,9 @@ namespace Mem.Shop
 {
     /// <summary>
     /// 상점에서 취급하는 아이템 정보 SO.
-    /// HDY.Item.ItemData와는 Item_ID 문자열로 매칭한다 (딕셔너리 탐색 방식과 동일).
+    /// Mem.Item.ItemData와는 Item_ID 문자열로 매칭한다 (딕셔너리 탐색 방식과 동일).
     /// </summary>
-    [CreateAssetMenu(fileName = "Shop_", menuName = "HDY/Shop/Shop Item Data", order = 0)]
+    [CreateAssetMenu(fileName = "Shop_", menuName = "Item/Shop Item Data", order = 0)]
     public class ShopItemData : ScriptableObject
     {
         [Header("참조")]

@@ -29,16 +29,16 @@ namespace Mem.Capture
     }
 
     /// <summary>
-    /// 머 등급별 HP 브래킷 포획 확률 보정 테이블 (전역 SO).
+    /// 멤 등급별 HP 브래킷 포획 확률 보정 테이블 (전역 SO).
     /// </summary>
-    [CreateAssetMenu(fileName = "CaptureRateTable", menuName = "HDY/Capture/Capture Rate Table", order = 0)]
+    [CreateAssetMenu(fileName = "CaptureRateTable", menuName = "Mem/Capture Rate Table", order = 0)]
     public class CaptureRateTable : ScriptableObject
     {
         [Header("등급별 HP브래킷 확률 (값은 직접 채워넣을 것)")]
         public List<MemClassRateEntry> Entries = new List<MemClassRateEntry>();
 
         /// <summary>
-        /// 머 등급과 현재 HP비율(0~1)에 해당하는 보정 확률을 반환.
+        /// 멤 등급과 현재 HP비율(0~1)에 해당하는 보정 확률을 반환.
         /// </summary>
         public float GetRate(CommonClass memClass, float hpRatio01)
         {

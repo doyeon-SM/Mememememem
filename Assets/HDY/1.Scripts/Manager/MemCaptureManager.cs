@@ -5,7 +5,7 @@ using Mem.Mem;
 namespace Mem.Capture
 {
     /// <summary>
-    /// 포획에 성공한 머 데이터를 메모리에 보관하는 매니저.
+    /// 포획에 성공한 멤 데이터를 메모리에 보관하는 매니저.
     /// 파일 저장 등 영속화 로직은 다음 단계에서 추가 예정.
     /// </summary>
     public class MemCaptureManager : MonoBehaviour
