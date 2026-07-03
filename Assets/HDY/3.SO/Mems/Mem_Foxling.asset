@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ebbe4a20f377b494a8e1b06ac3f6489c, type: 3}
+  m_Name: Mem_Foxling
+  m_EditorClassIdentifier: Assembly-CSharp::HDY.Mem.MemData
+  Mem_ID: mem_foxling
+  MemName: "\uD3ED\uC2AC\uB9C1"
+  MemClass: 0
+  MemHP: 120
+  MemHunger: 100
+  MemStat:
+    Fabrication: 2
+    Logging: 3
+    Mining: 1
+    Movement: 5
+    Production: 2
+    Exploration: -99
+  BaseCaptureRate: 0.35
