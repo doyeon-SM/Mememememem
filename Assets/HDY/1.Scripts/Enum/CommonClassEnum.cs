@@ -1,9 +1,9 @@
-namespace HDY.Mem
+namespace HDY
 {
     /// <summary>
-    /// 머(Mem) 등급
+    /// 공통등급
     /// </summary>
-    public enum MemClass
+    public enum CommonClass
     {
         Rare,
         Epic,

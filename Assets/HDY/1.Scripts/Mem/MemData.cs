@@ -12,7 +12,7 @@ namespace HDY.Mem
         [Header("식별")]
         public string Mem_ID;
         public string MemName;
-        public MemClass MemClass;
+        public CommonClass MemClass;
 
         [Header("기본 능력치")]
         public int MemHP;

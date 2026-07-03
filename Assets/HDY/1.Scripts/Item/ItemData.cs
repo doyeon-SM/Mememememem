@@ -14,6 +14,7 @@ namespace HDY.Item
         public string Item_ID;
         public string ItemName;
         public Sprite ItemIcon;
+        public CommonClass ItemClass;
 
         [Header("수량")]
         [Tooltip("아이템 기본/생성 수량")]
