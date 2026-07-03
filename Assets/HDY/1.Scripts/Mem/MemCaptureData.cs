@@ -1,6 +1,6 @@
 using System;
 
-namespace HDY.Mem
+namespace Mem.Mem
 {
     /// <summary>
     /// 포획된 머를 저장하기 위한 데이터. 세이브 시스템에서 직렬화하여 사용할 예정.

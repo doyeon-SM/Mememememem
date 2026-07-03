@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace HDY.Mem
+namespace Mem.Mem
 {
     /// <summary>
     /// 머 데이터(MemData)를 보관하는 매니저.

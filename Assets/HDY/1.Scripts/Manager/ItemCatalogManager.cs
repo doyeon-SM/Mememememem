@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace HDY.Item
+namespace Mem.Item
 {
     /// <summary>
     /// 아이템 데이터(ItemData)를 보관하는 매니저.

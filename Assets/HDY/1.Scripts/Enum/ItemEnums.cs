@@ -1,4 +1,4 @@
-namespace HDY.Item
+namespace Mem.Item
 {
     /// <summary>
     /// 아이템 대분류

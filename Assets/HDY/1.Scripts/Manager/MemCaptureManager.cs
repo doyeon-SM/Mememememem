@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 using UnityEngine;
-using HDY.Mem;
+using Mem.Mem;
 
-namespace HDY.Capture
+namespace Mem.Capture
 {
     /// <summary>
     /// 포획에 성공한 머 데이터를 메모리에 보관하는 매니저.

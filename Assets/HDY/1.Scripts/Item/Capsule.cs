@@ -1,8 +1,8 @@
 using UnityEngine;
-using HDY.Item;
-using HDY.Mem;
+using Mem.Item;
+using Mem.Mem;
 
-namespace HDY.Capture
+namespace Mem.Capture
 {
     /// <summary>
     /// 포켓볼 역할을 하는 캡슐. 머와 트리거 충돌하면 포획을 시도한다.

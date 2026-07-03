@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace HDY.Item
+namespace Mem.Item
 {
     /// <summary>
     /// 개별 아이템 정의 SO.

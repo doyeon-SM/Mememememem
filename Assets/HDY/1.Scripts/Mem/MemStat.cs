@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-namespace HDY.Mem
+namespace Mem.Mem
 {
     /// <summary>
     /// 머의 스탯 구조체.

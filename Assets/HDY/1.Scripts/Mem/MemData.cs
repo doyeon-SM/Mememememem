@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace HDY.Mem
+namespace Mem.Mem
 {
     /// <summary>
     /// 개별 머(Mem) 정의 SO.

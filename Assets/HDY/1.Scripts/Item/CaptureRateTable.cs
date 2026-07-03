@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace HDY.Capture
+namespace Mem.Capture
 {
     /// <summary>
     /// 등급별 HP 브래킷 확률 보정치 (100% / 60% / 30% / 3% 4단계).
@@ -24,7 +24,7 @@ namespace HDY.Capture
     [Serializable]
     public class MemClassRateEntry
     {
-        public HDY.CommonClass MemClass;
+        public CommonClass MemClass;
         public HPBracketRates Rates;
     }
 
@@ -40,7 +40,7 @@ namespace HDY.Capture
         /// <summary>
         /// 머 등급과 현재 HP비율(0~1)에 해당하는 보정 확률을 반환.
         /// </summary>
-        public float GetRate(HDY.CommonClass memClass, float hpRatio01)
+        public float GetRate(CommonClass memClass, float hpRatio01)
         {
             foreach (var entry in Entries)
             {

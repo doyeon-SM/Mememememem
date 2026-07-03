@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace HDY.Shop
+namespace Mem.Shop
 {
     /// <summary>
     /// 상점에서 취급하는 아이템 정보 SO.

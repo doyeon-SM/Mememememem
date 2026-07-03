@@ -1,4 +1,4 @@
-namespace HDY
+namespace Mem
 {
     /// <summary>
     /// 공통등급
@@ -12,3 +12,4 @@ namespace HDY
         Myth
     }
 }
+
