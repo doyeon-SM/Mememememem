@@ -1,5 +1,6 @@
 using UnityEngine;
-using UnityEngine.InputSystem; 
+using UnityEngine.InputSystem;
+
 
 public class CameraMoveController : MonoBehaviour
 {
@@ -36,8 +37,8 @@ public class CameraMoveController : MonoBehaviour
         if (Mouse.current == null || cameraTransform == null) return;
 
         bool isDrawing = useLeftClickToDrag ?
-            Mouse.current.leftButton.isPressed :
-            Mouse.current.rightButton.isPressed;
+            Mouse.current.rightButton.isPressed :
+            Mouse.current.leftButton.isPressed;
 
         if (isDrawing)
         {
