@@ -1,6 +1,6 @@
 using System;
 
-namespace Mem.Item
+namespace HDY.Item
 {
     /// <summary>
     /// UseAction이 Eat인 아이템이 가질 수 있는 단일 효과.

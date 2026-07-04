@@ -11,6 +11,8 @@
 // [플레이어 담당자]
 // - ICapturable로 캐스팅하여 포획 로직을 수행하세요.
 // - TakeDamage(int)로 멤에게 데미지를 줄 수 있습니다.
+//
+// [HDY 요청으로 수정됨] GetCaptureRate(): 최소 포획확률 1% 보장 + 캡슐이 최고 등급(Mythic)이면 무조건 성공
 // ============================================================================
 using UnityEngine;
 using MemSystem.Data;
@@ -192,12 +194,20 @@ namespace MemSystem.Core
         /// - HP가 낮을수록 확률 증가
         /// - 등급이 높을수록 확률 감소 (레어=1.0, 신화=0.15)
         /// - 캡슐 등급이 높을수록 확률 증가 (+25%씩)
+        /// - [HDY 요청] 캡슐이 최고 등급(Mythic)이면 위 계산과 무관하게 무조건 100% 성공
+        /// - [HDY 요청] 최종 확률은 최소 1%를 보장 (풀피 등으로 계산값이 0이 되어도 1%는 유지)
         /// 
         /// [플레이어 담당자]
         /// 조준 중 UI에 이 값을 실시간으로 표시합니다.
         /// </summary>
         public float GetCaptureRate(int capsuleTier)
         {
+            // [HDY 요청] 캡슐이 최고 등급(Mythic)이면 무조건 포획 성공
+            if (capsuleTier >= (int)MemTier.Mythic)
+            {
+                return 1f;
+            }
+
             if (Stats.MaxHp <= 0) return 1f;
 
             // HP가 낮을수록 포획 확률 증가
@@ -210,7 +220,9 @@ namespace MemSystem.Core
             float capsuleModifier = 1f + (capsuleTier * 0.25f);
 
             float rate = hpFactor * tierModifier * capsuleModifier;
-            return Mathf.Clamp01(rate);
+
+            // [HDY 요청] 최소 포획확률 1% 보장
+            return Mathf.Clamp(rate, 0.01f, 1f);
         }
 
         /// <summary>
