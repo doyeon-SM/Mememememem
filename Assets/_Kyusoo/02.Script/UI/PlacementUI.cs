@@ -9,9 +9,16 @@ public class PlacementUI : MonoBehaviour
     [SerializeField] private Transform uiContentParent;
     [SerializeField] private GameObject buildingPrefab;
 
+    [Header("배치모드 시 전환되는 UI: 기본 버튼, 배치모드 전용 버튼, 배치모드 전용 가이드")]
+    [SerializeField] private GameObject defaultGroup;   
+    [SerializeField] private GameObject placementGroup;
+    [SerializeField] private GameObject keyGuideGroup;
+
     private List<GameObject> activeUISlots = new List<GameObject>();
 
     public static event Action<int> OnBuildingSelected;
+    public static event Action OnBuildingSaved;
+    public static event Action OnBuildingCancelled;
 
     private void OnEnable()
     {
@@ -32,6 +39,10 @@ public class PlacementUI : MonoBehaviour
         {
             placementPanel.SetActive(isPlacementMode);
         }
+
+        if (defaultGroup != null) defaultGroup.SetActive(!isPlacementMode);
+        if (placementGroup != null) placementGroup.SetActive(isPlacementMode);
+        if (keyGuideGroup != null) keyGuideGroup.SetActive(isPlacementMode);
 
         ClearSlots();
 
@@ -65,5 +76,15 @@ public class PlacementUI : MonoBehaviour
             Destroy(slot);
         }
         activeUISlots.Clear();
+    }
+
+    public void OnClickSavePlacement()
+    {
+        OnBuildingSaved?.Invoke();
+    }
+
+    public void OnClickCancelPlacement()
+    {
+        OnBuildingCancelled?.Invoke();
     }
 }

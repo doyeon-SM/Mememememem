@@ -56,6 +56,9 @@ public class GridManager : MonoBehaviour
     private Material placeModeMaterial;
     private bool isPlacementMode = false;
 
+    // 시설 배치 기록 관리용 참조
+    private BuildRecordManager buildRecordManager;
+
     public int MouseGridX { get; private set; }
     public int MouseGridZ { get; private set; }
     public bool IsMouseOnGrid { get; private set; }
@@ -66,7 +69,11 @@ public class GridManager : MonoBehaviour
     // Test전역변수
     private int count = 5;
 
-    void Start()
+    private void Awake()
+    {
+        if(buildRecordManager == null) buildRecordManager = FindFirstObjectByType<BuildRecordManager>();
+    }
+    private void Start()
     {
         defaultModeMaterial = CreateGridMaterial(false);
         placeModeMaterial = CreateGridMaterial(true);
@@ -76,11 +83,15 @@ public class GridManager : MonoBehaviour
     private void OnEnable()
     {
         PlacementUI.OnBuildingSelected += CreateBuildingPreview;
+        PlacementUI.OnBuildingSaved += SavePlacement;
+        PlacementUI.OnBuildingCancelled += CancelPlacement;
     }
 
     private void OnDisable()
     {
         PlacementUI.OnBuildingSelected -= CreateBuildingPreview;
+        PlacementUI.OnBuildingSaved -= SavePlacement;
+        PlacementUI.OnBuildingCancelled -= CancelPlacement;
     }
 
     void Update()
@@ -216,7 +227,12 @@ public class GridManager : MonoBehaviour
 
         OnPlacementModeChanged?.Invoke(isPlacementMode, buildings);
 
-        if (!isPlacementMode)
+        if (isPlacementMode)
+        {
+            buildRecordManager?.SaveRollbackData(buildingObjectsGrid, buildingDataGrid, currentWidth, currentHeight);
+            
+        }
+        else
         {
             ClearPreview();
         }
@@ -416,6 +432,8 @@ public class GridManager : MonoBehaviour
         }
 
         Debug.Log($"[Build] {selectedBuildingData.buildingName} 건설 성공!");
+
+        ClearPreview();
     }
 
     /// <summary>
@@ -522,6 +540,113 @@ public class GridManager : MonoBehaviour
 
         UpdatePreviewPosition();
     }
+
+    /// <summary>
+    /// 저장 호출 함수
+    /// PlacementUI에서 저장 버튼 클릭 -> GridManager.SavePlacement()호출 -> BuildRecordManager.Save()를 호출
+    /// 마지막으로 ChangePlacementMode()를 호출하여 배치모드 종료
+    /// </summary>
+    public void SavePlacement()
+    {
+        if (!isPlacementMode) return;
+        if (buildRecordManager == null) return;
+
+        buildRecordManager.ClearRecordOnSave();
+        ChangePlacementMode();
+    }
+
+    /// <summary>
+    /// PlacementUI에서 취소버튼 클릭시 호출
+    /// GridManager.CancelPlacement() 호출 -> BuildRecordManager.Cancel()를 호출
+    /// 기존 모든 배치 정보를 제거처리 -> SnapShot 데이터를 가져와 복구처리 진행
+    /// </summary>
+    public void CancelPlacement()
+    {
+        if (!isPlacementMode) return;
+        if (buildRecordManager == null) return;
+
+        ClearAllPlacedBuildings();
+
+        List<BuildingSnapshot> rollbackData = buildRecordManager.Rollback();
+        RestoreRollbackData(rollbackData);
+
+        ChangePlacementMode();
+    }
+
+    /// <summary>
+    /// 배치모드 도중 변경된 모든 배치정보 제거처리
+    /// 전체 좌표에서 배치된 시설을 찾고 해당 시설이 배치된 모든 정보를 다시 순회하여 일괄 제거처리
+    /// 이후, 메모리 해제를 위해 Destroy() 호출
+    /// </summary>
+    private void ClearAllPlacedBuildings()
+    {
+        for (int x = 0; x < currentWidth; x++)
+        {
+            for (int z = 0; z < currentHeight; z++)
+            {
+                if (buildingObjectsGrid[x, z] != null)
+                {
+                    GameObject buildingData = buildingObjectsGrid[x, z];
+                    for (int i = 0; i < currentWidth; i++)
+                    {
+                        for (int j = 0; j < currentHeight; j++)
+                        {
+                            if (buildingObjectsGrid[i, j] == buildingData)
+                            {
+                                buildingObjectsGrid[i, j] = null;
+                                buildingDataGrid[i, j] = null;
+                                occupiedCells[i, j] = false;
+                            }
+                        }
+                    }
+                    Destroy(buildingData);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Stack에서 저장했던 rollbackData를 가져와서 빈 배치상태에서 다시 배치처리
+    /// 회전 상태 기반 가로세로 계산 -> 건물의 정중앙 월드 좌표 역산
+    /// 이후 다시 건물 생성 및 점유상태 업데이트
+    /// </summary>
+    private void RestoreRollbackData(List<BuildingSnapshot> rollbackData)
+    {
+        if (rollbackData == null) return;
+
+        foreach (var snap in rollbackData)
+        {
+            if (snap.data == null || snap.data.buildingPrefab == null) continue;
+
+            int currentRotationIndex = Mathf.RoundToInt(snap.rotation.eulerAngles.y / 90f) % 4;
+            bool isRotated = (currentRotationIndex == 1 || currentRotationIndex == 3);
+            int bWidth = isRotated ? snap.data.height : snap.data.width;
+            int bHeight = isRotated ? snap.data.width : snap.data.height;
+
+            float offsetX = snap.startX + (bWidth / 2.0f);
+            float offsetZ = snap.startZ + (bHeight / 2.0f);
+            Vector3 spawnPos = new Vector3(offsetX, 0f, offsetZ);
+
+            GameObject restoredBuilding = Instantiate(snap.data.buildingPrefab, spawnPos, snap.rotation, floorContainer);
+
+            if (restoredBuilding.TryGetComponent<BuildingRuntime>(out BuildingRuntime buildingRuntime))
+            {
+                buildingRuntime.enabled = true;
+                buildingRuntime.Initialize(snap.data, snap.startX, snap.startZ);
+            }
+
+            for (int x = snap.startX; x < snap.startX + bWidth; x++)
+            {
+                for (int z = snap.startZ; z < snap.startZ + bHeight; z++)
+                {
+                    occupiedCells[x, z] = true;
+                    buildingObjectsGrid[x, z] = restoredBuilding;
+                    buildingDataGrid[x, z] = snap.data;
+                }
+            }
+        }
+    }
+
 
     /// <summary>
     /// 확장에 대한 테스트함수
