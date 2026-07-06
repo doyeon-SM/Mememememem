@@ -5,7 +5,8 @@ public class WayPointDefinition : ScriptableObject
 {
     public string id;
     public string displayName;
-    public Sprite mapIcon;
+    public Sprite unlockMapIcon;
+    public Sprite activeMapIcon;
     public Vector2 mapPosition;
     public string lockedMessage;
 }

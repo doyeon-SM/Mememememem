@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
 #endif
@@ -42,6 +43,11 @@ public class PlayerMove_GH : MonoBehaviour
 
     private void Update()
     {
+        if (IsSystemMenuOpen())
+        {
+            return;
+        }
+
         UpdateLook();
         UpdateMovement();
         UpdateCursorLock();
@@ -126,9 +132,24 @@ public class PlayerMove_GH : MonoBehaviour
 
         if (ReadLockCursorPressed())
         {
+            if (IsPointerOverUI())
+            {
+                return;
+            }
+
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;
         }
+    }
+
+    private bool IsSystemMenuOpen()
+    {
+        return InputManager.Instance != null && InputManager.Instance.IsSystemMenuOpen;
+    }
+
+    private bool IsPointerOverUI()
+    {
+        return EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
     }
 
     private Vector2 ReadMoveInput()

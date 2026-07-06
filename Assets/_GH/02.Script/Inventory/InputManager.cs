@@ -47,6 +47,10 @@ public class InputManager : MonoBehaviour
     private bool isOnlyMouseInputAllowed;
     private bool isGameplayInputBlocked;
 
+    public bool IsSystemMenuOpen => isSystemMenuOpen;
+    public bool IsOnlyMouseInputAllowed => isOnlyMouseInputAllowed;
+    public bool IsGameplayInputBlocked => isGameplayInputBlocked;
+
     public event Action<int> OnQuickSlotPressed;
     public event Action<int> OnQuickSlotScroll;
 
