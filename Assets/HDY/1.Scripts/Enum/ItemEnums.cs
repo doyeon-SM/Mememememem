@@ -9,7 +9,8 @@ namespace HDY.Item
         Material,
         Goods,
         Capsule,
-        Tool
+        Tool,
+        BluePrint
     }
 
     /// <summary>
@@ -27,6 +28,7 @@ namespace HDY.Item
     /// </summary>
     public enum EffectType
     {
+        Satiety,
         Speed
     }
 }
