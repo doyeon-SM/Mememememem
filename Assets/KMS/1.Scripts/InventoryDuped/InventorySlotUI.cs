@@ -36,8 +36,8 @@ public class InventorySlotUI : MonoBehaviour, IBeginDragHandler, IDragHandler, I
 
         if (itemIcon != null)
         {
-            itemIcon.enabled = hasItem && stack.item.icon != null;
-            itemIcon.sprite = hasItem ? stack.item.icon : null;
+            itemIcon.enabled = hasItem && stack.item.ItemIcon != null;
+            itemIcon.sprite = hasItem ? stack.item.ItemIcon : null;
         }
 
         if (amountText != null)

@@ -17,8 +17,8 @@ public class ItemDragUI : MonoBehaviour
 
         gameObject.SetActive(true);
 
-        itemIcon.enabled = stack.item.icon != null;
-        itemIcon.sprite = stack.item.icon;
+        itemIcon.enabled = stack.item.ItemIcon != null;
+        itemIcon.sprite = stack.item.ItemIcon;
         
         amountText.gameObject.SetActive(stack.amount > 1);
         amountText.text = stack.amount.ToString();
