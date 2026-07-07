@@ -21,6 +21,7 @@ namespace HDY.Capture
         public string KeyId;
         public string MemId;
         public int ExplorationStat;
+        public bool IsActive;
 
         /// <summary>이 항목이 빈 칸(멤 없음)인지 여부.</summary>
         public bool IsEmpty => KeyId == EmptyKeyId;
@@ -32,7 +33,8 @@ namespace HDY.Capture
             {
                 KeyId = EmptyKeyId,
                 MemId = null,
-                ExplorationStat = 0
+                ExplorationStat = 0,
+                IsActive = false
             };
         }
     }
