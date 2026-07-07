@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
 using MemSystem.Data;
 using HDY.Capture;
 
@@ -15,8 +16,11 @@ namespace HDY.UI
     ///
     /// [빈 칸] MemCaptureManager의 목록은 항상 최대치만큼 미리 채워져 있고 빈 칸은 CapturedMemEntry.IsEmpty로 구분된다.
     /// 페이지 총 개수는 목록 전체 길이(=창고 최대치) 기준으로 계산되므로, 창고 최대치가 나중에 바뀌면 자동으로 반영된다.
+    ///
+    /// [마우스 휠 페이지 이동] 그리드 영역 위에서 휠을 아래로 내리면 다음 페이지, 위로 올리면 이전 페이지로 이동한다
+    /// (IScrollHandler). 이 GameObject(또는 부모)에 Raycast Target이 켜진 Graphic이 있어야 휠 이벤트가 감지된다.
     /// </summary>
-    public class MemStorageUI_Grid : MonoBehaviour
+    public class MemStorageUI_Grid : MonoBehaviour, IScrollHandler
     {
         private const int Columns = 6;
         private const int Rows = 8;
@@ -262,6 +266,22 @@ namespace HDY.UI
             int count = cachedCapturedMems != null ? cachedCapturedMems.Count : 0;
             currentPageIndex = Mathf.Min(GetLastPageIndex(count), currentPageIndex + 1);
             Populate(cachedCapturedMems, cachedFindMemData);
+        }
+
+        /// <summary>
+        /// 마우스 휠 입력을 받아 페이지를 이동한다(편의 기능). 휠을 아래로 내리면 다음 페이지, 위로 올리면 이전 페이지.
+        /// 이미 첫/마지막 페이지인 경우 GoToPrevPage/GoToNextPage가 알아서 그 자리에서 멈춘다(범위 clamp 처리는 기존 로직 재사용).
+        /// </summary>
+        public void OnScroll(PointerEventData eventData)
+        {
+            if (eventData.scrollDelta.y < 0f)
+            {
+                GoToNextPage();
+            }
+            else if (eventData.scrollDelta.y > 0f)
+            {
+                GoToPrevPage();
+            }
         }
     }
 }
