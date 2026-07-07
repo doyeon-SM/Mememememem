@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
@@ -12,7 +12,7 @@ public class WayPointMapIconUI : MonoBehaviour, IPointerEnterHandler, IPointerMo
 
     public string Id => state != null ? state.Id : string.Empty;
 
-    // Connect this icon to one waypoint state and its owning map UI.
+    // 지도 UI가 아이콘을 만들 때 웨이포인트 상태와 소유 UI를 연결한다.
     public void Initialize(WayPointMapUI newOwner, WayPointRunTime newState)
     {
         owner = newOwner;
@@ -37,7 +37,7 @@ public class WayPointMapIconUI : MonoBehaviour, IPointerEnterHandler, IPointerMo
         Refresh();
     }
 
-    // Apply the ScriptableObject Map Position as this icon's anchored UI position.
+    // ScriptableObject에 설정한 Map Position을 지도 이미지 기준 UI 좌표로 적용한다.
     public void SetMapPosition(Vector2 anchoredPosition)
     {
         RectTransform rectTransform = transform as RectTransform;
@@ -47,6 +47,7 @@ public class WayPointMapIconUI : MonoBehaviour, IPointerEnterHandler, IPointerMo
         }
     }
 
+    // 해금 상태에 따라 Unlock Map Icon 또는 Active Map Icon으로 이미지를 교체한다.
     public void Refresh()
     {
         if (state == null || state.Definition == null || iconImage == null)
@@ -63,10 +64,11 @@ public class WayPointMapIconUI : MonoBehaviour, IPointerEnterHandler, IPointerMo
 
         if (button != null)
         {
-            button.interactable = state.IsActive;
+            button.interactable = owner != null && owner.CanTravelByClick(state);
         }
     }
 
+    // 아이콘 클릭 시 지도 UI에 이동 요청을 전달한다.
     private void HandleClick()
     {
         if (owner == null || state == null)
@@ -77,6 +79,7 @@ public class WayPointMapIconUI : MonoBehaviour, IPointerEnterHandler, IPointerMo
         owner.TravelTo(state.Id);
     }
 
+    // 마우스가 아이콘에 올라오면 툴팁을 보여준다.
     public void OnPointerEnter(PointerEventData eventData)
     {
         if (owner == null || state == null)
@@ -87,6 +90,7 @@ public class WayPointMapIconUI : MonoBehaviour, IPointerEnterHandler, IPointerMo
         owner.ShowTooltip(state, eventData.position);
     }
 
+    // 마우스 이동에 맞춰 툴팁 위치를 갱신한다.
     public void OnPointerMove(PointerEventData eventData)
     {
         if (owner == null)
@@ -97,6 +101,7 @@ public class WayPointMapIconUI : MonoBehaviour, IPointerEnterHandler, IPointerMo
         owner.MoveTooltip(eventData.position);
     }
 
+    // 마우스가 아이콘에서 벗어나면 툴팁을 숨긴다.
     public void OnPointerExit(PointerEventData eventData)
     {
         if (owner == null)
