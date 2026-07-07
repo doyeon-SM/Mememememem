@@ -122,6 +122,7 @@ GameObject:
   m_Component:
   - component: {fileID: 8413867593421061679}
   - component: {fileID: 3937221372743820164}
+  - component: {fileID: 4895742578971187360}
   m_Layer: 0
   m_Name: Building_Test1
   m_TagString: Untagged
@@ -162,3 +163,25 @@ MonoBehaviour:
   maxStorageCount: 0
   gridX: 0
   gridZ: 0
+--- !u!114 &4895742578971187360
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9215367321915130356}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4802d210105a9b741b396f96c05244a1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ProductionFacilityRuntime
+  buildingData: {fileID: 11400000, guid: f6d2392d0febf794389ea73590fa8122, type: 2}
+  currentLevel: 1
+  isProducing: 0
+  currentProductItem: {fileID: 0}
+  totalRequiredTime: 0
+  currentProgressTime: 0
+  currentStorageCount: 0
+  maxStorageCount: 100
+  addMems:
+  - {fileID: 11400000, guid: 2e401caa7986662408594d1503a7093b, type: 2}

@@ -8,6 +8,7 @@ public class BuildingData : ScriptableObject
     public string buildingName;
     public GameObject buildingPrefab;
     public Sprite buildingImage;
+    public BuildingType buildingType;
 
     [Header("건물 사이즈")]
     public int width;

@@ -129,6 +129,23 @@ public class GridManager : MonoBehaviour
                 TryPickUpBuilding(MouseGridX, MouseGridZ);
             }
         }
+        else if (!isPlacementMode && IsMouseOnGrid)
+        {
+            if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame)
+            {
+                if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject()) return;
+
+                if (occupiedCells[MouseGridX, MouseGridZ] && buildingObjectsGrid[MouseGridX, MouseGridZ] != null)
+                {
+                    GameObject targetObj = buildingObjectsGrid[MouseGridX, MouseGridZ];
+
+                    if (targetObj.TryGetComponent<ProductionFacilityRuntime>(out ProductionFacilityRuntime facility))
+                    {
+                        ProductionPanelUI.Instance.OpenPanel(facility);
+                    }
+                }
+            }
+        }
     }
 
     /// <summary>
@@ -419,6 +436,12 @@ public class GridManager : MonoBehaviour
         {
             buildingRuntime.enabled = true;
             buildingRuntime.Initialize(selectedBuildingData, currentStartGridX, currentStartGridZ);
+        }
+
+        if (realBuilding.TryGetComponent<ProductionFacilityRuntime>(out ProductionFacilityRuntime prodRuntime))
+        {
+            prodRuntime.buildingData = selectedBuildingData;
+            prodRuntime.UpdateMaxStorage();
         }
 
         for (int i = currentStartGridX; i < currentStartGridX + currentTargetWidth; i++)
