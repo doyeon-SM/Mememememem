@@ -18,6 +18,12 @@ namespace HDY.UI
     /// 정렬 버튼이 클릭되면, 이 컨트롤러가 카탈로그(MemData)를 조회해 실제 비교/정렬을 수행하고, 그 결과를
     /// MemCaptureManager.ApplySortedOrder로 반영한다(MemCaptureManager는 정렬 기준을 모르고 결과만 적용).
     ///
+    /// [Mem스탯/티어 표시] 현재 어떤 기준으로 정렬되어 있는지(activeSortCriteria)를 여기서 기억해두고,
+    /// - Mem스탯(제작/벌목/채광/이동/생산/탐험) 기준이면 그 스탯의 아이콘 + 숫자를,
+    /// - 티어 기준이면 티어 아이콘 + 등급 앞글자 대문자(R/E/U/L/M)를
+    /// 그리드의 각 슬롯에 표시하도록 MemStatDisplayInfo를 계산해서 Grid에 넘겨준다.
+    /// MemId로 정렬 중이거나 아직 정렬한 적이 없으면 표시를 감춘다.
+    ///
     /// [씬 이동 대응] MemCaptureManager/MemCatalogManager는 파괴불가 싱글톤이라 씬을 이동해도 유지되지만,
     /// 이 컴포넌트는 씬에 배치된 오브젝트라서 씬이 다시 로드되면 인스펙터 참조가 끊길 수 있다.
     /// (씬 파일에 같이 저장된 매니저 오브젝트는 재로드 시 새로 생기지만, 싱글톤 중복 검사로 즉시 파괴되기 때문)
@@ -33,6 +39,24 @@ namespace HDY.UI
         [SerializeField] private MemStorageUI_Grid grid;
         [SerializeField] private MemStorageUI_Info info;
         [SerializeField] private MemStorageUI_Sort sort;
+
+        [Header("Mem스탯 아이콘 (정렬 기준이 해당 스탯일 때 슬롯에 표시)")]
+        [SerializeField] private Sprite craftingStatIcon;
+        [SerializeField] private Sprite loggingStatIcon;
+        [SerializeField] private Sprite miningStatIcon;
+        [SerializeField] private Sprite transportStatIcon;
+        [SerializeField] private Sprite farmingStatIcon;
+        [SerializeField] private Sprite explorationStatIcon;
+
+        [Header("티어 아이콘 (정렬 기준이 티어일 때 슬롯에 표시)")]
+        [SerializeField] private Sprite rareTierIcon;
+        [SerializeField] private Sprite epicTierIcon;
+        [SerializeField] private Sprite uniqueTierIcon;
+        [SerializeField] private Sprite legendaryTierIcon;
+        [SerializeField] private Sprite mythicTierIcon;
+
+        // 현재 창고가 어떤 기준으로 정렬되어 있는지. 아직 한 번도 정렬하지 않았으면 null(스탯/티어 표시 없음).
+        private MemSortCriteria? activeSortCriteria;
 
         private void Awake()
         {
@@ -71,7 +95,7 @@ namespace HDY.UI
 
             if (grid != null && captureManager != null)
             {
-                grid.ShowInitial(captureManager.CapturedMems, FindMemData);
+                grid.ShowInitial(captureManager.CapturedMems, FindMemData, BuildStatDisplayProvider());
             }
         }
 
@@ -101,7 +125,7 @@ namespace HDY.UI
 
             if (grid != null && captureManager != null)
             {
-                grid.NotifyDataChanged(captureManager.CapturedMems, FindMemData);
+                grid.NotifyDataChanged(captureManager.CapturedMems, FindMemData, BuildStatDisplayProvider());
             }
         }
 
@@ -131,6 +155,7 @@ namespace HDY.UI
         /// <summary>
         /// 정렬 버튼 클릭 요청을 받아 실제 정렬(카탈로그 조회 + 비교)을 수행하고, 결과를 MemCaptureManager에 반영한다.
         /// 빈 칸은 정렬 대상에서 제외한 뒤 ApplySortedOrder가 자동으로 뒤쪽에 채운다.
+        /// 정렬 기준을 activeSortCriteria에 기억해서 이후 그리드 갱신 시 Mem스탯/티어 표시에 사용한다.
         /// </summary>
         private void HandleSortRequested(MemSortCriteria criteria)
         {
@@ -141,6 +166,8 @@ namespace HDY.UI
                 Debug.LogWarning("[MemStorageUI] captureManager 또는 catalogManager가 비어있어 정렬을 처리할 수 없습니다.", this);
                 return;
             }
+
+            activeSortCriteria = criteria;
 
             // MemId -> MemData 캐시를 한 번만 만들어, 정렬 비교마다 카탈로그를 매번 선형 탐색하지 않도록 한다
             // (전처리 O(카탈로그 크기) 이후 비교마다 O(1) 조회).
@@ -222,6 +249,108 @@ namespace HDY.UI
         private static int GetProductionStat(CapturedMemEntry entry, Dictionary<string, MemData> lookup, ProductionStatType type)
         {
             return lookup.TryGetValue(entry.MemId, out var data) ? data.productionStats.GetStat(type) : -1;
+        }
+
+        /// <summary>
+        /// 현재 activeSortCriteria를 기준으로, 그리드에 넘겨줄 "슬롯마다 아이콘/텍스트를 계산하는 함수"를 만든다.
+        /// - 정렬한 적이 없으면(null) 또는 MemId로 정렬 중이면: 전부 Hidden
+        /// - 티어로 정렬 중이면: 티어 아이콘 + 앞글자 대문자(R/E/U/L/M)
+        /// - 나머지 Mem스탯으로 정렬 중이면: 그 스탯 아이콘 + 숫자
+        /// </summary>
+        private Func<CapturedMemEntry, MemStatDisplayInfo> BuildStatDisplayProvider()
+        {
+            if (activeSortCriteria == null || activeSortCriteria.Value == MemSortCriteria.MemId)
+            {
+                return _ => MemStatDisplayInfo.Hidden;
+            }
+
+            var criteria = activeSortCriteria.Value;
+            var memDataLookup = BuildMemDataLookup();
+
+            if (criteria == MemSortCriteria.Tier)
+            {
+                return entry => BuildTierDisplayInfoForEntry(entry, memDataLookup);
+            }
+
+            var icon = GetStatIcon(criteria);
+            return entry => BuildStatDisplayInfoForEntry(entry, criteria, memDataLookup, icon);
+        }
+
+        private MemStatDisplayInfo BuildStatDisplayInfoForEntry(CapturedMemEntry entry, MemSortCriteria criteria, Dictionary<string, MemData> lookup, Sprite icon)
+        {
+            if (entry == null || entry.IsEmpty) return MemStatDisplayInfo.Hidden;
+
+            int value = criteria == MemSortCriteria.Exploration
+                ? entry.ExplorationStat
+                : GetProductionStat(entry, lookup, ToProductionStatType(criteria));
+
+            return new MemStatDisplayInfo(true, icon, value.ToString());
+        }
+
+        /// <summary>티어 정렬 중일 때 슬롯에 표시할 티어 아이콘 + 앞글자 대문자(R/E/U/L/M)를 만든다.</summary>
+        private MemStatDisplayInfo BuildTierDisplayInfoForEntry(CapturedMemEntry entry, Dictionary<string, MemData> lookup)
+        {
+            if (entry == null || entry.IsEmpty) return MemStatDisplayInfo.Hidden;
+            if (!lookup.TryGetValue(entry.MemId, out var data)) return MemStatDisplayInfo.Hidden;
+
+            var icon = GetTierIcon(data.tier);
+            var letter = GetTierLetter(data.tier);
+
+            return new MemStatDisplayInfo(true, icon, letter);
+        }
+
+        private static ProductionStatType ToProductionStatType(MemSortCriteria criteria)
+        {
+            switch (criteria)
+            {
+                case MemSortCriteria.Crafting: return ProductionStatType.Crafting;
+                case MemSortCriteria.Logging: return ProductionStatType.Logging;
+                case MemSortCriteria.Mining: return ProductionStatType.Mining;
+                case MemSortCriteria.Transport: return ProductionStatType.Transport;
+                case MemSortCriteria.Farming: return ProductionStatType.Farming;
+                default: return ProductionStatType.Crafting; // Exploration은 별도 분기에서 처리되므로 여기로 오지 않음
+            }
+        }
+
+        private Sprite GetStatIcon(MemSortCriteria criteria)
+        {
+            switch (criteria)
+            {
+                case MemSortCriteria.Crafting: return craftingStatIcon;
+                case MemSortCriteria.Logging: return loggingStatIcon;
+                case MemSortCriteria.Mining: return miningStatIcon;
+                case MemSortCriteria.Transport: return transportStatIcon;
+                case MemSortCriteria.Farming: return farmingStatIcon;
+                case MemSortCriteria.Exploration: return explorationStatIcon;
+                default: return null;
+            }
+        }
+
+        private Sprite GetTierIcon(MemTier tier)
+        {
+            switch (tier)
+            {
+                case MemTier.Rare: return rareTierIcon;
+                case MemTier.Epic: return epicTierIcon;
+                case MemTier.Unique: return uniqueTierIcon;
+                case MemTier.Legendary: return legendaryTierIcon;
+                case MemTier.Mythic: return mythicTierIcon;
+                default: return null;
+            }
+        }
+
+        /// <summary>티어의 앞글자를 대문자로 반환한다 (Rare->R, Epic->E, Unique->U, Legendary->L, Mythic->M).</summary>
+        private static string GetTierLetter(MemTier tier)
+        {
+            switch (tier)
+            {
+                case MemTier.Rare: return "R";
+                case MemTier.Epic: return "E";
+                case MemTier.Unique: return "U";
+                case MemTier.Legendary: return "L";
+                case MemTier.Mythic: return "M";
+                default: return "-";
+            }
         }
 
         /// <summary>MemCatalogManager에 등록된 SO 목록에서 memId가 일치하는 MemData를 찾는다.</summary>

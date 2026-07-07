@@ -11,4 +11,17 @@ namespace HDY
         Legendary,
         Myth
     }
+
+    /// <summary>
+    /// 멤의 공통 스탯 enum
+    /// </summary>
+    public enum MemStatClass
+    {
+        Crafting,
+        Logging,
+        Mining,
+        Transport,
+        Farming,
+        Exploration
+    }
 }

@@ -21,6 +21,8 @@ namespace HDY.Capture
         public string KeyId;
         public string MemId;
         public int ExplorationStat;
+
+        /// <summary>이 멤이 활성화(예: 영지에 배치되어 근무 중) 상태인지 여부. 기본값 false.</summary>
         public bool IsActive;
 
         /// <summary>이 항목이 빈 칸(멤 없음)인지 여부.</summary>
@@ -151,7 +153,8 @@ namespace HDY.Capture
             {
                 KeyId = Guid.NewGuid().ToString(),
                 MemId = snapshot.memId,
-                ExplorationStat = snapshot.explorationStat
+                ExplorationStat = snapshot.explorationStat,
+                IsActive = false
             };
 
             Debug.Log($"[MemCaptureManager] 포획 데이터 저장: index={emptyIndex} / MemId={snapshot.memId} / Exploration={snapshot.explorationStat}");

@@ -4,10 +4,7 @@ using UnityEngine.UI;
 
 namespace HDY.UI
 {
-    /// <summary>
-    /// 멤 창고 정렬 기준 8가지.
-    /// MemId는 오름차순(낮은순), 나머지(Tier/생산 스탯 5종/탐험)는 전부 내림차순(높은순).
-    /// </summary>
+    /// <summary>정렬 기준 8가지. MemId는 오름차순(낮은순), 나머지는 전부 내림차순(높은순).</summary>
     public enum MemSortCriteria
     {
         MemId,
@@ -61,6 +58,70 @@ namespace HDY.UI
             }
 
             button.onClick.AddListener(() => OnSortRequested?.Invoke(criteria));
+        }
+
+        /// <summary>
+        /// [협업용 - 현재 사용되는 곳 없음] 다른 시스템(예: 시설 배치)에서 특정 멤 스탯(MemStatClass)만
+        /// 정렬 기준으로 쓸 수 있게 하고 싶을 때 호출하는 함수.
+        /// 지정한 스탯(ms) + Tier + MemId 버튼 3개만 남기고, 나머지 5개 스탯 정렬 버튼은 숨긴다(비활성화).
+        /// 예: HideSortButtonsExcept(MemStatClass.Crafting) -> Crafting/Tier/MemId만 보이고
+        /// Logging/Mining/Transport/Farming/Exploration 버튼은 숨겨짐.
+        /// </summary>
+        public void HideSortButtonsExcept(MemStatClass ms)
+        {
+            var keepCriteria = ToSortCriteria(ms);
+
+            SetButtonVisible(sortByMemIdButton, true);  // MemId는 항상 남긴다
+            SetButtonVisible(sortByTierButton, true);   // Tier도 항상 남긴다
+            SetButtonVisible(sortByCraftingButton, keepCriteria == MemSortCriteria.Crafting);
+            SetButtonVisible(sortByLoggingButton, keepCriteria == MemSortCriteria.Logging);
+            SetButtonVisible(sortByMiningButton, keepCriteria == MemSortCriteria.Mining);
+            SetButtonVisible(sortByTransportButton, keepCriteria == MemSortCriteria.Transport);
+            SetButtonVisible(sortByFarmingButton, keepCriteria == MemSortCriteria.Farming);
+            SetButtonVisible(sortByExplorationButton, keepCriteria == MemSortCriteria.Exploration);
+
+            Debug.Log($"[MemStorageUI_Sort] 정렬 버튼 숨기기 적용: {ms} + Tier + MemId만 표시");
+        }
+
+        /// <summary>
+        /// [협업용 - 현재 사용되는 곳 없음] HideSortButtonsExcept 등으로 일부 정렬 버튼이 숨겨진 상태를
+        /// 되돌리지 않고, 8개 정렬 버튼을 전부 다시 보이게(활성화) 만든다.
+        /// </summary>
+        public void ShowAllSortButtons()
+        {
+            SetButtonVisible(sortByMemIdButton, true);
+            SetButtonVisible(sortByTierButton, true);
+            SetButtonVisible(sortByCraftingButton, true);
+            SetButtonVisible(sortByLoggingButton, true);
+            SetButtonVisible(sortByMiningButton, true);
+            SetButtonVisible(sortByTransportButton, true);
+            SetButtonVisible(sortByFarmingButton, true);
+            SetButtonVisible(sortByExplorationButton, true);
+
+            Debug.Log("[MemStorageUI_Sort] 정렬 버튼 8개 전부 표시");
+        }
+
+        /// <summary>CommonClassEnum.cs의 MemStatClass를 이 클래스의 MemSortCriteria로 변환한다.</summary>
+        private static MemSortCriteria ToSortCriteria(MemStatClass ms)
+        {
+            switch (ms)
+            {
+                case MemStatClass.Crafting: return MemSortCriteria.Crafting;
+                case MemStatClass.Logging: return MemSortCriteria.Logging;
+                case MemStatClass.Mining: return MemSortCriteria.Mining;
+                case MemStatClass.Transport: return MemSortCriteria.Transport;
+                case MemStatClass.Farming: return MemSortCriteria.Farming;
+                case MemStatClass.Exploration: return MemSortCriteria.Exploration;
+                default: return MemSortCriteria.MemId;
+            }
+        }
+
+        private static void SetButtonVisible(Button button, bool visible)
+        {
+            if (button != null)
+            {
+                button.gameObject.SetActive(visible);
+            }
         }
     }
 }

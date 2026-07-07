@@ -19,6 +19,16 @@ namespace HDY.UI
     ///
     /// [마우스 휠 페이지 이동] 그리드 영역 위에서 휠을 아래로 내리면 다음 페이지, 위로 올리면 이전 페이지로 이동한다
     /// (IScrollHandler). 이 GameObject(또는 부모)에 Raycast Target이 켜진 Graphic이 있어야 휠 이벤트가 감지된다.
+    ///
+    /// [드래그 도중 페이지 이동] 멤을 드래그하는 도중 휠로 페이지를 넘기면, 슬롯 48개가 전부 새 페이지 데이터로
+    /// 다시 채워지면서 드래그를 시작한 슬롯의 cachedEntry도 함께 덮어써진다. 그래서 "지금 옮기는 항목이 전체 목록
+    /// 기준 몇 번째인지"를 드래그가 시작되는 시점(OnSlotDragBegan)에 미리 기억해두고(draggingSourceGlobalIndex),
+    /// 실제 교체(OnSlotSwapRequested) 시점에는 그 기억해둔 값을 사용한다 - 그래야 드래그 중 페이지가 바뀌어도
+    /// 엉뚱한 항목이 교체되지 않는다.
+    ///
+    /// [Mem스탯 표시] 슬롯에 표시할 스탯 아이콘/숫자(MemStatDisplayInfo)는 이 클래스가 직접 계산하지 않는다.
+    /// 카탈로그(MemData) 조회와 "현재 정렬 기준이 무엇인지" 판단은 MemStorageUI가 하고, 그 결과를
+    /// statDisplayProvider 콜백으로 받아 슬롯마다 그대로 넘겨주기만 한다(findMemData와 동일한 방식).
     /// </summary>
     public class MemStorageUI_Grid : MonoBehaviour, IScrollHandler
     {
@@ -43,9 +53,13 @@ namespace HDY.UI
         private readonly List<RectTransform> pageDots = new List<RectTransform>();
         private int currentPageIndex;
 
+        // 드래그 시작 시점에 기억해두는 "지금 옮기는 항목"의 전체 목록 기준 인덱스. 드래그 중이 아니면 -1.
+        private int draggingSourceGlobalIndex = -1;
+
         // 페이지 이동(이전/다음) 클릭 시 다시 그리기 위해 마지막으로 받은 데이터를 캐싱해둔다.
         private IReadOnlyList<CapturedMemEntry> cachedCapturedMems;
         private Func<string, MemData> cachedFindMemData;
+        private Func<CapturedMemEntry, MemStatDisplayInfo> cachedStatDisplayProvider;
 
         /// <summary>슬롯이 클릭되었을 때 발생. MemStorageUI(컨트롤러)가 구독해서 정보 패널로 전달한다.</summary>
         public event Action<CapturedMemEntry, MemData> OnSlotClicked;
@@ -80,6 +94,8 @@ namespace HDY.UI
             {
                 slot.OnSlotClicked += HandleSlotClicked;
                 slot.OnSlotSwapRequested += HandleSlotSwapRequested;
+                slot.OnSlotDragBegan += HandleSlotDragBegan;
+                slot.OnSlotDragEnded += HandleSlotDragEnded;
             }
 
             if (slots.Count != PageSize)
@@ -115,10 +131,29 @@ namespace HDY.UI
             OnSlotClicked?.Invoke(entry, data);
         }
 
-        /// <summary>슬롯 드래그앤드롭 결과를 받아, 전체 목록 기준 인덱스로 변환해 상위로 전달한다.</summary>
+        /// <summary>드래그가 시작된 시점의 전체 인덱스를 기억해둔다(드래그 도중 페이지가 바뀌어도 잃지 않기 위함).</summary>
+        private void HandleSlotDragBegan(MemSlotUI sourceSlot)
+        {
+            draggingSourceGlobalIndex = GetGlobalIndexOfSlot(sourceSlot);
+        }
+
+        /// <summary>드래그가 끝나면(성공/실패 무관) 기억해둔 인덱스를 정리한다.</summary>
+        private void HandleSlotDragEnded(MemSlotUI sourceSlot)
+        {
+            draggingSourceGlobalIndex = -1;
+        }
+
+        /// <summary>
+        /// 슬롯 드래그앤드롭 결과를 받아, 전체 목록 기준 인덱스로 변환해 상위로 전달한다.
+        /// source 쪽은 드래그 시작 시점에 기억해둔 인덱스(draggingSourceGlobalIndex)를 우선 사용한다 -
+        /// 드래그 도중 휠로 페이지가 바뀌면 sourceSlot의 현재 위치로 다시 계산했을 때 틀린 값이 나오기 때문이다.
+        /// </summary>
         private void HandleSlotSwapRequested(MemSlotUI sourceSlot, MemSlotUI targetSlot)
         {
-            int sourceGlobalIndex = GetGlobalIndexOfSlot(sourceSlot);
+            int sourceGlobalIndex = draggingSourceGlobalIndex >= 0
+                ? draggingSourceGlobalIndex
+                : GetGlobalIndexOfSlot(sourceSlot);
+
             int targetGlobalIndex = GetGlobalIndexOfSlot(targetSlot);
 
             if (sourceGlobalIndex < 0 || targetGlobalIndex < 0)
@@ -139,16 +174,16 @@ namespace HDY.UI
         }
 
         /// <summary>창고 UI가 처음 열릴 때 호출. 실제로 채워진 멤이 있는 가장 마지막 페이지부터 보여준다(전부 비어있으면 첫 페이지).</summary>
-        public void ShowInitial(IReadOnlyList<CapturedMemEntry> capturedMems, Func<string, MemData> findMemData)
+        public void ShowInitial(IReadOnlyList<CapturedMemEntry> capturedMems, Func<string, MemData> findMemData, Func<CapturedMemEntry, MemStatDisplayInfo> statDisplayProvider)
         {
             currentPageIndex = GetLastNonEmptyPageIndex(capturedMems);
-            Populate(capturedMems, findMemData);
+            Populate(capturedMems, findMemData, statDisplayProvider);
         }
 
-        /// <summary>새로 멤이 포획되거나 슬롯 위치가 바뀌는 등 데이터가 바뀌었을 때 호출. 보고 있던 페이지를 그대로 유지한 채 다시 채운다.</summary>
-        public void NotifyDataChanged(IReadOnlyList<CapturedMemEntry> capturedMems, Func<string, MemData> findMemData)
+        /// <summary>새로 멤이 포획되거나 슬롯 위치/정렬 순서가 바뀌는 등 데이터가 바뀌었을 때 호출. 보고 있던 페이지를 그대로 유지한 채 다시 채운다.</summary>
+        public void NotifyDataChanged(IReadOnlyList<CapturedMemEntry> capturedMems, Func<string, MemData> findMemData, Func<CapturedMemEntry, MemStatDisplayInfo> statDisplayProvider)
         {
-            Populate(capturedMems, findMemData);
+            Populate(capturedMems, findMemData, statDisplayProvider);
         }
 
         private int GetTotalPages(int count)
@@ -183,10 +218,11 @@ namespace HDY.UI
         }
 
         /// <summary>데이터를 캐싱하고 현재 페이지 기준으로 그리드를 다시 채운다. 목록에 저장된 순서(빈 칸 포함) 그대로 표시.</summary>
-        private void Populate(IReadOnlyList<CapturedMemEntry> capturedMems, Func<string, MemData> findMemData)
+        private void Populate(IReadOnlyList<CapturedMemEntry> capturedMems, Func<string, MemData> findMemData, Func<CapturedMemEntry, MemStatDisplayInfo> statDisplayProvider)
         {
             cachedCapturedMems = capturedMems;
             cachedFindMemData = findMemData;
+            cachedStatDisplayProvider = statDisplayProvider;
 
             if (capturedMems == null)
             {
@@ -212,7 +248,8 @@ namespace HDY.UI
                 {
                     var entry = capturedMems[globalIndex];
                     var data = findMemData != null ? findMemData(entry.MemId) : null;
-                    slots[i].SetData(entry, data);
+                    var statInfo = statDisplayProvider != null ? statDisplayProvider(entry) : MemStatDisplayInfo.Hidden;
+                    slots[i].SetData(entry, data, statInfo);
                 }
                 else
                 {
@@ -258,18 +295,20 @@ namespace HDY.UI
         public void GoToPrevPage()
         {
             currentPageIndex = Mathf.Max(0, currentPageIndex - 1);
-            Populate(cachedCapturedMems, cachedFindMemData);
+            Populate(cachedCapturedMems, cachedFindMemData, cachedStatDisplayProvider);
         }
 
         public void GoToNextPage()
         {
             int count = cachedCapturedMems != null ? cachedCapturedMems.Count : 0;
             currentPageIndex = Mathf.Min(GetLastPageIndex(count), currentPageIndex + 1);
-            Populate(cachedCapturedMems, cachedFindMemData);
+            Populate(cachedCapturedMems, cachedFindMemData, cachedStatDisplayProvider);
         }
 
         /// <summary>
         /// 마우스 휠 입력을 받아 페이지를 이동한다(편의 기능). 휠을 아래로 내리면 다음 페이지, 위로 올리면 이전 페이지.
+        /// 멤을 드래그하는 도중에도 그대로 동작해서, 다른 페이지로 넘어가 그 페이지의 슬롯에 놓을 수 있다
+        /// (드래그 중인 항목의 인덱스는 draggingSourceGlobalIndex로 별도 보존되므로 안전하다).
         /// 이미 첫/마지막 페이지인 경우 GoToPrevPage/GoToNextPage가 알아서 그 자리에서 멈춘다(범위 clamp 처리는 기존 로직 재사용).
         /// </summary>
         public void OnScroll(PointerEventData eventData)
