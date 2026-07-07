@@ -52,6 +52,9 @@ namespace HDY.Capture
     /// 처리가 끝난 상태이지만, HDY 창고에 빈 칸이 하나도 없으면 그 포획 데이터를 저장하지 않고 그대로 놓아준다(방생).
     /// 방생 시 OnMemReleasedDueToFullStorage 이벤트가 발행되므로, 추후 UI에서 안내 메시지 등을 붙일 수 있다.
     ///
+    /// [정렬] 이 클래스는 정렬 기준(멤 ID/등급/스탯 등)을 전혀 알지 못한다. 실제 비교/정렬 판단은 카탈로그(MemData)에
+    /// 접근 가능한 상위(MemStorageUI)가 하고, 이 클래스는 ApplySortedOrder로 "정렬된 결과를 그대로 적용"만 담당한다.
+    ///
     /// 파일 저장 등 영속화 로직은 다음 단계에서 추가 예정.
     /// 씬에 배치되어 DontDestroyOnLoad로 유지되는 파괴불가 싱글톤.
     /// </summary>
@@ -86,7 +89,7 @@ namespace HDY.Capture
 
         public IReadOnlyList<CapturedMemEntry> CapturedMems => capturedMems;
 
-        /// <summary>목록에 새 멤이 저장되거나 위치가 바뀔 때마다 발행. UI 등에서 이 이벤트를 구독해 갱신하면 된다.</summary>
+        /// <summary>목록에 새 멤이 저장되거나 위치/순서가 바뀔 때마다 발행. UI 등에서 이 이벤트를 구독해 갱신하면 된다.</summary>
         public event Action OnCapturedMemsChanged;
 
         /// <summary>
@@ -182,6 +185,32 @@ namespace HDY.Capture
 
             (capturedMems[indexA], capturedMems[indexB]) = (capturedMems[indexB], capturedMems[indexA]);
             Debug.Log($"[MemCaptureManager] 멤 위치 교체: index {indexA} <-> {indexB}");
+
+            OnCapturedMemsChanged?.Invoke();
+        }
+
+        /// <summary>
+        /// 정렬된 순서를 적용한다. 정렬 기준(멤 ID/등급/스탯 등) 판단은 이 클래스가 하지 않는다 - 카탈로그(MemData)에
+        /// 접근 가능한 상위(MemStorageUI)가 이미 정렬해서 넘겨준 결과를 그대로 반영만 한다.
+        /// 빈 칸이 아닌 항목들을 앞에서부터(index 0부터) 채우고, 나머지 칸은 전부 빈 칸으로 채운다(빈 칸은 뒤로 몰림).
+        /// </summary>
+        /// <param name="sortedNonEmptyEntries">빈 칸을 제외한, 원하는 순서로 미리 정렬된 항목 목록</param>
+        public void ApplySortedOrder(IReadOnlyList<CapturedMemEntry> sortedNonEmptyEntries)
+        {
+            if (sortedNonEmptyEntries == null) return;
+
+            if (sortedNonEmptyEntries.Count > capturedMems.Count)
+            {
+                Debug.LogWarning($"[MemCaptureManager] ApplySortedOrder 실패: 정렬된 항목 수({sortedNonEmptyEntries.Count})가 창고 크기({capturedMems.Count})보다 많습니다.");
+                return;
+            }
+
+            for (int i = 0; i < capturedMems.Count; i++)
+            {
+                capturedMems[i] = i < sortedNonEmptyEntries.Count ? sortedNonEmptyEntries[i] : CapturedMemEntry.CreateEmpty();
+            }
+
+            Debug.Log($"[MemCaptureManager] 정렬 순서 적용 완료: 채워진 항목 {sortedNonEmptyEntries.Count}개 / 전체 {capturedMems.Count}칸");
 
             OnCapturedMemsChanged?.Invoke();
         }
