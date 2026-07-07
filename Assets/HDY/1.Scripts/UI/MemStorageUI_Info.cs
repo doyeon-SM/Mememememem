@@ -38,27 +38,27 @@ namespace HDY.UI
 
             if(infoCraftingText != null)
             {
-                infoCraftingText.text = data != null ? data.productionStats.crafting.ToString() : "0";
+                infoCraftingText.text = "제작 : " + data != null ? data.productionStats.crafting.ToString() : "0";
             }
             if(infoLoggingText !=null)
             {
-                infoLoggingText.text = data != null ? data.productionStats.logging.ToString() : "0";
+                infoLoggingText.text = "벌목 : " + data != null ? data.productionStats.logging.ToString() : "0";
             }
             if(infoMiningText != null)
             {
-                infoMiningText.text = data != null ? data.productionStats.mining.ToString() : "0";
+                infoMiningText.text = "채광 : " + data != null ? data.productionStats.mining.ToString() : "0";
             }
             if(infoTransportText != null)
             {
-                infoTransportText.text = data != null ? data.productionStats.transport.ToString() : "0";
+                infoTransportText.text = "운반 : " + data != null ? data.productionStats.transport.ToString() : "0";
             }
             if(infoFarmingText != null)
             {
-                infoFarmingText.text = data != null ? data.productionStats.transport.ToString() : "0";
+                infoFarmingText.text = "생산 : " + data != null ? data.productionStats.transport.ToString() : "0";
             }
             if (infoExplorationText != null)
             {
-                infoExplorationText.text = entry.ExplorationStat.ToString();
+                infoExplorationText.text = "탐험 : " + entry.ExplorationStat.ToString();
             }
         }
     }
