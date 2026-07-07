@@ -10,6 +10,7 @@ namespace HDY.UI
     /// 멤 창고 UI 컨트롤러.
     /// MemCaptureManager / MemCatalogManager에서 데이터를 가져와 MemStorageUI_Grid와 MemStorageUI_Info에 전달하는 역할만 한다.
     /// 실제 그리드 표시는 MemStorageUI_Grid, 정보 패널 표시는 MemStorageUI_Info가 담당한다.
+    /// 그리드에서 드래그앤드롭으로 슬롯 위치 교체가 요청되면, 이 컨트롤러가 MemCaptureManager에 실제 데이터 반영을 지시한다.
     ///
     /// [씬 이동 대응] MemCaptureManager/MemCatalogManager는 파괴불가 싱글톤이라 씬을 이동해도 유지되지만,
     /// 이 컴포넌트는 씬에 배치된 오브젝트라서 씬이 다시 로드되면 인스펙터 참조가 끊길 수 있다.
@@ -40,6 +41,7 @@ namespace HDY.UI
             if (grid != null)
             {
                 grid.OnSlotClicked += HandleSlotClicked;
+                grid.OnSwapRequested += HandleSwapRequested;
             }
         }
 
@@ -70,10 +72,11 @@ namespace HDY.UI
             if (grid != null)
             {
                 grid.OnSlotClicked -= HandleSlotClicked;
+                grid.OnSwapRequested -= HandleSwapRequested;
             }
         }
 
-        /// <summary>새로 멤이 포획될 때마다 호출된다.</summary>
+        /// <summary>새로 멤이 포획되거나 슬롯 위치가 바뀌는 등 데이터가 바뀔 때마다 호출된다.</summary>
         private void HandleCapturedMemsChanged()
         {
             Debug.Log("[MemStorageUI] OnCapturedMemsChanged 수신 -> 그리드 갱신 시도");
@@ -91,6 +94,20 @@ namespace HDY.UI
             {
                 info.ShowInfo(entry, data);
             }
+        }
+
+        /// <summary>그리드에서 드래그앤드롭으로 슬롯 위치 교체가 요청되었을 때 호출. 실제 데이터(MemCaptureManager)에 반영한다.</summary>
+        private void HandleSwapRequested(int indexA, int indexB)
+        {
+            Debug.Log($"[MemStorageUI] 슬롯 교체 요청 수신: index {indexA} <-> {indexB}");
+
+            if (captureManager == null)
+            {
+                Debug.LogWarning("[MemStorageUI] captureManager가 비어있어 슬롯 교체를 처리할 수 없습니다.", this);
+                return;
+            }
+
+            captureManager.SwapEntries(indexA, indexB);
         }
 
         /// <summary>MemCatalogManager에 등록된 SO 목록에서 memId가 일치하는 MemData를 찾는다.</summary>
