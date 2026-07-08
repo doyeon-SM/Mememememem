@@ -52,9 +52,24 @@ namespace HDY.Capture
     /// 최대치(SlotsPerPage, MaxPages)는 Inspector에서 조정 가능하며, 나중에 값을 늘리면 기존 데이터는 그대로 둔 채
     /// 모자란 만큼 빈 칸이 자동으로 추가된다(EnsureCapacity).
     ///
+    /// [페이지 언락 (멤창고 업그레이드)] 목록 자체는 항상 MaxCapacity만큼 전부 채워져 있지만, 실제로 "사용 가능한"
+    /// 칸은 UnlockedPageCount(시작 StartingPageCount 페이지)만큼으로 제한된다. 포획 시 빈 칸을 찾을 때도
+    /// 언락된 범위(UnlockedCapacity) 안에서만 찾으므로, 언락되지 않은 페이지에는 멤이 채워지지 않는다.
+    /// 업그레이드(비용 확인/차감)는 이 클래스의 책임이 아니다 - MemStorageUpgrade(IUpgradable 구현체)가 비용을
+    /// 계산하고, 공용 업그레이드 팝업(UpgradePopupUI)이 비용을 다 낸 뒤에만 UnlockNextPage()를 호출해준다.
+    /// 이 클래스는 순수하게 "페이지 수를 늘리고, 그만큼 포획 가능 범위를 넓히는" 역할만 한다.
+    ///
+    /// [Awake 타이밍 방어] UnlockedPageCount/UnlockedCapacity는 Awake()에서 한 번만 초기화하지 않고, 프로퍼티를
+    /// 읽을 때마다 EnsureUnlockedPageCount()로 스스로 보정한 뒤 반환한다. 플레이 도중 스크립트를 수정해 컴파일이
+    /// 일어나면(도메인 리로드) 새로 추가된 필드는 이전 값이 없어 C# 기본값(0)으로 초기화되는데, Awake는 리로드 후
+    /// 다시 호출되지 않으므로 한 번만 초기화하는 방식은 그 상태로 계속 0에 머무를 수 있다(실제로 이 문제로 한동안
+    /// 포획 가능 칸이 0으로 계산되어 포획한 멤이 조용히 방생 처리된 적이 있었다). 프로퍼티 접근 시점마다 보정하면
+    /// 이런 타이밍 문제와 무관하게 항상 올바른 값을 반환한다.
+    ///
     /// [방어 코드 - 창고가 가득 찬 경우] 포획 자체(Pikachu 쪽 OnCaptureSuccess)는 이미 성공해 월드의 멤 오브젝트는
-    /// 처리가 끝난 상태이지만, HDY 창고에 빈 칸이 하나도 없으면 그 포획 데이터를 저장하지 않고 그대로 놓아준다(방생).
-    /// 방생 시 OnMemReleasedDueToFullStorage 이벤트가 발행되므로, 추후 UI에서 안내 메시지 등을 붙일 수 있다.
+    /// 처리가 끝난 상태이지만, HDY 창고에 (언락된 범위 안에서) 빈 칸이 하나도 없으면 그 포획 데이터를 저장하지
+    /// 않고 그대로 놓아준다(방생). 방생 시 OnMemReleasedDueToFullStorage 이벤트가 발행되므로, 추후 UI에서 안내
+    /// 메시지 등을 붙일 수 있다.
     ///
     /// [정렬] 이 클래스는 정렬 기준(멤 ID/등급/스탯 등)을 전혀 알지 못한다. 실제 비교/정렬 판단은 카탈로그(MemData)에
     /// 접근 가능한 상위(MemStorageUI)가 하고, 이 클래스는 ApplySortedOrder로 "정렬된 결과를 그대로 적용"만 담당한다.
@@ -74,6 +89,39 @@ namespace HDY.Capture
         public int MaxPages => maxPages;
         public int MaxCapacity => slotsPerPage * maxPages;
 
+        [Header("페이지 언락 (멤창고 업그레이드로 늘어나는 사용 가능 페이지 수)")]
+        [Tooltip("업그레이드 없이 시작할 때 기본으로 사용 가능한 페이지 수")]
+        [SerializeField] private int startingPageCount = 2;
+        [SerializeField] private int unlockedPageCount;
+
+        public int StartingPageCount => startingPageCount;
+
+        /// <summary>
+        /// 언락된 페이지 수. Awake() 실행 시점/순서(특히 플레이 도중 스크립트 컴파일로 인한 도메인 리로드)에
+        /// 의존하지 않도록, 읽을 때마다 EnsureUnlockedPageCount()로 스스로 보정한 뒤 반환한다.
+        /// </summary>
+        public int UnlockedPageCount
+        {
+            get
+            {
+                EnsureUnlockedPageCount();
+                return unlockedPageCount;
+            }
+        }
+
+        /// <summary>현재 언락된 페이지 기준으로 실제 포획에 사용할 수 있는 칸 수. 이 값도 읽을 때마다 보정된다.</summary>
+        public int UnlockedCapacity
+        {
+            get
+            {
+                EnsureUnlockedPageCount();
+                return unlockedPageCount * slotsPerPage;
+            }
+        }
+
+        /// <summary>언락된 페이지 수가 바뀔 때(업그레이드 성공 시) 발행. UI(MemStorageUI_Grid 등)가 구독해서 이동 가능한 페이지 범위를 갱신한다.</summary>
+        public event Action OnStorageCapacityChanged;
+
         private void Awake()
         {
             if (Instance != null && Instance != this)
@@ -86,6 +134,7 @@ namespace HDY.Capture
             DontDestroyOnLoad(gameObject);
 
             EnsureCapacity();
+            EnsureUnlockedPageCount();
         }
 
         [Header("포획된 멤 목록 (런타임 메모리 보관, 최대치만큼 빈 칸 포함해서 미리 채워짐)")]
@@ -138,13 +187,46 @@ namespace HDY.Capture
             Debug.Log($"[MemCaptureManager] 창고 용량 확인 완료: {capturedMems.Count} / {targetCapacity}");
         }
 
+        /// <summary>
+        /// 언락된 페이지 수를 시작값~최대치 범위 안으로 보정한다(0 이하면 시작 페이지 수로 초기화).
+        /// Awake뿐 아니라 UnlockedPageCount/UnlockedCapacity 프로퍼티를 읽을 때마다도 호출되므로,
+        /// Awake 실행 타이밍과 무관하게 항상 유효한 값을 보장한다.
+        /// </summary>
+        private void EnsureUnlockedPageCount()
+        {
+            if (unlockedPageCount <= 0)
+            {
+                unlockedPageCount = startingPageCount;
+            }
+
+            unlockedPageCount = Mathf.Clamp(unlockedPageCount, startingPageCount, maxPages);
+        }
+
+        /// <summary>
+        /// 다음 페이지를 1개 언락한다(사용 가능 페이지 수 +1). 이미 최대 페이지에 도달했으면 아무 것도 하지 않고
+        /// false를 반환한다. 비용 확인/차감은 호출하는 쪽(MemStorageUpgrade/UpgradePopupUI)의 책임이며,
+        /// 이 메서드는 순수하게 사용 가능 범위만 넓힌다.
+        /// </summary>
+        public bool UnlockNextPage()
+        {
+            EnsureUnlockedPageCount();
+
+            if (unlockedPageCount >= maxPages) return false;
+
+            unlockedPageCount++;
+            Debug.Log($"[MemCaptureManager] 멤창고 페이지 언락: {unlockedPageCount} / {maxPages}");
+
+            OnStorageCapacityChanged?.Invoke();
+            return true;
+        }
+
         private void HandleMemCaptured(PikachuMem mem, MemSnapshot snapshot)
         {
             int emptyIndex = FindFirstEmptyIndex();
             if (emptyIndex < 0)
             {
-                // 방어 코드: 창고에 빈 칸이 하나도 없으면(가득 참) 포획 자체는 성공했더라도 저장하지 않고 놓아준다(방생).
-                Debug.LogWarning($"[MemCaptureManager] 창고가 가득 차서 포획한 멤을 놓아주었습니다(방생): MemId={snapshot.memId}, Exploration={snapshot.explorationStat}");
+                // 방어 코드: 언락된 범위 안에 빈 칸이 하나도 없으면(가득 참) 포획 자체는 성공했더라도 저장하지 않고 놓아준다(방생).
+                Debug.LogWarning($"[MemCaptureManager] 창고가 가득 차서 포획한 멤을 놓아주었습니다(방생): MemId={snapshot.memId}, Exploration={snapshot.explorationStat}, UnlockedCapacity={UnlockedCapacity}");
                 OnMemReleasedDueToFullStorage?.Invoke(snapshot);
                 return;
             }
@@ -162,10 +244,12 @@ namespace HDY.Capture
             OnCapturedMemsChanged?.Invoke();
         }
 
-        /// <summary>목록에서 첫 번째 빈 칸(IsEmpty)의 인덱스를 찾는다. 없으면 -1.</summary>
+        /// <summary>목록에서 첫 번째 빈 칸(IsEmpty)의 인덱스를 찾는다. 언락된 범위(UnlockedCapacity) 안에서만 찾으며, 없으면 -1.</summary>
         private int FindFirstEmptyIndex()
         {
-            for (int i = 0; i < capturedMems.Count; i++)
+            int limit = Mathf.Min(capturedMems.Count, UnlockedCapacity);
+
+            for (int i = 0; i < limit; i++)
             {
                 if (capturedMems[i].IsEmpty) return i;
             }

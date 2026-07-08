@@ -2,9 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using UnityEngine.UI;
 using MemSystem.Data;
 using HDY.Capture;
 using HDY.Mem;
+using HDY.Upgrade;
 
 namespace HDY.UI
 {
@@ -17,6 +19,11 @@ namespace HDY.UI
     /// 그리드에서 드래그앤드롭으로 슬롯 위치 교체가 요청되면, 이 컨트롤러가 MemCaptureManager에 실제 데이터 반영을 지시한다.
     /// 정렬 버튼이 클릭되면, 이 컨트롤러가 카탈로그(MemData)를 조회해 실제 비교/정렬을 수행하고, 그 결과를
     /// MemCaptureManager.ApplySortedOrder로 반영한다(MemCaptureManager는 정렬 기준을 모르고 결과만 적용).
+    ///
+    /// [멤창고 업그레이드] 업그레이드 버튼을 누르면 공용 업그레이드 팝업(UpgradePopupUI)에 storageUpgrade(멤창고
+    /// 페이지 확장을 IUpgradable로 감싼 어댑터)를 넘겨 보여준다. 실제 비용 확인/차감과 업그레이드 적용은 팝업과
+    /// storageUpgrade가 처리하고, 이 컨트롤러는 MemCaptureManager.OnStorageCapacityChanged를 구독해뒀다가
+    /// 언락된 페이지 수가 바뀌면 그리드를 다시 그려주기만 한다.
     ///
     /// [Mem스탯/티어 표시] 현재 어떤 기준으로 정렬되어 있는지(activeSortCriteria)를 여기서 기억해두고,
     /// - Mem스탯(제작/벌목/채광/이동/생산/탐험) 기준이면 그 스탯의 아이콘 + 숫자를,
@@ -39,6 +46,10 @@ namespace HDY.UI
         [SerializeField] private MemStorageUI_Grid grid;
         [SerializeField] private MemStorageUI_Info info;
         [SerializeField] private MemStorageUI_Sort sort;
+
+        [Header("멤창고 업그레이드 (페이지 확장)")]
+        [SerializeField] private Button upgradeButton;
+        [SerializeField] private MemStorageUpgrade storageUpgrade;
 
         [Header("Mem스탯 아이콘 (정렬 기준이 해당 스탯일 때 슬롯에 표시)")]
         [SerializeField] private Sprite craftingStatIcon;
@@ -69,6 +80,8 @@ namespace HDY.UI
             if (grid == null) Debug.LogWarning("[MemStorageUI] grid가 비어있습니다.", this);
             if (info == null) Debug.LogWarning("[MemStorageUI] info가 비어있습니다.", this);
             if (sort == null) Debug.LogWarning("[MemStorageUI] sort가 비어있습니다. 정렬 버튼이 동작하지 않습니다.", this);
+            if (upgradeButton == null) Debug.LogWarning("[MemStorageUI] upgradeButton이 비어있습니다. 업그레이드 버튼이 동작하지 않습니다.", this);
+            if (storageUpgrade == null) Debug.LogWarning("[MemStorageUI] storageUpgrade가 비어있습니다. 업그레이드 팝업을 열 수 없습니다.", this);
 
             if (grid != null)
             {
@@ -79,6 +92,11 @@ namespace HDY.UI
             if (sort != null)
             {
                 sort.OnSortRequested += HandleSortRequested;
+            }
+
+            if (upgradeButton != null)
+            {
+                upgradeButton.onClick.AddListener(HandleUpgradeButtonClicked);
             }
         }
 
@@ -91,11 +109,12 @@ namespace HDY.UI
             if (captureManager != null)
             {
                 captureManager.OnCapturedMemsChanged += HandleCapturedMemsChanged;
+                captureManager.OnStorageCapacityChanged += HandleStorageCapacityChanged;
             }
 
             if (grid != null && captureManager != null)
             {
-                grid.ShowInitial(captureManager.CapturedMems, FindMemData, BuildStatDisplayProvider());
+                grid.ShowInitial(captureManager.CapturedMems, FindMemData, BuildStatDisplayProvider(), captureManager.UnlockedPageCount);
             }
         }
 
@@ -104,6 +123,7 @@ namespace HDY.UI
             if (captureManager != null)
             {
                 captureManager.OnCapturedMemsChanged -= HandleCapturedMemsChanged;
+                captureManager.OnStorageCapacityChanged -= HandleStorageCapacityChanged;
             }
 
             if (grid != null)
@@ -116,6 +136,11 @@ namespace HDY.UI
             {
                 sort.OnSortRequested -= HandleSortRequested;
             }
+
+            if (upgradeButton != null)
+            {
+                upgradeButton.onClick.RemoveListener(HandleUpgradeButtonClicked);
+            }
         }
 
         /// <summary>새로 멤이 포획되거나 슬롯 위치/정렬 순서가 바뀌는 등 데이터가 바뀔 때마다 호출된다.</summary>
@@ -125,8 +150,37 @@ namespace HDY.UI
 
             if (grid != null && captureManager != null)
             {
-                grid.NotifyDataChanged(captureManager.CapturedMems, FindMemData, BuildStatDisplayProvider());
+                grid.NotifyDataChanged(captureManager.CapturedMems, FindMemData, BuildStatDisplayProvider(), captureManager.UnlockedPageCount);
             }
+        }
+
+        /// <summary>멤창고 페이지 언락(업그레이드)에 성공해서 사용 가능한 페이지 수가 바뀔 때 호출된다.</summary>
+        private void HandleStorageCapacityChanged()
+        {
+            Debug.Log("[MemStorageUI] OnStorageCapacityChanged 수신 -> 그리드 갱신 시도");
+
+            if (grid != null && captureManager != null)
+            {
+                grid.NotifyDataChanged(captureManager.CapturedMems, FindMemData, BuildStatDisplayProvider(), captureManager.UnlockedPageCount);
+            }
+        }
+
+        /// <summary>업그레이드 버튼 클릭 처리. 공용 업그레이드 팝업에 멤창고 페이지 업그레이드 어댑터를 넘겨 보여준다.</summary>
+        private void HandleUpgradeButtonClicked()
+        {
+            if (storageUpgrade == null)
+            {
+                Debug.LogWarning("[MemStorageUI] storageUpgrade가 비어있어 업그레이드 팝업을 열 수 없습니다.", this);
+                return;
+            }
+
+            if (UpgradePopupUI.Instance == null)
+            {
+                Debug.LogWarning("[MemStorageUI] 씬에서 UpgradePopupUI를 찾을 수 없습니다.", this);
+                return;
+            }
+
+            UpgradePopupUI.Instance.Show(storageUpgrade);
         }
 
         private void HandleSlotClicked(CapturedMemEntry entry, MemData data)
