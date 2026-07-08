@@ -29,6 +29,9 @@ namespace HDY.Item
         [Header("아이템 데이터 목록 (인스펙터에서 등록)")]
         [SerializeField] private List<ItemData> itemDataList = new List<ItemData>();
 
+        [Header("아이템 제작 레시피 목록 (인스펙터에서 등록)")]
+        [SerializeField] private List<HDY.Recipe.RecipeData> RecipeDataList = new List<HDY.Recipe.RecipeData>();
+
         public IReadOnlyList<ItemData> ItemDataList => itemDataList;
 
         [Header("Item_ID -> ItemData 딕셔너리")]
