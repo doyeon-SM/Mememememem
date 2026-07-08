@@ -1,4 +1,5 @@
 ﻿using KGH.Data;
+using KMS.Harvesting;
 using KMS.InventoryDuped;
 using UnityEngine;
 
@@ -29,8 +30,9 @@ public class WorldObject : MonoBehaviour
     private const float GroundRaycastHeight = 3f;
     private const float GroundRaycastDistance = 8f;
     private const int MaxDropVisualCount = 8;
-
+    private bool IsDead => currentObjectHp <= 0;
     private float debugTime;
+    private float deadTime = -999f;
 
     private void Awake()
     {
@@ -40,23 +42,38 @@ public class WorldObject : MonoBehaviour
 
     private void Update()
     {
-        if (!enableDebugAutoDrop) return;
+/*        if (!enableDebugAutoDrop) return;
 
         debugTime += Time.deltaTime;
         if (debugTime >= debugAutoDropInterval)
         {
             debugTime = 0f;
             SpawnDropObjects();
+        }*/
+        if(IsDead)
+        {
+            if(deadTime + respawnTime >= Time.deltaTime)
+            {
+                currentObjectHp = maxObjectHp;
+            }
         }
     }
     //TODO :
     public bool ObjectInteract(ObjectType toolTargetType, PlayerInventory inventory, int damage)
     {
-        if (myType != toolTargetType) return false;
-        if (currentObjectHp <= 0) return false;
+        if (IsDead)
+        {
+            Debug.Log($"{this.name} IsDead");
+            return false;
+        }
+        if (myType != toolTargetType) 
+        {
+            Debug.Log($"{this.name} myType != toolTargetType");
+            return false;
+        }
 
         currentObjectHp = Mathf.Max(0, currentObjectHp - damage);
-
+        Debug.Log($"감지 성공 : 현재 체력 {currentObjectHp}");
         if (currentObjectHp <= 0)
         {
             ItemDrops(inventory);
@@ -107,4 +124,5 @@ public class WorldObject : MonoBehaviour
 
         return dropPosition + Vector3.up * dropSpawnHeight;
     }
+
 }

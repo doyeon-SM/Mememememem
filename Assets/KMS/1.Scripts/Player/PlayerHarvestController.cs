@@ -109,7 +109,10 @@ namespace KMS.Harvesting
             {
                 Debug.Log($"[Harvest] Hit: {hit.collider.name}", hit.collider);
             }
-
+            if(WorldObjectHarvest(hit, selectedItem))
+            {
+                return;
+            }
             IDamageable damageable = hit.collider.GetComponentInParent<IDamageable>();
             if (damageable == null || damageable.IsDead) return;
 
@@ -126,6 +129,16 @@ namespace KMS.Harvesting
             {
                 resource.TryCollectReward(inventory);
             }
+        }
+
+        private bool WorldObjectHarvest(RaycastHit hitObj, ItemData selectedItem)
+        {
+            if (hitObj.collider == null) return false;
+            WorldObject harvestable = hitObj.collider.GetComponent<WorldObject>();
+            if (harvestable == null) return false;
+            int damage = Mathf.Max(1, selectedItem.Value);
+            harvestable.ObjectInteract(selectedItem.ObjectType, inventory, damage);
+            return true;
         }
     }
 }

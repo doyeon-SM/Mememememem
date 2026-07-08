@@ -7,6 +7,7 @@ namespace KGH.Data
     [Serializable]
     public enum ObjectType
     {
+        None,
         Tree,
         Stone,
         Bush
