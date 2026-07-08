@@ -1,6 +1,6 @@
 using HDY.Item;
 using UnityEngine;
-
+using KMS.InventoryDuped;
 public class WorldItem : MonoBehaviour
 {
     [Header("Ref")]
@@ -9,7 +9,7 @@ public class WorldItem : MonoBehaviour
 
     private void OnCollisionEnter(Collision collision)
     {
-        PlayerInventory inventory = GetComponent<PlayerInventory>();
+        KMS.InventoryDuped.PlayerInventory inventory = GetComponent<KMS.InventoryDuped.PlayerInventory>();
         if(inventory != null)
         {
             //inventory.AddItem(itemdata, amount);
