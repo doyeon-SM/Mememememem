@@ -5,6 +5,7 @@ using UnityEngine.EventSystems;
 using TMPro;
 using MemSystem.Data;
 using HDY.Capture;
+using HDY.Mem;
 
 namespace HDY.UI
 {
@@ -33,7 +34,8 @@ namespace HDY.UI
 
     /// <summary>
     /// 멤 창고 그리드의 슬롯 한 칸.
-    /// 아이콘(Sprite)은 추후 MemData에 필드가 추가되면 채워질 예정이며, 현재는 비워둔다.
+    /// 아이콘(Sprite)은 MemIconRenderer가 MemData.modelPrefab을 촬영해서 만든 결과를 memId로 조회해서 채운다
+    /// (MemIconRenderer가 없거나 아이콘을 만들 수 없으면 감춘다).
     /// ActiveImage: 이 멤이 활성화(CapturedMemEntry.IsActive) 상태일 때 표시.
     /// MemStatIcon/MemStatText: 창고가 Mem스탯 또는 티어 기준으로 정렬되어 있을 때만 활성화되어, 그 아이콘과
     /// 값(스탯 숫자 또는 티어 앞글자)을 보여준다 (어떤 아이콘/값을 보여줄지는 MemStorageUI가 계산해서
@@ -119,10 +121,7 @@ namespace HDY.UI
             }
         }
 
-        /// <summary>
-        /// 슬롯에 포획된 멤 데이터를 채운다.
-        /// TODO: MemData에 아이콘(Sprite) 필드가 추가되면 iconImage.sprite = data.icon; 으로 교체.
-        /// </summary>
+        /// <summary>슬롯에 포획된 멤 데이터를 채운다.</summary>
         /// <param name="statInfo">현재 창고가 Mem스탯/티어 기준으로 정렬 중일 때 표시할 아이콘/값. 정렬 중이 아니면 Hidden.</param>
         public void SetData(CapturedMemEntry entry, MemData data, MemStatDisplayInfo statInfo)
         {
@@ -134,10 +133,7 @@ namespace HDY.UI
                 slotButton.interactable = true;
             }
 
-            if (iconImage != null)
-            {
-                iconImage.gameObject.SetActive(false);
-            }
+            ApplyIcon(data);
 
             if (activeImage != null)
             {
@@ -160,6 +156,7 @@ namespace HDY.UI
 
             if (iconImage != null)
             {
+                iconImage.sprite = null;
                 iconImage.gameObject.SetActive(false);
             }
 
@@ -169,6 +166,22 @@ namespace HDY.UI
             }
 
             ApplyStatDisplay(MemStatDisplayInfo.Hidden);
+        }
+
+        /// <summary>
+        /// MemIconRenderer(MemData.modelPrefab을 촬영해서 만든 Sprite)를 memId로 조회해서 iconImage에 채운다.
+        /// 아이콘을 만들 수 없으면(데이터/모델 없음, 렌더러 없음) 아이콘 영역을 그냥 감춘다.
+        /// </summary>
+        private void ApplyIcon(MemData data)
+        {
+            if (iconImage == null) return;
+
+            var sprite = (data != null && MemIconRenderer.Instance != null)
+                ? MemIconRenderer.Instance.GetIcon(data.memId)
+                : null;
+
+            iconImage.sprite = sprite;
+            iconImage.gameObject.SetActive(sprite != null);
         }
 
         /// <summary>MemStatIcon/MemStatText를 statInfo에 맞게 켜고 끈다. 스탯/티어 정렬 중이 아니면 둘 다 감춘다.</summary>

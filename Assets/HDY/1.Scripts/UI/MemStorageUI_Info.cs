@@ -1,7 +1,9 @@
 using UnityEngine;
+using UnityEngine.UI;
 using TMPro;
 using MemSystem.Data;
 using HDY.Capture;
+using HDY.Mem;
 
 namespace HDY.UI
 {
@@ -12,6 +14,7 @@ namespace HDY.UI
     public class MemStorageUI_Info : MonoBehaviour
     {
         [Header("정보 패널 (그리드 옆 고정 표시)")]
+        [SerializeField] private Image infoIconImage;
         [SerializeField] private TMP_Text infoNameText;
         [SerializeField] private TMP_Text infoTierText;
         [SerializeField] private TMP_Text infoCraftingText;
@@ -25,6 +28,17 @@ namespace HDY.UI
         public void ShowInfo(CapturedMemEntry entry, MemData data)
         {
             if (entry == null) return;
+
+            if (infoIconImage != null)
+            {
+                // MemIconRenderer가 modelPrefab을 촬영해서 만든 아이콘을 memId로 조회한다(없으면 감춤).
+                var sprite = (data != null && MemIconRenderer.Instance != null)
+                    ? MemIconRenderer.Instance.GetIcon(data.memId)
+                    : null;
+
+                infoIconImage.sprite = sprite;
+                infoIconImage.gameObject.SetActive(sprite != null);
+            }
 
             if (infoNameText != null)
             {
