@@ -37,9 +37,6 @@ public class ProductionPanelUI : MonoBehaviour
     [Header("제작할 아이템 관련 정보: 프리팹, 생성 위치, SO리스트 전체")]
     [SerializeField] private GameObject craftingSlotPrefab;
     [SerializeField] private Transform craftingSlotParent;
-    [SerializeField] private List<ProductItemData> allProductItems = new List<ProductItemData>();
-
-    private List<GameObject> activeCraftingSlots = new List<GameObject>();
 
     //[Header("우측 패널 - 멤 생산 Stat 아이콘 레퍼런스 가방")]
     //[SerializeField] private Sprite craftingStatIcon;
@@ -114,7 +111,7 @@ public class ProductionPanelUI : MonoBehaviour
             {
                 if (targetFacility.craftingItem != null)
                 {
-                    productionSpeed.text = $"생산속도: {targetFacility.craftingItem.baseProductionTime:F1}초(개당)";
+                    productionSpeed.text = $"생산속도: {targetFacility.baseProductionTime:F1}초(개당)";
                 }
                 else
                 {
@@ -187,12 +184,12 @@ public class ProductionPanelUI : MonoBehaviour
         {
             if (creatingItem != null)
             {
-                creatingItem.sprite = targetFacility.craftingItem.itemIcon;
+                creatingItem.sprite = targetFacility.craftingItem.ItemIcon;
                 creatingItem.gameObject.SetActive(true);
             }
             if (creatingItemName != null)
             {
-                creatingItemName.text = targetFacility.craftingItem.itemName;
+                creatingItemName.text = targetFacility.craftingItem.ItemName;
             }
         }
         else
@@ -283,7 +280,6 @@ public class ProductionPanelUI : MonoBehaviour
 
     private void SetCameraControllersEnabled(bool isEnable)
     {
-        // 버전 유연성 및 크로스 컴파일 안정성을 위해 유니티 표준 검색 엔진(FindObjectOfType)을 활용합니다.
         CameraMoveController moveController = Object.FindFirstObjectByType<CameraMoveController>();
         if (moveController != null)
         {

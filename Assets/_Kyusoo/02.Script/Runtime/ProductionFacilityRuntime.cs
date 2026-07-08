@@ -2,7 +2,7 @@ using HDY.Capture;
 using MemSystem.Data;
 using System.Collections.Generic;
 using UnityEngine;
-
+using HDY.Item;
 public class ProductionFacilityRuntime : MonoBehaviour
 {
     [Header("시설 기반 정보 (배치 시 데이터 주입됨)")]
@@ -11,9 +11,10 @@ public class ProductionFacilityRuntime : MonoBehaviour
 
     [Header("실시간 생산 상태 변수")]
     public bool isProducing = false;
-    public ProductItemData craftingItem;
+    public ItemData craftingItem;
     public float totalRequiredTime;           
     public float currentProgressTime = 0f;
+    public float baseProductionTime = 30f;
 
     [Header("시설 내 자원 축적 현황")]
     public int currentStorageCount = 0; 
@@ -71,7 +72,7 @@ public class ProductionFacilityRuntime : MonoBehaviour
         {
             float currentProgressPercent = currentProgressTime / totalRequiredTime;
 
-            totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(craftingItem.baseProductionTime, addMems);
+            totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseProductionTime, addMems);
 
             currentProgressTime = totalRequiredTime * currentProgressPercent;
 
@@ -80,10 +81,10 @@ public class ProductionFacilityRuntime : MonoBehaviour
         else
         {
             currentProgressTime = 0f;
-            totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(craftingItem.baseProductionTime, addMems);
+            totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseProductionTime, addMems);
             isProducing = true;
 
-            Debug.Log($"{craftingItem.itemName} 제작 시작. 최종 소요시간: {totalRequiredTime}초");
+            Debug.Log($"{craftingItem.ItemName} 제작 시작. 최종 소요시간: {totalRequiredTime}초");
         }
     }
 
@@ -158,7 +159,7 @@ public class ProductionFacilityRuntime : MonoBehaviour
         currentProgressTime = 0f;
         if (craftingItem != null)
         {
-            totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(craftingItem.baseProductionTime, addMems);
+            totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseProductionTime, addMems);
         }
     }
 
