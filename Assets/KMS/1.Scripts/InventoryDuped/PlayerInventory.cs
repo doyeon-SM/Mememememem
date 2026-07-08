@@ -1,4 +1,5 @@
 using System;
+using HDY.Item;
 using UnityEngine;
 
 namespace KMS.InventoryDuped
@@ -7,12 +8,12 @@ namespace KMS.InventoryDuped
 [Serializable]
 public class ItemStack
 {
-    public ItemDefinition item;
+    public ItemData item;
     public int amount;
 
     public bool IsEmpty => item == null || amount <= 0;
 
-    public void Set(ItemDefinition newItem, int newAmount)
+    public void Set(ItemData newItem, int newAmount)
     {
         item = newItem;
         amount = newAmount;
@@ -64,7 +65,7 @@ public class InventoryContainer
 public class QuickSlotUseReservation
 {
     public int slotIndex;
-    public ItemDefinition item;
+    public ItemData item;
     public int reservedAmount;
     public bool committed;
 }
@@ -79,7 +80,7 @@ public class PlayerInventory : MonoBehaviour
     private int pendingQuickSlotIndex = -1;
 
     public event Action OnInventoryChanged;
-    public event Action<ItemDefinition,int> OnItemObtained;
+    public event Action<ItemData,int> OnItemObtained;
     public event Action<int> OnQuickSlotChanged;
     public event Action<int> OnSelectedQuickSlotChanged;
 
@@ -90,7 +91,7 @@ public class PlayerInventory : MonoBehaviour
     }
 
     // 아이템 추가
-    public int AddItem(ItemDefinition item, int amount)
+    public int AddItem(ItemData item, int amount)
     {
         if (item == null || amount <= 0) return amount;
 
@@ -108,10 +109,6 @@ public class PlayerInventory : MonoBehaviour
         {
             OnInventoryChanged?.Invoke();
             OnItemObtained?.Invoke(item, addedAmount);
-/*            if (UIToastController.Instance != null)
-            {
-                UIToastController.Instance.ShowMessage(item.icon, $"{item.displayName}을(를) {addedAmount}개 획득하였습니다.");
-            }*/
             NotifyAllQuickSlotsChanged();
         }
 
@@ -211,7 +208,7 @@ public class PlayerInventory : MonoBehaviour
 
         if (slot == null) return false;
 
-        ItemDefinition useItem = null;
+        ItemData useItem = null;
 
         if (slot.IsEmpty)
         {
@@ -314,7 +311,7 @@ public class PlayerInventory : MonoBehaviour
     }
 
     // 현재 사용중인 아이템 정의를 반환 (효과 목록 읽을때 사용)
-    public ItemDefinition GetQuickSlotUseItem()
+    public ItemData GetQuickSlotUseItem()
     {
         return quickSlotUseReservation != null ? quickSlotUseReservation.item : null;
     }
@@ -380,7 +377,7 @@ public class PlayerInventory : MonoBehaviour
 
             ItemStack slot = container.slots[i];
 
-            if (slot.IsEmpty || slot.item.itemId != itemId) continue;
+            if (slot.IsEmpty || slot.item.Item_ID != itemId) continue;
 
             totalAmount += slot.amount;
         }
@@ -399,7 +396,7 @@ public class PlayerInventory : MonoBehaviour
 
             ItemStack slot = container.slots[i];
 
-            if (slot.IsEmpty || slot.item.itemId != itemId) continue;
+            if (slot.IsEmpty || slot.item.Item_ID != itemId) continue;
 
             int removed = Mathf.Min(slot.amount, remaining);
 
@@ -415,7 +412,7 @@ public class PlayerInventory : MonoBehaviour
     }
 
     // 있는 아이템 개수 추가
-    private int AddToExistingStacks(InventoryContainer container, ItemDefinition item, int amount)
+    private int AddToExistingStacks(InventoryContainer container, ItemData item, int amount)
     {
         int remaining = amount;
 
@@ -427,7 +424,7 @@ public class PlayerInventory : MonoBehaviour
 
             if (slot.IsEmpty || slot.item != item) continue;
 
-            int maxStack = Mathf.Max(1, item.maxStack);
+            int maxStack = Mathf.Max(1, item.MaxStack);
             int space = maxStack - slot.amount;
 
             if (space <= 0) continue;
@@ -443,10 +440,10 @@ public class PlayerInventory : MonoBehaviour
     }
 
     // 빈슬롯에 아이템 추가
-    private int AddToEmptySlots(InventoryContainer container, ItemDefinition item, int amount)
+    private int AddToEmptySlots(InventoryContainer container, ItemData item, int amount)
     {
         int remaining = amount;
-        int maxStack = Mathf.Max(1, item.maxStack);
+        int maxStack = Mathf.Max(1, item.MaxStack);
 
         for (int i = 0; i < container.slots.Length; i++)
         {
@@ -497,7 +494,7 @@ public class PlayerInventory : MonoBehaviour
             return MergeStack(fromSlot, toSlot);
         }
 
-        ItemDefinition tempItem = fromSlot.item;
+        ItemData tempItem = fromSlot.item;
         int tempAmount = fromSlot.amount;
         fromSlot.Set(toSlot.item, toSlot.amount);
         toSlot.Set(tempItem, tempAmount);
@@ -508,7 +505,7 @@ public class PlayerInventory : MonoBehaviour
     // 아이템 합치기
     private bool MergeStack(ItemStack fromSlot, ItemStack toSlot)
     {
-        int maxStack = Mathf.Max(1, toSlot.item.maxStack);
+        int maxStack = Mathf.Max(1, toSlot.item.MaxStack);
         int space = maxStack - toSlot.amount;
 
         if (space <= 0) return false;

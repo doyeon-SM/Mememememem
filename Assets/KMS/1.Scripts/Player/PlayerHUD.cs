@@ -1,5 +1,6 @@
 using System.Collections;
 using UnityEngine;
+using UnityEngine.Serialization;
 using UnityEngine.UIElements;
 
 namespace KMS
@@ -12,7 +13,8 @@ namespace KMS
 
         [Header("UI Element Names")]
         [SerializeField] private string healthBarName = "player-health-bar";
-        [SerializeField] private string staminaBarName = "player-stamina-bar";
+        [FormerlySerializedAs("staminaBarName")]
+        [SerializeField] private string hungerBarName = "player-stamina-bar";
         [SerializeField] private string messageOverlayName = "message-overlay";
         [SerializeField] private string messageLabelName = "message-label";
         [SerializeField] private string notificationContainerName = "notification-container";
@@ -21,7 +23,7 @@ namespace KMS
         [SerializeField] private float notificationDuration = 2.5f;
 
         private ProgressBar healthBar;
-        private ProgressBar staminaBar;
+        private ProgressBar hungerBar;
         private VisualElement messageOverlay;
         private Label messageLabel;
         private VisualElement notificationContainer;
@@ -43,7 +45,7 @@ namespace KMS
             if (stats != null)
             {
                 stats.HealthChanged += HandleHealthChanged;
-                stats.StaminaChanged += HandleStaminaChanged;
+                stats.HungerChanged += HandleHungerChanged;
                 stats.Died += HandleDied;
                 stats.Revived += HandleRevived;
             }
@@ -60,7 +62,7 @@ namespace KMS
             if (stats != null)
             {
                 stats.HealthChanged -= HandleHealthChanged;
-                stats.StaminaChanged -= HandleStaminaChanged;
+                stats.HungerChanged -= HandleHungerChanged;
                 stats.Died -= HandleDied;
                 stats.Revived -= HandleRevived;
             }
@@ -83,7 +85,7 @@ namespace KMS
 
             VisualElement root = uiDocument.rootVisualElement;
             healthBar = root.Q<ProgressBar>(healthBarName);
-            staminaBar = root.Q<ProgressBar>(staminaBarName);
+            hungerBar = root.Q<ProgressBar>(hungerBarName);
             messageOverlay = root.Q<VisualElement>(messageOverlayName);
             messageLabel = root.Q<Label>(messageLabelName);
             notificationContainer = root.Q<VisualElement>(notificationContainerName);
@@ -94,7 +96,7 @@ namespace KMS
             if (stats == null) return;
 
             HandleHealthChanged(stats.CurrentHealth, stats.MaxHealth);
-            HandleStaminaChanged(stats.CurrentStamina, stats.MaxStamina);
+            HandleHungerChanged(stats.CurrentHunger, stats.MaxHunger);
         }
 
         private void HandleHealthChanged(float current, float max)
@@ -102,9 +104,9 @@ namespace KMS
             SetProgress(healthBar, current, max, "Health");
         }
 
-        private void HandleStaminaChanged(float current, float max)
+        private void HandleHungerChanged(float current, float max)
         {
-            SetProgress(staminaBar, current, max, "Stamina");
+            SetProgress(hungerBar, current, max, "Hunger");
         }
 
         private void HandleDied()

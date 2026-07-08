@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.EventSystems;
+using HDY.Item;
 
 namespace KMS.InventoryDuped
 {
@@ -8,11 +9,11 @@ public class ItemTooltipTriggerUI : MonoBehaviour, IPointerEnterHandler, IPointe
 {
     public ItemTooltipUI itemTooltipUI;
 
-    private ItemDefinition currentItem;
+    private ItemData currentItem;
     private bool isPointerInside;
 
     // 툴팁으로 표시할 아이템 데이터를 설정
-    public void SetItem(ItemDefinition item)
+    public void SetItem(ItemData item)
     {
         currentItem = item;
     }

@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace KMS
 {
@@ -41,9 +42,12 @@ namespace KMS
         [SerializeField] private float groundedOffset = -0.12f;
         [SerializeField] private float groundedRadius = 0.28f;
 
-        [Header("Stamina Costs")]
-        [SerializeField] private float jumpStaminaCost = 8f;
-        [SerializeField] private float sprintStaminaCostPerSecond = 6f;
+        [Header("Hunger Costs")]
+        [SerializeField] private float moveHungerCostPerSecond = 1f;
+        [FormerlySerializedAs("jumpStaminaCost")]
+        [SerializeField] private float jumpHungerCost = 8f;
+        [FormerlySerializedAs("sprintStaminaCostPerSecond")]
+        [SerializeField] private float sprintHungerCostPerSecond = 6f;
 
         [Header("External Forces")]
         [SerializeField] private float externalForceDecay = 8f;
@@ -167,7 +171,7 @@ namespace KMS
             if (!IsMovementEnabled) return;
             if (jumpBufferTimer <= 0f || coyoteTimer <= 0f) return;
 
-            if (stats != null && !stats.ConsumeStamina(jumpStaminaCost))
+            if (stats != null && !stats.ConsumeHunger(jumpHungerCost))
             {
                 return;
             }
@@ -185,10 +189,19 @@ namespace KMS
 
             IsSprinting = hasMoveInput && input != null && input.IsSprinting;
 
+            if (hasMoveInput && stats != null)
+            {
+                float cost = moveHungerCostPerSecond * Time.deltaTime;
+                if (!stats.ConsumeHunger(cost))
+                {
+                    IsSprinting = false;
+                }
+            }
+
             if (IsSprinting && stats != null)
             {
-                float cost = sprintStaminaCostPerSecond * Time.deltaTime;
-                IsSprinting = stats.ConsumeStamina(cost);
+                float cost = sprintHungerCostPerSecond * Time.deltaTime;
+                IsSprinting = stats.ConsumeHunger(cost);
             }
 
             float targetSpeed = hasMoveInput ? (IsSprinting ? sprintSpeed : moveSpeed) * inputMagnitude : 0f;

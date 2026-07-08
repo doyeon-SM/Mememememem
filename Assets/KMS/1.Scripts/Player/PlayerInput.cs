@@ -14,7 +14,7 @@ namespace KMS
         [SerializeField] private float gamepadLookScale = 12f;
 
         [Header("Interaction")]
-        [SerializeField] private Key interactKey = Key.E;
+        [SerializeField] private Key interactKey = Key.F;
         [SerializeField] private bool primaryActionTriggersInteraction = true;
 
         public Vector2 Move { get; private set; }
