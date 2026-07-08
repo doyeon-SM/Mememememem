@@ -42,8 +42,12 @@ namespace HDY.UI
     /// 빈 슬롯으로도 멤을 옮길 수 있다 - 대상 슬롯이 비어있어도 유효한 이동으로 처리한다.
     /// 드래그 도중 휠로 페이지가 바뀔 수 있으므로(MemStorageUI_Grid), 실제 데이터 교체 판단에 필요한
     /// "드래그 시작/종료" 신호만 이벤트로 올리고, 어떤 항목을 옮기는지의 판단은 상위(Grid/MemStorageUI)가 담당한다.
+    ///
+    /// [우클릭 - 배치 해제] 활성화(IsActive)된 멤을 우클릭하면 "해제하기" 버튼을 띄우는 기능의 시작점이다.
+    /// 이 클래스는 우클릭이 들어왔다는 사실과 현재 entry/data만 이벤트로 올리고(OnSlotRightClicked), 실제로
+    /// 버튼을 어디에 띄울지/활성 상태인지 판단하는 것은 상위(Grid)가 담당한다 - 다른 이벤트들과 동일한 방식.
     /// </summary>
-    public class MemSlotUI : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler, IDropHandler
+    public class MemSlotUI : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler, IDropHandler, IPointerClickHandler
     {
         [Header("슬롯 UI 참조")]
         [SerializeField] private Button slotButton;
@@ -77,8 +81,20 @@ namespace HDY.UI
         /// <summary>드래그가 끝났을 때(성공/실패 관계없이) 발생. Grid가 구독해서 기억해둔 인덱스를 정리하는 데 사용한다.</summary>
         public event Action<MemSlotUI> OnSlotDragEnded;
 
+        /// <summary>
+        /// 이 슬롯이 우클릭되었을 때 발생. (우클릭된 슬롯 자신, 현재 entry, 현재 data) 순서로 전달한다.
+        /// 빈 슬롯이어도 그대로 발생시킨다 - "해제 가능한 상태인지"(entry.IsActive 등) 판단은 상위(Grid)가 한다.
+        /// </summary>
+        public event Action<MemSlotUI, CapturedMemEntry, MemData> OnSlotRightClicked;
+
         /// <summary>이 슬롯에 포획된 멤이 채워져 있는지 여부.</summary>
         public bool HasData => cachedEntry != null;
+
+        /// <summary>
+        /// 아이콘 이미지의 RectTransform. 우클릭 시 "해제하기" 버튼을 이 아이콘의 위치를 기준으로
+        /// 배치하기 위해 Grid에서 참조한다. iconImage가 비어있으면 null.
+        /// </summary>
+        public RectTransform IconRectTransform => iconImage != null ? iconImage.rectTransform : null;
 
         private void Awake()
         {
@@ -178,6 +194,18 @@ namespace HDY.UI
 
             if (cachedEntry == null) return;
             OnSlotClicked?.Invoke(cachedEntry, cachedData);
+        }
+
+        /// <summary>
+        /// 좌/우클릭을 모두 감지하는 진입점(IPointerClickHandler). 우클릭만 처리하고, 좌클릭은 Button.onClick
+        /// (HandleClick)이 이미 담당하므로 여기서는 무시한다.
+        /// </summary>
+        public void OnPointerClick(PointerEventData eventData)
+        {
+            if (eventData.button != PointerEventData.InputButton.Right) return;
+
+            Debug.Log($"[MemSlotUI] 우클릭 수신: {gameObject.name} / cachedEntry={(cachedEntry != null)}");
+            OnSlotRightClicked?.Invoke(this, cachedEntry, cachedData);
         }
 
         /// <summary>드래그 시작. 빈 슬롯이거나 아이콘/캔버스를 찾을 수 없으면 드래그 자체를 취소한다.</summary>

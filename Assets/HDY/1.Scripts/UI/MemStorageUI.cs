@@ -25,6 +25,14 @@ namespace HDY.UI
     /// storageUpgrade가 처리하고, 이 컨트롤러는 MemCaptureManager.OnStorageCapacityChanged를 구독해뒀다가
     /// 언락된 페이지 수가 바뀌면 그리드를 다시 그려주기만 한다.
     ///
+    /// [배치 해제] 그리드에서 활성 멤을 우클릭 -> 해제하기 버튼 클릭 시 grid.OnReleaseRequested가 발생한다.
+    /// 이 창고 UI는 그 멤이 어느 시설(_Kyusoo의 ProductionFacilityRuntime)에 배치되어 있는지 전혀 모르므로,
+    /// 씬에 있는 모든 ProductionFacilityRuntime을 훑어 이 entry를 DeployedMemEntries로 갖고 있는 시설을 찾아
+    /// 그 시설의 RemoveMem()을 호출한다. CapturedMemEntry는 참조 타입이라 시설 쪽 리스트와 MemCaptureManager
+    /// 쪽 리스트가 같은 객체를 가리키므로, RemoveMem() 호출만으로 IsActive도 자동으로 false가 된다(별도로
+    /// 손댈 필요 없음). 다만 MemCaptureManager는 이 변경을 스스로 감지하지 못하므로, 그 다음 그리드를
+    /// NotifyDataChanged로 직접 다시 그려서 활성 표시(activeImage)를 갱신해준다.
+    ///
     /// [Mem스탯/티어 표시] 현재 어떤 기준으로 정렬되어 있는지(activeSortCriteria)를 여기서 기억해두고,
     /// - Mem스탯(제작/벌목/채광/이동/생산/탐험) 기준이면 그 스탯의 아이콘 + 숫자를,
     /// - 티어 기준이면 티어 아이콘 + 등급 앞글자 대문자(R/E/U/L/M)를
@@ -87,6 +95,7 @@ namespace HDY.UI
             {
                 grid.OnSlotClicked += HandleSlotClicked;
                 grid.OnSwapRequested += HandleSwapRequested;
+                grid.OnReleaseRequested += HandleReleaseRequested;
             }
 
             if (sort != null)
@@ -130,6 +139,7 @@ namespace HDY.UI
             {
                 grid.OnSlotClicked -= HandleSlotClicked;
                 grid.OnSwapRequested -= HandleSwapRequested;
+                grid.OnReleaseRequested -= HandleReleaseRequested;
             }
 
             if (sort != null)
@@ -204,6 +214,54 @@ namespace HDY.UI
             }
 
             captureManager.SwapEntries(indexA, indexB);
+        }
+
+        /// <summary>
+        /// 그리드에서 배치 해제(해제하기 버튼)가 요청되었을 때 호출된다. 이 창고 UI는 entry가 어느 시설에
+        /// 배치되어 있는지 모르므로, 씬의 모든 ProductionFacilityRuntime을 훑어 DeployedMemEntries에 이
+        /// entry를 갖고 있는 시설을 찾는다. CapturedMemEntry는 참조 타입이라 시설 쪽 리스트와
+        /// MemCaptureManager 쪽 리스트가 같은 객체를 가리키므로, 시설의 RemoveMem() 호출만으로 IsActive도
+        /// 자동으로 false가 된다. 이후 MemCaptureManager는 이 변경을 스스로 감지하지 못하므로 그리드를
+        /// 직접 다시 그려서 활성 표시를 갱신한다.
+        /// </summary>
+        private void HandleReleaseRequested(CapturedMemEntry entry, MemData data)
+        {
+            if (entry == null) return;
+
+            Debug.Log($"[MemStorageUI] 배치 해제 요청 수신: MemId={entry.MemId}");
+
+            ProductionFacilityRuntime ownerFacility = null;
+            var facilities = UnityEngine.Object.FindObjectsByType<ProductionFacilityRuntime>(FindObjectsSortMode.None);
+
+            foreach (var facility in facilities)
+            {
+                if (facility.DeployedMemEntries.Contains(entry))
+                {
+                    ownerFacility = facility;
+                    break;
+                }
+            }
+
+            if (ownerFacility != null)
+            {
+                int index = ownerFacility.DeployedMemEntries.IndexOf(entry);
+                MemData matchedMemData = (index >= 0 && index < ownerFacility.DeployedMems.Count) ? ownerFacility.DeployedMems[index] : data;
+
+                ownerFacility.RemoveMem(matchedMemData);
+                Debug.Log($"[MemStorageUI] 배치 해제 완료: MemId={entry.MemId}, 시설={ownerFacility.name}");
+            }
+            else
+            {
+                // 방어 코드: 어느 시설에도 등록되어 있지 않은데 IsActive만 true인 비정상 상태라면,
+                // 창고 UI가 계속 활성 표시로 막혀있지 않도록 여기서라도 직접 되돌린다.
+                Debug.LogWarning($"[MemStorageUI] 배치 해제 대상을 가진 시설을 찾지 못했습니다. IsActive만 직접 되돌립니다: MemId={entry.MemId}", this);
+                entry.IsActive = false;
+            }
+
+            if (grid != null && captureManager != null)
+            {
+                grid.NotifyDataChanged(captureManager.CapturedMems, FindMemData, BuildStatDisplayProvider(), captureManager.UnlockedPageCount);
+            }
         }
 
         /// <summary>
