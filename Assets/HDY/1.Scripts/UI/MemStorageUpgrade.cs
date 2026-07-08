@@ -14,6 +14,10 @@ namespace HDY.UI
     /// [비용 표] goldCostPerStep의 각 원소는 "현재 언락 페이지 수 - 시작 페이지 수" 번째 업그레이드에 필요한 골드다.
     /// 예: 시작 2페이지 -> 최대 10페이지면 업그레이드는 총 8단계이므로 goldCostPerStep 크기도 8이어야 한다.
     /// RecipeUnlockManager와 마찬가지로 기획 확정 전까지는 인스펙터에서 단계별 금액을 직접 입력하는 방식이다.
+    ///
+    /// [설명 문구] UpgradePopupUI에는 별도 설명 영역이 없고, GetUpgradeDescription()의 결과가 그대로 확인
+    /// 버튼의 라벨로 쓰인다. 그래서 "멤창고를 2페이지에서 3페이지로 확장합니다" 같은 긴 문장 대신
+    /// "2 → 3"처럼 버튼 한 줄에 들어가는 짧은 형식으로 반환한다.
     /// </summary>
     public class MemStorageUpgrade : MonoBehaviour, IUpgradable
     {
@@ -62,16 +66,17 @@ namespace HDY.UI
             return "멤창고 페이지 확장";
         }
 
+        /// <summary>확인 버튼 라벨에 그대로 들어가는 짧은 문구. 최대치면 "MAX", 아니면 "현재페이지 → 다음페이지".</summary>
         public string GetUpgradeDescription()
         {
             if (captureManager == null) return string.Empty;
 
             if (!CanUpgrade())
             {
-                return $"이미 최대 페이지({captureManager.MaxPages}페이지)에 도달했습니다.";
+                return "MAX";
             }
 
-            return $"멤창고를 {captureManager.UnlockedPageCount}페이지에서 {captureManager.UnlockedPageCount + 1}페이지로 확장합니다.";
+            return $"{captureManager.UnlockedPageCount} → {captureManager.UnlockedPageCount + 1}";
         }
 
         /// <summary>UpgradePopupUI가 비용 지불을 마친 뒤 호출한다. 여기서는 순수하게 페이지 언락만 담당한다.</summary>

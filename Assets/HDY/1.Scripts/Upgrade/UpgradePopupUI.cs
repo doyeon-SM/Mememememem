@@ -13,6 +13,16 @@ namespace HDY.Upgrade
     /// 재사용할 목적으로 만들어졌다. 팝업은 IUpgradable 인터페이스만 알고 있으며, 실제로 무엇이
     /// 업그레이드되는지는 전혀 모른다(대상 쪽이 CanUpgrade/GetUpgradeCost/ApplyUpgrade를 구현).
     ///
+    /// [레이아웃] 별도의 설명(Description) 영역은 없다. 대신:
+    /// - 확인(업그레이드) 버튼 라벨(confirmButtonLabel)에 IUpgradable.GetUpgradeDescription()의 짧은 문구
+    ///   (예: "2 → 3")를 그대로 표시한다.
+    /// - 원래 설명이 있던 자리에는 이번 업그레이드에 필요한 재료 목록을 2열 그리드(스크롤 뷰, 뷰포트에는 2행까지만
+    ///   보이고 그 이상은 스크롤로 확인)로 표시한다. 그리드 자체(열 개수 고정, 셀 크기, 뷰포트 높이)는 씬의
+    ///   materialCostContainer에 배치된 GridLayoutGroup/ScrollRect 설정으로 제어되며, 이 스크립트는 필요한
+    ///   개수만큼 materialCostRowPrefab을 채워 넣는 역할만 한다.
+    /// - 이번 업그레이드에 필요한 재료가 하나도 없으면(예: 멤창고 페이지 업그레이드는 골드만 사용) 재료 스크롤 뷰
+    ///   자체를 꺼서 빈 영역이 보이지 않도록 한다(materialScrollRect 기준으로 토글).
+    ///
     /// [사용법] 다른 UI에서 UpgradePopupUI.Instance.Show(target)만 호출하면 된다. 확인 버튼을 누르면
     /// 팝업이 직접 TerritoryData에서 골드를 확인/차감하고(재료는 IMaterialInventory 연결 시 함께 확인/차감),
     /// 비용을 전부 낼 수 있을 때만 target.ApplyUpgrade()를 호출한 뒤 팝업을 닫는다.
@@ -23,10 +33,6 @@ namespace HDY.Upgrade
     ///
     /// [씬 싱글톤] TerritoryData처럼 DontDestroyOnLoad는 아니고, 이 씬(HDY_TestScene)에 하나만 배치되어 있다고
     /// 가정한다. 다른 UI가 Instance로 쉽게 접근할 수 있도록 static 참조만 제공한다.
-    ///
-    /// [재료 비용 행 표시] 재료 비용은 개수가 매번 달라질 수 있어(0개~여러 개), 그리드 슬롯처럼 씬에 미리
-    /// 배치해두는 방식 대신 런타임에 필요한 만큼만 Instantiate한다(materialCostRowPrefab 사용, 팝업을 다시 열 때
-    /// 기존 행을 재사용하고 모자란 만큼만 새로 만든다).
     /// </summary>
     public class UpgradePopupUI : MonoBehaviour
     {
@@ -41,14 +47,21 @@ namespace HDY.Upgrade
         [Header("팝업 루트 (평소에는 꺼져 있다가 Show()에서 켜짐)")]
         [SerializeField] private GameObject popupRoot;
 
-        [Header("텍스트 / 버튼")]
+        [Header("제목 / 골드 텍스트")]
         [SerializeField] private TMP_Text titleText;
-        [SerializeField] private TMP_Text descriptionText;
         [SerializeField] private TMP_Text goldCostText;
+
+        [Header("확인 / 취소 버튼")]
+        [Tooltip("확인 버튼 자체. interactable로 업그레이드 가능 여부를 표시한다.")]
         [SerializeField] private Button confirmButton;
+        [Tooltip("확인 버튼에 표시할 라벨. 별도 설명 영역이 없으므로 IUpgradable.GetUpgradeDescription()의 짧은 문구(예: \"2 → 3\")가 여기로 들어간다.")]
+        [SerializeField] private TMP_Text confirmButtonLabel;
         [SerializeField] private Button cancelButton;
 
-        [Header("재료 비용 표시 (개수가 가변적이라 런타임 생성)")]
+        [Header("재료 비용 표시 (스크롤 뷰 안 2열 그리드, 뷰포트는 2행까지만 보이고 나머지는 스크롤)")]
+        [Tooltip("재료 스크롤 뷰 루트(ScrollRect가 붙은 오브젝트). 필요 재료가 하나도 없으면 이 오브젝트 자체를 비활성화한다.")]
+        [SerializeField] private ScrollRect materialScrollRect;
+        [Tooltip("재료 행(materialCostRowPrefab)들이 실제로 생성되는 부모. GridLayoutGroup(2열 고정)이 붙어있어야 한다.")]
         [SerializeField] private Transform materialCostContainer;
         [SerializeField] private UpgradeMaterialCostRowUI materialCostRowPrefab;
 
@@ -72,6 +85,7 @@ namespace HDY.Upgrade
             {
                 Debug.LogWarning("[UpgradePopupUI] materialInventorySource가 IMaterialInventory를 구현하지 않습니다.", this);
             }
+            if (confirmButtonLabel == null) Debug.LogWarning("[UpgradePopupUI] confirmButtonLabel이 비어있습니다. 확인 버튼에 설명 문구가 표시되지 않습니다.", this);
 
             itemCatalogManager = ItemCatalogManager.Resolve(itemCatalogManager);
 
@@ -111,10 +125,23 @@ namespace HDY.Upgrade
             var cost = currentTarget.GetUpgradeCost();
 
             if (titleText != null) titleText.text = currentTarget.GetUpgradeTitle();
-            if (descriptionText != null) descriptionText.text = currentTarget.GetUpgradeDescription();
             if (goldCostText != null) goldCostText.text = cost.GoldCost.ToString();
+            if (confirmButtonLabel != null) confirmButtonLabel.text = currentTarget.GetUpgradeDescription();
 
-            PopulateMaterialRows(cost.MaterialCosts);
+            bool hasMaterialCosts = cost.MaterialCosts != null && cost.MaterialCosts.Count > 0;
+
+            // 요구 재료가 하나도 없으면(예: 멤창고 페이지 업그레이드는 골드만 사용) 스크롤 뷰 자체를 꺼서
+            // 빈 그리드 영역이 보이지 않도록 한다.
+            if (materialScrollRect != null)
+            {
+                materialScrollRect.gameObject.SetActive(hasMaterialCosts);
+            }
+
+            if (hasMaterialCosts)
+            {
+                PopulateMaterialRows(cost.MaterialCosts);
+                ResetMaterialScrollToTop();
+            }
 
             if (confirmButton != null) confirmButton.interactable = canUpgrade;
         }
@@ -124,14 +151,11 @@ namespace HDY.Upgrade
         {
             if (materialCostRowPrefab == null || materialCostContainer == null)
             {
-                if (materialCosts != null && materialCosts.Count > 0)
-                {
-                    Debug.LogWarning("[UpgradePopupUI] materialCostRowPrefab/materialCostContainer가 비어있어 재료 비용을 표시할 수 없습니다.", this);
-                }
+                Debug.LogWarning("[UpgradePopupUI] materialCostRowPrefab/materialCostContainer가 비어있어 재료 비용을 표시할 수 없습니다.", this);
                 return;
             }
 
-            int count = materialCosts != null ? materialCosts.Count : 0;
+            int count = materialCosts.Count;
 
             while (spawnedRows.Count < count)
             {
@@ -152,6 +176,24 @@ namespace HDY.Upgrade
                 {
                     spawnedRows[i].gameObject.SetActive(false);
                 }
+            }
+        }
+
+        /// <summary>
+        /// 재료 그리드(2열 x n행, GridLayoutGroup)는 행 개수가 바뀌면 콘텐츠 높이도 같이 바뀌므로, 스크롤 위치를
+        /// 계산하기 전에 레이아웃을 먼저 강제로 갱신한 뒤 맨 위로 되돌린다. 팝업을 열 때마다 항상 첫 두 줄부터
+        /// 보이도록 하기 위함이다(이전에 열었을 때 스크롤해뒀던 위치가 남아있지 않도록).
+        /// </summary>
+        private void ResetMaterialScrollToTop()
+        {
+            if (materialCostContainer is RectTransform contentRect)
+            {
+                LayoutRebuilder.ForceRebuildLayoutImmediate(contentRect);
+            }
+
+            if (materialScrollRect != null)
+            {
+                materialScrollRect.verticalNormalizedPosition = 1f;
             }
         }
 

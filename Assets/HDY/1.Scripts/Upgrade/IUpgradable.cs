@@ -13,7 +13,10 @@ namespace HDY.Upgrade
         /// <summary>팝업 상단에 표시할 제목 (예: "멤창고 페이지 확장").</summary>
         string GetUpgradeTitle();
 
-        /// <summary>팝업에 표시할 설명 (예: "2페이지에서 3페이지로 확장합니다").</summary>
+        /// <summary>
+        /// 확인(업그레이드) 버튼에 표시할 짧은 설명 (예: "2 → 3"). 팝업에 별도 설명 영역이 없고 버튼 라벨로
+        /// 바로 쓰이므로, 한 줄에 들어갈 만큼 짧게 반환해야 한다. 자세한 설명이 필요하면 GetUpgradeTitle 쪽에서 다룬다.
+        /// </summary>
         string GetUpgradeDescription();
 
         /// <summary>지금 업그레이드를 시도할 수 있는 상태인지(이미 최대치에 도달했다면 false).</summary>
