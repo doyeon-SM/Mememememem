@@ -11,6 +11,7 @@ public class ProductionPanelUI : MonoBehaviour
 
     [Header("최상위 패널 오브젝트")]
     [SerializeField] private GameObject productionPanelRoot;
+    [SerializeField] private GameObject centerProductionPanel;
     [SerializeField] private GameObject CloseButtonGroup;
     [SerializeField] private Button closeBtn;
     [SerializeField] private GameObject PlaceButtonGroup;
@@ -54,6 +55,7 @@ public class ProductionPanelUI : MonoBehaviour
         else Destroy(gameObject);
 
         if (productionPanelRoot != null) productionPanelRoot.SetActive(false);
+        if (centerProductionPanel != null) centerProductionPanel.SetActive(false);
 
         if (diamondBGBtn != null)
         {
@@ -133,6 +135,7 @@ public class ProductionPanelUI : MonoBehaviour
         targetFacility = facility;
 
         productionPanelRoot.SetActive(true);
+        centerProductionPanel.SetActive(true);
         CloseButtonGroup.SetActive(true);
         PlaceButtonGroup.SetActive(false);
         SetCameraControllersEnabled(false);
@@ -276,6 +279,7 @@ public class ProductionPanelUI : MonoBehaviour
         PlaceButtonGroup.SetActive(true);
         SetCameraControllersEnabled(true);
         productionPanelRoot.SetActive(false);
+        centerProductionPanel.SetActive(false);
     }
 
     private void SetCameraControllersEnabled(bool isEnable)
