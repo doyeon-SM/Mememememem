@@ -219,5 +219,33 @@ namespace HDY.Capture
 
             OnCapturedMemsChanged?.Invoke();
         }
+
+
+
+        /// <summary>
+        /// 해당 코드는 테스트함수며, 혹시나 커밋실수를 하여 저장될경우 꼭 제거부탁드립니다.
+        /// </summary>
+        [ContextMenu("Function: Add Test Mem")]
+        public void AddTestMemForDebug()
+        {
+            int emptyIndex = FindFirstEmptyIndex();
+            if (emptyIndex < 0)
+            {
+                Debug.LogWarning("[MemCaptureManager Test] 창고가 가득 차서 테스트 멤을 추가할 수 없습니다!");
+                return;
+            }
+
+            capturedMems[emptyIndex] = new CapturedMemEntry
+            {
+                KeyId = Guid.NewGuid().ToString(),
+                MemId = "mem_rare_001",
+                ExplorationStat = UnityEngine.Random.Range(20, 101),
+                IsActive = true
+            };
+
+            Debug.Log($"<color=cyan>[Test] 테스트 멤 주입 성공!</color> Index: {emptyIndex} | MemId: {capturedMems[emptyIndex].MemId} | 스탯: {capturedMems[emptyIndex].ExplorationStat}");
+
+            OnCapturedMemsChanged?.Invoke();
+        }
     }
 }

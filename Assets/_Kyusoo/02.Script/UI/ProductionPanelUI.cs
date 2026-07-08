@@ -1,15 +1,19 @@
+using HDY.Capture;
+using MemSystem.Data;
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
-using TMPro;
-using MemSystem.Data;
 
 public class ProductionPanelUI : MonoBehaviour
 {
     public static ProductionPanelUI Instance { get; private set; }
 
     [Header("최상위 패널 오브젝트")]
-    [SerializeField] private GameObject productionPanelRoot; 
+    [SerializeField] private GameObject productionPanelRoot;
+    [SerializeField] private GameObject CloseButtonGroup;
+    [SerializeField] private Button closeBtn;
+    [SerializeField] private GameObject PlaceButtonGroup;
 
     [Header("중앙 패널 - Top")]
     [SerializeField] private TextMeshProUGUI buildingName;
@@ -20,11 +24,13 @@ public class ProductionPanelUI : MonoBehaviour
     [SerializeField] private ProductionMemSlotUI[] memSlotImages = new ProductionMemSlotUI[5];
     [SerializeField] private GameObject defaultMode;   
     [SerializeField] private GameObject creatingMode;  
-    [SerializeField] private Image creatingItem;       
+    [SerializeField] private Image creatingItem;
     [SerializeField] private TextMeshProUGUI completeCreateCount; 
     [SerializeField] private Button diamondBGBtn;    
 
     [Header("중앙 패널 - Bottom")]
+    [SerializeField] private TextMeshProUGUI creatingItemName;
+    [SerializeField] private TextMeshProUGUI productionSpeed;
     [SerializeField] private Slider progressBar;
     [SerializeField] private TextMeshProUGUI durationText;
 
@@ -35,12 +41,12 @@ public class ProductionPanelUI : MonoBehaviour
 
     private List<GameObject> activeCraftingSlots = new List<GameObject>();
 
-    [Header("우측 패널 - 멤 생산 Stat 아이콘 레퍼런스 가방")]
-    [SerializeField] private Sprite craftingStatIcon;
-    [SerializeField] private Sprite loggingStatIcon;
-    [SerializeField] private Sprite miningStatIcon;
-    [SerializeField] private Sprite transportStatIcon;
-    [SerializeField] private Sprite farmingStatIcon;
+    //[Header("우측 패널 - 멤 생산 Stat 아이콘 레퍼런스 가방")]
+    //[SerializeField] private Sprite craftingStatIcon;
+    //[SerializeField] private Sprite loggingStatIcon;
+    //[SerializeField] private Sprite miningStatIcon;
+    //[SerializeField] private Sprite transportStatIcon;
+    //[SerializeField] private Sprite farmingStatIcon;
 
     // 현재 UI 창이 조준하고 있는 타겟 시설 스크립트 캐싱
     private ProductionFacilityRuntime targetFacility;
@@ -57,6 +63,11 @@ public class ProductionPanelUI : MonoBehaviour
             diamondBGBtn.onClick.AddListener(OnClickCollectReward);
         }
 
+        if (closeBtn != null)
+        {
+            closeBtn.onClick.AddListener(ClosePanel);
+        }
+
         for (int i = 0; i < memSlotImages.Length; i++)
         {
             if (memSlotImages[i] != null) memSlotImages[i].InitializeSlot(i);
@@ -68,16 +79,47 @@ public class ProductionPanelUI : MonoBehaviour
     /// </summary>
     private void Update()
     {
+        if (productionPanelRoot != null && productionPanelRoot.activeSelf)
+        {
+            if (UnityEngine.InputSystem.Keyboard.current != null && UnityEngine.InputSystem.Keyboard.current.escapeKey.wasPressedThisFrame)
+            {
+                ClosePanel();
+                return;
+            }
+        }
+
         if (targetFacility == null || !targetFacility.isProducing) return;
 
-        if (progressBar != null && targetFacility.totalRequiredTime > 0)
+        if (targetFacility.isProducing && targetFacility.totalRequiredTime > 0f)
         {
             float progressNormalized = targetFacility.currentProgressTime / targetFacility.totalRequiredTime;
-            progressBar.value = progressNormalized;
+            if (progressBar != null) progressBar.value = progressNormalized;
 
             if (durationText != null)
             {
                 durationText.text = $"{Mathf.Clamp(progressNormalized * 100f, 0f, 100f):F0}%";
+            }
+
+            if (productionSpeed != null)
+            {
+                productionSpeed.text = $"생산속도: {targetFacility.totalRequiredTime:F1}초(개당)";
+            }
+        }
+        else
+        {
+            if (progressBar != null) progressBar.value = 0f;
+            if (durationText != null) durationText.text = "0%";
+
+            if (productionSpeed != null)
+            {
+                if (targetFacility.craftingItem != null)
+                {
+                    productionSpeed.text = $"생산속도: {targetFacility.craftingItem.baseProductionTime:F1}초(개당)";
+                }
+                else
+                {
+                    productionSpeed.text = "생산속도: - 초(개당)";
+                }
             }
         }
 
@@ -92,10 +134,14 @@ public class ProductionPanelUI : MonoBehaviour
         if (facility == null) return;
 
         targetFacility = facility;
+
         productionPanelRoot.SetActive(true);
+        CloseButtonGroup.SetActive(true);
+        PlaceButtonGroup.SetActive(false);
+        SetCameraControllersEnabled(false);
 
         RefreshStaticUI();
-        RefreshProductionMode();
+        DisplayProduction();
     }
 
     /// <summary>
@@ -116,117 +162,89 @@ public class ProductionPanelUI : MonoBehaviour
 
             bool isUnlocked = (i < maxCapacity);
             MemData placedMemData = null;
+            CapturedMemEntry placedEntryData = null;
 
-            if (isUnlocked && i < targetFacility.DeployedMems.Count)
+            if (isUnlocked)
             {
-                placedMemData = targetFacility.DeployedMems[i];
+                if (i < targetFacility.DeployedMems.Count) placedMemData = targetFacility.DeployedMems[i];
+                if (i < targetFacility.DeployedMemEntries.Count) placedEntryData = targetFacility.DeployedMemEntries[i];
             }
 
-            memSlotImages[i].RefreshStatus(isUnlocked, placedMemData);
+            memSlotImages[i].RefreshStatus(isUnlocked, placedMemData, placedEntryData);
         }
     }
 
     /// <summary>
-    /// 드롭 이벤트를 수신하여 멤 배치 및 펫정보 수신
+    /// 코드 변경. 고정 매칭된 아이템의 이미지, 이름을 노출하는 함수
     /// </summary>
-    public void TryDeployMemFromUI(MemData targetMem)
-    {
-        if (targetFacility == null || targetMem == null) return;
-
-        bool isSuccess = targetFacility.TryAddMem(targetMem);
-
-        if (isSuccess)
-        {
-            //LoadAndCacheMemStats(targetMem);
-
-            RefreshStaticUI();
-        }
-    }
-
-    /// <summary>
-    /// 배치된 멤의 스탯값을 가져와서 적용하기
-    /// </summary>
-    private void LoadAndCacheMemStats(MemData memData)
-    {
-        if (memData == null) return;
-
-        int craftLvl = memData.productionStats.crafting;
-        int logLvl = memData.productionStats.logging;
-        int mineLvl = memData.productionStats.mining;
-        int transLvl = memData.productionStats.transport;
-        int farmLvl = memData.productionStats.farming;
-
-    }
-
-    /// <summary>
-    /// 제작중일때 아닐때 전환처리
-    /// </summary>
-    private void RefreshProductionMode()
+    private void DisplayProduction()
     {
         if (targetFacility == null) return;
 
-        bool isWorking = targetFacility.isProducing;
+        if (defaultMode != null) defaultMode.SetActive(true);
 
-        defaultMode.SetActive(isWorking);
-        creatingMode.SetActive(!isWorking);
-
-        if (isWorking && targetFacility.currentProductItem != null)
+        if (targetFacility.craftingItem != null)
         {
-            creatingItem.sprite = targetFacility.currentProductItem.itemIcon;
-            creatingItem.gameObject.SetActive(true);
-
-            ClearCraftingSlots();
+            if (creatingItem != null)
+            {
+                creatingItem.sprite = targetFacility.craftingItem.itemIcon;
+                creatingItem.gameObject.SetActive(true);
+            }
+            if (creatingItemName != null)
+            {
+                creatingItemName.text = targetFacility.craftingItem.itemName;
+            }
         }
         else
         {
-            creatingItem.gameObject.SetActive(false);
-
-            GenerateFacilityCraftingSlots();
+            if (creatingItem != null) creatingItem.gameObject.SetActive(false);
+            if (creatingItemName != null) creatingItemName.text = "생산 품목 없음";
         }
 
         UpdateStorageText();
     }
 
     /// <summary>
-    /// 현재 시설에 매칭되는 아이템들만 추출하여 UI에 표시
+    /// 드롭 이벤트를 수신하여 멤 배치 및 펫정보 수신
     /// </summary>
-    private void GenerateFacilityCraftingSlots()
+    public void TryDeployMemFromUI(MemData targetMem, CapturedMemEntry targetEntry)
     {
-        ClearCraftingSlots();
+        if (targetFacility == null || targetMem == null || targetEntry == null) return;
 
-        if (targetFacility == null || craftingSlotPrefab == null || craftingSlotParent == null) return;
+        bool isSuccess = targetFacility.TryAddMem(targetMem, targetEntry);
 
-        BuildingType currentFacilityType = targetFacility.buildingData.buildingType;
-
-        foreach (ProductItemData item in allProductItems)
+        if (isSuccess)
         {
-            if (item == null) continue;
-
-            
-            if (item.matchBuildingType == currentFacilityType)
-            {
-                GameObject slotInstance = Instantiate(craftingSlotPrefab, craftingSlotParent);
-
-                if (slotInstance.TryGetComponent<CraftingSlotUI>(out CraftingSlotUI slotUI))
-                {
-                    slotUI.Setup(item);
-                }
-                activeCraftingSlots.Add(slotInstance);
-            }
+            RefreshStaticUI();
         }
     }
 
     /// <summary>
-    /// 오류 방지용 비우기
+    /// 시설 내 슬롯 클릭 시 슬로 배치 해제 처리
     /// </summary>
-    private void ClearCraftingSlots()
+    public void TryRemoveMemFromUI(MemData targetMem)
     {
-        foreach (GameObject slot in activeCraftingSlots)
-        {
-            if (slot != null) Destroy(slot);
-        }
-        activeCraftingSlots.Clear();
+        if (targetFacility == null || targetMem == null) return;
+
+        targetFacility.RemoveMem(targetMem);
+
+        RefreshStaticUI();
     }
+
+    /// <summary>
+    /// 배치된 멤의 스탯값을 가져와서 적용하기
+    /// </summary>
+    //private void LoadAndCacheMemStats(MemData memData)
+    //{
+    //    if (memData == null) return;
+
+    //    int craftLvl = memData.productionStats.crafting;
+    //    int logLvl = memData.productionStats.logging;
+    //    int mineLvl = memData.productionStats.mining;
+    //    int transLvl = memData.productionStats.transport;
+    //    int farmLvl = memData.productionStats.farming;
+
+    //}
 
     /// <summary>
     /// 시설 내 저장된 수량 텍스트 업데이트
@@ -236,18 +254,6 @@ public class ProductionPanelUI : MonoBehaviour
         if (targetFacility == null || completeCreateCount == null) return;
 
         completeCreateCount.text = targetFacility.currentStorageCount.ToString();
-    }
-
-    /// <summary>
-    /// 특정 아이템 제작을 위해 슬롯을 클릭했을 때 호출할 함수
-    /// </summary>
-    public void OnSelectItemProduce(ProductItemData itemData)
-    {
-        if (targetFacility == null || itemData == null) return;
-
-        targetFacility.SelectAndStartProduction(itemData);
-
-        RefreshProductionMode();
     }
 
     /// <summary>
@@ -267,8 +273,27 @@ public class ProductionPanelUI : MonoBehaviour
     /// </summary>
     public void ClosePanel()
     {
-        ClearCraftingSlots();
         targetFacility = null;
+
+        CloseButtonGroup.SetActive(false);
+        PlaceButtonGroup.SetActive(true);
+        SetCameraControllersEnabled(true);
         productionPanelRoot.SetActive(false);
+    }
+
+    private void SetCameraControllersEnabled(bool isEnable)
+    {
+        // 버전 유연성 및 크로스 컴파일 안정성을 위해 유니티 표준 검색 엔진(FindObjectOfType)을 활용합니다.
+        CameraMoveController moveController = Object.FindFirstObjectByType<CameraMoveController>();
+        if (moveController != null)
+        {
+            moveController.enabled = isEnable;
+        }
+
+        CameraZoomController zoomController = Object.FindFirstObjectByType<CameraZoomController>();
+        if (zoomController != null)
+        {
+            zoomController.enabled = isEnable;
+        }
     }
 }

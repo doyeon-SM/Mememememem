@@ -1,6 +1,7 @@
+using HDY.Capture;
+using MemSystem.Data;
 using System.Collections.Generic;
 using UnityEngine;
-using MemSystem.Data;
 
 public class ProductionFacilityRuntime : MonoBehaviour
 {
@@ -10,7 +11,7 @@ public class ProductionFacilityRuntime : MonoBehaviour
 
     [Header("실시간 생산 상태 변수")]
     public bool isProducing = false;
-    public ProductItemData currentProductItem; 
+    public ProductItemData craftingItem;
     public float totalRequiredTime;           
     public float currentProgressTime = 0f;
 
@@ -21,11 +22,15 @@ public class ProductionFacilityRuntime : MonoBehaviour
     [Header("현재 시설에 배치된 멤 리스트")]
     [SerializeField] private List<MemData> addMems = new List<MemData>();
 
+    [SerializeField] private List<CapturedMemEntry> addMemEntries = new List<CapturedMemEntry>();
+
     public List<MemData> DeployedMems => addMems;
+    public List<CapturedMemEntry> DeployedMemEntries => addMemEntries;
 
     private void Start()
     {
         UpdateMaxStorage();
+        CheckProductionCondition();
     }
 
     public void UpdateMaxStorage()
@@ -51,13 +56,51 @@ public class ProductionFacilityRuntime : MonoBehaviour
     }
 
     /// <summary>
+    /// 최소 1마리의 멤이 배치되면 아이템 생산되도록 처리
+    /// </summary>
+    public void CheckProductionCondition()
+    {
+        if (craftingItem == null || addMems.Count == 0)
+        {
+            isProducing = false;
+            currentProgressTime = 0f; 
+            return;
+        }
+
+        if (isProducing && totalRequiredTime > 0f)
+        {
+            float currentProgressPercent = currentProgressTime / totalRequiredTime;
+
+            totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(craftingItem.baseProductionTime, addMems);
+
+            currentProgressTime = totalRequiredTime * currentProgressPercent;
+
+            Debug.Log($"멤 배치 변동. 새 소요시간: {totalRequiredTime}초");
+        }
+        else
+        {
+            currentProgressTime = 0f;
+            totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(craftingItem.baseProductionTime, addMems);
+            isProducing = true;
+
+            Debug.Log($"{craftingItem.itemName} 제작 시작. 최종 소요시간: {totalRequiredTime}초");
+        }
+    }
+
+
+    /// <summary>
     /// UI에서 특정 멤을 클릭하여 배치할때 호출
     /// </summary>
-    public bool TryAddMem(MemData targetMem)
+    public bool TryAddMem(MemData targetMem, CapturedMemEntry targetEntry)
     {
         if (targetMem == null || buildingData == null) return false;
 
         int maxCapacity = ProductionCalculator.GetMaxMemCount(currentLevel);
+        if (addMems.Contains(targetMem))
+        {
+            Debug.LogWarning($"{targetMem.memName}은 이미 이 시설에 투입되어 있습니다.");
+            return false;
+        }
         if (addMems.Count >= maxCapacity)
         {
             Debug.LogWarning($"배치 인원이 가득 찼습니다.");
@@ -73,9 +116,11 @@ public class ProductionFacilityRuntime : MonoBehaviour
 
         // 3. 배치 성공 및 실시간 소요 시간 재반영
         addMems.Add(targetMem);
+        addMemEntries.Add(targetEntry);
+        targetEntry.IsActive = true;
         Debug.Log($"[생산] {targetMem.memName} 배치 성공!");
 
-        if (isProducing) RecalculateTimerMidProduction();
+        CheckProductionCondition();
         return true;
     }
 
@@ -86,61 +131,20 @@ public class ProductionFacilityRuntime : MonoBehaviour
     {
         if (addMems.Contains(targetMem))
         {
-            addMems.Remove(targetMem);
+            int index = addMems.IndexOf(targetMem);
+            if (index >= 0 && index < addMemEntries.Count)
+            {
+                addMemEntries[index].IsActive = false;
+                addMemEntries.RemoveAt(index);
+            }
+            addMems.RemoveAt(index);
 
-            if (isProducing) RecalculateTimerMidProduction();
+            Debug.Log($"[생산 해제] {targetMem.memName} 시설에서 제외 완료.");
+
+            CheckProductionCondition();
         }
     }
 
-    /// <summary>
-    /// 생산시 시작될 때 동작할 함수
-    /// </summary>
-    public void SelectAndStartProduction(ProductItemData selectedItem)
-    {
-        if (selectedItem == null) return;
-
-        if (addMems.Count == 0)
-        {
-            return;
-        }
-
-        if (selectedItem.matchBuildingType != buildingData.buildingType)
-        {
-            return;
-        }
-
-        currentProductItem = selectedItem;
-        currentProgressTime = 0f;
-
-        totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(currentProductItem.baseProductionTime, addMems);
-        isProducing = true;
-
-        Debug.Log($"생산 시작. 최종 완료 소요시간: {totalRequiredTime}초");
-    }
-
-    /// <summary>
-    /// 생산 도중 멤 배치 변경 발생 시 즉시 감소 공식을 재호출하여 소요 시간을 재반영
-    /// </summary>
-    private void RecalculateTimerMidProduction()
-    {
-        // 도중 변동으로 인해 멤이 0명이 되어버렸다면 가동 중단 처리
-        if (addMems.Count == 0)
-        {
-            isProducing = false;
-            currentProgressTime = 0f;
-            currentProductItem = null;
-            Debug.LogWarning($"멤을 배치하지않아 생산 작업이 중단되었습니다.");
-            return;
-        }
-
-        float currentProgressPercent = currentProgressTime / totalRequiredTime;
-
-        totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(currentProductItem.baseProductionTime, addMems);
-
-        currentProgressTime = totalRequiredTime * currentProgressPercent;
-
-        Debug.Log($"멤 추가로 인한 소요시간 업데이트. 새 소요시간: {totalRequiredTime}초");
-    }
 
     /// <summary>
     /// 아이템 1개 생성이 완료되었을 때, 시설 내부에 저장되도록 처리
@@ -152,7 +156,10 @@ public class ProductionFacilityRuntime : MonoBehaviour
         // 아이템 수량 텍스트 수정처리(Event발행, currentStorageCount)
 
         currentProgressTime = 0f;
-        totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(currentProductItem.baseProductionTime, addMems);
+        if (craftingItem != null)
+        {
+            totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(craftingItem.baseProductionTime, addMems);
+        }
     }
 
     /// <summary>
@@ -160,12 +167,8 @@ public class ProductionFacilityRuntime : MonoBehaviour
     /// </summary>
     public void StoredItems()
     {
-        if (currentStorageCount <= 0)
-        {
-            return;
-        }
-
-        if (currentProductItem == null) return;
+        if (currentStorageCount <= 0) return;
+        if (craftingItem == null) return;
 
         int amountToCollect = currentStorageCount;
 
