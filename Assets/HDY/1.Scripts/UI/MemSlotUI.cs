@@ -120,7 +120,7 @@ namespace HDY.UI
 
             if (iconImage != null)
             {
-                iconImage.sprite = null;
+                iconImage.gameObject.SetActive(false);
             }
 
             if (activeImage != null)
@@ -144,7 +144,7 @@ namespace HDY.UI
 
             if (iconImage != null)
             {
-                iconImage.sprite = null;
+                iconImage.gameObject.SetActive(false);
             }
 
             if (activeImage != null)
@@ -188,6 +188,7 @@ namespace HDY.UI
                 eventData.pointerDrag = null; // 드래그 파이프라인을 취소한다 (이후 OnDrag/OnEndDrag가 호출되지 않음)
                 return;
             }
+            iconImage.gameObject.SetActive(true);
 
             var ghostObject = new GameObject("DragGhostIcon", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
             dragGhost = ghostObject.GetComponent<RectTransform>();

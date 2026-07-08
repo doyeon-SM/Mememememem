@@ -15,7 +15,11 @@ namespace HDY.UI
     /// 정보 패널 표시는 MemStorageUI_Info가, 데이터 조회/전달 및 실제 위치 교체(데이터 반영)는 MemStorageUI(컨트롤러)가 담당한다.
     ///
     /// [빈 칸] MemCaptureManager의 목록은 항상 최대치만큼 미리 채워져 있고 빈 칸은 CapturedMemEntry.IsEmpty로 구분된다.
-    /// 페이지 총 개수는 목록 전체 길이(=창고 최대치) 기준으로 계산되므로, 창고 최대치가 나중에 바뀌면 자동으로 반영된다.
+    ///
+    /// [페이지 언락 (멤창고 업그레이드)] 데이터 목록 자체는 항상 전체 최대치(예: 10페이지)만큼 채워져 있지만,
+    /// 실제로 넘어갈 수 있는 페이지 수는 unlockedPageCount로 제한한다(ShowInitial/NotifyDataChanged 호출 시
+    /// MemStorageUI가 MemCaptureManager.UnlockedPageCount를 전달해준다). 총 페이지 수 계산 시 데이터 길이 기준
+    /// 페이지 수와 unlockedPageCount 중 더 작은 값을 사용해서, 아직 언락되지 않은 페이지로는 이동/점 표시가 되지 않는다.
     ///
     /// [마우스 휠 페이지 이동] 그리드 영역 위에서 휠을 아래로 내리면 다음 페이지, 위로 올리면 이전 페이지로 이동한다
     /// (IScrollHandler). 이 GameObject(또는 부모)에 Raycast Target이 켜진 Graphic이 있어야 휠 이벤트가 감지된다.
@@ -52,6 +56,10 @@ namespace HDY.UI
         private readonly List<MemSlotUI> slots = new List<MemSlotUI>();
         private readonly List<RectTransform> pageDots = new List<RectTransform>();
         private int currentPageIndex;
+
+        // 언락된 페이지 수(멤창고 업그레이드로 늘어남). 기본값은 "제한 없음"이지만, 실제로는 항상
+        // ShowInitial/NotifyDataChanged 호출 시 MemStorageUI가 MemCaptureManager.UnlockedPageCount를 넘겨준다.
+        private int unlockedPageCount = int.MaxValue;
 
         // 드래그 시작 시점에 기억해두는 "지금 옮기는 항목"의 전체 목록 기준 인덱스. 드래그 중이 아니면 -1.
         private int draggingSourceGlobalIndex = -1;
@@ -173,16 +181,25 @@ namespace HDY.UI
             return currentPageIndex * PageSize + localIndex;
         }
 
-        /// <summary>창고 UI가 처음 열릴 때 호출. 실제로 채워진 멤이 있는 가장 마지막 페이지부터 보여준다(전부 비어있으면 첫 페이지).</summary>
-        public void ShowInitial(IReadOnlyList<CapturedMemEntry> capturedMems, Func<string, MemData> findMemData, Func<CapturedMemEntry, MemStatDisplayInfo> statDisplayProvider)
+        /// <summary>
+        /// 창고 UI가 처음 열릴 때 호출. 실제로 채워진 멤이 있는 가장 마지막 페이지부터 보여준다(전부 비어있으면 첫 페이지).
+        /// unlockedPageCount: 멤창고 업그레이드로 언락된 페이지 수(MemCaptureManager.UnlockedPageCount). 이 페이지 수까지만
+        /// 이동/점 표시를 허용한다.
+        /// </summary>
+        public void ShowInitial(IReadOnlyList<CapturedMemEntry> capturedMems, Func<string, MemData> findMemData, Func<CapturedMemEntry, MemStatDisplayInfo> statDisplayProvider, int unlockedPageCount)
         {
+            this.unlockedPageCount = unlockedPageCount;
             currentPageIndex = GetLastNonEmptyPageIndex(capturedMems);
             Populate(capturedMems, findMemData, statDisplayProvider);
         }
 
-        /// <summary>새로 멤이 포획되거나 슬롯 위치/정렬 순서가 바뀌는 등 데이터가 바뀌었을 때 호출. 보고 있던 페이지를 그대로 유지한 채 다시 채운다.</summary>
-        public void NotifyDataChanged(IReadOnlyList<CapturedMemEntry> capturedMems, Func<string, MemData> findMemData, Func<CapturedMemEntry, MemStatDisplayInfo> statDisplayProvider)
+        /// <summary>
+        /// 새로 멤이 포획되거나 슬롯 위치/정렬 순서가 바뀌는 등 데이터가 바뀌었을 때, 또는 페이지가 새로 언락되었을 때 호출.
+        /// 보고 있던 페이지를 그대로 유지한 채 다시 채운다.
+        /// </summary>
+        public void NotifyDataChanged(IReadOnlyList<CapturedMemEntry> capturedMems, Func<string, MemData> findMemData, Func<CapturedMemEntry, MemStatDisplayInfo> statDisplayProvider, int unlockedPageCount)
         {
+            this.unlockedPageCount = unlockedPageCount;
             Populate(capturedMems, findMemData, statDisplayProvider);
         }
 
@@ -191,9 +208,17 @@ namespace HDY.UI
             return Mathf.Max(1, Mathf.CeilToInt(count / (float)PageSize));
         }
 
+        /// <summary>실제 이동 가능한 총 페이지 수. 데이터 길이 기준 페이지 수와 언락된 페이지 수 중 더 작은 값을 사용한다.</summary>
+        private int GetEffectiveTotalPages(int count)
+        {
+            int dataBasedPages = GetTotalPages(count);
+            int unlockedClamped = Mathf.Max(1, unlockedPageCount);
+            return Mathf.Min(dataBasedPages, unlockedClamped);
+        }
+
         private int GetLastPageIndex(int count)
         {
-            return GetTotalPages(count) - 1;
+            return GetEffectiveTotalPages(count) - 1;
         }
 
         /// <summary>실제 멤(비어있지 않은 항목)이 존재하는 페이지 중 가장 마지막 페이지의 인덱스를 찾는다. 없으면 0(첫 페이지).</summary>
@@ -201,7 +226,7 @@ namespace HDY.UI
         {
             if (capturedMems == null || capturedMems.Count == 0) return 0;
 
-            int totalPages = GetTotalPages(capturedMems.Count);
+            int totalPages = GetEffectiveTotalPages(capturedMems.Count);
 
             for (int page = totalPages - 1; page >= 0; page--)
             {
@@ -236,7 +261,7 @@ namespace HDY.UI
                 return;
             }
 
-            int totalPages = GetTotalPages(capturedMems.Count);
+            int totalPages = GetEffectiveTotalPages(capturedMems.Count);
             currentPageIndex = Mathf.Clamp(currentPageIndex, 0, totalPages - 1);
 
             int startIndex = currentPageIndex * PageSize;
@@ -262,7 +287,7 @@ namespace HDY.UI
             if (prevPageButton != null) prevPageButton.interactable = currentPageIndex > 0;
             if (nextPageButton != null) nextPageButton.interactable = currentPageIndex < totalPages - 1;
 
-            Debug.Log($"[MemStorageUI_Grid] Populate 완료: 슬롯={slots.Count}, 전체 칸수={capturedMems.Count}, 페이지={currentPageIndex + 1}/{totalPages}");
+            Debug.Log($"[MemStorageUI_Grid] Populate 완료: 슬롯={slots.Count}, 전체 칸수={capturedMems.Count}, 페이지={currentPageIndex + 1}/{totalPages} (언락={unlockedPageCount})");
         }
 
         /// <summary>
@@ -309,7 +334,7 @@ namespace HDY.UI
         /// 마우스 휠 입력을 받아 페이지를 이동한다(편의 기능). 휠을 아래로 내리면 다음 페이지, 위로 올리면 이전 페이지.
         /// 멤을 드래그하는 도중에도 그대로 동작해서, 다른 페이지로 넘어가 그 페이지의 슬롯에 놓을 수 있다
         /// (드래그 중인 항목의 인덱스는 draggingSourceGlobalIndex로 별도 보존되므로 안전하다).
-        /// 이미 첫/마지막 페이지인 경우 GoToPrevPage/GoToNextPage가 알아서 그 자리에서 멈춘다(범위 clamp 처리는 기존 로직 재사용).
+        /// 이미 첫/마지막(언락된 범위 기준) 페이지인 경우 GoToPrevPage/GoToNextPage가 알아서 그 자리에서 멈춘다.
         /// </summary>
         public void OnScroll(PointerEventData eventData)
         {

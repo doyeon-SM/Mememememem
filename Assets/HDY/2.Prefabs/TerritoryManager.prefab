@@ -65,4 +65,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 439415b1aa5b65b4baab0cf712ad48f6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HDY.Recipe.RecipeUnlockManager
-  recipeUnlocks: []
+  itemCatalogManager: {fileID: 0}
+  recipeUnlocks:
+  - Item_ID: item_iron
+    RequestTerritoryLevel: 1
+    RequestGold: 1000
+    IsUnlocked: 0
+  - Item_ID: item_woodplank
+    RequestTerritoryLevel: 1
+    RequestGold: 1000
+    IsUnlocked: 0

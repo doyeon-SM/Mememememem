@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dc70c76ceb0f0e44f836689c4a16bfe1, type: 3}
+  m_Name: 3_Item_Berry
+  m_EditorClassIdentifier: Assembly-CSharp::HDY.Item.ItemData
+  Item_ID: item_berry
+  ItemName: "\uB2EC\uCF64\uD55C \uC5F4\uB9E4"
+  ItemIcon: {fileID: 21300000, guid: afae5b5945a31da4a9c6d879e7c3abeb, type: 3}
+  ItemClass: 0
+  Value: 1
+  MaxStack: 20
+  Category: 0
+  UseAction: 1
+  EatEffects:
+  - Effect: 0
+    Value: 10
