@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+/*using System.Collections.Generic;
 using UnityEngine;
 
 public class CookSystem : MonoBehaviour
@@ -80,10 +80,10 @@ public class CookSystem : MonoBehaviour
         if(random > _recipe.successChance)
         {
             //Debug.Log("���� �̲����� �丮 ������ �����߽��ϴ�...");
-/*            if(UIToastController.Instance != null && failShowMessage.Length >= 1)
+*//*            if(UIToastController.Instance != null && failShowMessage.Length >= 1)
             {
                 UIToastController.Instance.ShowMessage(failShowMessage[Random.Range(0,failShowMessage.Length)]);
-            }*/
+            }*//*
             return false;
         }
 
@@ -105,3 +105,4 @@ public class CookSystem : MonoBehaviour
     } 
     
 }
+*/

@@ -7,10 +7,13 @@ public class WayPointManager : MonoBehaviour
     public static WayPointManager Instance { get; private set; }
 
     [Header("WayPoint Data")]
+    [SerializeField] private List<WayPointMapDefinition> mapDefinitions = new List<WayPointMapDefinition>();
     [SerializeField] private List<WayPointDefinition> definitions = new List<WayPointDefinition>();
 
     [Header("Runtime")]
     [SerializeField] private Transform player;
+    [SerializeField] private bool autoFindPlayerByTag = true;
+    [SerializeField] private string playerTag = "Player";
 
     private readonly Dictionary<string, WayPointRunTime> statesById = new Dictionary<string, WayPointRunTime>();
     private readonly Dictionary<string, WayPointStone> stonesById = new Dictionary<string, WayPointStone>();
@@ -246,10 +249,18 @@ public class WayPointManager : MonoBehaviour
         return result;
     }
 
-    // 등록된 웨이포인트에서 사용 중인 맵 목록을 중복 없이 가져온다.
+    // 인스펙터에 등록된 맵과 웨이포인트에서 사용 중인 맵 목록을 중복 없이 가져온다.
     public List<WayPointMapDefinition> GetAllMaps()
     {
         List<WayPointMapDefinition> result = new List<WayPointMapDefinition>();
+
+        foreach (WayPointMapDefinition mapDefinition in mapDefinitions)
+        {
+            if (mapDefinition != null && !result.Contains(mapDefinition))
+            {
+                result.Add(mapDefinition);
+            }
+        }
 
         foreach (WayPointRunTime state in statesById.Values)
         {
@@ -266,7 +277,7 @@ public class WayPointManager : MonoBehaviour
     // 지도 UI에서 활성화된 아이콘을 클릭했을 때 이동을 시도한다.
     public bool TryTravel(string id)
     {
-        return TryTravel(id, player);
+        return TryTravel(id, ResolvePlayer());
     }
 
     // 해금된 웨이포인트라면 등록된 Stone의 SpawnPosition으로 플레이어를 이동시킨다.
@@ -336,6 +347,38 @@ public class WayPointManager : MonoBehaviour
     public void SetPlayer(Transform newPlayer)
     {
         player = newPlayer;
+    }
+
+    // 인스펙터에 Player가 비어 있으면 Player 태그로 이동 대상을 자동 탐색한다.
+    private Transform ResolvePlayer()
+    {
+        if (player != null)
+        {
+            return player;
+        }
+
+        if (!autoFindPlayerByTag || string.IsNullOrWhiteSpace(playerTag))
+        {
+            return null;
+        }
+
+        GameObject playerObject = null;
+        try
+        {
+            playerObject = GameObject.FindGameObjectWithTag(playerTag);
+        }
+        catch (UnityException)
+        {
+            Debug.LogWarning($"[WayPointManager] Player tag is not defined: {playerTag}");
+        }
+
+        if (playerObject == null)
+        {
+            return null;
+        }
+
+        player = playerObject.transform;
+        return player;
     }
 
     // 다음 맵의 잠금 상태가 바뀔 수 있으니 UI에 다시 확인하라고 알린다.

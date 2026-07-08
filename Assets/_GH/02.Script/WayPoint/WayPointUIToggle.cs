@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿using KMS.InventoryDuped;
+using UnityEngine;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
 #endif
@@ -99,6 +100,11 @@ public class WayPointUIToggle : MonoBehaviour
     public void SetOpen(bool open)
     {
         isOpen = open;
+
+        if (!isOpen && mapUI != null)
+        {
+            mapUI.HideTooltip();
+        }
 
         if (targetUI != null)
         {

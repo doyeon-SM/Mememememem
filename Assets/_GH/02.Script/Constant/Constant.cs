@@ -23,7 +23,6 @@ namespace KGH.Data
     [Serializable]
     public struct ObjectDropItem
     {
-        public ItemData itemData;
         public GameObject dropPrefab;
         public int minDrop;
         public int maxDrop;

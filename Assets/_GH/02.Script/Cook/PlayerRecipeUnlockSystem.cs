@@ -1,4 +1,4 @@
-using UnityEngine;
+/*using UnityEngine;
 
 public class PlayerRecipeUnlockSystem : MonoBehaviour
 {
@@ -33,12 +33,12 @@ public class PlayerRecipeUnlockSystem : MonoBehaviour
             if (recipe.unlockType == RecipeUnlockType.Default || playerRecipe.RecipeIsReady(recipe)) continue;
             if(recipe.requiredUnlockItem == obtainedItem)
             {
-/*                if(playerRecipe.UnlockRecipe(recipe) && unLockRecipeUI != null)
+*//*                if(playerRecipe.UnlockRecipe(recipe) && unLockRecipeUI != null)
                 {
                     unLockRecipeUI.UnLockRecipe(recipe.result.icon, recipe.result.displayName);
-                }*/
+                }*//*
             }
         }
 
     }
-}
+}*/

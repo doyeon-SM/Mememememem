@@ -1,5 +1,6 @@
 using HDY.Item;
 using KGH.Data;
+using KMS.InventoryDuped;
 using System;
 using UnityEngine;
 
@@ -13,7 +14,6 @@ public class Chest : MonoBehaviour
 /// <summary>
 /// 인벤토리 수정 후 동작구조 보완 필요
 /// </summary>
-/// <param name="inventory"></param>
     private void ChestItem(PlayerInventory inventory)
     {
         if(!isOverlap)

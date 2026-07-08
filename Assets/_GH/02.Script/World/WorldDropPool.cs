@@ -88,28 +88,3 @@ public static class WorldDropPool
         return poolRoot;
     }
 }
-
-class PooledWorldDrop : MonoBehaviour
-{
-    private GameObject prefab;
-    private float autoReturnSeconds;
-    private float lifeTime;
-
-    public void Initialize(GameObject sourcePrefab, float returnSeconds)
-    {
-        prefab = sourcePrefab;
-        autoReturnSeconds = returnSeconds;
-        lifeTime = 0f;
-    }
-
-    private void Update()
-    {
-        if (autoReturnSeconds <= 0f) return;
-
-        lifeTime += Time.deltaTime;
-        if (lifeTime >= autoReturnSeconds)
-        {
-            WorldDropPool.Release(prefab, gameObject);
-        }
-    }
-}

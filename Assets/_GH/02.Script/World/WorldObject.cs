@@ -1,4 +1,5 @@
 ﻿using KGH.Data;
+using KMS.InventoryDuped;
 using UnityEngine;
 
 public class WorldObject : MonoBehaviour
@@ -8,16 +9,14 @@ public class WorldObject : MonoBehaviour
     [SerializeField] private ObjectDropItem dropItem;
     [SerializeField] private int maxObjectHp = 1;
     [SerializeField] private int currentObjectHp;
+    [SerializeField] private int respawnTime = 30;
+    [SerializeField] private bool destroyObjectWhenDepleted = true;
 
     [Header("Drop Spawn")]
     [SerializeField] private Transform dropSpawnPoint;
     [SerializeField] private LayerMask groundLayer = ~0;
     [SerializeField] private float dropSpawnHeight = 0.02f;
     [SerializeField] private float dropSpreadRadius = 1.1f;
-    [SerializeField] private float groundRaycastHeight = 3f;
-    [SerializeField] private float groundRaycastDistance = 8f;
-    [SerializeField] private int maxDropVisualCount = 8;
-    [SerializeField] private bool destroyObjectWhenDepleted = true;
 
     [Header("Drop Pool")]
     [SerializeField] private int poolPrewarmCount;
@@ -26,6 +25,10 @@ public class WorldObject : MonoBehaviour
     [Header("Debug")]
     [SerializeField] private bool enableDebugAutoDrop;
     [SerializeField] private float debugAutoDropInterval = 2f;
+
+    private const float GroundRaycastHeight = 3f;
+    private const float GroundRaycastDistance = 8f;
+    private const int MaxDropVisualCount = 8;
 
     private float debugTime;
 
@@ -46,7 +49,7 @@ public class WorldObject : MonoBehaviour
             SpawnDropObjects();
         }
     }
-
+    //TODO :
     public bool ObjectInteract(ObjectType toolTargetType, PlayerInventory inventory, int damage)
     {
         if (myType != toolTargetType) return false;
@@ -70,8 +73,6 @@ public class WorldObject : MonoBehaviour
     private void ItemDrops(PlayerInventory inventory)
     {
         SpawnDropObjects();
-
-        // inventory.AddItem(dropItem.itemData, Random.Range(dropItem.minDrop, dropItem.maxDrop + 1));
     }
 
     private void SpawnDropObjects()
@@ -81,7 +82,7 @@ public class WorldObject : MonoBehaviour
         int minDrop = Mathf.Max(0, dropItem.minDrop);
         int maxDrop = Mathf.Max(minDrop, dropItem.maxDrop);
         int dropCount = Random.Range(minDrop, maxDrop + 1);
-        int visualCount = Mathf.Min(dropCount, Mathf.Max(1, maxDropVisualCount));
+        int visualCount = Mathf.Min(dropCount, MaxDropVisualCount);
 
         for (int i = 0; i < visualCount; i++)
         {
@@ -97,9 +98,9 @@ public class WorldObject : MonoBehaviour
         Vector3 origin = dropSpawnPoint != null ? dropSpawnPoint.position : transform.position;
         Vector2 randomCircle = Random.insideUnitCircle * dropSpreadRadius;
         Vector3 dropPosition = origin + new Vector3(randomCircle.x, 0f, randomCircle.y);
-        Vector3 rayStart = dropPosition + Vector3.up * groundRaycastHeight;
+        Vector3 rayStart = dropPosition + Vector3.up * GroundRaycastHeight;
 
-        if (Physics.Raycast(rayStart, Vector3.down, out RaycastHit hit, groundRaycastDistance, groundLayer, QueryTriggerInteraction.Ignore))
+        if (Physics.Raycast(rayStart, Vector3.down, out RaycastHit hit, GroundRaycastDistance, groundLayer, QueryTriggerInteraction.Ignore))
         {
             return hit.point + Vector3.up * dropSpawnHeight;
         }
