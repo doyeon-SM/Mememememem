@@ -13,7 +13,10 @@ namespace KMS.InventoryDuped
         public Vector2 screenOffset;
 
         public Color nameBackgroundColor;
+        public Color categoryBackgroundColor = new Color(0.18f, 0.22f, 0.28f, 1f);
+        public Color effectBackgroundColor = new Color(0.2f, 0.36f, 0.24f, 1f);
         public Color darkTextColor;
+        public Color lightTextColor = Color.white;
 
         private readonly List<TooltipTagUI> activeTags = new List<TooltipTagUI>();
 
@@ -48,7 +51,9 @@ namespace KMS.InventoryDuped
             gameObject.SetActive(true);
             ClearTags();
 
-            CreateTag(item.ItemName);
+            CreateTag(item.ItemName, nameBackgroundColor, darkTextColor);
+            CreateTag($"종류: {GetCategoryText(item.Category)}", categoryBackgroundColor, lightTextColor);
+            CreateEffectTags(item);
 
             LayoutRebuilder.ForceRebuildLayoutImmediate(rectTransform);
             Canvas.ForceUpdateCanvases();
@@ -86,14 +91,65 @@ namespace KMS.InventoryDuped
             gameObject.SetActive(false);
         }
 
-        private void CreateTag(string label)
+        private void CreateEffectTags(ItemData item)
+        {
+            if (item.Category != HDY.Item.ItemCategory.Food && item.UseAction != HDY.Item.UseAction.Eat) return;
+
+            if (item.Value > 0)
+            {
+                CreateTag($"포만감 +{item.Value}", effectBackgroundColor, lightTextColor);
+            }
+
+            if (item.EatEffects == null) return;
+
+            for (int i = 0; i < item.EatEffects.Count; i++)
+            {
+                ItemEffect effect = item.EatEffects[i];
+                if (effect == null || Mathf.Approximately(effect.Value, 0f)) continue;
+
+                string sign = effect.Value > 0f ? "+" : string.Empty;
+                CreateTag($"{GetEffectText(effect.Effect)} {sign}{effect.Value:g}", effectBackgroundColor, lightTextColor);
+            }
+        }
+
+        private void CreateTag(string label, Color backgroundColor, Color textColor)
         {
             TooltipTagUI tag = Instantiate(tagTemplate, tagParent);
 
             tag.gameObject.SetActive(true);
-            tag.Set(null, label, nameBackgroundColor, darkTextColor);
+            tag.Set(null, label, backgroundColor, textColor);
 
             activeTags.Add(tag);
+        }
+
+        private string GetCategoryText(HDY.Item.ItemCategory category)
+        {
+            switch (category)
+            {
+                case HDY.Item.ItemCategory.Food:
+                    return "음식";
+                case HDY.Item.ItemCategory.Material:
+                    return "재료";
+                case HDY.Item.ItemCategory.Goods:
+                    return "재화";
+                case HDY.Item.ItemCategory.Capsule:
+                    return "캡슐";
+                case HDY.Item.ItemCategory.Tool:
+                    return "도구";
+                default:
+                    return category.ToString();
+            }
+        }
+
+        private string GetEffectText(HDY.Item.EffectType effect)
+        {
+            switch (effect)
+            {
+                case HDY.Item.EffectType.Speed:
+                    return "이동속도";
+                default:
+                    return effect.ToString();
+            }
         }
 
         private void ClearTags()

@@ -1,5 +1,6 @@
 using System;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace KMS
 {
@@ -9,43 +10,50 @@ namespace KMS
         [SerializeField] private float maxHealth = 100f;
         [SerializeField] private float startingHealth = 100f;
 
-        [Header("Stamina")]
-        [SerializeField] private float maxStamina = 100f;
-        [SerializeField] private float startingStamina = 100f;
-        [SerializeField] private float staminaRegenPerSecond = 18f;
-        [SerializeField] private float staminaRegenDelay = 0.6f;
+        [Header("Hunger")]
+        [FormerlySerializedAs("maxStamina")]
+        [SerializeField] private float maxHunger = 100f;
+        [FormerlySerializedAs("startingStamina")]
+        [SerializeField] private float startingHunger = 100f;
+        [SerializeField] private float starvationDamagePerSecond = 5f;
 
         public float MaxHealth => maxHealth;
         public float CurrentHealth { get; private set; }
-        public float MaxStamina => maxStamina;
-        public float CurrentStamina { get; private set; }
+        public float MaxHunger => maxHunger;
+        public float CurrentHunger { get; private set; }
         public bool IsAlive { get; private set; } = true;
 
         public event Action<float, float> HealthChanged;
-        public event Action<float, float> StaminaChanged;
+        public event Action<float, float> HungerChanged;
         public event Action<float> Damaged;
         public event Action<float> Healed;
         public event Action Died;
         public event Action Revived;
 
-        private float lastStaminaUseTime;
+        public float MaxStamina => MaxHunger;
+        public float CurrentStamina => CurrentHunger;
+        public event Action<float, float> StaminaChanged
+        {
+            add => HungerChanged += value;
+            remove => HungerChanged -= value;
+        }
 
         private void Awake()
         {
             CurrentHealth = Mathf.Clamp(startingHealth, 0f, maxHealth);
-            CurrentStamina = Mathf.Clamp(startingStamina, 0f, maxStamina);
+            CurrentHunger = Mathf.Clamp(startingHunger, 0f, maxHunger);
             IsAlive = CurrentHealth > 0f;
         }
 
         private void Start()
         {
             HealthChanged?.Invoke(CurrentHealth, maxHealth);
-            StaminaChanged?.Invoke(CurrentStamina, maxStamina);
+            HungerChanged?.Invoke(CurrentHunger, maxHunger);
         }
 
         private void Update()
         {
-            RegenerateStamina();
+            ApplyStarvationDamage();
         }
 
         public void TakeDamage(float amount)
@@ -78,30 +86,35 @@ namespace KMS
             }
         }
 
-        public bool ConsumeStamina(float amount)
+        public bool ConsumeHunger(float amount)
         {
             if (amount <= 0f) return true;
-            if (CurrentStamina < amount) return false;
+            if (CurrentHunger < amount) return false;
 
-            CurrentStamina -= amount;
-            lastStaminaUseTime = Time.time;
-            StaminaChanged?.Invoke(CurrentStamina, maxStamina);
+            CurrentHunger -= amount;
+            HungerChanged?.Invoke(CurrentHunger, maxHunger);
 
             return true;
         }
 
-        public bool HasStamina(float amount)
+        public bool HasHunger(float amount)
         {
-            return CurrentStamina >= amount;
+            return CurrentHunger >= amount;
         }
 
-        public void RestoreStamina(float amount)
+        public void RestoreHunger(float amount)
         {
             if (amount <= 0f) return;
 
-            CurrentStamina = Mathf.Min(maxStamina, CurrentStamina + amount);
-            StaminaChanged?.Invoke(CurrentStamina, maxStamina);
+            CurrentHunger = Mathf.Min(maxHunger, CurrentHunger + amount);
+            HungerChanged?.Invoke(CurrentHunger, maxHunger);
         }
+
+        public bool ConsumeStamina(float amount) => ConsumeHunger(amount);
+
+        public bool HasStamina(float amount) => HasHunger(amount);
+
+        public void RestoreStamina(float amount) => RestoreHunger(amount);
 
         public void Revive(float healthPercent = 1f)
         {
@@ -109,11 +122,11 @@ namespace KMS
 
             IsAlive = true;
             CurrentHealth = maxHealth * healthPercent;
-            CurrentStamina = maxStamina;
+            CurrentHunger = maxHunger;
 
             Revived?.Invoke();
             HealthChanged?.Invoke(CurrentHealth, maxHealth);
-            StaminaChanged?.Invoke(CurrentStamina, maxStamina);
+            HungerChanged?.Invoke(CurrentHunger, maxHunger);
         }
 
         public void Kill()
@@ -121,14 +134,12 @@ namespace KMS
             TakeDamage(CurrentHealth);
         }
 
-        private void RegenerateStamina()
+        private void ApplyStarvationDamage()
         {
             if (!IsAlive) return;
-            if (CurrentStamina >= maxStamina) return;
-            if (Time.time < lastStaminaUseTime + staminaRegenDelay) return;
+            if (CurrentHunger > 0f) return;
 
-            CurrentStamina = Mathf.Min(maxStamina, CurrentStamina + staminaRegenPerSecond * Time.deltaTime);
-            StaminaChanged?.Invoke(CurrentStamina, maxStamina);
+            TakeDamage(starvationDamagePerSecond * Time.deltaTime);
         }
     }
 }
