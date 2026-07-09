@@ -1,8 +1,15 @@
+using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace KMS.InventoryDuped
 {
-    public class InventoryUI : MonoBehaviour
+    /// <summary>
+    /// [HDY 요청] IInventorySlotOwner를 구현해서, InventorySlotUI가 owner 타입과 무관하게 이 컨트롤러도
+    /// 그대로 사용할 수 있게 했다(WarehouseUI와 동일한 인터페이스 계약). 기존 동작(인벤토리+퀵슬롯 전용
+    /// 화면)은 변경 없음 - SlotGroup enum으로 bool(isQuickSlot)을 대체한 것뿐이다.
+    /// </summary>
+    public class InventoryUI : MonoBehaviour, IInventorySlotOwner
     {
         public PlayerInventory playerInventory;
 
@@ -16,6 +23,12 @@ namespace KMS.InventoryDuped
         [SerializeField] private KMS.PlayerInput playerInput;
         [SerializeField] private KMS.PlayerMovement playerMovement;
         [SerializeField] private KMS.PlayerCameraController cameraController;
+
+        // [HDY 요청] Item_ID만으로 테스트 지급을 할 수 있는 디버그 UI 훅.
+        [Header("디버그 - Item_ID로 아이템 지급 (테스트용)")]
+        [SerializeField] private TMP_InputField debugItemIdInput;
+        [SerializeField] private TMP_InputField debugAmountInput;
+        [SerializeField] private Button debugGiveItemButton;
 
         private InventorySlotUI[] inventorySlots;
         private InventorySlotUI[] quickSlots;
@@ -49,6 +62,7 @@ namespace KMS.InventoryDuped
             BindSlots();
             SubscribeInventoryEvents();
             SubscribeInputEvents();
+            SubscribeDebugGiveItemButton();
 
             isInventoryOpen = false;
             if (inventoryPanel != null) inventoryPanel.SetActive(false);
@@ -60,6 +74,7 @@ namespace KMS.InventoryDuped
         {
             UnsubscribeInventoryEvents();
             UnsubscribeInputEvents();
+            UnsubscribeDebugGiveItemButton();
         }
 
         private void OnDisable()
@@ -161,15 +176,20 @@ namespace KMS.InventoryDuped
             SelectQuickSlot(nextIndex);
         }
 
+        /// <summary>
+        /// [HDY 요청] SlotGroup 조합에 따라 PlayerInventory의 알맞은 이동 메서드를 호출한다.
+        /// 이 컨트롤러는 인벤토리/퀵슬롯 2그룹만 다루므로 Storage 그룹은 여기 나타나지 않는다(방어적으로 무시).
+        /// </summary>
         private void MoveBetweenSlots(InventorySlotUI from, InventorySlotUI to)
         {
             if (playerInventory == null) return;
             if (IsLockedQuickSlot(from) || IsLockedQuickSlot(to)) return;
 
-            if (!from.isQuickSlot && !to.isQuickSlot) playerInventory.MoveInventorySlot(from.slotIndex, to.slotIndex);
-            else if (!from.isQuickSlot && to.isQuickSlot) playerInventory.MoveInventoryToQuickSlot(from.slotIndex, to.slotIndex);
-            else if (from.isQuickSlot && !to.isQuickSlot) playerInventory.MoveQuickSlotToInventory(from.slotIndex, to.slotIndex);
-            else playerInventory.MoveQuickSlot(from.slotIndex, to.slotIndex);
+            if (from.group == SlotGroup.Inventory && to.group == SlotGroup.Inventory) playerInventory.MoveInventorySlot(from.slotIndex, to.slotIndex);
+            else if (from.group == SlotGroup.Inventory && to.group == SlotGroup.QuickSlot) playerInventory.MoveInventoryToQuickSlot(from.slotIndex, to.slotIndex);
+            else if (from.group == SlotGroup.QuickSlot && to.group == SlotGroup.Inventory) playerInventory.MoveQuickSlotToInventory(from.slotIndex, to.slotIndex);
+            else if (from.group == SlotGroup.QuickSlot && to.group == SlotGroup.QuickSlot) playerInventory.MoveQuickSlot(from.slotIndex, to.slotIndex);
+            // else: Storage가 섞인 조합 - 이 컨트롤러 범위 밖이므로 무시(WarehouseUI에서만 발생해야 함)
         }
 
         private void ToggleInventory()
@@ -215,11 +235,11 @@ namespace KMS.InventoryDuped
 
         private void BindSlots()
         {
-            inventorySlots = BindSlotGroup(inventoryGrid, playerInventory.inventory.slots.Length, false);
-            quickSlots = BindSlotGroup(quickSlotRoot, playerInventory.quickSlots.slots.Length, true);
+            inventorySlots = BindSlotGroup(inventoryGrid, playerInventory.inventory.slots.Length, SlotGroup.Inventory);
+            quickSlots = BindSlotGroup(quickSlotRoot, playerInventory.quickSlots.slots.Length, SlotGroup.QuickSlot);
         }
 
-        private InventorySlotUI[] BindSlotGroup(Transform root, int count, bool quickSlot)
+        private InventorySlotUI[] BindSlotGroup(Transform root, int count, SlotGroup group)
         {
             InventorySlotUI[] result = new InventorySlotUI[count];
 
@@ -230,7 +250,7 @@ namespace KMS.InventoryDuped
                 InventorySlotUI slotUI = root.GetChild(i).GetComponent<InventorySlotUI>();
                 result[i] = slotUI;
 
-                if (slotUI != null) slotUI.Initialize(this, quickSlot, i);
+                if (slotUI != null) slotUI.Initialize(this, group, i);
             }
 
             return result;
@@ -268,6 +288,47 @@ namespace KMS.InventoryDuped
             playerInput.InventoryPressed -= ToggleInventory;
             playerInput.QuickSlotPressed -= SelectQuickSlot;
             playerInput.QuickSlotScrolled -= SelectQuickSlotOffset;
+        }
+
+        private void SubscribeDebugGiveItemButton()
+        {
+            if (debugGiveItemButton != null)
+            {
+                debugGiveItemButton.onClick.AddListener(HandleDebugGiveItemClicked);
+            }
+        }
+
+        private void UnsubscribeDebugGiveItemButton()
+        {
+            if (debugGiveItemButton != null)
+            {
+                debugGiveItemButton.onClick.RemoveListener(HandleDebugGiveItemClicked);
+            }
+        }
+
+        private void HandleDebugGiveItemClicked()
+        {
+            if (playerInventory == null || debugItemIdInput == null) return;
+
+            string itemId = debugItemIdInput.text != null ? debugItemIdInput.text.Trim() : string.Empty;
+
+            if (string.IsNullOrEmpty(itemId))
+            {
+                Debug.LogWarning("[InventoryUI] 디버그 지급: Item_ID를 입력해주세요.");
+                return;
+            }
+
+            int amount = 1;
+            if (debugAmountInput != null && !string.IsNullOrEmpty(debugAmountInput.text))
+            {
+                int.TryParse(debugAmountInput.text, out amount);
+            }
+            if (amount <= 0) amount = 1;
+
+            int remaining = playerInventory.AddItem(itemId, amount);
+            int added = amount - remaining;
+
+            Debug.Log($"[InventoryUI] 디버그 지급: '{itemId}' x{amount} 시도 -> {added}개 추가됨 (미추가분 {remaining}개)");
         }
 
         private void RefreshAll()
@@ -314,7 +375,7 @@ namespace KMS.InventoryDuped
 
         private bool IsLockedQuickSlot(InventorySlotUI slot)
         {
-            return slot != null && slot.isQuickSlot && playerInventory.IsQuickSlotLocked(slot.slotIndex);
+            return slot != null && slot.group == SlotGroup.QuickSlot && playerInventory.IsQuickSlotLocked(slot.slotIndex);
         }
     }
 }

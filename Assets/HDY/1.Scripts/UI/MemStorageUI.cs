@@ -20,6 +20,10 @@ namespace HDY.UI
     /// 정렬 버튼이 클릭되면, 이 컨트롤러가 카탈로그(MemData)를 조회해 실제 비교/정렬을 수행하고, 그 결과를
     /// MemCaptureManager.ApplySortedOrder로 반영한다(MemCaptureManager는 정렬 기준을 모르고 결과만 적용).
     ///
+    /// [정렬 로직 공유] 실제 비교/조회 로직(MemSortHelper.SortEntries/GetTier/GetProductionStat/GetTierLetter)은
+    /// 도감(MemDexUI, MemData 기반)과 완전히 동일해서 MemSortHelper로 뽑아 공유한다. 이 클래스는 CapturedMemEntry를
+    /// SortableMemItem&lt;CapturedMemEntry&gt;로 감싸서 넘기고, MemSortHelper는 memId/탐험 스탯만 보고 정렬한다.
+    ///
     /// [멤창고 업그레이드] 업그레이드 버튼을 누르면 공용 업그레이드 팝업(UpgradePopupUI)에 storageUpgrade(멤창고
     /// 페이지 확장을 IUpgradable로 감싼 어댑터)를 넘겨 보여준다. 실제 비용 확인/차감과 업그레이드 적용은 팝업과
     /// storageUpgrade가 처리하고, 이 컨트롤러는 MemCaptureManager.OnStorageCapacityChanged를 구독해뒀다가
@@ -32,6 +36,13 @@ namespace HDY.UI
     /// 쪽 리스트가 같은 객체를 가리키므로, RemoveMem() 호출만으로 IsActive도 자동으로 false가 된다(별도로
     /// 손댈 필요 없음). 다만 MemCaptureManager는 이 변경을 스스로 감지하지 못하므로, 그 다음 그리드를
     /// NotifyDataChanged로 직접 다시 그려서 활성 표시(activeImage)를 갱신해준다.
+    ///
+    /// [TODO - 시설 쪽 변경 감지 (Kyusoo 이벤트 필요)] 지금은 "창고에서 직접 해제"할 때만 그리드가 갱신되고,
+    /// 반대로 시설 쪽 UI(ProductionMemSlotUI/ProductionPanelUI)를 통해 멤이 배치/해제될 때는 창고 그리드의
+    /// 활성 표시가 갱신되지 않는 비대칭 문제가 있다. _Kyusoo/ProductionFacilityRuntime.cs에
+    /// `public event Action OnDeployedMemsChanged;`를 추가해서 TryAddMem/RemoveMem 끝에서 호출해주면,
+    /// 아래 SubscribeToFacilityChanges/UnsubscribeFromFacilityChanges/HandleFacilityDeployedMemsChanged
+    /// (현재 주석 처리됨)의 주석을 풀고 OnEnable/OnDisable의 호출부 주석도 풀어서 바로 쓸 수 있다.
     ///
     /// [Mem스탯/티어 표시] 현재 어떤 기준으로 정렬되어 있는지(activeSortCriteria)를 여기서 기억해두고,
     /// - Mem스탯(제작/벌목/채광/이동/생산/탐험) 기준이면 그 스탯의 아이콘 + 숫자를,
@@ -121,6 +132,10 @@ namespace HDY.UI
                 captureManager.OnStorageCapacityChanged += HandleStorageCapacityChanged;
             }
 
+            // [TODO - Kyusoo 이벤트 필요] _Kyusoo/ProductionFacilityRuntime.cs에 OnDeployedMemsChanged가
+            // 추가되면 아래 주석을 풀어서, 시설 쪽에서 배치/해제가 일어날 때도 창고 그리드가 갱신되도록 한다.
+            // SubscribeToFacilityChanges();
+
             if (grid != null && captureManager != null)
             {
                 grid.ShowInitial(captureManager.CapturedMems, FindMemData, BuildStatDisplayProvider(), captureManager.UnlockedPageCount);
@@ -134,6 +149,9 @@ namespace HDY.UI
                 captureManager.OnCapturedMemsChanged -= HandleCapturedMemsChanged;
                 captureManager.OnStorageCapacityChanged -= HandleStorageCapacityChanged;
             }
+
+            // [TODO - Kyusoo 이벤트 필요] SubscribeToFacilityChanges()와 짝을 맞춰 구독 해제.
+            // UnsubscribeFromFacilityChanges();
 
             if (grid != null)
             {
@@ -174,6 +192,51 @@ namespace HDY.UI
                 grid.NotifyDataChanged(captureManager.CapturedMems, FindMemData, BuildStatDisplayProvider(), captureManager.UnlockedPageCount);
             }
         }
+
+        // ==========================================================================================
+        // [TODO - _Kyusoo/ProductionFacilityRuntime.cs 수정 필요, 현재 미구현이라 전체 주석 처리]
+        //
+        // _Kyusoo 쪽에 다음을 추가했다고 가정한 코드:
+        //   1) ProductionFacilityRuntime에 `public event Action OnDeployedMemsChanged;` 추가
+        //   2) TryAddMem(...)과 RemoveMem(...) 끝에서 OnDeployedMemsChanged?.Invoke() 호출
+        //
+        // 이 이벤트가 실제로 생기면, 창고에서 직접 해제할 때뿐 아니라 시설 쪽 UI(ProductionMemSlotUI/
+        // ProductionPanelUI)를 통해 멤이 배치/해제될 때도 창고 그리드의 활성 표시(activeImage)가 즉시
+        // 갱신되도록 씬의 모든 시설을 구독해둔다. 지금은 컴파일되지 않으므로(OnDeployedMemsChanged가 실제로
+        // 없음) 전체를 주석 처리해두고, 위 OnEnable/OnDisable의 호출부와 함께 이 블록의 주석을 풀면 바로
+        // 동작한다.
+        //
+        // [한계] 씬에 이미 있는 시설만 구독한다 - 이후 새로 지어지는 시설은 이 목록에 없으므로 구독되지 않는다.
+        // (시설이 "새로 지어졌다"를 알리는 이벤트도 아직 없어서, 필요하면 GridManager 쪽에 별도로 요청해야 한다.)
+        //
+        // private void SubscribeToFacilityChanges()
+        // {
+        //     var facilities = UnityEngine.Object.FindObjectsByType<ProductionFacilityRuntime>(FindObjectsSortMode.None);
+        //     foreach (var facility in facilities)
+        //     {
+        //         facility.OnDeployedMemsChanged += HandleFacilityDeployedMemsChanged;
+        //     }
+        // }
+        //
+        // private void UnsubscribeFromFacilityChanges()
+        // {
+        //     var facilities = UnityEngine.Object.FindObjectsByType<ProductionFacilityRuntime>(FindObjectsSortMode.None);
+        //     foreach (var facility in facilities)
+        //     {
+        //         facility.OnDeployedMemsChanged -= HandleFacilityDeployedMemsChanged;
+        //     }
+        // }
+        //
+        // private void HandleFacilityDeployedMemsChanged()
+        // {
+        //     Debug.Log("[MemStorageUI] 시설 쪽 배치 변경 감지 -> 그리드 갱신 시도");
+        //
+        //     if (grid != null && captureManager != null)
+        //     {
+        //         grid.NotifyDataChanged(captureManager.CapturedMems, FindMemData, BuildStatDisplayProvider(), captureManager.UnlockedPageCount);
+        //     }
+        // }
+        // ==========================================================================================
 
         /// <summary>업그레이드 버튼 클릭 처리. 공용 업그레이드 팝업에 멤창고 페이지 업그레이드 어댑터를 넘겨 보여준다.</summary>
         private void HandleUpgradeButtonClicked()
@@ -265,9 +328,9 @@ namespace HDY.UI
         }
 
         /// <summary>
-        /// 정렬 버튼 클릭 요청을 받아 실제 정렬(카탈로그 조회 + 비교)을 수행하고, 결과를 MemCaptureManager에 반영한다.
-        /// 빈 칸은 정렬 대상에서 제외한 뒤 ApplySortedOrder가 자동으로 뒤쪽에 채운다.
-        /// 정렬 기준을 activeSortCriteria에 기억해서 이후 그리드 갱신 시 Mem스탯/티어 표시에 사용한다.
+        /// 정렬 버튼 클릭 요청을 받아 실제 정렬(카탈로그 조회 + 비교, MemSortHelper 재사용)을 수행하고,
+        /// 결과를 MemCaptureManager에 반영한다. 빈 칸은 정렬 대상에서 제외한 뒤 ApplySortedOrder가 자동으로
+        /// 뒤쪽에 채운다. 정렬 기준을 activeSortCriteria에 기억해서 이후 그리드 갱신 시 Mem스탯/티어 표시에 사용한다.
         /// </summary>
         private void HandleSortRequested(MemSortCriteria criteria)
         {
@@ -281,9 +344,7 @@ namespace HDY.UI
 
             activeSortCriteria = criteria;
 
-            // MemId -> MemData 캐시를 한 번만 만들어, 정렬 비교마다 카탈로그를 매번 선형 탐색하지 않도록 한다
-            // (전처리 O(카탈로그 크기) 이후 비교마다 O(1) 조회).
-            var memDataLookup = BuildMemDataLookup();
+            var memDataLookup = MemSortHelper.BuildMemDataLookup(catalogManager.MemDataList);
 
             var nonEmptyEntries = new List<CapturedMemEntry>();
             foreach (var entry in captureManager.CapturedMems)
@@ -291,76 +352,12 @@ namespace HDY.UI
                 if (!entry.IsEmpty) nonEmptyEntries.Add(entry);
             }
 
-            var sortedEntries = SortEntries(nonEmptyEntries, criteria, memDataLookup);
+            var sortableItems = nonEmptyEntries
+                .Select(e => new SortableMemItem<CapturedMemEntry>(e.MemId, e.ExplorationStat, e))
+                .ToList();
+
+            var sortedEntries = MemSortHelper.SortEntries(sortableItems, criteria, memDataLookup);
             captureManager.ApplySortedOrder(sortedEntries);
-        }
-
-        /// <summary>MemId -> MemData 조회용 딕셔너리를 카탈로그 전체에서 한 번 만든다.</summary>
-        private Dictionary<string, MemData> BuildMemDataLookup()
-        {
-            var lookup = new Dictionary<string, MemData>();
-            if (catalogManager == null) return lookup;
-
-            foreach (var data in catalogManager.MemDataList)
-            {
-                if (data != null && !string.IsNullOrEmpty(data.memId) && !lookup.ContainsKey(data.memId))
-                {
-                    lookup[data.memId] = data;
-                }
-            }
-
-            return lookup;
-        }
-
-        /// <summary>
-        /// 정렬 기준에 따라 채워진 항목들을 정렬한다. MemId는 오름차순, 나머지(Tier/스탯 5종/탐험)는 내림차순.
-        /// LINQ OrderBy/OrderByDescending은 안정 정렬(Stable Sort)이라 값이 같은 항목끼리는 원래 순서를 유지한다
-        /// (여러 번 눌러도 결과가 흔들리지 않음). 창고 최대치(기본 480칸) 규모에서는 O(n log n)으로 충분히 빠르다.
-        /// </summary>
-        private List<CapturedMemEntry> SortEntries(List<CapturedMemEntry> entries, MemSortCriteria criteria, Dictionary<string, MemData> memDataLookup)
-        {
-            switch (criteria)
-            {
-                case MemSortCriteria.MemId:
-                    return entries.OrderBy(e => e.MemId, StringComparer.Ordinal).ToList();
-
-                case MemSortCriteria.Tier:
-                    return entries.OrderByDescending(e => GetTier(e, memDataLookup)).ToList();
-
-                case MemSortCriteria.Crafting:
-                    return entries.OrderByDescending(e => GetProductionStat(e, memDataLookup, ProductionStatType.Crafting)).ToList();
-
-                case MemSortCriteria.Logging:
-                    return entries.OrderByDescending(e => GetProductionStat(e, memDataLookup, ProductionStatType.Logging)).ToList();
-
-                case MemSortCriteria.Mining:
-                    return entries.OrderByDescending(e => GetProductionStat(e, memDataLookup, ProductionStatType.Mining)).ToList();
-
-                case MemSortCriteria.Transport:
-                    return entries.OrderByDescending(e => GetProductionStat(e, memDataLookup, ProductionStatType.Transport)).ToList();
-
-                case MemSortCriteria.Farming:
-                    return entries.OrderByDescending(e => GetProductionStat(e, memDataLookup, ProductionStatType.Farming)).ToList();
-
-                case MemSortCriteria.Exploration:
-                    // 탐험 스탯은 캡슐 카탈로그 조회 없이 CapturedMemEntry 자체 값으로 바로 정렬 가능하다.
-                    return entries.OrderByDescending(e => e.ExplorationStat).ToList();
-
-                default:
-                    return entries;
-            }
-        }
-
-        /// <summary>카탈로그에서 멤의 등급(Tier)을 조회한다. 카탈로그에 없으면 가장 낮은 값으로 취급해 뒤로 보낸다.</summary>
-        private static int GetTier(CapturedMemEntry entry, Dictionary<string, MemData> lookup)
-        {
-            return lookup.TryGetValue(entry.MemId, out var data) ? (int)data.tier : -1;
-        }
-
-        /// <summary>카탈로그에서 멤의 생산 스탯 한 종류를 조회한다. 카탈로그에 없으면 가장 낮은 값으로 취급해 뒤로 보낸다.</summary>
-        private static int GetProductionStat(CapturedMemEntry entry, Dictionary<string, MemData> lookup, ProductionStatType type)
-        {
-            return lookup.TryGetValue(entry.MemId, out var data) ? data.productionStats.GetStat(type) : -1;
         }
 
         /// <summary>
@@ -377,7 +374,7 @@ namespace HDY.UI
             }
 
             var criteria = activeSortCriteria.Value;
-            var memDataLookup = BuildMemDataLookup();
+            var memDataLookup = MemSortHelper.BuildMemDataLookup(catalogManager != null ? catalogManager.MemDataList : Array.Empty<MemData>());
 
             if (criteria == MemSortCriteria.Tier)
             {
@@ -394,7 +391,7 @@ namespace HDY.UI
 
             int value = criteria == MemSortCriteria.Exploration
                 ? entry.ExplorationStat
-                : GetProductionStat(entry, lookup, ToProductionStatType(criteria));
+                : MemSortHelper.GetProductionStat(entry.MemId, lookup, ToProductionStatType(criteria));
 
             return new MemStatDisplayInfo(true, icon, value.ToString());
         }
@@ -406,7 +403,7 @@ namespace HDY.UI
             if (!lookup.TryGetValue(entry.MemId, out var data)) return MemStatDisplayInfo.Hidden;
 
             var icon = GetTierIcon(data.tier);
-            var letter = GetTierLetter(data.tier);
+            var letter = MemSortHelper.GetTierLetter(data.tier);
 
             return new MemStatDisplayInfo(true, icon, letter);
         }
@@ -448,20 +445,6 @@ namespace HDY.UI
                 case MemTier.Legendary: return legendaryTierIcon;
                 case MemTier.Mythic: return mythicTierIcon;
                 default: return null;
-            }
-        }
-
-        /// <summary>티어의 앞글자를 대문자로 반환한다 (Rare->R, Epic->E, Unique->U, Legendary->L, Mythic->M).</summary>
-        private static string GetTierLetter(MemTier tier)
-        {
-            switch (tier)
-            {
-                case MemTier.Rare: return "R";
-                case MemTier.Epic: return "E";
-                case MemTier.Unique: return "U";
-                case MemTier.Legendary: return "L";
-                case MemTier.Mythic: return "M";
-                default: return "-";
             }
         }
 

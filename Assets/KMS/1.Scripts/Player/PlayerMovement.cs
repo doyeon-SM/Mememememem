@@ -52,9 +52,16 @@ namespace KMS
         [Header("External Forces")]
         [SerializeField] private float externalForceDecay = 8f;
 
+        [Header("Ladder")]
+        [SerializeField] private float ladderClimbSpeed = 3f;
+        [SerializeField] private float ladderSlideDownSpeed = 1.2f;
+        [SerializeField] private float ladderSnapSpeed = 12f;
+        [SerializeField] private float ladderInputThreshold = 0.1f;
+
         public bool IsMovementEnabled { get; set; } = true;
         public bool IsGrounded { get; private set; }
         public bool IsSprinting { get; private set; }
+        public bool IsOnLadder => activeLadder != null;
         public float CurrentSpeed { get; private set; }
         public float VerticalVelocity => verticalVelocity;
         public Vector3 LastMoveDirection { get; private set; } = Vector3.forward;
@@ -70,6 +77,8 @@ namespace KMS
         private float coyoteTimer;
         private float jumpBufferTimer;
         private Vector3 externalVelocity;
+        private LadderVolume candidateLadder;
+        private LadderVolume activeLadder;
 
         private void Reset()
         {
@@ -108,10 +117,19 @@ namespace KMS
 
         private void Update()
         {
-            UpdateGroundedState();
-            UpdateTimers();
-            HandleJump();
-            HandleMovement();
+            if (activeLadder != null)
+            {
+                HandleLadderMovement();
+            }
+            else
+            {
+                UpdateGroundedState();
+                UpdateTimers();
+                HandleJump();
+                HandleMovement();
+                TryEnterLadder();
+            }
+
             UpdateAnimator();
         }
 
@@ -138,6 +156,41 @@ namespace KMS
             verticalVelocity = 0f;
             externalVelocity = Vector3.zero;
             CurrentSpeed = 0f;
+        }
+
+        private void TryEnterLadder()
+        {
+            if (!IsMovementEnabled || candidateLadder == null || input == null) return;
+            if (input.Move.y <= ladderInputThreshold) return;
+
+            activeLadder = candidateLadder;
+            verticalVelocity = 0f;
+            externalVelocity = Vector3.zero;
+            CurrentSpeed = 0f;
+            IsSprinting = false;
+            coyoteTimer = 0f;
+            jumpBufferTimer = 0f;
+
+            Vector3 ladderPoint = activeLadder.GetClosestPointOnPath(transform.position);
+            //Vector3 facing = -activeLadder.Forward;
+            //facing.y = 0f;
+
+            //if (facing.sqrMagnitude > 0.001f)
+            //{
+            //    rotationTransform.rotation = Quaternion.LookRotation(facing.normalized, Vector3.up);
+            //}
+
+            characterController.Move(ladderPoint - transform.position);
+        }
+
+        private void ExitLadder(Vector3 exitPosition)
+        {
+            activeLadder = null;
+            verticalVelocity = groundedStickForce;
+            externalVelocity = Vector3.zero;
+            CurrentSpeed = 0f;
+            IsSprinting = false;
+            SetPosition(exitPosition);
         }
 
         private void QueueJump()
@@ -229,6 +282,43 @@ namespace KMS
             characterController.Move(velocity * Time.deltaTime);
         }
 
+        private void HandleLadderMovement()
+        {
+            if (activeLadder == null) return;
+            if (!IsMovementEnabled)
+            {
+                activeLadder = null;
+                return;
+            }
+
+            float verticalInput = input != null ? input.Move.y : 0f;
+            bool climbingUp = verticalInput > ladderInputThreshold;
+            float verticalSpeed = climbingUp ? ladderClimbSpeed : -ladderSlideDownSpeed;
+
+            Vector3 snappedPoint = activeLadder.GetClosestPointOnPath(transform.position);
+            Vector3 snapDelta = snappedPoint - transform.position;
+            Vector3 snapVelocity = snapDelta * ladderSnapSpeed;
+            Vector3 ladderVelocity = activeLadder.Up * verticalSpeed + snapVelocity;
+
+            verticalVelocity = 0f;
+            externalVelocity = Vector3.zero;
+            IsGrounded = false;
+            IsSprinting = false;
+            CurrentSpeed = Mathf.Abs(verticalSpeed);
+
+            characterController.Move(ladderVelocity * Time.deltaTime);
+
+            float height = activeLadder.GetNormalizedHeight(transform.position);
+            if (climbingUp && height >= 1f)
+            {
+                ExitLadder(activeLadder.GetTopExitPoint());
+            }
+            else if (!climbingUp && height <= 0f)
+            {
+                ExitLadder(activeLadder.GetBottomExitPoint());
+            }
+        }
+
         private Vector3 ResolveMoveDirection(Vector2 moveInput)
         {
             Vector3 inputDirection = new Vector3(moveInput.x, 0f, moveInput.y).normalized;
@@ -287,6 +377,32 @@ namespace KMS
         {
             Gizmos.color = IsGrounded ? Color.green : Color.yellow;
             Gizmos.DrawWireSphere(transform.position + Vector3.up * groundedOffset, groundedRadius);
+        }
+
+        private void OnTriggerEnter(Collider other)
+        {
+            LadderVolume ladder = other.GetComponentInParent<LadderVolume>();
+            if (ladder != null)
+            {
+                candidateLadder = ladder;
+            }
+        }
+
+        private void OnTriggerStay(Collider other)
+        {
+            LadderVolume ladder = other.GetComponentInParent<LadderVolume>();
+            if (ladder != null)
+            {
+                candidateLadder = ladder;
+            }
+        }
+
+        private void OnTriggerExit(Collider other)
+        {
+            LadderVolume ladder = other.GetComponentInParent<LadderVolume>();
+            if (ladder == null || ladder != candidateLadder) return;
+
+            candidateLadder = null;
         }
     }
 }

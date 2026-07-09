@@ -18,6 +18,9 @@ namespace KMS.InventoryDuped
         public Color darkTextColor;
         public Color lightTextColor = Color.white;
 
+        // [HDY 요청] ItemStack.itemId(string)로 실제 ItemData를 조회하기 위한 참조.
+        [SerializeField] private ItemCatalogManager catalogManager;
+
         private readonly List<TooltipTagUI> activeTags = new List<TooltipTagUI>();
 
         private void Awake()
@@ -26,9 +29,15 @@ namespace KMS.InventoryDuped
             if (tagParent == null) tagParent = transform;
             if (tagTemplate != null) tagTemplate.gameObject.SetActive(false);
 
+            catalogManager = ItemCatalogManager.Resolve(catalogManager);
+
             Hide();
         }
 
+        /// <summary>
+        /// [HDY 요청] 슬롯(ItemStack)에는 itemId만 있으므로, 카탈로그에서 ItemData를 조회한 뒤
+        /// 기존 Show(ItemData, Vector2)에 그대로 위임한다.
+        /// </summary>
         public void Show(ItemStack stack, Vector2 screenPosition)
         {
             if (stack == null || stack.IsEmpty)
@@ -37,7 +46,8 @@ namespace KMS.InventoryDuped
                 return;
             }
 
-            Show(stack.item, screenPosition);
+            var data = catalogManager != null ? catalogManager.FindItemData(stack.itemId) : null;
+            Show(data, screenPosition);
         }
 
         public void Show(ItemData item, Vector2 screenPosition)
