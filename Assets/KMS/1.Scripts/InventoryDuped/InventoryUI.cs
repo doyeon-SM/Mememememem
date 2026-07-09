@@ -1,4 +1,6 @@
+using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace KMS.InventoryDuped
 {
@@ -16,6 +18,14 @@ namespace KMS.InventoryDuped
         [SerializeField] private KMS.PlayerInput playerInput;
         [SerializeField] private KMS.PlayerMovement playerMovement;
         [SerializeField] private KMS.PlayerCameraController cameraController;
+
+        // [HDY 요청] Item_ID만으로 테스트 지급을 할 수 있는 디버그 UI 훅.
+        // 다른 씬에서 테스트용 인벤토리/창고를 구성할 때, 월드에 픽업 오브젝트를 따로 안 놓아도
+        // Item_ID 입력만으로 바로 지급해볼 수 있도록 하기 위함. 필드를 비워두면 그냥 동작하지 않는다(선택 사항).
+        [Header("디버그 - Item_ID로 아이템 지급 (테스트용)")]
+        [SerializeField] private TMP_InputField debugItemIdInput;
+        [SerializeField] private TMP_InputField debugAmountInput;
+        [SerializeField] private Button debugGiveItemButton;
 
         private InventorySlotUI[] inventorySlots;
         private InventorySlotUI[] quickSlots;
@@ -49,6 +59,7 @@ namespace KMS.InventoryDuped
             BindSlots();
             SubscribeInventoryEvents();
             SubscribeInputEvents();
+            SubscribeDebugGiveItemButton();
 
             isInventoryOpen = false;
             if (inventoryPanel != null) inventoryPanel.SetActive(false);
@@ -60,6 +71,7 @@ namespace KMS.InventoryDuped
         {
             UnsubscribeInventoryEvents();
             UnsubscribeInputEvents();
+            UnsubscribeDebugGiveItemButton();
         }
 
         private void OnDisable()
@@ -268,6 +280,53 @@ namespace KMS.InventoryDuped
             playerInput.InventoryPressed -= ToggleInventory;
             playerInput.QuickSlotPressed -= SelectQuickSlot;
             playerInput.QuickSlotScrolled -= SelectQuickSlotOffset;
+        }
+
+        /// <summary>[HDY 요청] 디버그 지급 버튼 클릭을 구독한다. 필드가 비어있으면 아무 것도 하지 않는다(선택 사항 기능).</summary>
+        private void SubscribeDebugGiveItemButton()
+        {
+            if (debugGiveItemButton != null)
+            {
+                debugGiveItemButton.onClick.AddListener(HandleDebugGiveItemClicked);
+            }
+        }
+
+        private void UnsubscribeDebugGiveItemButton()
+        {
+            if (debugGiveItemButton != null)
+            {
+                debugGiveItemButton.onClick.RemoveListener(HandleDebugGiveItemClicked);
+            }
+        }
+
+        /// <summary>
+        /// [HDY 요청] 입력창의 Item_ID/수량을 읽어 PlayerInventory.AddItem(string, int)로 지급을 시도한다.
+        /// 수량 입력이 비어있거나 잘못되면 1개로 처리한다. 카탈로그에 없는 ID면 PlayerInventory가 경고 로그를 남기고
+        /// 아무 것도 추가하지 않는다(여기서는 결과만 로그로 남김).
+        /// </summary>
+        private void HandleDebugGiveItemClicked()
+        {
+            if (playerInventory == null || debugItemIdInput == null) return;
+
+            string itemId = debugItemIdInput.text != null ? debugItemIdInput.text.Trim() : string.Empty;
+
+            if (string.IsNullOrEmpty(itemId))
+            {
+                Debug.LogWarning("[InventoryUI] 디버그 지급: Item_ID를 입력해주세요.");
+                return;
+            }
+
+            int amount = 1;
+            if (debugAmountInput != null && !string.IsNullOrEmpty(debugAmountInput.text))
+            {
+                int.TryParse(debugAmountInput.text, out amount);
+            }
+            if (amount <= 0) amount = 1;
+
+            int remaining = playerInventory.AddItem(itemId, amount);
+            int added = amount - remaining;
+
+            Debug.Log($"[InventoryUI] 디버그 지급: '{itemId}' x{amount} 시도 -> {added}개 추가됨 (미추가분 {remaining}개)");
         }
 
         private void RefreshAll()

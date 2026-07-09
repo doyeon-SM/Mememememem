@@ -5,23 +5,29 @@ using UnityEngine;
 namespace KMS.InventoryDuped
 {
 
+/// <summary>
+/// [HDY 요청] 슬롯 하나의 데이터. 이제 ItemData(SO 레퍼런스)를 직접 들고 있지 않고 Item_ID(string)만
+/// 저장한다 - 세이브/로드 등에서 SO 레퍼런스보다 문자열 ID가 다루기 쉽기 때문. 아이콘/이름 등 실제 표시가
+/// 필요한 쪽(InventorySlotUI/ItemDragUI/ItemTooltipUI)은 itemId로 ItemCatalogManager.FindItemData를
+/// 호출해서 그때그때 조회한다.
+/// </summary>
 [Serializable]
 public class ItemStack
 {
-    public ItemData item;
+    public string itemId;
     public int amount;
 
-    public bool IsEmpty => item == null || amount <= 0;
+    public bool IsEmpty => string.IsNullOrEmpty(itemId) || amount <= 0;
 
-    public void Set(ItemData newItem, int newAmount)
+    public void Set(string newItemId, int newAmount)
     {
-        item = newItem;
+        itemId = newItemId;
         amount = newAmount;
     }
 
     public void Clear()
     {
-        item = null;
+        itemId = null;
         amount = 0;
     }
 }
@@ -62,10 +68,11 @@ public class InventoryContainer
     }
 }
 
+/// <summary>퀵슬롯 사용 중 임시 예약 상태. itemId(string)로 어떤 아이템을 예약했는지 기억한다.</summary>
 public class QuickSlotUseReservation
 {
     public int slotIndex;
-    public ItemData item;
+    public string itemId;
     public int reservedAmount;
     public bool committed;
 }
@@ -79,6 +86,11 @@ public class PlayerInventory : MonoBehaviour
     private QuickSlotUseReservation quickSlotUseReservation;
     private int pendingQuickSlotIndex = -1;
 
+    // [HDY 요청] Item_ID 문자열로 아이템을 지급하는 경로 + 슬롯에 저장된 itemId로 실제 ItemData(MaxStack 등)를
+    // 다시 조회해야 하는 내부 로직(MergeStack 등) 양쪽에 필요한 참조. 비워둬도 Resolve가 자동으로 찾는다.
+    [Header("아이템 카탈로그 (Item_ID로 조회할 때 사용)")]
+    [SerializeField] private ItemCatalogManager catalogManager;
+
     public event Action OnInventoryChanged;
     public event Action<ItemData,int> OnItemObtained;
     public event Action<int> OnQuickSlotChanged;
@@ -88,6 +100,8 @@ public class PlayerInventory : MonoBehaviour
     {
         inventory.Initialize();
         quickSlots.Initialize();
+
+        catalogManager = ItemCatalogManager.Resolve(catalogManager);
     }
 
     // 아이템 추가
@@ -113,6 +127,27 @@ public class PlayerInventory : MonoBehaviour
         }
 
         return remaining;
+    }
+
+    /// <summary>
+    /// [HDY 요청] Item_ID 문자열로 아이템을 추가한다. ItemCatalogManager에서 실제 ItemData를 찾아
+    /// 기존 AddItem(ItemData, int)에 그대로 위임한다 - 퀵슬롯/스택 병합 등 로직은 완전히 동일하게 적용된다.
+    /// 퀘스트 보상, 상점 구매, 제작 결과물 지급처럼 "ID만 알고 SO 레퍼런스는 없는" 경우를 위한 진입점.
+    /// 카탈로그에 없는 ID면 아무 것도 추가하지 않고 amount를 그대로 반환한다(경고 로그).
+    /// </summary>
+    public int AddItem(string itemId, int amount)
+    {
+        if (string.IsNullOrEmpty(itemId) || amount <= 0) return amount;
+
+        var itemData = catalogManager != null ? catalogManager.FindItemData(itemId) : null;
+
+        if (itemData == null)
+        {
+            Debug.LogWarning($"[PlayerInventory] Item_ID '{itemId}'에 해당하는 ItemData를 카탈로그에서 찾을 수 없습니다.");
+            return amount;
+        }
+
+        return AddItem(itemData, amount);
     }
 
     // 인벤토리 내에서 아이템 이동
@@ -208,7 +243,7 @@ public class PlayerInventory : MonoBehaviour
 
         if (slot == null) return false;
 
-        ItemData useItem = null;
+        string useItemId = null;
 
         if (slot.IsEmpty)
         {
@@ -216,13 +251,13 @@ public class PlayerInventory : MonoBehaviour
         }
         else
         {
-            useItem = slot.item;
+            useItemId = slot.itemId;
         }
 
         quickSlotUseReservation = new QuickSlotUseReservation
         {
             slotIndex = selectedQuickSlotIndex,
-            item = useItem
+            itemId = useItemId
         };
 
         pendingQuickSlotIndex = -1;
@@ -239,7 +274,7 @@ public class PlayerInventory : MonoBehaviour
 
         ItemStack slot = quickSlots.slots[quickSlotUseReservation.slotIndex];
 
-        if (slot.IsEmpty || slot.item != quickSlotUseReservation.item) return false;
+        if (slot.IsEmpty || slot.itemId != quickSlotUseReservation.itemId) return false;
         if (slot.amount < amount) return false;
 
         slot.amount -= amount;
@@ -272,9 +307,9 @@ public class PlayerInventory : MonoBehaviour
 
         ItemStack slot = quickSlots.slots[quickSlotUseReservation.slotIndex];
 
-        if (!slot.IsEmpty && slot.item != quickSlotUseReservation.item) return false;
+        if (!slot.IsEmpty && slot.itemId != quickSlotUseReservation.itemId) return false;
 
-        if (slot.IsEmpty) slot.Set(quickSlotUseReservation.item, amount);
+        if (slot.IsEmpty) slot.Set(quickSlotUseReservation.itemId, amount);
         else slot.amount += amount;
 
         quickSlotUseReservation.reservedAmount = 0;
@@ -310,10 +345,10 @@ public class PlayerInventory : MonoBehaviour
         return quickSlotUseReservation != null && quickSlotUseReservation.slotIndex == index;
     }
 
-    // 현재 사용중인 아이템 정의를 반환 (효과 목록 읽을때 사용)
-    public ItemData GetQuickSlotUseItem()
+    /// <summary>현재 사용중인 아이템의 Item_ID를 반환한다(효과 목록 조회 등에 사용). [HDY 요청] 기존에는 ItemData를 반환했으나, 슬롯 저장 방식이 ID 기반으로 바뀌면서 이 메서드도 ID를 반환하도록 변경(기존 호출부 없음 확인됨).</summary>
+    public string GetQuickSlotUseItemId()
     {
-        return quickSlotUseReservation != null ? quickSlotUseReservation.item : null;
+        return quickSlotUseReservation != null ? quickSlotUseReservation.itemId : null;
     }
 
     // 퀵슬롯 아이템 사용
@@ -377,7 +412,7 @@ public class PlayerInventory : MonoBehaviour
 
             ItemStack slot = container.slots[i];
 
-            if (slot.IsEmpty || slot.item.Item_ID != itemId) continue;
+            if (slot.IsEmpty || slot.itemId != itemId) continue;
 
             totalAmount += slot.amount;
         }
@@ -396,7 +431,7 @@ public class PlayerInventory : MonoBehaviour
 
             ItemStack slot = container.slots[i];
 
-            if (slot.IsEmpty || slot.item.Item_ID != itemId) continue;
+            if (slot.IsEmpty || slot.itemId != itemId) continue;
 
             int removed = Mathf.Min(slot.amount, remaining);
 
@@ -422,7 +457,7 @@ public class PlayerInventory : MonoBehaviour
 
             ItemStack slot = container.slots[i];
 
-            if (slot.IsEmpty || slot.item != item) continue;
+            if (slot.IsEmpty || slot.itemId != item.Item_ID) continue;
 
             int maxStack = Mathf.Max(1, item.MaxStack);
             int space = maxStack - slot.amount;
@@ -454,7 +489,7 @@ public class PlayerInventory : MonoBehaviour
             if (!slot.IsEmpty) continue;
 
             int added = Mathf.Min(maxStack, remaining);
-            slot.Set(item, added);
+            slot.Set(item.Item_ID, added);
             remaining -= added;
 
             if (remaining <= 0) break;
@@ -484,28 +519,38 @@ public class PlayerInventory : MonoBehaviour
 
         if (toSlot.IsEmpty)
         {
-            toSlot.Set(fromSlot.item, fromSlot.amount);
+            toSlot.Set(fromSlot.itemId, fromSlot.amount);
             fromSlot.Clear();
             return true;
         }
 
-        if (fromSlot.item == toSlot.item)
+        if (fromSlot.itemId == toSlot.itemId)
         {
             return MergeStack(fromSlot, toSlot);
         }
 
-        ItemData tempItem = fromSlot.item;
+        string tempItemId = fromSlot.itemId;
         int tempAmount = fromSlot.amount;
-        fromSlot.Set(toSlot.item, toSlot.amount);
-        toSlot.Set(tempItem, tempAmount);
+        fromSlot.Set(toSlot.itemId, toSlot.amount);
+        toSlot.Set(tempItemId, tempAmount);
 
         return true;
     }
 
-    // 아이템 합치기
+    /// <summary>
+    /// 아이템 합치기. 슬롯에는 itemId(string)만 있어 MaxStack을 알 수 없으므로, 카탈로그에서 ItemData를
+    /// 다시 조회해서 MaxStack을 가져온다. 카탈로그에서 못 찾으면 안전하게 1개(스택 불가)로 취급한다.
+    /// </summary>
     private bool MergeStack(ItemStack fromSlot, ItemStack toSlot)
     {
-        int maxStack = Mathf.Max(1, toSlot.item.MaxStack);
+        var toItemData = catalogManager != null ? catalogManager.FindItemData(toSlot.itemId) : null;
+
+        if (toItemData == null)
+        {
+            Debug.LogWarning($"[PlayerInventory] MergeStack: Item_ID '{toSlot.itemId}'에 해당하는 ItemData를 찾을 수 없어 MaxStack을 1로 취급합니다.");
+        }
+
+        int maxStack = toItemData != null ? Mathf.Max(1, toItemData.MaxStack) : 1;
         int space = maxStack - toSlot.amount;
 
         if (space <= 0) return false;
