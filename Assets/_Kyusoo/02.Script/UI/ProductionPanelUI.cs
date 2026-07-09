@@ -78,6 +78,7 @@ public class ProductionPanelUI : MonoBehaviour
     /// </summary>
     private void Update()
     {
+        if (!productionPanelRoot.activeSelf) CloseButtonGroup.SetActive(false);
         if (productionPanelRoot != null && productionPanelRoot.activeSelf)
         {
             if (UnityEngine.InputSystem.Keyboard.current != null && UnityEngine.InputSystem.Keyboard.current.escapeKey.wasPressedThisFrame)
@@ -275,11 +276,11 @@ public class ProductionPanelUI : MonoBehaviour
     {
         targetFacility = null;
 
-        CloseButtonGroup.SetActive(false);
         PlaceButtonGroup.SetActive(true);
         SetCameraControllersEnabled(true);
         productionPanelRoot.SetActive(false);
         centerProductionPanel.SetActive(false);
+        CloseButtonGroup.SetActive(false);
     }
 
     private void SetCameraControllersEnabled(bool isEnable)
