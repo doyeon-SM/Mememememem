@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 5970667789763052088}
   - component: {fileID: 7294453871775686018}
   - component: {fileID: 6791824935543099561}
+  - component: {fileID: 3109777930955922154}
   m_Layer: 0
   m_Name: TerritoryManager
   m_TagString: Untagged
@@ -70,8 +71,32 @@ MonoBehaviour:
   - Item_ID: item_iron
     RequestTerritoryLevel: 1
     RequestGold: 1000
+    MaterialCosts: []
     IsUnlocked: 0
   - Item_ID: item_woodplank
     RequestTerritoryLevel: 1
     RequestGold: 1000
+    MaterialCosts: []
     IsUnlocked: 0
+--- !u!114 &3109777930955922154
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1106855712551666943}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7a444e2dc5a8d25499a4d4c23ca0ca46, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HDY.Territory.TerritoryExpansionManager
+  gridManager: {fileID: 0}
+  startingGridSize: 5
+  expansionSteps:
+  - RequestTerritoryLevel: 1
+    MaterialCosts:
+    - Item_ID: item_wood
+      Amount: 100
+    - Item_ID: item_irongemstone
+      Amount: 100
+    IsExpanded: 0

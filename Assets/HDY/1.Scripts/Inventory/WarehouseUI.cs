@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using KMS.InventoryDuped;
 using HDY.Item;
+using HDY.Upgrade;
 
 namespace HDY.Inventory
 {
@@ -12,16 +13,21 @@ namespace HDY.Inventory
     ///
     /// [재사용] InventorySlotUI(슬롯 하나), ItemDragUI, ItemTooltipUI, InventorySlotMoveHelper(이동/병합
     /// 공용 로직)를 그대로 가져다 쓴다. 창고 전용으로 새로 만든 건 스크롤 그리드 채우기(런타임 Instantiate)와
-    /// WarehouseSortUI 연결뿐이다.
+    /// WarehouseSortUI/업그레이드 버튼 연결뿐이다.
     ///
     /// [슬롯 배치 방식 차이] 인벤토리(10x6)/퀵슬롯(10칸)은 기존 컨벤션대로 씬에 미리 배치된 슬롯을 그대로
     /// 수집한다(BindSlotGroup). 창고(10 x n, 스크롤)는 개수가 유동적이라 도감 그리드와 동일하게 런타임에
-    /// Instantiate한다.
+    /// Instantiate하고, 업그레이드로 행이 늘어나면 그만큼 슬롯을 추가로 Instantiate한다(EnsureStorageSlotCount).
     ///
     /// [창고 ↔ 인벤토리/퀵슬롯 교차 이동] PlayerInventory와 WarehouseInventory 둘 다 서로의 컨테이너를 모르므로,
     /// 이 조합은 InventorySlotMoveHelper로 직접 처리하고 관련된 슬롯 2개만 수동으로 갱신한다(각자의 변경
     /// 이벤트가 이 조합까지 커버하지 않기 때문). 창고↔창고, 인벤토리/퀵슬롯 내부 이동은 기존처럼 각 매니저의
     /// 메서드를 그대로 호출해서 그쪽 이벤트가 알아서 갱신하도록 한다.
+    ///
+    /// [창고 업그레이드] 업그레이드 버튼을 누르면 공용 업그레이드 팝업(UpgradePopupUI)에 warehouseUpgrade(창고
+    /// 행 확장을 IUpgradable로 감싼 어댑터)를 넘겨 보여준다. 비용 확인/차감과 업그레이드 적용은 팝업과
+    /// warehouseUpgrade가 처리하고, 이 컨트롤러는 WarehouseInventory.OnRowCountChanged를 구독해뒀다가
+    /// 행이 늘어나면 그만큼 슬롯 UI를 추가로 만들고 다시 그려주기만 한다.
     ///
     /// [PlayerInventory 임시 배치] 아직 씬 간 데이터 전달 시스템이 없어서, 이 씬에도 PlayerInventory를
     /// 임시로 배치해서 참조한다. 나중에 씬 이동 시 데이터를 넘겨받는 방식이 생기면 이 참조 연결 부분만 바뀌면 된다.
@@ -41,6 +47,10 @@ namespace HDY.Inventory
         [SerializeField] private RectTransform storageContentParent;
         [SerializeField] private InventorySlotUI storageSlotPrefab;
         [SerializeField] private WarehouseSortUI sortUI;
+
+        [Header("창고 업그레이드 (한 줄 확장)")]
+        [SerializeField] private Button upgradeButton;
+        [SerializeField] private WarehouseUpgrade warehouseUpgrade;
 
         [Header("인벤토리 (오른쪽 위, 10x6 - 슬롯은 씬에 미리 배치)")]
         [SerializeField] private Transform inventoryGrid;
@@ -67,6 +77,13 @@ namespace HDY.Inventory
             if (playerInventory == null) Debug.LogWarning("[WarehouseUI] playerInventory를 찾을 수 없습니다.", this);
             if (warehouseInventory == null) Debug.LogWarning("[WarehouseUI] warehouseInventory를 찾을 수 없습니다.", this);
             if (storageSlotPrefab == null) Debug.LogWarning("[WarehouseUI] storageSlotPrefab이 비어있습니다. 창고 슬롯을 만들 수 없습니다.", this);
+            if (upgradeButton == null) Debug.LogWarning("[WarehouseUI] upgradeButton이 비어있습니다. 창고 업그레이드 버튼이 동작하지 않습니다.", this);
+            if (warehouseUpgrade == null) Debug.LogWarning("[WarehouseUI] warehouseUpgrade가 비어있습니다. 업그레이드 팝업을 열 수 없습니다.", this);
+
+            if (upgradeButton != null)
+            {
+                upgradeButton.onClick.AddListener(HandleUpgradeButtonClicked);
+            }
         }
 
         private void Start()
@@ -78,7 +95,7 @@ namespace HDY.Inventory
             }
 
             BindPlayerSlots();
-            BindStorageSlots();
+            EnsureStorageSlotCount();
 
             HideItemTooltip();
             RefreshAll();
@@ -96,6 +113,7 @@ namespace HDY.Inventory
             if (warehouseInventory != null)
             {
                 warehouseInventory.OnStorageChanged += RefreshStorageSlots;
+                warehouseInventory.OnRowCountChanged += HandleRowCountChanged;
             }
 
             if (sortUI != null)
@@ -116,6 +134,7 @@ namespace HDY.Inventory
             if (warehouseInventory != null)
             {
                 warehouseInventory.OnStorageChanged -= RefreshStorageSlots;
+                warehouseInventory.OnRowCountChanged -= HandleRowCountChanged;
             }
 
             if (sortUI != null)
@@ -174,6 +193,35 @@ namespace HDY.Inventory
             if (itemTooltipUI == null) return;
 
             itemTooltipUI.Hide();
+        }
+
+        // ===================== 창고 업그레이드 =====================
+
+        /// <summary>업그레이드 버튼 클릭 처리. 공용 업그레이드 팝업에 창고 확장 어댑터를 넘겨 보여준다.</summary>
+        private void HandleUpgradeButtonClicked()
+        {
+            if (warehouseUpgrade == null)
+            {
+                Debug.LogWarning("[WarehouseUI] warehouseUpgrade가 비어있어 업그레이드 팝업을 열 수 없습니다.", this);
+                return;
+            }
+
+            if (UpgradePopupUI.Instance == null)
+            {
+                Debug.LogWarning("[WarehouseUI] 씬에서 UpgradePopupUI를 찾을 수 없습니다.", this);
+                return;
+            }
+
+            UpgradePopupUI.Instance.Show(warehouseUpgrade);
+        }
+
+        /// <summary>창고 행이 늘어났을 때(업그레이드 성공) 호출. 늘어난 만큼 슬롯 UI를 추가로 만들고 다시 그린다.</summary>
+        private void HandleRowCountChanged()
+        {
+            Debug.Log("[WarehouseUI] OnRowCountChanged 수신 -> 창고 슬롯 확장 시도");
+
+            EnsureStorageSlotCount();
+            RefreshStorageSlots();
         }
 
         // ===================== 슬롯 이동 =====================
@@ -249,20 +297,35 @@ namespace HDY.Inventory
 
         // ===================== 슬롯 바인딩 =====================
 
-        /// <summary>창고 슬롯은 개수가 유동적(10 x n)이라 도감 그리드와 동일하게 필요한 만큼 런타임에 Instantiate한다.</summary>
-        private void BindStorageSlots()
+        /// <summary>
+        /// 창고 슬롯은 개수가 유동적(10 x n)이라 도감 그리드와 동일하게 필요한 만큼 런타임에 Instantiate한다.
+        /// 이미 만들어둔 슬롯은 그대로 재사용하고, 업그레이드로 행이 늘어나 슬롯이 더 필요해지면 모자란 만큼만
+        /// 추가로 Instantiate한다(최초 생성도 "0개에서 필요한 만큼 늘리기"로 취급해서 동일한 메서드를 쓴다).
+        /// </summary>
+        private void EnsureStorageSlotCount()
         {
             if (storageSlotPrefab == null || storageContentParent == null || warehouseInventory == null) return;
 
-            int count = warehouseInventory.storage.slots.Length;
-            storageSlots = new InventorySlotUI[count];
+            int required = warehouseInventory.storage.slots.Length;
+            int current = storageSlots != null ? storageSlots.Length : 0;
 
-            for (int i = 0; i < count; i++)
+            if (required <= current) return;
+
+            var grown = new InventorySlotUI[required];
+
+            for (int i = 0; i < current; i++)
+            {
+                grown[i] = storageSlots[i];
+            }
+
+            for (int i = current; i < required; i++)
             {
                 var slot = Instantiate(storageSlotPrefab, storageContentParent);
                 slot.Initialize(this, SlotGroup.Storage, i);
-                storageSlots[i] = slot;
+                grown[i] = slot;
             }
+
+            storageSlots = grown;
         }
 
         /// <summary>인벤토리/퀵슬롯은 기존 컨벤션대로 씬에 미리 배치된 슬롯을 그대로 수집한다.</summary>

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
@@ -22,14 +23,23 @@ namespace HDY.Upgrade
     ///   개수만큼 materialCostRowPrefab을 채워 넣는 역할만 한다.
     /// - 이번 업그레이드에 필요한 재료가 하나도 없으면(예: 멤창고 페이지 업그레이드는 골드만 사용) 재료 스크롤 뷰
     ///   자체를 꺼서 빈 영역이 보이지 않도록 한다(materialScrollRect 기준으로 토글).
+    /// - 골드 비용이 0 이하면(예: 영지 확장은 재료만 사용) goldCostText 자체를 비활성화한다.
     ///
     /// [사용법] 다른 UI에서 UpgradePopupUI.Instance.Show(target)만 호출하면 된다. 확인 버튼을 누르면
     /// 팝업이 직접 TerritoryData에서 골드를 확인/차감하고(재료는 IMaterialInventory 연결 시 함께 확인/차감),
     /// 비용을 전부 낼 수 있을 때만 target.ApplyUpgrade()를 호출한 뒤 팝업을 닫는다.
     ///
-    /// [재료 인벤토리 TODO] 프로젝트에 아직 재료 재고를 관리하는 인벤토리 시스템이 없어서, materialInventorySource가
-    /// 비어있으면 재료 비용이 있어도 재료 조건 검사를 건너뛰고(경고 로그만 남기고) 통과시킨다. 나중에 실제 재고
-    /// 시스템이 생기면 IMaterialInventory를 구현한 컴포넌트를 인스펙터에 연결하면 된다.
+    /// [팝업 닫힘 알림] OnPopupClosed 이벤트는 Hide()가 호출될 때마다(확인 성공 후 자동으로 닫히든, 취소
+    /// 버튼으로 직접 닫든 관계없이) 발행된다. 호출한 쪽(예: GoddessStatueUI)이 "팝업이 어떤 이유로든 닫히면
+    /// 선택 강조 표시를 꺼야 하는" 경우에 구독해서 쓸 수 있다.
+    ///
+    /// [재료 인벤토리 자동 연결] materialInventorySource를 인스펙터에서 비워두면, Awake에서 씬 전체를 훑어
+    /// IMaterialInventory를 구현한 컴포넌트를 아무거나 찾아 자동으로 연결한다(FindMaterialInventorySource).
+    /// 팝업은 구체적으로 어떤 구현체인지(예: CombinedMaterialInventory) 전혀 모르고 인터페이스만 보고
+    /// 찾으므로, 재료 재고 시스템이 바뀌어도 이 클래스는 손댈 필요가 없다. 씬에 구현체가 여러 개면 그중
+    /// 하나가 임의로 선택되니, 여러 개를 두고 특정 걸 쓰고 싶다면 인스펙터에서 직접 연결하면 된다(그러면
+    /// 자동 탐색은 건너뛴다). 그래도 못 찾으면(구현체 자체가 없으면) 재료 조건 검사를 건너뛰고 통과시킨다
+    /// (경고 로그만 남김) - 재료가 필요 없는 업그레이드(예: 멤창고 페이지 확장)는 이 상태로도 문제없이 동작한다.
     ///
     /// [씬 싱글톤] TerritoryData처럼 DontDestroyOnLoad는 아니고, 이 씬(HDY_TestScene)에 하나만 배치되어 있다고
     /// 가정한다. 다른 UI가 Instance로 쉽게 접근할 수 있도록 static 참조만 제공한다.
@@ -40,7 +50,7 @@ namespace HDY.Upgrade
 
         [Header("데이터 참조")]
         [SerializeField] private TerritoryData territoryData;
-        [Tooltip("IMaterialInventory를 구현한 컴포넌트를 연결. 재료 재고 시스템이 아직 없다면 비워둬도 된다(골드만 검사).")]
+        [Tooltip("IMaterialInventory를 구현한 컴포넌트를 연결. 비워두면 Awake에서 씬을 훑어 자동으로 찾는다(FindMaterialInventorySource). 재료 재고 시스템이 아예 없다면 비워둔 채로 둬도 된다(골드만 검사).")]
         [SerializeField] private MonoBehaviour materialInventorySource;
         [SerializeField] private ItemCatalogManager itemCatalogManager;
 
@@ -49,6 +59,7 @@ namespace HDY.Upgrade
 
         [Header("제목 / 골드 텍스트")]
         [SerializeField] private TMP_Text titleText;
+        [Tooltip("골드 비용이 0 이하면(재료만 필요한 업그레이드) 이 텍스트 자체를 비활성화한다.")]
         [SerializeField] private TMP_Text goldCostText;
 
         [Header("확인 / 취소 버튼")]
@@ -69,6 +80,9 @@ namespace HDY.Upgrade
         private IUpgradable currentTarget;
         private IMaterialInventory MaterialInventory => materialInventorySource as IMaterialInventory;
 
+        /// <summary>팝업이 어떤 이유로든(확인 성공/취소) 닫힐 때마다 발행.</summary>
+        public event Action OnPopupClosed;
+
         private void Awake()
         {
             if (Instance != null && Instance != this)
@@ -81,10 +95,25 @@ namespace HDY.Upgrade
             Instance = this;
 
             if (territoryData == null) Debug.LogWarning("[UpgradePopupUI] territoryData가 비어있습니다. 골드 확인/차감이 불가능합니다.", this);
-            if (materialInventorySource != null && MaterialInventory == null)
+
+            if (materialInventorySource == null)
+            {
+                materialInventorySource = FindMaterialInventorySource();
+
+                if (materialInventorySource != null)
+                {
+                    Debug.Log($"[UpgradePopupUI] materialInventorySource 자동 연결: {materialInventorySource.GetType().Name} ({materialInventorySource.name})", this);
+                }
+                else
+                {
+                    Debug.LogWarning("[UpgradePopupUI] 씬에서 IMaterialInventory 구현체를 찾지 못했습니다. 재료 조건 검사를 건너뜁니다.", this);
+                }
+            }
+            else if (MaterialInventory == null)
             {
                 Debug.LogWarning("[UpgradePopupUI] materialInventorySource가 IMaterialInventory를 구현하지 않습니다.", this);
             }
+
             if (confirmButtonLabel == null) Debug.LogWarning("[UpgradePopupUI] confirmButtonLabel이 비어있습니다. 확인 버튼에 설명 문구가 표시되지 않습니다.", this);
 
             itemCatalogManager = ItemCatalogManager.Resolve(itemCatalogManager);
@@ -93,6 +122,28 @@ namespace HDY.Upgrade
             if (cancelButton != null) cancelButton.onClick.AddListener(Hide);
 
             if (popupRoot != null) popupRoot.SetActive(false);
+        }
+
+        /// <summary>
+        /// materialInventorySource가 인스펙터에서 비어있을 때, 씬 전체에서 IMaterialInventory를 구현한
+        /// MonoBehaviour를 아무거나 찾는다. 이 팝업은 구체적인 구현체 타입(예: CombinedMaterialInventory)을
+        /// 전혀 몰라도 되도록, 타입이 아니라 인터페이스로만 찾는다. 씬에 구현체가 여러 개 있으면 그중 하나가
+        /// (정렬 순서상 먼저 발견되는 것이) 임의로 선택되니, 특정 구현체를 쓰고 싶다면 인스펙터에서 직접 연결하면
+        /// 이 자동 탐색 자체를 건너뛴다.
+        /// </summary>
+        private MonoBehaviour FindMaterialInventorySource()
+        {
+            var candidates = FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.None);
+
+            foreach (var candidate in candidates)
+            {
+                if (candidate is IMaterialInventory)
+                {
+                    return candidate;
+                }
+            }
+
+            return null;
         }
 
         /// <summary>업그레이드 대상을 받아 팝업을 연다. 열 때마다 최신 비용/가능 여부를 다시 계산해서 표시한다.</summary>
@@ -111,10 +162,13 @@ namespace HDY.Upgrade
             RefreshDisplay();
         }
 
+        /// <summary>팝업을 닫는다(확인 성공 후 자동 호출/취소 버튼 클릭 모두 여기로 온다). 닫힐 때마다 OnPopupClosed를 발행한다.</summary>
         public void Hide()
         {
             currentTarget = null;
             if (popupRoot != null) popupRoot.SetActive(false);
+
+            OnPopupClosed?.Invoke();
         }
 
         private void RefreshDisplay()
@@ -125,7 +179,15 @@ namespace HDY.Upgrade
             var cost = currentTarget.GetUpgradeCost();
 
             if (titleText != null) titleText.text = currentTarget.GetUpgradeTitle();
-            if (goldCostText != null) goldCostText.text = cost.GoldCost.ToString();
+
+            // 골드 비용이 0 이하면(재료만 필요한 업그레이드, 예: 영지 확장) 텍스트 자체를 감춘다.
+            bool hasGoldCost = cost.GoldCost > 0;
+            if (goldCostText != null)
+            {
+                goldCostText.gameObject.SetActive(hasGoldCost);
+                if (hasGoldCost) goldCostText.text = cost.GoldCost.ToString();
+            }
+
             if (confirmButtonLabel != null) confirmButtonLabel.text = currentTarget.GetUpgradeDescription();
 
             bool hasMaterialCosts = cost.MaterialCosts != null && cost.MaterialCosts.Count > 0;
@@ -239,7 +301,7 @@ namespace HDY.Upgrade
                 {
                     if (materialInventory == null)
                     {
-                        // [TODO] 재료 재고 시스템이 아직 없어, 연결 전까지는 재료 조건을 검사하지 않고 통과시킨다.
+                        // 재료 재고 시스템이 연결되지 않은 상태 - 재료 조건을 검사하지 않고 통과시킨다.
                         Debug.LogWarning($"[UpgradePopupUI] 재료 인벤토리가 연결되지 않아 재료 조건({materialCost.Item_ID} x{materialCost.Amount})을 검사하지 않고 통과시킵니다.", this);
                         continue;
                     }

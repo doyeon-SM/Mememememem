@@ -480,6 +480,7 @@ GameObject:
   - component: {fileID: 6384106198417241119}
   - component: {fileID: 1831518555029742472}
   - component: {fileID: 1667724634019974080}
+  - component: {fileID: 5427787272766822670}
   m_Layer: 5
   m_Name: P_WarehouseRoot
   m_TagString: Untagged
@@ -567,10 +568,30 @@ MonoBehaviour:
   storageContentParent: {fileID: 7507468207585860003}
   storageSlotPrefab: {fileID: 8745380330164517144, guid: 5e15e651e1f45064c8a1ff6c72a7900e, type: 3}
   sortUI: {fileID: 2150853666391227094}
+  upgradeButton: {fileID: 4171876240749162187}
+  warehouseUpgrade: {fileID: 5427787272766822670}
   inventoryGrid: {fileID: 3630944099954455728}
   quickSlotRoot: {fileID: 5290875293323781572}
   itemDragUI: {fileID: 8531027614433396204}
   itemTooltipUI: {fileID: 9096542927955313815}
+--- !u!114 &5427787272766822670
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 559864545230465988}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9fdfb40cbdba79e4a91e7672dc5eeb0a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HDY.Inventory.WarehouseUpgrade
+  warehouseInventory: {fileID: 0}
+  upgradeSteps:
+  - GoldCost: 1000
+    MaterialCosts:
+    - Item_ID: item_wood
+      Amount: 10
 --- !u!1 &644525364806866943
 GameObject:
   m_ObjectHideFlags: 0
@@ -1120,7 +1141,7 @@ MonoBehaviour:
       m_Calls: []
   m_text: New Text
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: cf7732cc4bce50d4788c3f76ded26cf0, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: 6f79c1c42161c574ebc3142888b210aa, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
