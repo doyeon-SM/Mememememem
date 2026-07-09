@@ -1,4 +1,5 @@
-﻿using KGH.Data;
+﻿using HDY.Item;
+using KGH.Data;
 using KMS.Harvesting;
 using KMS.InventoryDuped;
 using UnityEngine;
@@ -12,6 +13,9 @@ public class WorldObject : MonoBehaviour
     [SerializeField] private int currentObjectHp;
     [SerializeField] private int respawnTime = 30;
     [SerializeField] private bool destroyObjectWhenDepleted = true;
+
+    [Header("CommonClass Setting")]
+    [SerializeField] private CommonClassBonus s;
 
     [Header("Drop Spawn")]
     [SerializeField] private Transform dropSpawnPoint;
@@ -59,20 +63,20 @@ public class WorldObject : MonoBehaviour
         }
     }
     //TODO :
-    public bool ObjectInteract(ObjectType toolTargetType, PlayerInventory inventory, int damage)
+    public bool ObjectInteract(PlayerInventory inventory, ItemData data)
     {
         if (IsDead)
         {
             Debug.Log($"{this.name} IsDead");
             return false;
         }
-        if (myType != toolTargetType) 
+        if (myType != data.ObjectType) 
         {
             Debug.Log($"{this.name} myType != toolTargetType");
             return false;
         }
 
-        currentObjectHp = Mathf.Max(0, currentObjectHp - damage);
+        currentObjectHp = Mathf.Max(0, currentObjectHp - data.Value);
         Debug.Log($"감지 성공 : 현재 체력 {currentObjectHp}");
         if (currentObjectHp <= 0)
         {
