@@ -778,6 +778,7 @@ GameObject:
   - component: {fileID: 5618815184311255004}
   - component: {fileID: 3531216659770184960}
   - component: {fileID: 6609507855568644948}
+  - component: {fileID: 845823779146350221}
   m_Layer: 3
   m_Name: 0708_Player_KMS
   m_TagString: Player
@@ -838,7 +839,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 19102, guid: 0000000000000000e000000000000000, type: 0}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: 
   m_PanelSettings: {fileID: 11400000, guid: 078617a76b5fb4433800df5984ca3db2, type: 2}
   m_ParentUI: {fileID: 0}
@@ -884,6 +885,24 @@ MonoBehaviour:
   maxHunger: 100
   startingHunger: 100
   starvationDamagePerSecond: 5
+--- !u!114 &845823779146350221
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2343506189397637329}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5f40593ca2d349f193bb38ad82f93284, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::KMS.PlayerHungerHealthRecovery
+  stats: {fileID: 3755457853309600604}
+  recoveryDelayAfterDamage: 1
+  recoveryInterval: 1
+  healthPerTick: 5
+  hungerCostPerTick: 5
+  logRecovery: 0
 --- !u!114 &8934387602833054668
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -923,6 +942,10 @@ MonoBehaviour:
   jumpHungerCost: 8
   sprintHungerCostPerSecond: 6
   externalForceDecay: 8
+  ladderClimbSpeed: 3
+  ladderSlideDownSpeed: 1.2
+  ladderSnapSpeed: 12
+  ladderInputThreshold: 0.1
 --- !u!114 &8959405548244434325
 MonoBehaviour:
   m_ObjectHideFlags: 0
