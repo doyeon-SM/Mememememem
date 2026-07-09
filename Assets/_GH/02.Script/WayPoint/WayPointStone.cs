@@ -1,7 +1,8 @@
-﻿using UnityEngine;
+﻿using KMS;
+using UnityEngine;
 using UnityEngine.Serialization;
 
-public class WayPointStone : MonoBehaviour, TestInteractable
+public class WayPointStone : MonoBehaviour, TestInteractable, IInteractable
 {
     [Header("WayPoint")]
     [SerializeField] private WayPointDefinition definition;
@@ -27,9 +28,13 @@ public class WayPointStone : MonoBehaviour, TestInteractable
     [Header("State")]
     [SerializeField] private bool isUnlocked;
 
+    [Header("Interaction")]
+    [SerializeField] private string interactionPrompt = "웨이포인트 지도 열기";
+
     public WayPointDefinition Definition => definition;
     public string Id => definition != null ? definition.id : string.Empty;
     public bool IsUnlocked => isUnlocked;
+    public string InteractionPrompt => interactionPrompt;
 
     public Vector3 SpawnPosition
     {
@@ -88,6 +93,18 @@ public class WayPointStone : MonoBehaviour, TestInteractable
         {
             targetMapUI.OpenFromStone(definition);
         }
+    }
+
+    // KMS 플레이어 상호작용 시스템에서 이 스톤을 사용할 수 있는지 확인한다.
+    public bool CanInteract(PlayerInteraction interactor)
+    {
+        return definition != null;
+    }
+
+    // KMS 플레이어 상호작용 시스템에서 호출될 때 기존 지도 열기 로직을 실행한다.
+    public void Interact(PlayerInteraction interactor)
+    {
+        Interact();
     }
 
     // 매니저가 해금 상태를 반영할 때 스톤 비주얼을 갱신한다.
@@ -166,3 +183,4 @@ public class WayPointStone : MonoBehaviour, TestInteractable
         Gizmos.DrawLine(transform.position, position);
     }
 }
+

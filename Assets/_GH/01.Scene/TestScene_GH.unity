@@ -361,6 +361,8 @@ MonoBehaviour:
   targetWayPoint: {fileID: 11400000, guid: 2d568582931eb254cb9159dc95912480, type: 2}
   lockedVisual: {fileID: 763885917023585386, guid: b4912c5615ad3054dbcfc2f3532a4926, type: 3}
   activeVisual: {fileID: 2172075622583719127, guid: 9cebebccb8e8751418d3356ddacfef66, type: 3}
+  instantiatePrefabVisualReferences: 1
+  interactionPrompt: "\uC6E8\uC774\uD3EC\uC778\uD2B8 \uB4F1\uB85D"
 --- !u!1 &549703921
 GameObject:
   m_ObjectHideFlags: 0
@@ -487,7 +489,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::WayPointStone
   definition: {fileID: 11400000, guid: 2d568582931eb254cb9159dc95912480, type: 2}
-  mapUI: {fileID: 0}
+  mapUI: {fileID: 945201591}
   spawnPoint: {fileID: 549703922}
   fallbackSpawnPosition: {x: 0, y: 0, z: 0}
   useFallbackSpawnPosition: 0
@@ -497,6 +499,7 @@ MonoBehaviour:
   lockedVisual: {fileID: 0}
   unlockedVisual: {fileID: 0}
   isUnlocked: 0
+  interactionPrompt: "\uC6E8\uC774\uD3EC\uC778\uD2B8 \uC9C0\uB3C4 \uC5F4\uAE30"
 --- !u!1 &945201586
 GameObject:
   m_ObjectHideFlags: 0
@@ -627,6 +630,8 @@ MonoBehaviour:
   lockedMapButtonTextColor: {r: 0.55, g: 0.55, b: 0.55, a: 1}
   uiToggle: {fileID: 8113092866834645169}
   closeAfterTravel: 1
+  bringCanvasToFrontOnOpen: 1
+  openSortingOrder: 1000
   tooltipRoot: {fileID: 2006280423}
   tooltipText: {fileID: 0}
   tooltipFont: {fileID: 11400000, guid: 4b7ce8b83d56017438c4d21b29279bd6, type: 2}
@@ -862,26 +867,6 @@ Transform:
   - {fileID: 1331425526}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &1199602761 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 7830635625520218671, guid: 8fcade1fb3df56a49a6dbca9040ecd74, type: 3}
-  m_PrefabInstance: {fileID: 3609815103160263230}
-  m_PrefabAsset: {fileID: 0}
---- !u!114 &1199602763
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1199602761}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: bc8baaf0101c1dd4f902c7d6c10d24f8, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::WayPointObject
-  targetWayPoint: {fileID: 11400000, guid: 2d568582931eb254cb9159dc95912480, type: 2}
-  lockedVisual: {fileID: 763885917023585386, guid: b4912c5615ad3054dbcfc2f3532a4926, type: 3}
-  activeVisual: {fileID: 2172075622583719127, guid: 9cebebccb8e8751418d3356ddacfef66, type: 3}
 --- !u!1 &1231914602
 GameObject:
   m_ObjectHideFlags: 0
@@ -919,6 +904,8 @@ MonoBehaviour:
   player: {fileID: 6573924202055300154}
   autoFindPlayerByTag: 1
   playerTag: Player
+  logWayPointState: 1
+  logUnlockStackTrace: 1
 --- !u!4 &1231914604
 Transform:
   m_ObjectHideFlags: 0
@@ -1122,6 +1109,7 @@ MonoBehaviour:
   shortcutOpenMode: 0
   shortcutMap: {fileID: 0}
   notifyInputManager: 1
+  blockKmsPlayerInput: 1
   unlockCursorWhileOpen: 1
 --- !u!1 &1661593708
 GameObject:
@@ -4581,12 +4569,24 @@ PrefabInstance:
     m_TransformParent: {fileID: 1331425526}
     m_Modifications:
     - target: {fileID: 181086908951641943, guid: 6290adec3a840d844a4fba9e64bd417c, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 181086908951641943, guid: 6290adec3a840d844a4fba9e64bd417c, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 181086908951641943, guid: 6290adec3a840d844a4fba9e64bd417c, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 181086908951641943, guid: 6290adec3a840d844a4fba9e64bd417c, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 181086908951641943, guid: 6290adec3a840d844a4fba9e64bd417c, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 0.507
+      value: 0.91
       objectReference: {fileID: 0}
     - target: {fileID: 181086908951641943, guid: 6290adec3a840d844a4fba9e64bd417c, type: 3}
       propertyPath: m_LocalPosition.z
@@ -4619,6 +4619,14 @@ PrefabInstance:
     - target: {fileID: 181086908951641943, guid: 6290adec3a840d844a4fba9e64bd417c, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 181086908951641943, guid: 6290adec3a840d844a4fba9e64bd417c, type: 3}
+      propertyPath: m_ConstrainProportionsScale
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 996026117413041134, guid: 6290adec3a840d844a4fba9e64bd417c, type: 3}
+      propertyPath: dropItem.maxDrop
+      value: 3
       objectReference: {fileID: 0}
     - target: {fileID: 2770129858302747817, guid: 6290adec3a840d844a4fba9e64bd417c, type: 3}
       propertyPath: m_Name
@@ -12777,15 +12785,13 @@ PrefabInstance:
       value: 4
       objectReference: {fileID: 0}
     m_RemovedComponents: []
-    m_RemovedGameObjects: []
+    m_RemovedGameObjects:
+    - {fileID: 7830635625520218671, guid: 8fcade1fb3df56a49a6dbca9040ecd74, type: 3}
     m_AddedGameObjects:
     - targetCorrespondingSourceObject: {fileID: 1653969796523974902, guid: 8fcade1fb3df56a49a6dbca9040ecd74, type: 3}
       insertIndex: -1
       addedObject: {fileID: 2137265704}
-    m_AddedComponents:
-    - targetCorrespondingSourceObject: {fileID: 7830635625520218671, guid: 8fcade1fb3df56a49a6dbca9040ecd74, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 1199602763}
+    m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 8fcade1fb3df56a49a6dbca9040ecd74, type: 3}
 --- !u!1 &3613967284697656013
 GameObject:
@@ -23690,7 +23696,7 @@ Transform:
   m_GameObject: {fileID: 2155177135439316925}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 11.63183, y: 0.83978, z: 4.17809}
+  m_LocalPosition: {x: 5.94, y: 0.83978, z: 4.17809}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -29035,6 +29041,7 @@ MonoBehaviour:
   shortcutOpenMode: 0
   shortcutMap: {fileID: 0}
   notifyInputManager: 1
+  blockKmsPlayerInput: 1
   unlockCursorWhileOpen: 1
 --- !u!114 &8116785975858793366
 MonoBehaviour:
@@ -32523,5 +32530,5 @@ SceneRoots:
   - {fileID: 368339760}
   - {fileID: 6573924202055300154}
   - {fileID: 1182686632}
-  - {fileID: 4479958183142038159}
   - {fileID: 945201590}
+  - {fileID: 4479958183142038159}
