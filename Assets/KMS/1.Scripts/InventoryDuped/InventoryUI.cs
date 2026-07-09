@@ -4,7 +4,12 @@ using UnityEngine.UI;
 
 namespace KMS.InventoryDuped
 {
-    public class InventoryUI : MonoBehaviour
+    /// <summary>
+    /// [HDY 요청] IInventorySlotOwner를 구현해서, InventorySlotUI가 owner 타입과 무관하게 이 컨트롤러도
+    /// 그대로 사용할 수 있게 했다(WarehouseUI와 동일한 인터페이스 계약). 기존 동작(인벤토리+퀵슬롯 전용
+    /// 화면)은 변경 없음 - SlotGroup enum으로 bool(isQuickSlot)을 대체한 것뿐이다.
+    /// </summary>
+    public class InventoryUI : MonoBehaviour, IInventorySlotOwner
     {
         public PlayerInventory playerInventory;
 
@@ -20,8 +25,6 @@ namespace KMS.InventoryDuped
         [SerializeField] private KMS.PlayerCameraController cameraController;
 
         // [HDY 요청] Item_ID만으로 테스트 지급을 할 수 있는 디버그 UI 훅.
-        // 다른 씬에서 테스트용 인벤토리/창고를 구성할 때, 월드에 픽업 오브젝트를 따로 안 놓아도
-        // Item_ID 입력만으로 바로 지급해볼 수 있도록 하기 위함. 필드를 비워두면 그냥 동작하지 않는다(선택 사항).
         [Header("디버그 - Item_ID로 아이템 지급 (테스트용)")]
         [SerializeField] private TMP_InputField debugItemIdInput;
         [SerializeField] private TMP_InputField debugAmountInput;
@@ -173,15 +176,20 @@ namespace KMS.InventoryDuped
             SelectQuickSlot(nextIndex);
         }
 
+        /// <summary>
+        /// [HDY 요청] SlotGroup 조합에 따라 PlayerInventory의 알맞은 이동 메서드를 호출한다.
+        /// 이 컨트롤러는 인벤토리/퀵슬롯 2그룹만 다루므로 Storage 그룹은 여기 나타나지 않는다(방어적으로 무시).
+        /// </summary>
         private void MoveBetweenSlots(InventorySlotUI from, InventorySlotUI to)
         {
             if (playerInventory == null) return;
             if (IsLockedQuickSlot(from) || IsLockedQuickSlot(to)) return;
 
-            if (!from.isQuickSlot && !to.isQuickSlot) playerInventory.MoveInventorySlot(from.slotIndex, to.slotIndex);
-            else if (!from.isQuickSlot && to.isQuickSlot) playerInventory.MoveInventoryToQuickSlot(from.slotIndex, to.slotIndex);
-            else if (from.isQuickSlot && !to.isQuickSlot) playerInventory.MoveQuickSlotToInventory(from.slotIndex, to.slotIndex);
-            else playerInventory.MoveQuickSlot(from.slotIndex, to.slotIndex);
+            if (from.group == SlotGroup.Inventory && to.group == SlotGroup.Inventory) playerInventory.MoveInventorySlot(from.slotIndex, to.slotIndex);
+            else if (from.group == SlotGroup.Inventory && to.group == SlotGroup.QuickSlot) playerInventory.MoveInventoryToQuickSlot(from.slotIndex, to.slotIndex);
+            else if (from.group == SlotGroup.QuickSlot && to.group == SlotGroup.Inventory) playerInventory.MoveQuickSlotToInventory(from.slotIndex, to.slotIndex);
+            else if (from.group == SlotGroup.QuickSlot && to.group == SlotGroup.QuickSlot) playerInventory.MoveQuickSlot(from.slotIndex, to.slotIndex);
+            // else: Storage가 섞인 조합 - 이 컨트롤러 범위 밖이므로 무시(WarehouseUI에서만 발생해야 함)
         }
 
         private void ToggleInventory()
@@ -227,11 +235,11 @@ namespace KMS.InventoryDuped
 
         private void BindSlots()
         {
-            inventorySlots = BindSlotGroup(inventoryGrid, playerInventory.inventory.slots.Length, false);
-            quickSlots = BindSlotGroup(quickSlotRoot, playerInventory.quickSlots.slots.Length, true);
+            inventorySlots = BindSlotGroup(inventoryGrid, playerInventory.inventory.slots.Length, SlotGroup.Inventory);
+            quickSlots = BindSlotGroup(quickSlotRoot, playerInventory.quickSlots.slots.Length, SlotGroup.QuickSlot);
         }
 
-        private InventorySlotUI[] BindSlotGroup(Transform root, int count, bool quickSlot)
+        private InventorySlotUI[] BindSlotGroup(Transform root, int count, SlotGroup group)
         {
             InventorySlotUI[] result = new InventorySlotUI[count];
 
@@ -242,7 +250,7 @@ namespace KMS.InventoryDuped
                 InventorySlotUI slotUI = root.GetChild(i).GetComponent<InventorySlotUI>();
                 result[i] = slotUI;
 
-                if (slotUI != null) slotUI.Initialize(this, quickSlot, i);
+                if (slotUI != null) slotUI.Initialize(this, group, i);
             }
 
             return result;
@@ -282,7 +290,6 @@ namespace KMS.InventoryDuped
             playerInput.QuickSlotScrolled -= SelectQuickSlotOffset;
         }
 
-        /// <summary>[HDY 요청] 디버그 지급 버튼 클릭을 구독한다. 필드가 비어있으면 아무 것도 하지 않는다(선택 사항 기능).</summary>
         private void SubscribeDebugGiveItemButton()
         {
             if (debugGiveItemButton != null)
@@ -299,11 +306,6 @@ namespace KMS.InventoryDuped
             }
         }
 
-        /// <summary>
-        /// [HDY 요청] 입력창의 Item_ID/수량을 읽어 PlayerInventory.AddItem(string, int)로 지급을 시도한다.
-        /// 수량 입력이 비어있거나 잘못되면 1개로 처리한다. 카탈로그에 없는 ID면 PlayerInventory가 경고 로그를 남기고
-        /// 아무 것도 추가하지 않는다(여기서는 결과만 로그로 남김).
-        /// </summary>
         private void HandleDebugGiveItemClicked()
         {
             if (playerInventory == null || debugItemIdInput == null) return;
@@ -373,7 +375,7 @@ namespace KMS.InventoryDuped
 
         private bool IsLockedQuickSlot(InventorySlotUI slot)
         {
-            return slot != null && slot.isQuickSlot && playerInventory.IsQuickSlotLocked(slot.slotIndex);
+            return slot != null && slot.group == SlotGroup.QuickSlot && playerInventory.IsQuickSlotLocked(slot.slotIndex);
         }
     }
 }

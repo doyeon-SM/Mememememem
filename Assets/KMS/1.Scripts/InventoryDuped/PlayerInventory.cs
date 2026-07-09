@@ -6,10 +6,9 @@ namespace KMS.InventoryDuped
 {
 
 /// <summary>
-/// [HDY 요청] 슬롯 하나의 데이터. 이제 ItemData(SO 레퍼런스)를 직접 들고 있지 않고 Item_ID(string)만
-/// 저장한다 - 세이브/로드 등에서 SO 레퍼런스보다 문자열 ID가 다루기 쉽기 때문. 아이콘/이름 등 실제 표시가
-/// 필요한 쪽(InventorySlotUI/ItemDragUI/ItemTooltipUI)은 itemId로 ItemCatalogManager.FindItemData를
-/// 호출해서 그때그때 조회한다.
+/// [HDY 요청] 슬롯 하나의 데이터. ItemData(SO 레퍼런스)를 직접 들고 있지 않고 Item_ID(string)만 저장한다.
+/// 아이콘/이름 등 실제 표시가 필요한 쪽(InventorySlotUI/ItemDragUI/ItemTooltipUI)은 itemId로
+/// ItemCatalogManager.FindItemData를 호출해서 그때그때 조회한다.
 /// </summary>
 [Serializable]
 public class ItemStack
@@ -79,15 +78,16 @@ public class QuickSlotUseReservation
 
 public class PlayerInventory : MonoBehaviour
 {
-    public InventoryContainer inventory = new InventoryContainer { width = 6, height = 6 };
+    // [HDY 요청] 창고 UI 설계에 맞춰 인벤토리 기본 크기를 10x6으로 통일(퀵슬롯 10칸은 기존과 동일).
+    public InventoryContainer inventory = new InventoryContainer { width = 10, height = 6 };
     public InventoryContainer quickSlots = new InventoryContainer { width = 10, height = 1 };
 
     public int selectedQuickSlotIndex;
     private QuickSlotUseReservation quickSlotUseReservation;
     private int pendingQuickSlotIndex = -1;
 
-    // [HDY 요청] Item_ID 문자열로 아이템을 지급하는 경로 + 슬롯에 저장된 itemId로 실제 ItemData(MaxStack 등)를
-    // 다시 조회해야 하는 내부 로직(MergeStack 등) 양쪽에 필요한 참조. 비워둬도 Resolve가 자동으로 찾는다.
+    // [HDY 요청] Item_ID 문자열만으로 아이템을 지급할 수 있도록 카탈로그 조회 경로를 추가하기 위한 참조.
+    // MergeStack(공용 헬퍼)에서 MaxStack 조회 시에도 사용된다.
     [Header("아이템 카탈로그 (Item_ID로 조회할 때 사용)")]
     [SerializeField] private ItemCatalogManager catalogManager;
 
@@ -131,9 +131,8 @@ public class PlayerInventory : MonoBehaviour
 
     /// <summary>
     /// [HDY 요청] Item_ID 문자열로 아이템을 추가한다. ItemCatalogManager에서 실제 ItemData를 찾아
-    /// 기존 AddItem(ItemData, int)에 그대로 위임한다 - 퀵슬롯/스택 병합 등 로직은 완전히 동일하게 적용된다.
-    /// 퀘스트 보상, 상점 구매, 제작 결과물 지급처럼 "ID만 알고 SO 레퍼런스는 없는" 경우를 위한 진입점.
-    /// 카탈로그에 없는 ID면 아무 것도 추가하지 않고 amount를 그대로 반환한다(경고 로그).
+    /// 기존 AddItem(ItemData, int)에 그대로 위임한다. 카탈로그에 없는 ID면 아무 것도 추가하지 않고
+    /// amount를 그대로 반환한다(경고 로그).
     /// </summary>
     public int AddItem(string itemId, int amount)
     {
@@ -345,7 +344,7 @@ public class PlayerInventory : MonoBehaviour
         return quickSlotUseReservation != null && quickSlotUseReservation.slotIndex == index;
     }
 
-    /// <summary>현재 사용중인 아이템의 Item_ID를 반환한다(효과 목록 조회 등에 사용). [HDY 요청] 기존에는 ItemData를 반환했으나, 슬롯 저장 방식이 ID 기반으로 바뀌면서 이 메서드도 ID를 반환하도록 변경(기존 호출부 없음 확인됨).</summary>
+    /// <summary>현재 사용중인 아이템의 Item_ID를 반환한다(효과 목록 조회 등에 사용).</summary>
     public string GetQuickSlotUseItemId()
     {
         return quickSlotUseReservation != null ? quickSlotUseReservation.itemId : null;
@@ -504,65 +503,17 @@ public class PlayerInventory : MonoBehaviour
         return container == quickSlots && IsQuickSlotLocked(index);
     }
 
-    // 슬롯 이동
+    /// <summary>
+    /// [HDY 요청] 슬롯 이동/병합의 실제 규칙은 InventorySlotMoveHelper(공용)에 위임한다 - WarehouseUI의
+    /// 창고↔인벤토리 이동도 완전히 동일한 규칙을 써야 해서 로직을 한 곳으로 모았다. 여기서는 잠긴 퀵슬롯
+    /// 여부만 미리 걸러낸다(이 규칙은 PlayerInventory에만 있는 개념이라 공용 헬퍼가 알 필요 없음).
+    /// </summary>
     private bool MoveSlot(InventoryContainer fromContainer, int fromIndex, InventoryContainer toContainer, int toIndex)
     {
-        if (!fromContainer.IsValidIndex(fromIndex) || !toContainer.IsValidIndex(toIndex)) return false;
-        if (fromContainer == toContainer && fromIndex == toIndex) return false;
         if (IsLockedQuickSlot(fromContainer, fromIndex)) return false;
         if (IsLockedQuickSlot(toContainer, toIndex)) return false;
 
-        ItemStack fromSlot = fromContainer.slots[fromIndex];
-        ItemStack toSlot = toContainer.slots[toIndex];
-
-        if (fromSlot.IsEmpty) return false;
-
-        if (toSlot.IsEmpty)
-        {
-            toSlot.Set(fromSlot.itemId, fromSlot.amount);
-            fromSlot.Clear();
-            return true;
-        }
-
-        if (fromSlot.itemId == toSlot.itemId)
-        {
-            return MergeStack(fromSlot, toSlot);
-        }
-
-        string tempItemId = fromSlot.itemId;
-        int tempAmount = fromSlot.amount;
-        fromSlot.Set(toSlot.itemId, toSlot.amount);
-        toSlot.Set(tempItemId, tempAmount);
-
-        return true;
-    }
-
-    /// <summary>
-    /// 아이템 합치기. 슬롯에는 itemId(string)만 있어 MaxStack을 알 수 없으므로, 카탈로그에서 ItemData를
-    /// 다시 조회해서 MaxStack을 가져온다. 카탈로그에서 못 찾으면 안전하게 1개(스택 불가)로 취급한다.
-    /// </summary>
-    private bool MergeStack(ItemStack fromSlot, ItemStack toSlot)
-    {
-        var toItemData = catalogManager != null ? catalogManager.FindItemData(toSlot.itemId) : null;
-
-        if (toItemData == null)
-        {
-            Debug.LogWarning($"[PlayerInventory] MergeStack: Item_ID '{toSlot.itemId}'에 해당하는 ItemData를 찾을 수 없어 MaxStack을 1로 취급합니다.");
-        }
-
-        int maxStack = toItemData != null ? Mathf.Max(1, toItemData.MaxStack) : 1;
-        int space = maxStack - toSlot.amount;
-
-        if (space <= 0) return false;
-
-        int moved = Mathf.Min(space, fromSlot.amount);
-
-        toSlot.amount += moved;
-        fromSlot.amount -= moved;
-
-        if (fromSlot.amount <= 0) fromSlot.Clear();
-
-        return true;
+        return InventorySlotMoveHelper.MoveSlot(fromContainer, fromIndex, toContainer, toIndex, catalogManager);
     }
 
     // 모든 퀵슬롯 변화 알림
