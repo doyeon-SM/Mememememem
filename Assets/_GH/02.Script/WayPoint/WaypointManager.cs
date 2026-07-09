@@ -15,6 +15,10 @@ public class WayPointManager : MonoBehaviour
     [SerializeField] private bool autoFindPlayerByTag = true;
     [SerializeField] private string playerTag = "Player";
 
+    [Header("Debug")]
+    [SerializeField] private bool logWayPointState = true;
+    [SerializeField] private bool logUnlockStackTrace = true;
+
     private readonly Dictionary<string, WayPointRunTime> statesById = new Dictionary<string, WayPointRunTime>();
     private readonly Dictionary<string, WayPointStone> stonesById = new Dictionary<string, WayPointStone>();
 
@@ -89,6 +93,8 @@ public class WayPointManager : MonoBehaviour
             WayPointRunTime state = new WayPointRunTime(definition);
             state.IsActive = definition.unlockedOnStart;
             statesById.Add(definition.id, state);
+
+            LogState($"초기화: id={definition.id}, unlockedOnStart={definition.unlockedOnStart}, isActive={state.IsActive}", definition);
         }
     }
 
@@ -122,6 +128,7 @@ public class WayPointManager : MonoBehaviour
         state.Stone = stone;
 
         stone.SetUnlockedVisual(state.IsActive);
+        LogState($"스톤 등록: id={id}, isActive={state.IsActive}, stone={stone.name}", stone);
         OnWayPointStateChanged?.Invoke(state);
     }
 
@@ -168,10 +175,12 @@ public class WayPointManager : MonoBehaviour
 
         if (state.IsActive)
         {
+            LogState($"해금 요청 무시: 이미 활성화됨 id={id}", state.Definition);
             return false;
         }
 
         state.IsActive = true;
+        LogState($"해금됨: id={id}", state.Definition, logUnlockStackTrace);
 
         if (state.Stone != null)
         {
@@ -193,14 +202,9 @@ public class WayPointManager : MonoBehaviour
             return true;
         }
 
-        if (mapDefinition.unlockedOnStart)
-        {
-            return true;
-        }
-
         if (mapDefinition.requiredPreviousMap == null)
         {
-            return false;
+            return mapDefinition.unlockedOnStart;
         }
 
         return AreAllWayPointsUnlockedInMap(mapDefinition.requiredPreviousMap);
@@ -414,5 +418,22 @@ public class WayPointManager : MonoBehaviour
     {
         OnWayPointTravelFailed?.Invoke(state, reason);
         Debug.LogWarning($"[WayPointManager] Travel failed. {reason}");
+    }
+
+    // 웨이포인트 상태가 언제 바뀌는지 추적하기 위한 디버그 로그를 남긴다.
+    private void LogState(string message, UnityEngine.Object context = null, bool includeStackTrace = false)
+    {
+        if (!logWayPointState)
+        {
+            return;
+        }
+
+        if (includeStackTrace && logUnlockStackTrace)
+        {
+            Debug.Log($"[WayPointManager] {message}\n{Environment.StackTrace}", context != null ? context : this);
+            return;
+        }
+
+        Debug.Log($"[WayPointManager] {message}", context != null ? context : this);
     }
 }

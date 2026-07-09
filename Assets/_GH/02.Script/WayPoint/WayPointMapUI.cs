@@ -28,6 +28,10 @@ public class WayPointMapUI : MonoBehaviour
     [SerializeField] private WayPointUIToggle uiToggle;
     [SerializeField] private bool closeAfterTravel = true;
 
+    [Header("Canvas")]
+    [SerializeField] private bool bringCanvasToFrontOnOpen = true;
+    [SerializeField] private int openSortingOrder = 1000;
+
     [Header("Tooltip")]
     [SerializeField] private RectTransform tooltipRoot;
     [SerializeField] private TMP_Text tooltipText;
@@ -52,9 +56,13 @@ public class WayPointMapUI : MonoBehaviour
     private WayPointRunTime currentTooltipState;
     private string openedFromWayPointId;
     private bool subscribed;
+    private Canvas cachedCanvas;
+    private bool cachedCanvasOriginalOverrideSorting;
+    private int cachedCanvasOriginalSortingOrder;
 
     public WayPointMapOpenMode CurrentOpenMode => currentOpenMode;
     public WayPointMapDefinition CurrentMap => currentMap;
+    public bool IsVisible => mapImage != null ? mapImage.gameObject.activeInHierarchy : gameObject.activeInHierarchy;
 
     private void Awake()
     {
@@ -76,6 +84,7 @@ public class WayPointMapUI : MonoBehaviour
             iconParent = mapImage.rectTransform;
         }
 
+        CacheCanvasState();
         EnsureTooltip();
     }
 
@@ -94,6 +103,7 @@ public class WayPointMapUI : MonoBehaviour
     private void OnDisable()
     {
         HideTooltip();
+        RestoreCanvasSorting();
         Unsubscribe();
     }
 
@@ -113,6 +123,7 @@ public class WayPointMapUI : MonoBehaviour
     // UI가 열릴 때 보기 전용인지 이동 가능 모드인지 설정한다.
     public void PrepareOpen(WayPointMapOpenMode openMode, WayPointMapDefinition mapOverride = null)
     {
+        BringCanvasToFront();
         currentOpenMode = openMode;
         openedFromWayPointId = string.Empty;
         currentMap = ResolveMap(mapOverride);
@@ -208,6 +219,7 @@ public class WayPointMapUI : MonoBehaviour
 
         currentTooltipState = state;
         tooltipRoot.gameObject.SetActive(true);
+        tooltipRoot.SetAsLastSibling();
         RefreshTooltipText(state);
         MoveTooltip(screenPosition);
     }
@@ -243,7 +255,6 @@ public class WayPointMapUI : MonoBehaviour
     public void HideTooltip()
     {
         currentTooltipState = null;
-
         if (tooltipRoot != null)
         {
             tooltipRoot.gameObject.SetActive(false);
@@ -436,6 +447,14 @@ public class WayPointMapUI : MonoBehaviour
             text.color = isAvailable ? normalMapButtonTextColor : lockedMapButtonTextColor;
         }
 
+        Text legacyText = button.GetComponentInChildren<Text>(true);
+        if (legacyText != null)
+        {
+            string displayName = string.IsNullOrWhiteSpace(mapDefinition.displayName) ? mapDefinition.id : mapDefinition.displayName;
+            legacyText.text = isAvailable ? displayName : $"{displayName} (잠김)";
+            legacyText.color = isAvailable ? normalMapButtonTextColor : lockedMapButtonTextColor;
+        }
+
         Image background = button.GetComponent<Image>();
         if (background != null)
         {
@@ -528,23 +547,86 @@ public class WayPointMapUI : MonoBehaviour
         if (iconPrefab != null)
         {
             icon = Instantiate(iconPrefab, iconParent);
+            ApplyGeneratedIconRect(icon);
         }
         else
         {
             GameObject iconObject = new GameObject($"WayPointIcon_{state.Id}", typeof(RectTransform), typeof(Image), typeof(Button), typeof(WayPointMapIconUI));
             iconObject.transform.SetParent(iconParent, false);
 
-            RectTransform rectTransform = iconObject.transform as RectTransform;
-            rectTransform.sizeDelta = generatedIconSize;
-            rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
-            rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-            rectTransform.pivot = new Vector2(0.5f, 0.5f);
-
             icon = iconObject.GetComponent<WayPointMapIconUI>();
+            ApplyGeneratedIconRect(icon);
         }
 
         icon.name = $"WayPointIcon_{state.Id}";
         return icon;
+    }
+
+    // 아이콘 프리팹의 RectTransform 설정이 비어 있어도 지도에서 클릭/호버 가능한 크기를 보장한다.
+    private void ApplyGeneratedIconRect(WayPointMapIconUI icon)
+    {
+        RectTransform rectTransform = icon != null ? icon.transform as RectTransform : null;
+        if (rectTransform == null)
+        {
+            return;
+        }
+
+        if (rectTransform.sizeDelta.sqrMagnitude <= 0.01f)
+        {
+            rectTransform.sizeDelta = generatedIconSize;
+        }
+
+        rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
+        rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+        rectTransform.pivot = new Vector2(0.5f, 0.5f);
+    }
+
+    // 지도 Canvas의 원래 정렬값을 저장한다.
+    private void CacheCanvasState()
+    {
+        if (cachedCanvas != null)
+        {
+            return;
+        }
+
+        cachedCanvas = GetComponentInParent<Canvas>();
+        if (cachedCanvas == null)
+        {
+            return;
+        }
+
+        cachedCanvasOriginalOverrideSorting = cachedCanvas.overrideSorting;
+        cachedCanvasOriginalSortingOrder = cachedCanvas.sortingOrder;
+    }
+
+    // 플레이어 UI나 인벤토리 Canvas가 위에 있어도 지도 아이콘이 마우스 이벤트를 받도록 앞으로 올린다.
+    private void BringCanvasToFront()
+    {
+        if (!bringCanvasToFrontOnOpen)
+        {
+            return;
+        }
+
+        CacheCanvasState();
+        if (cachedCanvas == null)
+        {
+            return;
+        }
+
+        cachedCanvas.overrideSorting = true;
+        cachedCanvas.sortingOrder = openSortingOrder;
+    }
+
+    // 지도 UI가 닫히거나 꺼질 때 Canvas 정렬값을 원래대로 되돌린다.
+    private void RestoreCanvasSorting()
+    {
+        if (!bringCanvasToFrontOnOpen || cachedCanvas == null)
+        {
+            return;
+        }
+
+        cachedCanvas.overrideSorting = cachedCanvasOriginalOverrideSorting;
+        cachedCanvas.sortingOrder = cachedCanvasOriginalSortingOrder;
     }
 
     // 툴팁 오브젝트가 없으면 기본 툴팁 UI를 자동 생성한다.
@@ -669,6 +751,7 @@ public class WayPointMapUI : MonoBehaviour
     private void CloseMap()
     {
         HideTooltip();
+        RestoreCanvasSorting();
 
         if (uiToggle != null)
         {

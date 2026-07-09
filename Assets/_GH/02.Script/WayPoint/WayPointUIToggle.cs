@@ -18,29 +18,24 @@ public class WayPointUIToggle : MonoBehaviour
 
     [Header("Gameplay")]
     [SerializeField] private bool notifyInputManager = true;
+    [SerializeField] private bool blockKmsPlayerInput = true;
     [SerializeField] private bool unlockCursorWhileOpen = true;
 
     private bool isOpen;
 
     private void Awake()
     {
-        if (mapUI == null)
+        ResolveReferences();
+
+        if (hideOnStart && targetUI != null)
         {
-            mapUI = GetComponentInChildren<WayPointMapUI>(true);
+            SetOpen(false);
         }
     }
 
     private void Start()
     {
-        if (targetUI == null && mapUI != null)
-        {
-            targetUI = mapUI.gameObject;
-        }
-
-        if (targetUI == null)
-        {
-            targetUI = gameObject;
-        }
+        ResolveReferences();
 
         if (hideOnStart)
         {
@@ -58,6 +53,14 @@ public class WayPointUIToggle : MonoBehaviour
         if (WasTogglePressed())
         {
             Toggle();
+        }
+    }
+
+    private void OnDisable()
+    {
+        if (isOpen)
+        {
+            SetKmsPlayerInputBlocked(false);
         }
     }
 
@@ -82,6 +85,8 @@ public class WayPointUIToggle : MonoBehaviour
     // Stone 상호작용처럼 특정 모드와 맵으로 지도 UI를 열 때 사용한다.
     public void Open(WayPointMapOpenMode openMode, WayPointMapDefinition mapOverride = null)
     {
+        ResolveReferences();
+
         if (mapUI != null)
         {
             mapUI.PrepareOpen(openMode, mapOverride);
@@ -99,6 +104,7 @@ public class WayPointUIToggle : MonoBehaviour
     // UI 활성화와 입력 잠금, 커서 상태를 한 번에 적용한다.
     public void SetOpen(bool open)
     {
+        ResolveReferences();
         isOpen = open;
 
         if (!isOpen && mapUI != null)
@@ -112,6 +118,34 @@ public class WayPointUIToggle : MonoBehaviour
         }
 
         ApplyInputState();
+    }
+
+    // 인스펙터 연결이 비어 있어도 씬의 지도 UI를 찾아서 초기 닫힘과 열기 동작이 안정적으로 되게 한다.
+    private void ResolveReferences()
+    {
+        if (mapUI == null)
+        {
+            mapUI = GetComponent<WayPointMapUI>();
+        }
+
+        if (mapUI == null)
+        {
+            mapUI = GetComponentInChildren<WayPointMapUI>(true);
+        }
+
+        if (mapUI == null)
+        {
+            WayPointMapUI[] mapUIs = FindObjectsByType<WayPointMapUI>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            if (mapUIs.Length > 0)
+            {
+                mapUI = mapUIs[0];
+            }
+        }
+
+        if (targetUI == null && mapUI != null)
+        {
+            targetUI = mapUI.gameObject;
+        }
     }
 
     // 현재 프레임에 지도 단축키가 눌렸는지 확인한다.
@@ -134,6 +168,8 @@ public class WayPointUIToggle : MonoBehaviour
             InputManager.Instance.SetSystemMenuOpen(isOpen);
         }
 
+        SetKmsPlayerInputBlocked(isOpen);
+
         if (!unlockCursorWhileOpen)
         {
             return;
@@ -141,5 +177,23 @@ public class WayPointUIToggle : MonoBehaviour
 
         Cursor.visible = isOpen;
         Cursor.lockState = isOpen ? CursorLockMode.None : CursorLockMode.Locked;
+    }
+
+    // KMS 플레이어가 추가된 씬에서도 지도 UI 위 마우스 입력이 월드 조작과 겹치지 않게 막는다.
+    private void SetKmsPlayerInputBlocked(bool blocked)
+    {
+        if (!blockKmsPlayerInput)
+        {
+            return;
+        }
+
+        KMS.PlayerInput[] playerInputs = FindObjectsByType<KMS.PlayerInput>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+        foreach (KMS.PlayerInput playerInput in playerInputs)
+        {
+            if (playerInput != null)
+            {
+                playerInput.SetGameplayInputBlocked(blocked);
+            }
+        }
     }
 }
