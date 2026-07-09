@@ -104,6 +104,7 @@ public class ProductionFacilityRuntime : MonoBehaviour
         }
         if (addMems.Count >= maxCapacity)
         {
+            // 배치교체 필요
             Debug.LogWarning($"배치 인원이 가득 찼습니다.");
             return false;
         }

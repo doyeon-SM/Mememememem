@@ -15,18 +15,11 @@ public class CraftingPanelUI : MonoBehaviour
     private enum CraftingUIState { Default, SelectProduct, Crafting }
     private CraftingUIState currentUIState = CraftingUIState.Default;
 
-    //[Header("최상위 패널 오브젝트: 패널, 닫기버튼")]
-    //[SerializeField] private GameObject craftingPanelRoot;
-    //[SerializeField] private GameObject centerCraftingPanel;
-    //[SerializeField] private GameObject CloseButtonGroup;
-    //[SerializeField] private Button closeBtn;
-    //[SerializeField] private GameObject PlaceButtonGroup;
-
     [Header("중앙 패널 - Top 빌딩 이름")]
     [SerializeField] private TextMeshProUGUI buildingName;
 
     [Header("중앙 패널 - Center 멤슬롯")]
-    [SerializeField] private CraftingMemSlotUI singleMemSlot;
+    [SerializeField] private MemSlotUI singleMemSlot;
 
     [Header("중앙 패널 - Center: Default_Mode 오브젝트, 레시피 생성될 영역, 레시피 프리팹 ")]
     [SerializeField] private GameObject defaultModeObject;
@@ -88,11 +81,6 @@ public class CraftingPanelUI : MonoBehaviour
         if (Instance == null) Instance = this;
         else Destroy(gameObject);
 
-        //if (craftingPanelRoot != null) craftingPanelRoot.SetActive(false);
-        //if (centerCraftingPanel != null) centerCraftingPanel.SetActive(false);
-
-        //if (closeBtn != null) closeBtn.onClick.AddListener(ClosePanel);
-
         if (btnMin != null) btnMin.onClick.AddListener(SetMinQuantity);
         if (btnMax != null) btnMax.onClick.AddListener(SetMaxQuantity);
         if (btnMinus != null) btnMinus.onClick.AddListener(() => ModifyQuantity(-1));
@@ -110,16 +98,6 @@ public class CraftingPanelUI : MonoBehaviour
 
     private void Update()
     {
-        //if (!craftingPanelRoot.activeSelf) CloseButtonGroup.SetActive(false);
-        //if (craftingPanelRoot != null && craftingPanelRoot.activeSelf)
-        //{
-        //    if (UnityEngine.InputSystem.Keyboard.current != null && UnityEngine.InputSystem.Keyboard.current.escapeKey.wasPressedThisFrame)
-        //    {
-        //        ClosePanel();
-        //        return;
-        //    }
-        //}
-
         if (targetFacility == null) return;
 
         if (currentUIState == CraftingUIState.Crafting && targetFacility.isProducing && targetFacility.totalRequiredTime > 0f)
@@ -159,7 +137,7 @@ public class CraftingPanelUI : MonoBehaviour
         GenerateAvailableRecipeList();
     }
 
-    private void RefreshStaticUI()
+    public void RefreshStaticUI()
     {
         if (targetFacility == null) return;
 

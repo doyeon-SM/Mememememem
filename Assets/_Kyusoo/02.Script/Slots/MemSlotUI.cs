@@ -5,7 +5,7 @@ using MemSystem.Data;
 using HDY.Capture;
 using HDY.UI; 
 
-public class ProductionMemSlotUI : MonoBehaviour, IDropHandler
+public class MemSlotUI : MonoBehaviour, IDropHandler, IPointerClickHandler
 {
     [Header("슬롯 UI 요소 참조 (미리 배치될 프리팹의 컴포넌트들)")]
     [SerializeField] private Image iconImage;
@@ -24,13 +24,46 @@ public class ProductionMemSlotUI : MonoBehaviour, IDropHandler
 
         if (TryGetComponent<MemSlotUI>(out var duplicateComp))
         {
-            Destroy(duplicateComp);
+            if (duplicateComp != this) Destroy(duplicateComp);
         }
 
         if (slotButton != null)
         {
             slotButton.onClick.RemoveAllListeners();
             slotButton.onClick.AddListener(OnClickSlot);
+        }
+    }
+
+    /// <summary>
+    /// 마우스 좌클릭을 통한 배치된 슬롯 해제처리
+    /// </summary>
+    public void OnPointerClick(PointerEventData eventData)
+    {
+        if (eventData.button == PointerEventData.InputButton.Left)
+        {
+            ExecuteSlotReleaseProcess();
+        }
+    }
+
+    /// <summary>
+    /// 기존 OnClickSlot의 역할을 완벽하게 대체하는 실질 해제 트랜잭션 부서
+    /// </summary>
+    private void ExecuteSlotReleaseProcess()
+    {
+
+        if (currentPlacedMem == null)
+        {
+            return;
+        }
+        MonoBehaviour activePanel = GetCurrentActivePanel();
+
+        if (activePanel is ProductionPanelUI prodPanel)
+        {
+            prodPanel.TryRemoveMemFromUI(currentPlacedMem);
+        }
+        else if (activePanel is CraftingPanelUI craftPanel)
+        {
+            craftPanel.TryRemoveMemFromUI(currentPlacedMem);
         }
     }
 
@@ -72,10 +105,26 @@ public class ProductionMemSlotUI : MonoBehaviour, IDropHandler
                 else
                 {
                     iconImage.sprite = null;
-                    iconImage.color = new Color(1f, 1f, 1f, 0f);
+                    iconImage.color = Color.blue;
                 }
             }
         }
+    }
+    private MonoBehaviour GetCurrentActivePanel()
+    {
+        string myPrefabName = gameObject.name;
+        Debug.Log($"myPrefabName: {myPrefabName}");
+
+        if (myPrefabName.Contains("Product"))
+        {
+            return ProductionPanelUI.Instance;
+        }
+        else if (myPrefabName.Contains("Craft"))
+        {
+            return CraftingPanelUI.Instance;
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -83,9 +132,18 @@ public class ProductionMemSlotUI : MonoBehaviour, IDropHandler
     /// </summary>
     private void OnClickSlot()
     {
-        if (currentPlacedMem != null)
+        Debug.Log("OnClickSlot 동작 시작");
+        if (currentPlacedMem == null) return;
+        Debug.Log($"currentPlacedMem 존재{currentPlacedMem}");
+        MonoBehaviour activePanel = GetCurrentActivePanel();
+        Debug.Log($"activePanel{activePanel}");
+        if (activePanel is ProductionPanelUI prodPanel)
         {
-            ProductionPanelUI.Instance.TryRemoveMemFromUI(currentPlacedMem);
+            prodPanel.TryRemoveMemFromUI(currentPlacedMem);
+        }
+        else if (activePanel is CraftingPanelUI craftPanel)
+        {
+            craftPanel.TryRemoveMemFromUI(currentPlacedMem);
         }
     }
 
@@ -131,7 +189,16 @@ public class ProductionMemSlotUI : MonoBehaviour, IDropHandler
                         warehouseData.productionStats.transport = 1;
                         warehouseData.productionStats.farming = 1;
                     }
-                    ProductionPanelUI.Instance.TryDeployMemFromUI(warehouseData, warehouseEntry);
+                    MonoBehaviour activePanel = GetCurrentActivePanel();
+
+                    if (activePanel is ProductionPanelUI prodPanel)
+                    {
+                        prodPanel.TryDeployMemFromUI(warehouseData, warehouseEntry);
+                    }
+                    else if (activePanel is CraftingPanelUI craftPanel)
+                    {
+                        craftPanel.TryDeployMemFromUI(warehouseData, warehouseEntry);
+                    }
                 }
                 else
                 {

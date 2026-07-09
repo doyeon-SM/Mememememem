@@ -322,9 +322,9 @@ namespace HDY.Capture
             capturedMems[emptyIndex] = new CapturedMemEntry
             {
                 KeyId = Guid.NewGuid().ToString(),
-                MemId = "mem_rare_001",
+                MemId = "Mem_Normal_01",
                 ExplorationStat = UnityEngine.Random.Range(20, 101),
-                IsActive = true
+                IsActive = false
             };
 
             Debug.Log($"<color=cyan>[Test] 테스트 멤 주입 성공!</color> Index: {emptyIndex} | MemId: {capturedMems[emptyIndex].MemId} | 스탯: {capturedMems[emptyIndex].ExplorationStat}");

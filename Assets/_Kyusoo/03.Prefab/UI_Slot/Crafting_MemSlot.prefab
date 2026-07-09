@@ -298,9 +298,9 @@ GameObject:
   - component: {fileID: 8269600135094962253}
   - component: {fileID: 1599250129235079755}
   - component: {fileID: 1877041024673508401}
-  - component: {fileID: 196068311882470263}
+  - component: {fileID: 6292116269844035449}
   m_Layer: 5
-  m_Name: Carfting_MemSlot
+  m_Name: Crafting_MemSlot
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -381,7 +381,7 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls: []
---- !u!114 &196068311882470263
+--- !u!114 &6292116269844035449
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -390,9 +390,9 @@ MonoBehaviour:
   m_GameObject: {fileID: 3297111545464931098}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 5cd2124102726f74ba3792b1c757f382, type: 3}
+  m_Script: {fileID: 11500000, guid: 4bafc9e63828f4e4ea3743419b154f6d, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::CraftingMemSlotUI
+  m_EditorClassIdentifier: Assembly-CSharp::MemSlotUI
   iconImage: {fileID: 6323016883747657061}
   slotButton: {fileID: 1877041024673508401}
 --- !u!1 &6412747167773539952
