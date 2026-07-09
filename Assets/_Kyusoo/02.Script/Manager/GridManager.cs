@@ -143,6 +143,12 @@ public class GridManager : MonoBehaviour
                     {
                         ProductionPanelUI.Instance.OpenPanel(facility);
                     }
+
+                    if(targetObj.TryGetComponent<ProductionCraftRuntime>(out ProductionCraftRuntime craft))
+                    {
+                        CraftingPanelUI.Instance.OpenPanel(craft);
+                    }
+
                 }
             }
         }
