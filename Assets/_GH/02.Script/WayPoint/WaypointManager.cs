@@ -7,16 +7,20 @@ public class WayPointManager : MonoBehaviour
     public static WayPointManager Instance { get; private set; }
 
     [Header("WayPoint Data")]
+    [SerializeField] private List<WayPointMapDefinition> mapDefinitions = new List<WayPointMapDefinition>();
     [SerializeField] private List<WayPointDefinition> definitions = new List<WayPointDefinition>();
 
     [Header("Runtime")]
     [SerializeField] private Transform player;
+    [SerializeField] private bool autoFindPlayerByTag = true;
+    [SerializeField] private string playerTag = "Player";
 
     private readonly Dictionary<string, WayPointRunTime> statesById = new Dictionary<string, WayPointRunTime>();
     private readonly Dictionary<string, WayPointStone> stonesById = new Dictionary<string, WayPointStone>();
 
     public event Action<WayPointRunTime> OnWayPointUnlocked;
     public event Action<WayPointRunTime> OnWayPointStateChanged;
+    public event Action<WayPointMapDefinition> OnMapAvailabilityChanged;
     public event Action<WayPointRunTime> OnWayPointTravelStarted;
     public event Action<WayPointRunTime> OnWayPointTravelCompleted;
     public event Action<WayPointRunTime, string> OnWayPointTravelFailed;
@@ -35,6 +39,11 @@ public class WayPointManager : MonoBehaviour
         InitializeStates();
     }
 
+    private void Start()
+    {
+        RegisterSceneStones();
+    }
+
     private void OnDestroy()
     {
         if (Instance == this)
@@ -43,22 +52,17 @@ public class WayPointManager : MonoBehaviour
         }
     }
 
-    private void Start()
-    {
-        RegisterSceneStones();
-    }
-
+    // 씬에 이미 배치된 WayPointStone을 한 번 더 등록해서 실행 순서 문제를 줄인다.
     private void RegisterSceneStones()
     {
         WayPointStone[] stones = FindObjectsByType<WayPointStone>(FindObjectsSortMode.None);
-
         foreach (WayPointStone stone in stones)
         {
             RegisterStone(stone);
         }
     }
 
-    // Build runtime states from the ScriptableObject list assigned in the Inspector.
+    // Inspector에 등록된 ScriptableObject 목록으로 런타임 상태를 만든다.
     private void InitializeStates()
     {
         statesById.Clear();
@@ -83,11 +87,12 @@ public class WayPointManager : MonoBehaviour
             }
 
             WayPointRunTime state = new WayPointRunTime(definition);
+            state.IsActive = definition.unlockedOnStart;
             statesById.Add(definition.id, state);
         }
     }
 
-    // Register the scene Stone that acts as this waypoint's teleport destination.
+    // 웨이포인트 이동 목적지인 Stone을 매니저에 등록한다.
     public void RegisterStone(WayPointStone stone)
     {
         if (stone == null)
@@ -96,7 +101,6 @@ public class WayPointManager : MonoBehaviour
         }
 
         string id = stone.Id;
-
         if (string.IsNullOrWhiteSpace(id))
         {
             Debug.LogWarning("[WayPointManager] Tried to register stone with empty id.", stone);
@@ -121,7 +125,7 @@ public class WayPointManager : MonoBehaviour
         OnWayPointStateChanged?.Invoke(state);
     }
 
-    // Remove a Stone when it leaves the scene or is disabled.
+    // Stone이 비활성화되거나 제거될 때 등록을 해제한다.
     public void UnregisterStone(WayPointStone stone)
     {
         if (stone == null)
@@ -130,7 +134,6 @@ public class WayPointManager : MonoBehaviour
         }
 
         string id = stone.Id;
-
         if (string.IsNullOrWhiteSpace(id))
         {
             return;
@@ -148,12 +151,13 @@ public class WayPointManager : MonoBehaviour
         }
     }
 
+    // 해당 ID의 웨이포인트가 해금되어 있는지 확인한다.
     public bool IsUnlocked(string id)
     {
         return statesById.TryGetValue(id, out WayPointRunTime state) && state.IsActive;
     }
 
-    // Called by WayPointObject after player interaction to unlock that waypoint id.
+    // 플레이어가 등록 오브젝트와 상호작용했을 때 웨이포인트를 해금한다.
     public bool Unlock(string id)
     {
         if (!statesById.TryGetValue(id, out WayPointRunTime state))
@@ -176,22 +180,118 @@ public class WayPointManager : MonoBehaviour
 
         OnWayPointUnlocked?.Invoke(state);
         OnWayPointStateChanged?.Invoke(state);
+        NotifyMapAvailabilityChanged(state.Definition.mapDefinition);
 
         return true;
     }
 
-    // Called by map UI when the player clicks an active waypoint icon.
-    public bool TryTravel(string id)
+    // 특정 맵이 현재 열려 있는지 확인한다.
+    public bool IsMapAvailable(WayPointMapDefinition mapDefinition)
     {
-        return TryTravel(id, player);
+        if (mapDefinition == null)
+        {
+            return true;
+        }
+
+        if (mapDefinition.unlockedOnStart)
+        {
+            return true;
+        }
+
+        if (mapDefinition.requiredPreviousMap == null)
+        {
+            return false;
+        }
+
+        return AreAllWayPointsUnlockedInMap(mapDefinition.requiredPreviousMap);
     }
 
-    // Move the player to the registered Stone spawn position when the waypoint is unlocked.
+    // 특정 맵에 포함된 모든 웨이포인트가 해금되었는지 확인한다.
+    public bool AreAllWayPointsUnlockedInMap(WayPointMapDefinition mapDefinition)
+    {
+        bool hasAny = false;
+
+        foreach (WayPointRunTime state in statesById.Values)
+        {
+            if (state.Definition == null || state.Definition.mapDefinition != mapDefinition)
+            {
+                continue;
+            }
+
+            hasAny = true;
+            if (!state.IsActive)
+            {
+                return false;
+            }
+        }
+
+        return hasAny;
+    }
+
+    // 지도 UI가 특정 맵에 표시할 웨이포인트 목록을 가져온다.
+    public List<WayPointRunTime> GetStatesByMap(WayPointMapDefinition mapDefinition)
+    {
+        List<WayPointRunTime> result = new List<WayPointRunTime>();
+
+        foreach (WayPointRunTime state in statesById.Values)
+        {
+            if (state.Definition == null)
+            {
+                continue;
+            }
+
+            if (mapDefinition == null || state.Definition.mapDefinition == mapDefinition)
+            {
+                result.Add(state);
+            }
+        }
+
+        return result;
+    }
+
+    // 인스펙터에 등록된 맵과 웨이포인트에서 사용 중인 맵 목록을 중복 없이 가져온다.
+    public List<WayPointMapDefinition> GetAllMaps()
+    {
+        List<WayPointMapDefinition> result = new List<WayPointMapDefinition>();
+
+        foreach (WayPointMapDefinition mapDefinition in mapDefinitions)
+        {
+            if (mapDefinition != null && !result.Contains(mapDefinition))
+            {
+                result.Add(mapDefinition);
+            }
+        }
+
+        foreach (WayPointRunTime state in statesById.Values)
+        {
+            WayPointMapDefinition map = state.Definition != null ? state.Definition.mapDefinition : null;
+            if (map != null && !result.Contains(map))
+            {
+                result.Add(map);
+            }
+        }
+
+        return result;
+    }
+
+    // 지도 UI에서 활성화된 아이콘을 클릭했을 때 이동을 시도한다.
+    public bool TryTravel(string id)
+    {
+        return TryTravel(id, ResolvePlayer());
+    }
+
+    // 해금된 웨이포인트라면 등록된 Stone의 SpawnPosition으로 플레이어를 이동시킨다.
     public bool TryTravel(string id, Transform targetPlayer)
     {
         if (!statesById.TryGetValue(id, out WayPointRunTime state))
         {
             NotifyTravelFailed(null, $"Unknown waypoint id: {id}");
+            return false;
+        }
+
+        if (!IsMapAvailable(state.Definition.mapDefinition))
+        {
+            NotifyTravelFailed(state, "This map is locked.");
             return false;
         }
 
@@ -224,29 +324,76 @@ public class WayPointManager : MonoBehaviour
         return true;
     }
 
+    // ID로 런타임 상태를 가져온다.
     public WayPointRunTime GetState(string id)
     {
         statesById.TryGetValue(id, out WayPointRunTime state);
         return state;
     }
 
+    // 모든 런타임 상태를 가져온다.
     public IReadOnlyCollection<WayPointRunTime> GetAllStates()
     {
         return statesById.Values;
     }
 
+    // ID로 등록된 Stone을 찾는다.
     public bool TryGetStone(string id, out WayPointStone stone)
     {
         return stonesById.TryGetValue(id, out stone);
     }
 
-    // Reassign the player transform when the player is spawned or replaced at runtime.
+    // 런타임에 플레이어가 생성되거나 교체되었을 때 이동 대상을 다시 지정한다.
     public void SetPlayer(Transform newPlayer)
     {
         player = newPlayer;
     }
 
-    // Temporarily disable CharacterController so teleporting does not get corrected away.
+    // 인스펙터에 Player가 비어 있으면 Player 태그로 이동 대상을 자동 탐색한다.
+    private Transform ResolvePlayer()
+    {
+        if (player != null)
+        {
+            return player;
+        }
+
+        if (!autoFindPlayerByTag || string.IsNullOrWhiteSpace(playerTag))
+        {
+            return null;
+        }
+
+        GameObject playerObject = null;
+        try
+        {
+            playerObject = GameObject.FindGameObjectWithTag(playerTag);
+        }
+        catch (UnityException)
+        {
+            Debug.LogWarning($"[WayPointManager] Player tag is not defined: {playerTag}");
+        }
+
+        if (playerObject == null)
+        {
+            return null;
+        }
+
+        player = playerObject.transform;
+        return player;
+    }
+
+    // 다음 맵의 잠금 상태가 바뀔 수 있으니 UI에 다시 확인하라고 알린다.
+    private void NotifyMapAvailabilityChanged(WayPointMapDefinition changedMap)
+    {
+        foreach (WayPointMapDefinition map in GetAllMaps())
+        {
+            if (map != null && map.requiredPreviousMap == changedMap)
+            {
+                OnMapAvailabilityChanged?.Invoke(map);
+            }
+        }
+    }
+
+    // CharacterController가 있으면 잠시 꺼서 순간이동 위치가 밀리지 않도록 한다.
     private void MovePlayer(Transform targetPlayer, Vector3 destination)
     {
         CharacterController controller = targetPlayer.GetComponent<CharacterController>();
@@ -262,6 +409,7 @@ public class WayPointManager : MonoBehaviour
         targetPlayer.position = destination;
     }
 
+    // 이동 실패 이벤트와 경고 로그를 한 곳에서 처리한다.
     private void NotifyTravelFailed(WayPointRunTime state, string reason)
     {
         OnWayPointTravelFailed?.Invoke(state, reason);

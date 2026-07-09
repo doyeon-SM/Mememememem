@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+/*using System.Collections.Generic;
 using UnityEngine;
 
 public class PlayerRecipe : MonoBehaviour
@@ -30,3 +30,4 @@ public class PlayerRecipe : MonoBehaviour
         return true;
     }
 }
+*/

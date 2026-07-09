@@ -1,3 +1,4 @@
+using KGH.Data;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -25,6 +26,7 @@ namespace HDY.Item
         [Header("구분")]
         public ItemCategory Category;
         public UseAction UseAction;
+        public ObjectType ObjectType;
 
         [Header("섭취 효과 (UseAction == Eat 일 때만 사용)")]
         public List<ItemEffect> EatEffects = new List<ItemEffect>();

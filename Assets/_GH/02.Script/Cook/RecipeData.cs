@@ -1,4 +1,4 @@
-using System;
+/*using System;
 using UnityEngine;
 [Serializable]
 public struct RecipeIngredient
@@ -26,4 +26,4 @@ public class RecipeData : ScriptableObject
     [Header("레시피 해금 시스템")] // 분량 보고 삭제 가능성 존재함
     public RecipeUnlockType unlockType;
     public ItemDefinition requiredUnlockItem; // 만약 아이템을 습득 할 때 레시피가 해금되는 경우에만 설정
-}
+}*/

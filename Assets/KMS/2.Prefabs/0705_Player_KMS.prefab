@@ -2280,6 +2280,7 @@ GameObject:
   - component: {fileID: 1362890632475711223}
   - component: {fileID: 1417337025289009185}
   - component: {fileID: 200104005170207881}
+  - component: {fileID: 6654203113056198401}
   m_Layer: 3
   m_Name: 0705_Player_KMS
   m_TagString: Player
@@ -2366,7 +2367,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::KMS.PlayerInput
   mouseLookScale: 1
   gamepadLookScale: 12
-  interactKey: 19
+  interactKey: 20
   primaryActionTriggersInteraction: 1
 --- !u!114 &4096632536079421107
 MonoBehaviour:
@@ -2497,6 +2498,27 @@ MonoBehaviour:
   messageLabelName: message-label
   notificationContainerName: notification-container
   notificationDuration: 2.5
+--- !u!114 &6654203113056198401
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7918483858181545715}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 765afefc2d964968a8dfa6c62ca34abf, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::KMS.InventoryDuped.PlayerInventory
+  inventory:
+    width: 6
+    height: 6
+    slots: []
+  quickSlots:
+    width: 10
+    height: 1
+    slots: []
+  selectedQuickSlotIndex: 0
 --- !u!1 &8029276847297385196
 GameObject:
   m_ObjectHideFlags: 0

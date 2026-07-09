@@ -1,3 +1,4 @@
+using KMS.InventoryDuped;
 using UnityEngine;
 using UnityEngine.EventSystems;
 #if ENABLE_INPUT_SYSTEM
