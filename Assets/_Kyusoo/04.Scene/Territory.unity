@@ -1564,6 +1564,57 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 149227138}
   m_CullTransparentMesh: 1
+--- !u!1 &153020469
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 153020470}
+  - component: {fileID: 153020471}
+  m_Layer: 0
+  m_Name: PanelManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &153020470
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 153020469}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 220283357}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &153020471
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 153020469}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5d1df8f5209730d4bada37093cdad355, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PanelManager
+  craftingPanel: {fileID: 242883171}
+  productionPanel: {fileID: 729551338}
+  UIPanel: {fileID: 1430563583}
+  craftingPanelUI: {fileID: 1523739711}
+  productionPanelUI: {fileID: 1019664542}
+  closeButtonGroup: {fileID: 632706760}
+  placeButtonGroup: {fileID: 590951674}
 --- !u!1 &154095789
 GameObject:
   m_ObjectHideFlags: 0
@@ -1990,6 +2041,8 @@ Transform:
   - {fileID: 473422551}
   - {fileID: 1379769998}
   - {fileID: 1444816582}
+  - {fileID: 939786725}
+  - {fileID: 153020470}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &221637368
@@ -2053,6 +2106,7 @@ MonoBehaviour:
   pageDotsParent: {fileID: 2093336285}
   dotNormalScale: 1
   dotActiveScale: 1.4
+  releaseButton: {fileID: 0}
 --- !u!114 &221637371
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -4329,7 +4383,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 366878322}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 153020471}
+        m_TargetAssemblyTypeName: PanelManager, Assembly-CSharp
+        m_MethodName: CloseAllPanels
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &366878322
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -10747,6 +10813,37 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 915820900}
   m_CullTransparentMesh: 1
+--- !u!1 &939786724
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 939786725}
+  m_Layer: 0
+  m_Name: FacilitySaveData
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &939786725
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 939786724}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 220283357}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &942749792
 GameObject:
   m_ObjectHideFlags: 0
@@ -11501,11 +11598,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0622d51f74b2fd242928c176313c8208, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ProductionPanelUI
-  productionPanelRoot: {fileID: 1430563583}
-  centerProductionPanel: {fileID: 729551338}
-  CloseButtonGroup: {fileID: 632706760}
-  closeBtn: {fileID: 366878321}
-  PlaceButtonGroup: {fileID: 590951674}
   buildingName: {fileID: 915820902}
   buildingLevel: {fileID: 407238962}
   levelUp: {fileID: 109969722}
@@ -17708,11 +17800,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2082b725a04745d40817d0e6e7e5fd84, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CraftingPanelUI
-  craftingPanelRoot: {fileID: 1430563583}
-  centerCraftingPanel: {fileID: 242883171}
-  CloseButtonGroup: {fileID: 632706760}
-  closeBtn: {fileID: 366878321}
-  PlaceButtonGroup: {fileID: 590951674}
   buildingName: {fileID: 2047887844}
   singleMemSlot: {fileID: 591804987}
   defaultModeObject: {fileID: 2035392909}
@@ -18264,6 +18351,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: dffb10df70b908646bdcc588ebd5c6f0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HDY.UI.MemStorageUI_Info
+  infoIconImage: {fileID: 0}
   infoNameText: {fileID: 456680567}
   infoTierText: {fileID: 1213700756}
   infoCraftingText: {fileID: 0}

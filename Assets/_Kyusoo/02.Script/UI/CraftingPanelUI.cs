@@ -15,12 +15,12 @@ public class CraftingPanelUI : MonoBehaviour
     private enum CraftingUIState { Default, SelectProduct, Crafting }
     private CraftingUIState currentUIState = CraftingUIState.Default;
 
-    [Header("최상위 패널 오브젝트: 패널, 닫기버튼")]
-    [SerializeField] private GameObject craftingPanelRoot;
-    [SerializeField] private GameObject centerCraftingPanel;
-    [SerializeField] private GameObject CloseButtonGroup;
-    [SerializeField] private Button closeBtn;
-    [SerializeField] private GameObject PlaceButtonGroup;
+    //[Header("최상위 패널 오브젝트: 패널, 닫기버튼")]
+    //[SerializeField] private GameObject craftingPanelRoot;
+    //[SerializeField] private GameObject centerCraftingPanel;
+    //[SerializeField] private GameObject CloseButtonGroup;
+    //[SerializeField] private Button closeBtn;
+    //[SerializeField] private GameObject PlaceButtonGroup;
 
     [Header("중앙 패널 - Top 빌딩 이름")]
     [SerializeField] private TextMeshProUGUI buildingName;
@@ -88,10 +88,10 @@ public class CraftingPanelUI : MonoBehaviour
         if (Instance == null) Instance = this;
         else Destroy(gameObject);
 
-        if (craftingPanelRoot != null) craftingPanelRoot.SetActive(false);
-        if (centerCraftingPanel != null) centerCraftingPanel.SetActive(false);
+        //if (craftingPanelRoot != null) craftingPanelRoot.SetActive(false);
+        //if (centerCraftingPanel != null) centerCraftingPanel.SetActive(false);
 
-        if (closeBtn != null) closeBtn.onClick.AddListener(ClosePanel);
+        //if (closeBtn != null) closeBtn.onClick.AddListener(ClosePanel);
 
         if (btnMin != null) btnMin.onClick.AddListener(SetMinQuantity);
         if (btnMax != null) btnMax.onClick.AddListener(SetMaxQuantity);
@@ -110,15 +110,15 @@ public class CraftingPanelUI : MonoBehaviour
 
     private void Update()
     {
-        if (!craftingPanelRoot.activeSelf) CloseButtonGroup.SetActive(false);
-        if (craftingPanelRoot != null && craftingPanelRoot.activeSelf)
-        {
-            if (UnityEngine.InputSystem.Keyboard.current != null && UnityEngine.InputSystem.Keyboard.current.escapeKey.wasPressedThisFrame)
-            {
-                ClosePanel();
-                return;
-            }
-        }
+        //if (!craftingPanelRoot.activeSelf) CloseButtonGroup.SetActive(false);
+        //if (craftingPanelRoot != null && craftingPanelRoot.activeSelf)
+        //{
+        //    if (UnityEngine.InputSystem.Keyboard.current != null && UnityEngine.InputSystem.Keyboard.current.escapeKey.wasPressedThisFrame)
+        //    {
+        //        ClosePanel();
+        //        return;
+        //    }
+        //}
 
         if (targetFacility == null) return;
 
@@ -141,12 +141,6 @@ public class CraftingPanelUI : MonoBehaviour
         if (facility == null) return;
 
         targetFacility = facility;
-
-        CloseButtonGroup.SetActive(true);
-        centerCraftingPanel.SetActive(true);
-        PlaceButtonGroup.SetActive(false);
-        craftingPanelRoot.SetActive(true);
-        SetCameraControllersEnabled(false);
 
         RefreshStaticUI();
 
@@ -223,11 +217,29 @@ public class CraftingPanelUI : MonoBehaviour
         if (quantitySlider != null) quantitySlider.value = selectedQuantity;
         isUpdatingQuantitySystem = false;
 
+        if (btnMin != null) btnMin.interactable = (selectedQuantity > 1);
+        if (btnMinus != null) btnMinus.interactable = (selectedQuantity > 1);
+
+        if (btnPlus != null) btnPlus.interactable = (maxCraftableQuantity > 0 && selectedQuantity < maxCraftableQuantity);
+        if (btnMax != null) btnMax.interactable = (maxCraftableQuantity > 0 && selectedQuantity < maxCraftableQuantity);
+
+        if (craftBtn != null)
+        {
+            craftBtn.interactable = (maxCraftableQuantity > 0 && selectedQuantity > 0);
+        }
+
         if (errorFeedbackCoroutine == null && craftingDurationText != null)
         {
-            float singleTime = ProductionCalculator.CalculateFinalProductionTime(VIRTUAL_BASE_CRAFT_TIME, targetFacility.DeployedMems);
-            float totalEstimatedTime = singleTime * selectedQuantity;
-            craftingDurationText.text = $"제작 예상시간: {totalEstimatedTime:F1}초 (개당 {singleTime:F1}초 × {selectedQuantity}개)";
+            if (maxCraftableQuantity == 0)
+            {
+                craftingDurationText.text = "<color=red>제작에 필요한 원자재 수량이 부족합니다.</color>";
+            }
+            else
+            {
+                float singleTime = ProductionCalculator.CalculateFinalProductionTime(VIRTUAL_BASE_CRAFT_TIME, targetFacility.DeployedMems);
+                float totalEstimatedTime = singleTime * selectedQuantity;
+                craftingDurationText.text = $"제작 예상시간: {totalEstimatedTime:F1}초 (개당 {singleTime:F1}초)";
+            }
         }
     }
 
@@ -235,6 +247,7 @@ public class CraftingPanelUI : MonoBehaviour
     {
         if (isUpdatingQuantitySystem) return;
 
+        selectedQuantity = Mathf.Clamp(Mathf.RoundToInt(value), 1, maxCraftableQuantity);
         selectedQuantity = Mathf.RoundToInt(value);
         UpdateSelectProductCalculatedUI();
         GenerateRequiredMaterialListUI(); 
@@ -263,17 +276,22 @@ public class CraftingPanelUI : MonoBehaviour
 
     /// <summary>
     /// 인벤토리 or 창고 내 원자재 한계치를 기반으로 최대 제작 가능 수량 계산
+    /// 최소 제작에 필요한 재료도 부족한 경우 0을 반환
     /// </summary>
     private int CalculateMaxCraftableLimitAmount(ItemData recipe)
     {
         if (recipe == null || activeSelectedRecipeData == null) return 1;
 
         int finalCalculatedMax = int.MaxValue;
+        bool hasMaterialsAtAll = false;
 
         foreach (Recipe_Requset_Item_Data reqItem in activeSelectedRecipeData.Requset_Items_ID)
         {
             if (reqItem == null || string.IsNullOrEmpty(reqItem.Item_ID)) continue;
 
+            hasMaterialsAtAll = true;
+
+            // Mock데이터
             int inventoryOwned = 100;
             if (reqItem.Item_ID == "item_irongemstone") inventoryOwned = 62;
             if (reqItem.Item_ID == "item_wood") inventoryOwned = 39;
@@ -287,7 +305,9 @@ public class CraftingPanelUI : MonoBehaviour
             }
         }
 
-        return Mathf.Max(1, finalCalculatedMax);
+        if (!hasMaterialsAtAll) return 0;
+
+        return Mathf.Max(0, finalCalculatedMax);
     }
 
     /// <summary>
@@ -371,11 +391,10 @@ public class CraftingPanelUI : MonoBehaviour
         if (targetFacility == null || selectedItem == null) return;
 
         activeSelectedRecipe = selectedItem;
-        selectedQuantity = 1;
         activeSelectedRecipeData = null;
 
-        HDY.Recipe.RecipeData[] allRecipesInProject = Resources.FindObjectsOfTypeAll<HDY.Recipe.RecipeData>();
-        foreach (HDY.Recipe.RecipeData recipe in allRecipesInProject)
+        RecipeData[] allRecipesInProject = Resources.FindObjectsOfTypeAll<RecipeData>();
+        foreach (RecipeData recipe in allRecipesInProject)
         {
             if (recipe != null && recipe.Recipe_Item_ID == selectedItem.Item_ID)
             {
@@ -386,13 +405,16 @@ public class CraftingPanelUI : MonoBehaviour
 
         if (activeSelectedRecipeData == null)
         {
-            Debug.LogWarning($"[공방] 가공품 {selectedItem.ItemName}(ID: {selectedItem.Item_ID})와 1:1로 매칭되는 RecipeData SO 제작법을 프로젝트 내부에서 탐색해내지 못했습니다.");
+            Debug.LogWarning($"RecipeData SO 제작법을 프로젝트 내부에서 탐색해내지 못했습니다.");
         }
 
         maxCraftableQuantity = CalculateMaxCraftableLimitAmount(selectedItem);
+
+        selectedQuantity = (maxCraftableQuantity == 0) ? 0 : 1;
+
         if (quantitySlider != null)
         {
-            quantitySlider.minValue = 1;
+            quantitySlider.minValue = (maxCraftableQuantity == 0) ? 0 : 1;
             quantitySlider.maxValue = maxCraftableQuantity;
             quantitySlider.wholeNumbers = true;
         }
@@ -551,7 +573,6 @@ public class CraftingPanelUI : MonoBehaviour
 
         RefreshStaticUI();
 
-        // 👥 일꾼이 빠짐에 따라 화면 모드가 유기적으로 영향받을 수 있으므로 UI 리프레시 동시 호출
         RefreshCraftingModeUI();
     }
 
@@ -561,20 +582,6 @@ public class CraftingPanelUI : MonoBehaviour
         errorFeedbackCoroutine = null;
 
         targetFacility = null;
-
-        CloseButtonGroup.SetActive(true);
-        PlaceButtonGroup.SetActive(true);
-        SetCameraControllersEnabled(true);
-        craftingPanelRoot.SetActive(false);
-        centerCraftingPanel.SetActive(false);
-    }
-
-    private void SetCameraControllersEnabled(bool isEnable)
-    {
-        CameraMoveController moveController = Object.FindFirstObjectByType<CameraMoveController>();
-        if (moveController != null) moveController.enabled = isEnable;
-
-        CameraZoomController zoomController = Object.FindFirstObjectByType<CameraZoomController>();
-        if (zoomController != null) zoomController.enabled = isEnable;
+        
     }
 }

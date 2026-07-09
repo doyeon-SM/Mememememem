@@ -9,12 +9,12 @@ public class ProductionPanelUI : MonoBehaviour
 {
     public static ProductionPanelUI Instance { get; private set; }
 
-    [Header("최상위 패널 오브젝트")]
-    [SerializeField] private GameObject productionPanelRoot;
-    [SerializeField] private GameObject centerProductionPanel;
-    [SerializeField] private GameObject CloseButtonGroup;
-    [SerializeField] private Button closeBtn;
-    [SerializeField] private GameObject PlaceButtonGroup;
+    //[Header("최상위 패널 오브젝트")]
+    //[SerializeField] private GameObject productionPanelRoot;
+    //[SerializeField] private GameObject centerProductionPanel;
+    //[SerializeField] private GameObject CloseButtonGroup;
+    //[SerializeField] private Button closeBtn;
+    //[SerializeField] private GameObject PlaceButtonGroup;
 
     [Header("중앙 패널 - Top")]
     [SerializeField] private TextMeshProUGUI buildingName;
@@ -54,23 +54,23 @@ public class ProductionPanelUI : MonoBehaviour
         if (Instance == null) Instance = this;
         else Destroy(gameObject);
 
-        if (productionPanelRoot != null) productionPanelRoot.SetActive(false);
-        if (centerProductionPanel != null) centerProductionPanel.SetActive(false);
+        //if (productionPanelRoot != null) productionPanelRoot.SetActive(false);
+        //if (centerProductionPanel != null) centerProductionPanel.SetActive(false);
 
         if (diamondBGBtn != null)
         {
             diamondBGBtn.onClick.AddListener(OnClickCollectReward);
         }
 
-        if (closeBtn != null)
-        {
-            closeBtn.onClick.AddListener(ClosePanel);
-        }
+        //if (closeBtn != null)
+        //{
+        //    closeBtn.onClick.AddListener(ClosePanel);
+        //}
 
-        for (int i = 0; i < memSlotImages.Length; i++)
-        {
-            if (memSlotImages[i] != null) memSlotImages[i].InitializeSlot(i);
-        }
+        //for (int i = 0; i < memSlotImages.Length; i++)
+        //{
+        //    if (memSlotImages[i] != null) memSlotImages[i].InitializeSlot(i);
+        //}
     }
 
     /// <summary>
@@ -78,32 +78,51 @@ public class ProductionPanelUI : MonoBehaviour
     /// </summary>
     private void Update()
     {
-        if (!productionPanelRoot.activeSelf) CloseButtonGroup.SetActive(false);
-        if (productionPanelRoot != null && productionPanelRoot.activeSelf)
-        {
-            if (UnityEngine.InputSystem.Keyboard.current != null && UnityEngine.InputSystem.Keyboard.current.escapeKey.wasPressedThisFrame)
-            {
-                ClosePanel();
-                return;
-            }
-        }
+        //if (productionPanelRoot != null && productionPanelRoot.activeSelf)
+        //{
+        //    if (UnityEngine.InputSystem.Keyboard.current != null && UnityEngine.InputSystem.Keyboard.current.escapeKey.wasPressedThisFrame)
+        //    {
+        //        ClosePanel();
+        //        return; 
+        //    }
 
-        if (targetFacility == null || !targetFacility.isProducing) return;
+        //    if (targetFacility != null)
+        //    {
+        //        if (targetFacility.isProducing && targetFacility.totalRequiredTime > 0f)
+        //        {
+        //            float progressNormalized = targetFacility.currentProgressTime / targetFacility.totalRequiredTime;
+        //            if (progressBar != null) progressBar.value = progressNormalized;
+
+        //            if (durationText != null) durationText.text = $"{Mathf.Clamp(progressNormalized * 100f, 0f, 100f):F0}%";
+
+        //            if (productionSpeed != null) productionSpeed.text = $"생산속도: {targetFacility.totalRequiredTime:F1}초(개당)";
+        //        }
+        //        else
+        //        {
+        //            if (progressBar != null) progressBar.value = 0f;
+        //            if (durationText != null) durationText.text = "0%";
+
+        //            if (productionSpeed != null)
+        //            {
+        //                productionSpeed.text = (targetFacility.craftingItem != null)
+        //                    ? $"생산속도: {targetFacility.baseProductionTime:F1}초(개당)"
+        //                    : "생산속도: - 초(개당)";
+        //            }
+        //        }
+
+        //        UpdateStorageText();
+        //    }
+        //}
+
+        if (targetFacility == null) return;
 
         if (targetFacility.isProducing && targetFacility.totalRequiredTime > 0f)
         {
             float progressNormalized = targetFacility.currentProgressTime / targetFacility.totalRequiredTime;
             if (progressBar != null) progressBar.value = progressNormalized;
 
-            if (durationText != null)
-            {
-                durationText.text = $"{Mathf.Clamp(progressNormalized * 100f, 0f, 100f):F0}%";
-            }
-
-            if (productionSpeed != null)
-            {
-                productionSpeed.text = $"생산속도: {targetFacility.totalRequiredTime:F1}초(개당)";
-            }
+            if (durationText != null) durationText.text = $"{Mathf.Clamp(progressNormalized * 100f, 0f, 100f):F0}%";
+            if (productionSpeed != null) productionSpeed.text = $"생산속도: {targetFacility.totalRequiredTime:F1}초(개당)";
         }
         else
         {
@@ -112,14 +131,9 @@ public class ProductionPanelUI : MonoBehaviour
 
             if (productionSpeed != null)
             {
-                if (targetFacility.craftingItem != null)
-                {
-                    productionSpeed.text = $"생산속도: {targetFacility.baseProductionTime:F1}초(개당)";
-                }
-                else
-                {
-                    productionSpeed.text = "생산속도: - 초(개당)";
-                }
+                productionSpeed.text = (targetFacility.craftingItem != null)
+                    ? $"생산속도: {targetFacility.baseProductionTime:F1}초(개당)"
+                    : "생산속도: - 초(개당)";
             }
         }
 
@@ -132,14 +146,7 @@ public class ProductionPanelUI : MonoBehaviour
     public void OpenPanel(ProductionFacilityRuntime facility)
     {
         if (facility == null) return;
-
         targetFacility = facility;
-
-        productionPanelRoot.SetActive(true);
-        centerProductionPanel.SetActive(true);
-        CloseButtonGroup.SetActive(true);
-        PlaceButtonGroup.SetActive(false);
-        SetCameraControllersEnabled(false);
 
         RefreshStaticUI();
         DisplayProduction();
@@ -275,26 +282,5 @@ public class ProductionPanelUI : MonoBehaviour
     public void ClosePanel()
     {
         targetFacility = null;
-
-        PlaceButtonGroup.SetActive(true);
-        SetCameraControllersEnabled(true);
-        productionPanelRoot.SetActive(false);
-        centerProductionPanel.SetActive(false);
-        CloseButtonGroup.SetActive(false);
-    }
-
-    private void SetCameraControllersEnabled(bool isEnable)
-    {
-        CameraMoveController moveController = Object.FindFirstObjectByType<CameraMoveController>();
-        if (moveController != null)
-        {
-            moveController.enabled = isEnable;
-        }
-
-        CameraZoomController zoomController = Object.FindFirstObjectByType<CameraZoomController>();
-        if (zoomController != null)
-        {
-            zoomController.enabled = isEnable;
-        }
     }
 }
