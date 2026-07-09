@@ -5,23 +5,28 @@ using UnityEngine;
 namespace KMS.InventoryDuped
 {
 
+/// <summary>
+/// [HDY 요청] 슬롯 하나의 데이터. ItemData(SO 레퍼런스)를 직접 들고 있지 않고 Item_ID(string)만 저장한다.
+/// 아이콘/이름 등 실제 표시가 필요한 쪽(InventorySlotUI/ItemDragUI/ItemTooltipUI)은 itemId로
+/// ItemCatalogManager.FindItemData를 호출해서 그때그때 조회한다.
+/// </summary>
 [Serializable]
 public class ItemStack
 {
-    public ItemData item;
+    public string itemId;
     public int amount;
 
-    public bool IsEmpty => item == null || amount <= 0;
+    public bool IsEmpty => string.IsNullOrEmpty(itemId) || amount <= 0;
 
-    public void Set(ItemData newItem, int newAmount)
+    public void Set(string newItemId, int newAmount)
     {
-        item = newItem;
+        itemId = newItemId;
         amount = newAmount;
     }
 
     public void Clear()
     {
-        item = null;
+        itemId = null;
         amount = 0;
     }
 }
@@ -62,22 +67,29 @@ public class InventoryContainer
     }
 }
 
+/// <summary>퀵슬롯 사용 중 임시 예약 상태. itemId(string)로 어떤 아이템을 예약했는지 기억한다.</summary>
 public class QuickSlotUseReservation
 {
     public int slotIndex;
-    public ItemData item;
+    public string itemId;
     public int reservedAmount;
     public bool committed;
 }
 
 public class PlayerInventory : MonoBehaviour
 {
-    public InventoryContainer inventory = new InventoryContainer { width = 6, height = 6 };
+    // [HDY 요청] 창고 UI 설계에 맞춰 인벤토리 기본 크기를 10x6으로 통일(퀵슬롯 10칸은 기존과 동일).
+    public InventoryContainer inventory = new InventoryContainer { width = 10, height = 6 };
     public InventoryContainer quickSlots = new InventoryContainer { width = 10, height = 1 };
 
     public int selectedQuickSlotIndex;
     private QuickSlotUseReservation quickSlotUseReservation;
     private int pendingQuickSlotIndex = -1;
+
+    // [HDY 요청] Item_ID 문자열만으로 아이템을 지급할 수 있도록 카탈로그 조회 경로를 추가하기 위한 참조.
+    // MergeStack(공용 헬퍼)에서 MaxStack 조회 시에도 사용된다.
+    [Header("아이템 카탈로그 (Item_ID로 조회할 때 사용)")]
+    [SerializeField] private ItemCatalogManager catalogManager;
 
     public event Action OnInventoryChanged;
     public event Action<ItemData,int> OnItemObtained;
@@ -88,6 +100,8 @@ public class PlayerInventory : MonoBehaviour
     {
         inventory.Initialize();
         quickSlots.Initialize();
+
+        catalogManager = ItemCatalogManager.Resolve(catalogManager);
     }
 
     // 아이템 추가
@@ -113,6 +127,26 @@ public class PlayerInventory : MonoBehaviour
         }
 
         return remaining;
+    }
+
+    /// <summary>
+    /// [HDY 요청] Item_ID 문자열로 아이템을 추가한다. ItemCatalogManager에서 실제 ItemData를 찾아
+    /// 기존 AddItem(ItemData, int)에 그대로 위임한다. 카탈로그에 없는 ID면 아무 것도 추가하지 않고
+    /// amount를 그대로 반환한다(경고 로그).
+    /// </summary>
+    public int AddItem(string itemId, int amount)
+    {
+        if (string.IsNullOrEmpty(itemId) || amount <= 0) return amount;
+
+        var itemData = catalogManager != null ? catalogManager.FindItemData(itemId) : null;
+
+        if (itemData == null)
+        {
+            Debug.LogWarning($"[PlayerInventory] Item_ID '{itemId}'에 해당하는 ItemData를 카탈로그에서 찾을 수 없습니다.");
+            return amount;
+        }
+
+        return AddItem(itemData, amount);
     }
 
     // 인벤토리 내에서 아이템 이동
@@ -208,7 +242,7 @@ public class PlayerInventory : MonoBehaviour
 
         if (slot == null) return false;
 
-        ItemData useItem = null;
+        string useItemId = null;
 
         if (slot.IsEmpty)
         {
@@ -216,13 +250,13 @@ public class PlayerInventory : MonoBehaviour
         }
         else
         {
-            useItem = slot.item;
+            useItemId = slot.itemId;
         }
 
         quickSlotUseReservation = new QuickSlotUseReservation
         {
             slotIndex = selectedQuickSlotIndex,
-            item = useItem
+            itemId = useItemId
         };
 
         pendingQuickSlotIndex = -1;
@@ -239,7 +273,7 @@ public class PlayerInventory : MonoBehaviour
 
         ItemStack slot = quickSlots.slots[quickSlotUseReservation.slotIndex];
 
-        if (slot.IsEmpty || slot.item != quickSlotUseReservation.item) return false;
+        if (slot.IsEmpty || slot.itemId != quickSlotUseReservation.itemId) return false;
         if (slot.amount < amount) return false;
 
         slot.amount -= amount;
@@ -272,9 +306,9 @@ public class PlayerInventory : MonoBehaviour
 
         ItemStack slot = quickSlots.slots[quickSlotUseReservation.slotIndex];
 
-        if (!slot.IsEmpty && slot.item != quickSlotUseReservation.item) return false;
+        if (!slot.IsEmpty && slot.itemId != quickSlotUseReservation.itemId) return false;
 
-        if (slot.IsEmpty) slot.Set(quickSlotUseReservation.item, amount);
+        if (slot.IsEmpty) slot.Set(quickSlotUseReservation.itemId, amount);
         else slot.amount += amount;
 
         quickSlotUseReservation.reservedAmount = 0;
@@ -310,10 +344,10 @@ public class PlayerInventory : MonoBehaviour
         return quickSlotUseReservation != null && quickSlotUseReservation.slotIndex == index;
     }
 
-    // 현재 사용중인 아이템 정의를 반환 (효과 목록 읽을때 사용)
-    public ItemData GetQuickSlotUseItem()
+    /// <summary>현재 사용중인 아이템의 Item_ID를 반환한다(효과 목록 조회 등에 사용).</summary>
+    public string GetQuickSlotUseItemId()
     {
-        return quickSlotUseReservation != null ? quickSlotUseReservation.item : null;
+        return quickSlotUseReservation != null ? quickSlotUseReservation.itemId : null;
     }
 
     // 퀵슬롯 아이템 사용
@@ -377,7 +411,7 @@ public class PlayerInventory : MonoBehaviour
 
             ItemStack slot = container.slots[i];
 
-            if (slot.IsEmpty || slot.item.Item_ID != itemId) continue;
+            if (slot.IsEmpty || slot.itemId != itemId) continue;
 
             totalAmount += slot.amount;
         }
@@ -396,7 +430,7 @@ public class PlayerInventory : MonoBehaviour
 
             ItemStack slot = container.slots[i];
 
-            if (slot.IsEmpty || slot.item.Item_ID != itemId) continue;
+            if (slot.IsEmpty || slot.itemId != itemId) continue;
 
             int removed = Mathf.Min(slot.amount, remaining);
 
@@ -422,7 +456,7 @@ public class PlayerInventory : MonoBehaviour
 
             ItemStack slot = container.slots[i];
 
-            if (slot.IsEmpty || slot.item != item) continue;
+            if (slot.IsEmpty || slot.itemId != item.Item_ID) continue;
 
             int maxStack = Mathf.Max(1, item.MaxStack);
             int space = maxStack - slot.amount;
@@ -454,7 +488,7 @@ public class PlayerInventory : MonoBehaviour
             if (!slot.IsEmpty) continue;
 
             int added = Mathf.Min(maxStack, remaining);
-            slot.Set(item, added);
+            slot.Set(item.Item_ID, added);
             remaining -= added;
 
             if (remaining <= 0) break;
@@ -469,55 +503,17 @@ public class PlayerInventory : MonoBehaviour
         return container == quickSlots && IsQuickSlotLocked(index);
     }
 
-    // 슬롯 이동
+    /// <summary>
+    /// [HDY 요청] 슬롯 이동/병합의 실제 규칙은 InventorySlotMoveHelper(공용)에 위임한다 - WarehouseUI의
+    /// 창고↔인벤토리 이동도 완전히 동일한 규칙을 써야 해서 로직을 한 곳으로 모았다. 여기서는 잠긴 퀵슬롯
+    /// 여부만 미리 걸러낸다(이 규칙은 PlayerInventory에만 있는 개념이라 공용 헬퍼가 알 필요 없음).
+    /// </summary>
     private bool MoveSlot(InventoryContainer fromContainer, int fromIndex, InventoryContainer toContainer, int toIndex)
     {
-        if (!fromContainer.IsValidIndex(fromIndex) || !toContainer.IsValidIndex(toIndex)) return false;
-        if (fromContainer == toContainer && fromIndex == toIndex) return false;
         if (IsLockedQuickSlot(fromContainer, fromIndex)) return false;
         if (IsLockedQuickSlot(toContainer, toIndex)) return false;
 
-        ItemStack fromSlot = fromContainer.slots[fromIndex];
-        ItemStack toSlot = toContainer.slots[toIndex];
-
-        if (fromSlot.IsEmpty) return false;
-
-        if (toSlot.IsEmpty)
-        {
-            toSlot.Set(fromSlot.item, fromSlot.amount);
-            fromSlot.Clear();
-            return true;
-        }
-
-        if (fromSlot.item == toSlot.item)
-        {
-            return MergeStack(fromSlot, toSlot);
-        }
-
-        ItemData tempItem = fromSlot.item;
-        int tempAmount = fromSlot.amount;
-        fromSlot.Set(toSlot.item, toSlot.amount);
-        toSlot.Set(tempItem, tempAmount);
-
-        return true;
-    }
-
-    // 아이템 합치기
-    private bool MergeStack(ItemStack fromSlot, ItemStack toSlot)
-    {
-        int maxStack = Mathf.Max(1, toSlot.item.MaxStack);
-        int space = maxStack - toSlot.amount;
-
-        if (space <= 0) return false;
-
-        int moved = Mathf.Min(space, fromSlot.amount);
-
-        toSlot.amount += moved;
-        fromSlot.amount -= moved;
-
-        if (fromSlot.amount <= 0) fromSlot.Clear();
-
-        return true;
+        return InventorySlotMoveHelper.MoveSlot(fromContainer, fromIndex, toContainer, toIndex, catalogManager);
     }
 
     // 모든 퀵슬롯 변화 알림

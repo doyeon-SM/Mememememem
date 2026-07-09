@@ -15,6 +15,11 @@ namespace KMS.Harvesting
         [SerializeField] private KmsPlayerInventory inventory;
         [SerializeField] private Transform cameraTransform;
 
+        // [HDY 요청] 선택된 퀵슬롯(ItemStack)에는 itemId만 있으므로, 실제 ItemData(Category/Value/ObjectType 등)를
+        // 조회하기 위한 참조.
+        [Header("아이템 카탈로그 (Item_ID로 조회할 때 사용)")]
+        [SerializeField] private ItemCatalogManager catalogManager;
+
         [Header("Harvest")]
         [SerializeField] private LayerMask harvestLayer = ~0;
         [SerializeField] private float harvestDistance = 3f;
@@ -45,6 +50,8 @@ namespace KMS.Harvesting
             if (input == null) input = GetComponent<KMS.PlayerInput>();
             if (inventory == null) inventory = GetComponent<KmsPlayerInventory>();
             if (cameraTransform == null && Camera.main != null) cameraTransform = Camera.main.transform;
+
+            catalogManager = ItemCatalogManager.Resolve(catalogManager);
         }
 
         private void OnEnable()
@@ -79,7 +86,8 @@ namespace KMS.Harvesting
             KmsItemStack selectedSlot = inventory.GetSelectedQuickSlot();
             if (selectedSlot == null || selectedSlot.IsEmpty) return;
 
-            ItemData selectedItem = selectedSlot.item;
+            // [HDY 요청] 슬롯에는 itemId(string)만 있으므로 카탈로그에서 실제 ItemData를 조회한다.
+            ItemData selectedItem = catalogManager != null ? catalogManager.FindItemData(selectedSlot.itemId) : null;
             if (selectedItem == null || selectedItem.Category != HdyItemCategory.Tool) return;
 
             Ray ray = new Ray(cameraTransform.position, cameraTransform.forward);
