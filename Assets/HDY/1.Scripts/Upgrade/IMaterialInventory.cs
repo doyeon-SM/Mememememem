@@ -3,13 +3,12 @@ namespace HDY.Upgrade
     /// <summary>
     /// 재료(아이템) 보유량을 조회/차감하는 인터페이스.
     ///
-    /// [TODO] 프로젝트에 아직 재료 재고를 관리하는 인벤토리 시스템이 없다(밥통/FoodStorageEntry는 음식 전용이라
-    /// 재사용하지 않음). 실제 재고 시스템이 만들어지면 이 인터페이스를 구현한 컴포넌트를 UpgradePopupUI의
-    /// materialInventorySource에 연결하면 된다.
+    /// [구현체] CombinedMaterialInventory(HDY.Inventory)가 실제 구현체다. 인벤토리(PlayerInventory)와
+    /// 창고(WarehouseInventory)를 합산해서 확인/차감한다.
     ///
-    /// 그 전까지는 UpgradePopupUI에 구현체가 연결되지 않은 상태로 둬도 문제 없다 - 재료 비용이 있는 업그레이드를
-    /// 만나면 재료 조건 검사를 건너뛰고(경고 로그만 남기고) 통과시킨다. 현재 멤창고 페이지 업그레이드는
-    /// 골드만 사용하므로 이 인터페이스가 당장 필요하지는 않다.
+    /// [GetAmount 추가 이력] 원래는 HasEnough/Consume만 있었다(업그레이드 팝업은 "충분한지"만 알면 됐음).
+    /// 상점 판매 UI(ShopUI)는 "지금 몇 개를 팔 수 있는지"를 화면에 보여주고 수량 스테퍼의 최대값으로도
+    /// 써야 해서, 정확한 보유 수량이 필요해 이 메서드를 추가했다.
     /// </summary>
     public interface IMaterialInventory
     {
@@ -18,5 +17,8 @@ namespace HDY.Upgrade
 
         /// <summary>itemId 재료를 amount만큼 실제로 차감한다. HasEnough로 이미 확인된 뒤 호출된다고 가정한다.</summary>
         void Consume(string itemId, int amount);
+
+        /// <summary>itemId 재료를 현재 몇 개 보유하고 있는지(인벤토리+창고 합산). 상점 판매 UI의 최대 판매 가능 수량 계산 등에 사용한다.</summary>
+        int GetAmount(string itemId);
     }
 }

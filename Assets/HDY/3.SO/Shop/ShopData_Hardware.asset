@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 27d74e75cd47ac64484e3ebf366299d6, type: 3}
+  m_Name: ShopData_Hardware
+  m_EditorClassIdentifier: Assembly-CSharp::HDY.Shop.ShopData
+  ShopName: "\uCCA0\uBB3C\uC810"
+  Items:
+  - {fileID: 11400000, guid: 3d01bab2addcaec41a001ba0223fb000, type: 2}
+  - {fileID: 11400000, guid: 779283d790e8f76418a157d3fa7cbea9, type: 2}
+  - {fileID: 11400000, guid: 6621e3c041ee025409a9523892d12f11, type: 2}
+  - {fileID: 11400000, guid: 6baa065021146bd4984a2a8ba0dc0871, type: 2}
+  - {fileID: 11400000, guid: 0c9b6e541ae1c5447b2b8c90fa667d93, type: 2}
+  RestockIntervalMinutes: 20

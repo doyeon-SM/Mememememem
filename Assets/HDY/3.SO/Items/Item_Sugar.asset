@@ -10,14 +10,15 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: dc70c76ceb0f0e44f836689c4a16bfe1, type: 3}
-  m_Name: Item_Capsule_test
+  m_Name: Item_Sugar
   m_EditorClassIdentifier: Assembly-CSharp::HDY.Item.ItemData
-  Item_ID: test_capsule
-  ItemName: Capsule
-  ItemIcon: {fileID: 0}
-  ItemClass: 4
+  Item_ID: item_sugar
+  ItemName: "\uC124\uD0D5"
+  ItemIcon: {fileID: 21300000, guid: 074888d0fa0d4dc4ea07a0e19a6d61e0, type: 3}
+  ItemClass: 0
   Value: 1
-  MaxStack: 10
-  Category: 3
-  UseAction: 2
+  MaxStack: 100
+  Category: 1
+  UseAction: 0
+  ObjectType: 0
   EatEffects: []
