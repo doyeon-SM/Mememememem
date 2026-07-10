@@ -16379,13 +16379,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1229683075}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.27984518, y: 0.3647056, z: -0.11591566, w: 0.88047725}
+  m_LocalRotation: {x: 0.23911765, y: 0.3696438, z: -0.09904577, w: 0.89239913}
   m_LocalPosition: {x: -10, y: 12, z: -10}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 262216142}
-  m_LocalEulerAnglesHint: {x: 35.264, y: 45, z: 0}
+  m_LocalEulerAnglesHint: {x: 30, y: 45, z: 0}
 --- !u!114 &1229683079
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -27276,8 +27276,12 @@ MonoBehaviour:
   slotsPerPage: 48
   maxPages: 10
   startingPageCount: 2
-  unlockedPageCount: 0
-  capturedMems: []
+  unlockedPageCount: 2
+  capturedMems:
+  - KeyId: 
+    MemId: 
+    ExplorationStat: 0
+    IsActive: 0
 --- !u!1 &3347626580061722629
 GameObject:
   m_ObjectHideFlags: 0
