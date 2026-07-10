@@ -13,6 +13,12 @@ namespace HDY.UI
     /// 가져와, 요구 영지 레벨별로 (영지 확장 -> 레시피 순으로) 슬롯을 묶어서
     /// 줄(GoddessStatueUI_LevelRow)을 스크롤 영역(Content) 안에 만든다.
     ///
+    /// [생명주기 = UIManager가 관리] 이 컴포넌트는 씬에 상시 배치된 오브젝트가 아니라, HUD의 "여신상"
+    /// 버튼을 누를 때마다 UIManager가 프리팹을 Instantiate해서 만들고 닫힐 때 Destroy한다. 그래서
+    /// recipeUnlockManager/territoryExpansionManager/territoryData처럼 다른 씬 오브젝트를 가리키는
+    /// 참조들은 프리팹 에셋 자체에 저장될 수 없어(프리팹은 특정 씬의 오브젝트를 가리킬 수 없음) 전부
+    /// Awake에서 씬을 훑어 자동으로 채운다(ShopUI.territoryData와 동일한 이유).
+    ///
     /// [해금/확장 흐름] 슬롯을 선택하는 즉시 공용 업그레이드 팝업(UpgradePopupUI)을 띄운다. 팝업에서 실제
     /// 결제(골드+재료) 확인/차감을 전부 처리하고, 확인 버튼을 누르면 결과에 따라
     /// RecipeUnlockUpgrade/TerritoryExpansionUpgrade(IUpgradable 어댑터, 슬롯마다 즉석에서 new로 생성)의
@@ -63,6 +69,13 @@ namespace HDY.UI
         private void Awake()
         {
             itemCatalogManager = ItemCatalogManager.Resolve(itemCatalogManager);
+
+            // 아래 세 참조는 다른 씬 오브젝트를 가리키는 참조라 프리팹 에셋 자체에는 저장될 수 없다
+            // (UIManager가 매번 새로 Instantiate하기 때문에 인스펙터 값이 항상 비어있다) - 그래서
+            // ShopUI.territoryData와 동일하게 씬에서 자동으로 찾도록 폴백을 둔다.
+            if (recipeUnlockManager == null) recipeUnlockManager = FindFirstObjectByType<RecipeUnlockManager>();
+            if (territoryExpansionManager == null) territoryExpansionManager = FindFirstObjectByType<TerritoryExpansionManager>();
+            if (territoryData == null) territoryData = FindFirstObjectByType<TerritoryData>();
 
             if (recipeUnlockManager == null) Debug.LogWarning("[GoddessStatueUI] recipeUnlockManager가 비어있습니다.", this);
             if (territoryExpansionManager == null) Debug.LogWarning("[GoddessStatueUI] territoryExpansionManager가 비어있습니다. 영지 확장 슬롯이 표시되지 않습니다.", this);

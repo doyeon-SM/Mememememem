@@ -16,9 +16,17 @@ namespace HDY.UI
     /// 공용 상점 팝업 UI. 마트/식당/철물점 등 상점 종류에 상관없이 이 하나로 전부 처리한다.
     /// 팝업은 ShopData(어떤 품목을 파는지)만 받아서 열리고, 구매/판매 탭을 전환해서 보여준다.
     ///
-    /// [사용법] 다른 스크립트(예: 상점 NPC 상호작용, 임시 테스트 버튼)에서 ShopUI.Instance.Open(shopData)만
-    /// 호출하면 된다. 이미 열려 있는 상태에서 다른 ShopData로 Open을 다시 호출하면(= 상점 이동 탭 클릭)
-    /// 창은 닫혔다 열리지 않고 내용만 바뀐다.
+    /// [생명주기 = UIManager가 관리] 이 컴포넌트는 더 이상 씬에 상시 배치된 싱글톤이 아니라, HUD의
+    /// "상점" 버튼을 누를 때마다 UIManager가 P_ShopRoot 프리팹을 Instantiate해서 만들고, 닫힐 때 통째로
+    /// Destroy한다. 그래서 인스펙터에서 다른 씬 오브젝트(TerritoryData 등)를 직접 참조하던 필드들은
+    /// 프리팹 에셋 자체에는 값이 저장될 수 없어(프리팹은 그 씬의 특정 오브젝트를 가리킬 수 없음) 전부
+    /// Awake에서 씬을 훑어 자동으로 채운다(Resolve/FindFirstObjectByType류 폴백). 반면 이 프리팹
+    /// 내부의 자식(버튼, 텍스트, transactionPopup 등)에 대한 참조는 프리팹 자체에 정상적으로 저장되어
+    /// 있으므로 그대로 유지된다.
+    ///
+    /// [사용법] UIManager가 Instantiate 직후 Open(defaultShop)을 한 번 호출해서 처음 보여줄 상점을
+    /// 정해준다. 그 이후 상점 내부 이동(마트/식당/철물점 전환)은 아래 "상점 이동 탭" 설명대로 이
+    /// 컴포넌트가 스스로 처리하고, UIManager는 관여하지 않는다.
     ///
     /// [popupRoot와 transactionPopup은 서로 다른 창] popupRoot는 상점 창 전체(탭+목록)를 켜고 끄는
     /// 대상이고, transactionPopup(ShopTransactionPopupUI)은 슬롯을 클릭했을 때 그 위에 따로 뜨는
@@ -26,8 +34,9 @@ namespace HDY.UI
     /// 서로 다른 오브젝트다.
     ///
     /// [상점 이동 탭] shopEntries에 등록된 (버튼, ShopData) 쌍마다 그 버튼을 누르면 Open(그 ShopData)이
-    /// 호출되어 상점 창 내용이 그 상점으로 바뀐다(상점 창 자체는 닫히지 않는다). 지금 보고 있는 상점의
-    /// 버튼은 interactable=false로 회색 표시한다(구매/판매 탭과 동일한 방식).
+    /// 호출되어 상점 창 내용이 그 상점으로 바뀐다(상점 창 자체는 닫히지 않는다 - UIManager를 거치지
+    /// 않는 내부 전환). 지금 보고 있는 상점의 버튼은 interactable=false로 회색 표시한다(구매/판매
+    /// 탭과 동일한 방식).
     ///
     /// [탭 전환 = 같은 컨테이너 재사용] 구매/판매 탭은 같은 슬롯 컨테이너(slotContainer)와 같은 슬롯 풀
     /// (spawnedSlots)을 공유한다 - 탭을 누르면 그 컨테이너 안 내용물이 구매 목록 또는 판매 목록으로
@@ -56,8 +65,6 @@ namespace HDY.UI
     /// (플레이어→상점)를 서로 다른 풀로 관리한다(ShopItemData.Purchase_MaxAmount / Selling_MaxAmount).
     /// 구매 최대 수량은 구매 재고와 "지금 가진 재화(골드 또는 재료)로 실제 결제 가능한 수량" 중 작은
     /// 값이고, 판매 최대 수량은 판매 재고와 "지금 보유한 수량" 중 작은 값이다.
-    ///
-    /// [씬 싱글톤] UpgradePopupUI/WarehouseUI와 동일하게 이 씬에 하나만 배치되어 있다고 가정한다.
     /// </summary>
     public class ShopUI : MonoBehaviour
     {
@@ -130,6 +137,10 @@ namespace HDY.UI
 
             Instance = this;
 
+            // territoryData는 다른 씬 오브젝트(TerritoryData)를 가리키는 참조라 프리팹 에셋 자체에는
+            // 저장될 수 없다(UIManager가 매번 새로 Instantiate하기 때문에 인스펙터 값이 항상 비어있다) -
+            // 그래서 다른 매니저 참조들과 동일하게 씬에서 자동으로 찾도록 폴백을 둔다.
+            if (territoryData == null) territoryData = FindFirstObjectByType<TerritoryData>();
             if (territoryData == null) Debug.LogWarning("[ShopUI] territoryData가 비어있습니다. 골드 확인/차감이 불가능합니다.", this);
 
             if (materialInventorySource == null)

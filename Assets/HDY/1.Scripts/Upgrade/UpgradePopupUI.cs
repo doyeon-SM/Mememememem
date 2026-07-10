@@ -29,9 +29,16 @@ namespace HDY.Upgrade
     /// 팝업이 직접 TerritoryData에서 골드를 확인/차감하고(재료는 IMaterialInventory 연결 시 함께 확인/차감),
     /// 비용을 전부 낼 수 있을 때만 target.ApplyUpgrade()를 호출한 뒤 팝업을 닫는다.
     ///
+    /// [항상 맨 앞에 표시] 이 팝업은 상점/여신상/창고 등 HUD로 여는 UI들과 같은 부모(P_UIRoot) 밑에
+    /// 있는 상시 배치 오브젝트라서, 그 UI들이 나중에 Instantiate되면 형제 순서상 이 팝업보다 나중(=위)에
+    /// 그려진다. 그래서 Show()를 열 때마다 popupRoot.transform.SetAsLastSibling()으로 맨 뒤(=맨 위 렌더링)로
+    /// 옮겨서, 어떤 UI 위에서 열리든 항상 그 위에 보이도록 한다.
+    ///
     /// [팝업 닫힘 알림] OnPopupClosed 이벤트는 Hide()가 호출될 때마다(확인 성공 후 자동으로 닫히든, 취소
-    /// 버튼으로 직접 닫든 관계없이) 발행된다. 호출한 쪽(예: GoddessStatueUI)이 "팝업이 어떤 이유로든 닫히면
-    /// 선택 강조 표시를 꺼야 하는" 경우에 구독해서 쓸 수 있다.
+    /// 버튼으로 직접 닫든, 다른 상위 UI로 전환되면서 UIManager가 강제로 닫든 관계없이) 발행된다. 호출한 쪽
+    /// (예: GoddessStatueUI)이 "팝업이 어떤 이유로든 닫히면 선택 강조 표시를 꺼야 하는" 경우에 구독해서 쓸 수 있다.
+    /// UIManager는 상점/여신상/창고 등 상위 UI를 닫을 때마다 이 팝업이 열려있으면 함께 Hide()해서, 상위 UI가
+    /// 사라진 뒤에도 팝업만 화면에 덩그러니 남는 일이 없도록 한다.
     ///
     /// [재료 인벤토리 자동 연결] materialInventorySource를 인스펙터에서 비워두면, Awake에서 씬 전체를 훑어
     /// IMaterialInventory를 구현한 컴포넌트를 아무거나 찾아 자동으로 연결한다(FindMaterialInventorySource).
@@ -41,7 +48,7 @@ namespace HDY.Upgrade
     /// 자동 탐색은 건너뛴다). 그래도 못 찾으면(구현체 자체가 없으면) 재료 조건 검사를 건너뛰고 통과시킨다
     /// (경고 로그만 남김) - 재료가 필요 없는 업그레이드(예: 멤창고 페이지 확장)는 이 상태로도 문제없이 동작한다.
     ///
-    /// [씬 싱글톤] TerritoryData처럼 DontDestroyOnLoad는 아니고, 이 씬(HDY_TestScene)에 하나만 배치되어 있다고
+    /// [씬 싱글톤] TerritoryData처럼 DontDestroyOnLoad는 아니고, 이 씬에 하나만 배치되어 있다고
     /// 가정한다. 다른 UI가 Instance로 쉽게 접근할 수 있도록 static 참조만 제공한다.
     /// </summary>
     public class UpgradePopupUI : MonoBehaviour
@@ -80,7 +87,7 @@ namespace HDY.Upgrade
         private IUpgradable currentTarget;
         private IMaterialInventory MaterialInventory => materialInventorySource as IMaterialInventory;
 
-        /// <summary>팝업이 어떤 이유로든(확인 성공/취소) 닫힐 때마다 발행.</summary>
+        /// <summary>팝업이 어떤 이유로든(확인 성공/취소/다른 UI로 전환되며 강제로 닫힘) 닫힐 때마다 발행.</summary>
         public event Action OnPopupClosed;
 
         private void Awake()
@@ -146,7 +153,12 @@ namespace HDY.Upgrade
             return null;
         }
 
-        /// <summary>업그레이드 대상을 받아 팝업을 연다. 열 때마다 최신 비용/가능 여부를 다시 계산해서 표시한다.</summary>
+        /// <summary>
+        /// 업그레이드 대상을 받아 팝업을 연다. 열 때마다 최신 비용/가능 여부를 다시 계산해서 표시하고,
+        /// popupRoot를 형제 목록 맨 뒤로 옮겨(SetAsLastSibling) 다른 어떤 UI 위에서 열리든 항상 그 위에
+        /// 보이도록 한다(상점/여신상/창고 등은 이 팝업보다 나중에 Instantiate되어 원래는 이 팝업보다
+        /// 위에 그려지기 때문에 매번 다시 맨 앞으로 가져와야 한다).
+        /// </summary>
         public void Show(IUpgradable target)
         {
             if (target == null)
@@ -157,12 +169,16 @@ namespace HDY.Upgrade
 
             currentTarget = target;
 
-            if (popupRoot != null) popupRoot.SetActive(true);
+            if (popupRoot != null)
+            {
+                popupRoot.SetActive(true);
+                popupRoot.transform.SetAsLastSibling();
+            }
 
             RefreshDisplay();
         }
 
-        /// <summary>팝업을 닫는다(확인 성공 후 자동 호출/취소 버튼 클릭 모두 여기로 온다). 닫힐 때마다 OnPopupClosed를 발행한다.</summary>
+        /// <summary>팝업을 닫는다(확인 성공 후 자동 호출/취소 버튼 클릭/다른 UI로 전환되며 UIManager가 강제로 호출 모두 여기로 온다). 닫힐 때마다 OnPopupClosed를 발행한다.</summary>
         public void Hide()
         {
             currentTarget = null;
