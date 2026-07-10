@@ -9,20 +9,13 @@ public class ProductionPanelUI : MonoBehaviour
 {
     public static ProductionPanelUI Instance { get; private set; }
 
-    [Header("최상위 패널 오브젝트")]
-    [SerializeField] private GameObject productionPanelRoot;
-    [SerializeField] private GameObject centerProductionPanel;
-    [SerializeField] private GameObject CloseButtonGroup;
-    [SerializeField] private Button closeBtn;
-    [SerializeField] private GameObject PlaceButtonGroup;
-
     [Header("중앙 패널 - Top")]
     [SerializeField] private TextMeshProUGUI buildingName;
     [SerializeField] private TextMeshProUGUI buildingLevel;
     [SerializeField] private Button levelUp;
 
     [Header("중앙 패널 - Center")]
-    [SerializeField] private ProductionMemSlotUI[] memSlotImages = new ProductionMemSlotUI[5];
+    [SerializeField] private MemSlotUI[] memSlotImages = new MemSlotUI[5];
     [SerializeField] private GameObject defaultMode;   
     [SerializeField] private GameObject creatingMode;  
     [SerializeField] private Image creatingItem;
@@ -54,23 +47,12 @@ public class ProductionPanelUI : MonoBehaviour
         if (Instance == null) Instance = this;
         else Destroy(gameObject);
 
-        if (productionPanelRoot != null) productionPanelRoot.SetActive(false);
-        if (centerProductionPanel != null) centerProductionPanel.SetActive(false);
-
         if (diamondBGBtn != null)
         {
             diamondBGBtn.onClick.AddListener(OnClickCollectReward);
         }
 
-        if (closeBtn != null)
-        {
-            closeBtn.onClick.AddListener(ClosePanel);
-        }
-
-        for (int i = 0; i < memSlotImages.Length; i++)
-        {
-            if (memSlotImages[i] != null) memSlotImages[i].InitializeSlot(i);
-        }
+        
     }
 
     /// <summary>
@@ -78,32 +60,15 @@ public class ProductionPanelUI : MonoBehaviour
     /// </summary>
     private void Update()
     {
-        if (!productionPanelRoot.activeSelf) CloseButtonGroup.SetActive(false);
-        if (productionPanelRoot != null && productionPanelRoot.activeSelf)
-        {
-            if (UnityEngine.InputSystem.Keyboard.current != null && UnityEngine.InputSystem.Keyboard.current.escapeKey.wasPressedThisFrame)
-            {
-                ClosePanel();
-                return;
-            }
-        }
-
-        if (targetFacility == null || !targetFacility.isProducing) return;
+        if (targetFacility == null) return;
 
         if (targetFacility.isProducing && targetFacility.totalRequiredTime > 0f)
         {
             float progressNormalized = targetFacility.currentProgressTime / targetFacility.totalRequiredTime;
             if (progressBar != null) progressBar.value = progressNormalized;
 
-            if (durationText != null)
-            {
-                durationText.text = $"{Mathf.Clamp(progressNormalized * 100f, 0f, 100f):F0}%";
-            }
-
-            if (productionSpeed != null)
-            {
-                productionSpeed.text = $"생산속도: {targetFacility.totalRequiredTime:F1}초(개당)";
-            }
+            if (durationText != null) durationText.text = $"{Mathf.Clamp(progressNormalized * 100f, 0f, 100f):F0}%";
+            if (productionSpeed != null) productionSpeed.text = $"생산속도: {targetFacility.totalRequiredTime:F1}초(개당)";
         }
         else
         {
@@ -112,14 +77,9 @@ public class ProductionPanelUI : MonoBehaviour
 
             if (productionSpeed != null)
             {
-                if (targetFacility.craftingItem != null)
-                {
-                    productionSpeed.text = $"생산속도: {targetFacility.baseProductionTime:F1}초(개당)";
-                }
-                else
-                {
-                    productionSpeed.text = "생산속도: - 초(개당)";
-                }
+                productionSpeed.text = (targetFacility.craftingItem != null)
+                    ? $"생산속도: {targetFacility.baseProductionTime:F1}초(개당)"
+                    : "생산속도: - 초(개당)";
             }
         }
 
@@ -132,14 +92,7 @@ public class ProductionPanelUI : MonoBehaviour
     public void OpenPanel(ProductionFacilityRuntime facility)
     {
         if (facility == null) return;
-
         targetFacility = facility;
-
-        productionPanelRoot.SetActive(true);
-        centerProductionPanel.SetActive(true);
-        CloseButtonGroup.SetActive(true);
-        PlaceButtonGroup.SetActive(false);
-        SetCameraControllersEnabled(false);
 
         RefreshStaticUI();
         DisplayProduction();
@@ -148,18 +101,28 @@ public class ProductionPanelUI : MonoBehaviour
     /// <summary>
     /// 패널이 열릴 때 시설의 이름, 레벨, 멤 슬롯 상태 등의 정보 받아오기
     /// </summary>
-    private void RefreshStaticUI()
+    public void RefreshStaticUI()
     {
-        if (targetFacility == null) return;
+        if (targetFacility == null)
+        {
+            Debug.LogError("<color=red>[ProductionPanelUI]</color> RefreshStaticUI를 실행하려 했으나 targetFacility가 null입니다.");
+            return;
+        }
+        Debug.Log($"<color=lime>[ProductionPanelUI]</color> RefreshStaticUI 수신 성공. 대상 시설: {targetFacility.buildingData.buildingName}");
 
         buildingName.text = targetFacility.buildingData.buildingName;
         buildingLevel.text = $"Lv {targetFacility.currentLevel}";
 
         int maxCapacity = ProductionCalculator.GetMaxMemCount(targetFacility.currentLevel);
-        
+        Debug.Log($"[ProductionPanelUI] 현재 시설 최대 배치 수용량: {maxCapacity}마리 / 현재 DeployedMems 수: {targetFacility.DeployedMems.Count}");
+
         for (int i = 0; i < memSlotImages.Length; i++)
         {
-            if (memSlotImages[i] == null) continue;
+            if (memSlotImages[i] == null)
+            {
+                Debug.LogWarning($"[ProductionPanelUI] 인스펙터의 memSlotImages[{i}] 슬롯 컴포넌트 참조가 비어있습니다(Null).");
+                continue;
+            }
 
             bool isUnlocked = (i < maxCapacity);
             MemData placedMemData = null;
@@ -171,6 +134,7 @@ public class ProductionPanelUI : MonoBehaviour
                 if (i < targetFacility.DeployedMemEntries.Count) placedEntryData = targetFacility.DeployedMemEntries[i];
             }
 
+            Debug.Log($"[ProductionPanelUI -> MemSlotUI] 슬롯 인덱스 [{i}] 갱신 시도 - Unlocked: {isUnlocked}, PlacedMem: {(placedMemData != null ? placedMemData.memName : "Null(비어있음)")}");
             memSlotImages[i].RefreshStatus(isUnlocked, placedMemData, placedEntryData);
         }
     }
@@ -275,26 +239,5 @@ public class ProductionPanelUI : MonoBehaviour
     public void ClosePanel()
     {
         targetFacility = null;
-
-        PlaceButtonGroup.SetActive(true);
-        SetCameraControllersEnabled(true);
-        productionPanelRoot.SetActive(false);
-        centerProductionPanel.SetActive(false);
-        CloseButtonGroup.SetActive(false);
-    }
-
-    private void SetCameraControllersEnabled(bool isEnable)
-    {
-        CameraMoveController moveController = Object.FindFirstObjectByType<CameraMoveController>();
-        if (moveController != null)
-        {
-            moveController.enabled = isEnable;
-        }
-
-        CameraZoomController zoomController = Object.FindFirstObjectByType<CameraZoomController>();
-        if (zoomController != null)
-        {
-            zoomController.enabled = isEnable;
-        }
     }
 }

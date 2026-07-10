@@ -141,12 +141,12 @@ public class GridManager : MonoBehaviour
 
                     if (targetObj.TryGetComponent<ProductionFacilityRuntime>(out ProductionFacilityRuntime facility))
                     {
-                        ProductionPanelUI.Instance.OpenPanel(facility);
+                        PanelManager.Instance.OpenProductionPanel(facility);
                     }
 
                     if(targetObj.TryGetComponent<ProductionCraftRuntime>(out ProductionCraftRuntime craft))
                     {
-                        CraftingPanelUI.Instance.OpenPanel(craft);
+                        PanelManager.Instance.OpenCraftingPanel(craft);
                     }
 
                 }
