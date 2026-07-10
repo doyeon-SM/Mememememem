@@ -7,6 +7,7 @@ public class PanelManager : MonoBehaviour
     [Header("시설별 Panel GameObject")]
     [SerializeField] private GameObject craftingPanel;
     [SerializeField] private GameObject productionPanel;
+    [SerializeField] private GameObject inventoryPanel;
     [SerializeField] private GameObject UIPanel;
 
     [Header("시설별 UI 패널 컴포넌트")]
@@ -32,6 +33,21 @@ public class PanelManager : MonoBehaviour
             if (IsAnyPanelOpen())
             {
                 CloseAllPanels();
+            }
+        }
+
+        if (UnityEngine.InputSystem.Keyboard.current.iKey.wasPressedThisFrame)
+        {
+            if (inventoryPanel != null)
+            {
+                if (inventoryPanel.activeSelf)
+                {
+                    CloseAllPanels();
+                }
+                else
+                {
+                    OpenInventoryPanel();
+                }
             }
         }
     }
@@ -76,6 +92,19 @@ public class PanelManager : MonoBehaviour
         }
     }
 
+    public void OpenInventoryPanel()
+    {
+        CloseAllPanels(); 
+
+        if (inventoryPanel != null)
+        {
+            SetCommonGroupActive(true);      
+            SetCameraControllersEnabled(false); 
+
+            inventoryPanel.SetActive(true);
+        }
+    }
+
     /// <summary>
     /// 영지관련 패널과 Close버튼 닫기 및 Place버튼 활성화
     /// </summary>
@@ -83,10 +112,12 @@ public class PanelManager : MonoBehaviour
     {
         if (craftingPanelUI != null) craftingPanelUI.ClosePanel();
         if (productionPanelUI != null) productionPanelUI.ClosePanel();
-        if(UIPanel != null) UIPanel.SetActive(false);
+        if (inventoryPanel != null) inventoryPanel.SetActive(false);
+        if (UIPanel != null) UIPanel.SetActive(false);
 
         if (craftingPanel != null) craftingPanel.SetActive(false);
         if (productionPanel != null) productionPanel.SetActive(false);
+
 
         SetCommonGroupActive(false);
         SetCameraControllersEnabled(true);
@@ -96,7 +127,8 @@ public class PanelManager : MonoBehaviour
     {
         bool isCraftActive = craftingPanel != null && craftingPanel.activeSelf;
         bool isProductActive = productionPanel != null && productionPanel.activeSelf;
-        return isCraftActive || isProductActive;
+        bool isInventoryActive = inventoryPanel != null && inventoryPanel.activeSelf;
+        return isCraftActive || isProductActive || isInventoryActive;
     }
 
     private void SetCommonGroupActive(bool isPanelOpen)

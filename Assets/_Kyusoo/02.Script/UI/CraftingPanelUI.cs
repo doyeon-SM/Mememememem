@@ -1,10 +1,13 @@
 ﻿using HDY.Capture;
+using HDY.Inventory;
+using HDY.Item; 
 using HDY.Recipe;
 using HDY.UI;
-using HDY.Item; 
+using KMS.InventoryDuped;
 using MemSystem.Data;
 using System.Collections;
 using TMPro;
+using Unity.Services.Authentication;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -261,29 +264,32 @@ public class CraftingPanelUI : MonoBehaviour
         if (recipe == null || activeSelectedRecipeData == null) return 1;
 
         int finalCalculatedMax = int.MaxValue;
-        bool hasMaterialsAtAll = false;
+        bool hasMateria = false;
+
+        PlayerInventory inventory = FindFirstObjectByType<PlayerInventory>();
+        WarehouseInventory warehouse = FindFirstObjectByType<WarehouseInventory>();
 
         foreach (Recipe_Requset_Item_Data reqItem in activeSelectedRecipeData.Requset_Items_ID)
         {
             if (reqItem == null || string.IsNullOrEmpty(reqItem.Item_ID)) continue;
 
-            hasMaterialsAtAll = true;
+            hasMateria = true;
 
             // Mock데이터
-            int inventoryOwned = 100;
-            if (reqItem.Item_ID == "item_irongemstone") inventoryOwned = 62;
-            if (reqItem.Item_ID == "item_wood") inventoryOwned = 39;
+            int totalOwnedAmount = 0;
+            if (inventory != null) totalOwnedAmount += inventory.GetItemAmount(reqItem.Item_ID);
+            if (warehouse != null) totalOwnedAmount += warehouse.GetItemAmount(reqItem.Item_ID);
 
             if (reqItem.Amount <= 0) continue;
 
-            int possibleMaxByThisMaterial = inventoryOwned / reqItem.Amount;
+            int possibleMaxByThisMaterial = totalOwnedAmount / reqItem.Amount;
             if (possibleMaxByThisMaterial < finalCalculatedMax)
             {
                 finalCalculatedMax = possibleMaxByThisMaterial;
             }
         }
 
-        if (!hasMaterialsAtAll) return 0;
+        if (!hasMateria) return 0;
 
         return Mathf.Max(0, finalCalculatedMax);
     }
@@ -432,6 +438,8 @@ public class CraftingPanelUI : MonoBehaviour
         }
 
         bool isMaterialEnough = true;
+        PlayerInventory inventory = FindFirstObjectByType<PlayerInventory>();
+        WarehouseInventory warehouse = FindFirstObjectByType<WarehouseInventory>();
 
         if (activeSelectedRecipeData != null && activeSelectedRecipeData.Requset_Items_ID != null)
         {
@@ -439,14 +447,14 @@ public class CraftingPanelUI : MonoBehaviour
             {
                 if (req == null || string.IsNullOrEmpty(req.Item_ID)) continue;
 
-                int ownedCount = 50;
-                if (req.Item_ID == "Item_Wood") ownedCount = 62;
-                if (req.Item_ID == "Item_Irongemstone") ownedCount = 39;
+                int totalOwnedAmount = 0;
+                if (inventory != null) totalOwnedAmount += inventory.GetItemAmount(req.Item_ID);
+                if (warehouse != null) totalOwnedAmount += warehouse.GetItemAmount(req.Item_ID);
 
                 int totalRequired = req.Amount * selectedQuantity;
-                if (ownedCount < totalRequired)
+                if (totalOwnedAmount < totalRequired)
                 {
-                    isMaterialEnough = false; 
+                    isMaterialEnough = false;
                     break;
                 }
             }
@@ -458,8 +466,37 @@ public class CraftingPanelUI : MonoBehaviour
             return;
         }
 
-        targetFacility.SelectAndStartCrafting(activeSelectedRecipe, selectedQuantity);
+        // 1차적으로 인벤토리에서 차감 후 부족하면 창고에서 차감되도록 처리
+        if (activeSelectedRecipeData != null && activeSelectedRecipeData.Requset_Items_ID != null)
+        {
+            foreach (Recipe_Requset_Item_Data req in activeSelectedRecipeData.Requset_Items_ID)
+            {
+                if (req == null || string.IsNullOrEmpty(req.Item_ID)) continue;
 
+                int totalRequired = req.Amount * selectedQuantity;
+                int inventoryHas = inventory != null ? inventory.GetItemAmount(req.Item_ID) : 0;
+
+                if (inventoryHas >= totalRequired)
+                {
+                    inventory.RemoveItem(req.Item_ID, totalRequired);
+                }
+                else
+                {
+                    if (inventoryHas > 0)
+                    {
+                        inventory.RemoveItem(req.Item_ID, inventoryHas);
+                    }
+
+                    int remainingNeed = totalRequired - inventoryHas;
+                    if (warehouse != null)
+                    {
+                        warehouse.RemoveItem(req.Item_ID, remainingNeed);
+                    }
+                }
+            }
+        }
+
+        targetFacility.SelectAndStartCrafting(activeSelectedRecipe, selectedQuantity);
         currentUIState = CraftingUIState.Crafting;
         RefreshCraftingModeUI();
     }
