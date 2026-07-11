@@ -101,8 +101,8 @@ namespace MemSystem.Core
         /// <summary>사망 여부. HP가 0 이하면 true.</summary>
         public bool IsDead => CurrentHp <= 0;
 
-        /// <summary>도주 조건 충족 여부. 현재 HP 비율이 도주 임계치 이하면 true.</summary>
-        public bool ShouldFlee => HpRatio <= FleeHpThreshold && !IsDead;
+        /// <summary>도주 조건 충족 여부. 체력이 0이 되면 도주합니다.</summary>
+        public bool ShouldFlee => CurrentHp <= 0;
 
         /// <summary>현재 허기 비율 (0.0 ~ 1.0).</summary>
         public float HungerRatio => MaxHunger > 0 ? (float)CurrentHunger / MaxHunger : 0f;

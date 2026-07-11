@@ -3,6 +3,7 @@
 // 배회 상태 — 랜덤 지점으로 이동 후 Idle로 복귀
 // ============================================================================
 using UnityEngine;
+using MemSystem.Visual;
 
 namespace MemSystem.AI.States
 {
@@ -19,10 +20,6 @@ namespace MemSystem.AI.States
 
         public void Enter(MemAI ai)
         {
-            // Walk 애니메이션 (바운스 + 기울기)
-            if (ai.Visual != null)
-                ai.Visual.PlayWalk();
-
             // 랜덤 지점으로 이동 시작
             if (ai.Movement != null)
                 ai.Movement.Wander();
@@ -33,6 +30,18 @@ namespace MemSystem.AI.States
         public void Update(MemAI ai)
         {
             if (ai.Movement == null) return;
+
+            // 실제 이동 속도가 낮으면(막힘, 경로 대기 중) 대기 모션, 이동 중이면 걷기 모션
+            if (ai.Movement.CurrentSpeed > 0.1f)
+            {
+                if (ai.Visual != null && ai.Visual.CurrentAnimState != MemVisual.AnimState.Walk)
+                    ai.Visual.PlayWalk();
+            }
+            else
+            {
+                if (ai.Visual != null && ai.Visual.CurrentAnimState != MemVisual.AnimState.Idle)
+                    ai.Visual.PlayIdle();
+            }
 
             // 목적지 도달 체크
             if (ai.Movement.HasReachedDestination())

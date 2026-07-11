@@ -3,11 +3,13 @@
 // 도주 상태 — 플레이어 반대 방향으로 도망, 일정 거리 달성 시 디스폰
 //
 // [담당자 안내]
+// - Visual: PlayRun() 사용 — Walk보다 빠르고 좌우 흔들림이 강한 달리기 모션
 // - 온순 멤: 피격 즉시 이 상태로 전환됩니다.
 // - 평범/난폭 멤: HP가 도주 임계치 이하일 때 이 상태로 전환됩니다.
 // - 도주 거리(MemMovement.FleeDistance) 달성 또는 10초 타임아웃 시 디스폰 처리합니다.
 // ============================================================================
 using UnityEngine;
+using MemSystem.Visual;
 
 namespace MemSystem.AI.States
 {
@@ -34,9 +36,8 @@ namespace MemSystem.AI.States
             fleeStartPosition = ai.transform.position;
             fleeTimer = 0f;
 
-            // Flee 애니메이션 (빠른 바운스 + 좌우 흔들림)
-            if (ai.Visual != null)
-                ai.Visual.PlayFlee();
+            // 달리기 애니메이션 재생은 Update에서 속도 기반으로 자동 제어됩니다.
+            // ai.Visual.PlayRun();
 
             // 플레이어 반대 방향으로 도주 시작
             if (ai.Movement != null && ai.PlayerTransform != null)
@@ -50,6 +51,18 @@ namespace MemSystem.AI.States
         public void Update(MemAI ai)
         {
             if (ai.Owner == null || ai.Movement == null) return;
+
+            // 실제 이동 속도가 낮으면(지형에 막힘) 대기 모션, 이동 중이면 달리기 모션
+            if (ai.Movement.CurrentSpeed > 0.1f)
+            {
+                if (ai.Visual != null && ai.Visual.CurrentAnimState != MemVisual.AnimState.Run)
+                    ai.Visual.PlayRun();
+            }
+            else
+            {
+                if (ai.Visual != null && ai.Visual.CurrentAnimState != MemVisual.AnimState.Idle)
+                    ai.Visual.PlayIdle();
+            }
 
             fleeTimer += Time.deltaTime;
 

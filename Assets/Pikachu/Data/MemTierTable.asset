@@ -16,9 +16,27 @@ MonoBehaviour:
   - tier: 0
     baseHp: 10
     baseHunger: 10
-    consumePerTick: 0
-    producePerTick: 0
+    consumePerTick: 1
+    producePerTick: 2
     explorationMin: 20
     explorationMax: 100
     primaryStatLevel: 0
     secondaryStatLevel: 0
+  - tier: 1
+    baseHp: 25
+    baseHunger: 20
+    consumePerTick: 2
+    producePerTick: 3
+    explorationMin: 80
+    explorationMax: 200
+    primaryStatLevel: 2
+    secondaryStatLevel: 1
+  - tier: 2
+    baseHp: 50
+    baseHunger: 50
+    consumePerTick: 4
+    producePerTick: 5
+    explorationMin: 220
+    explorationMax: 400
+    primaryStatLevel: 3
+    secondaryStatLevel: 2
