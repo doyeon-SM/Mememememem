@@ -59,7 +59,7 @@ public class WayPointManager : MonoBehaviour
     // 씬에 이미 배치된 WayPointStone을 한 번 더 등록해서 실행 순서 문제를 줄인다.
     private void RegisterSceneStones()
     {
-        WayPointStone[] stones = FindObjectsByType<WayPointStone>(FindObjectsSortMode.None);
+        WayPointStone[] stones = FindObjectsByType<WayPointStone>(FindObjectsInactive.Include, FindObjectsSortMode.None);
         foreach (WayPointStone stone in stones)
         {
             RegisterStone(stone);
@@ -91,10 +91,10 @@ public class WayPointManager : MonoBehaviour
             }
 
             WayPointRunTime state = new WayPointRunTime(definition);
-            state.IsActive = definition.unlockedOnStart;
+            state.IsActive = definition.IsUnlockedOnInitialize;
             statesById.Add(definition.id, state);
 
-            LogState($"초기화: id={definition.id}, unlockedOnStart={definition.unlockedOnStart}, isActive={state.IsActive}", definition);
+            LogState($"초기화: id={definition.id}, unlockType={definition.unlockType}, isActive={state.IsActive}", definition);
         }
     }
 
@@ -132,7 +132,7 @@ public class WayPointManager : MonoBehaviour
         OnWayPointStateChanged?.Invoke(state);
     }
 
-    // Stone이 비활성화되거나 제거될 때 등록을 해제한다.
+    // Stone이 실제로 제거될 때 등록을 해제한다. 청크 비활성화만으로는 참조를 유지한다.
     public void UnregisterStone(WayPointStone stone)
     {
         if (stone == null)
@@ -167,6 +167,92 @@ public class WayPointManager : MonoBehaviour
     // 플레이어가 등록 오브젝트와 상호작용했을 때 웨이포인트를 해금한다.
     public bool Unlock(string id)
     {
+        return UnlockByInteraction(id);
+    }
+
+    public bool Unlock(WayPointDefinition definition)
+    {
+        if (definition == null)
+        {
+            Debug.LogWarning("[WayPointManager] Cannot unlock null waypoint definition.");
+            return false;
+        }
+
+        return Unlock(definition.id);
+    }
+
+    // 등록 오브젝트와 직접 상호작용했을 때 Interact 타입 웨이포인트를 해금한다.
+    public bool UnlockByInteraction(string id)
+    {
+        return SetUnlocked(id, false, WayPointUnlockType.Interact, "상호작용으로 해금됨");
+    }
+
+    public bool UnlockByInteraction(WayPointDefinition definition)
+    {
+        if (definition == null)
+        {
+            Debug.LogWarning("[WayPointManager] Cannot unlock null waypoint definition by interaction.");
+            return false;
+        }
+
+        return UnlockByInteraction(definition.id);
+    }
+
+    public bool CanUnlockByInteraction(string id)
+    {
+        if (!statesById.TryGetValue(id, out WayPointRunTime state))
+        {
+            return false;
+        }
+
+        return !state.IsActive && state.Definition.CanUnlockByInteraction;
+    }
+
+    public bool CanUnlockByInteraction(WayPointDefinition definition)
+    {
+        return definition != null && CanUnlockByInteraction(definition.id);
+    }
+
+    // NPC, 퀘스트, 재화 지불 같은 외부 조건을 만족했을 때 웨이포인트를 해금한다.
+    public bool UnlockByExternalAction(string id, bool requireMapAvailable = true)
+    {
+        return SetUnlocked(id, requireMapAvailable, WayPointUnlockType.ExternalAction, "외부 동작으로 해금됨");
+    }
+
+    public bool UnlockByExternalAction(WayPointDefinition definition, bool requireMapAvailable = true)
+    {
+        if (definition == null)
+        {
+            Debug.LogWarning("[WayPointManager] Cannot unlock null waypoint definition by external action.");
+            return false;
+        }
+
+        return UnlockByExternalAction(definition.id, requireMapAvailable);
+    }
+
+    public bool CanUnlockByExternalAction(string id, bool requireMapAvailable = true)
+    {
+        if (!statesById.TryGetValue(id, out WayPointRunTime state))
+        {
+            return false;
+        }
+
+        if (state.IsActive)
+        {
+            return false;
+        }
+
+        return state.Definition.CanUnlockByExternalAction
+            && (!requireMapAvailable || IsMapAvailable(state.Definition.mapDefinition));
+    }
+
+    public bool CanUnlockByExternalAction(WayPointDefinition definition, bool requireMapAvailable = true)
+    {
+        return definition != null && CanUnlockByExternalAction(definition.id, requireMapAvailable);
+    }
+
+    private bool SetUnlocked(string id, bool requireMapAvailable, WayPointUnlockType requiredUnlockType, string logMessage)
+    {
         if (!statesById.TryGetValue(id, out WayPointRunTime state))
         {
             Debug.LogWarning($"[WayPointManager] Cannot unlock unknown waypoint id: {id}");
@@ -179,8 +265,20 @@ public class WayPointManager : MonoBehaviour
             return false;
         }
 
+        if (requireMapAvailable && !IsMapAvailable(state.Definition.mapDefinition))
+        {
+            Debug.LogWarning($"[WayPointManager] Cannot unlock waypoint before map is available. id={id}");
+            return false;
+        }
+
+        if (state.Definition.unlockType != requiredUnlockType)
+        {
+            Debug.LogWarning($"[WayPointManager] Cannot unlock waypoint with {requiredUnlockType}. id={id}, unlockType={state.Definition.unlockType}", state.Definition);
+            return false;
+        }
+
         state.IsActive = true;
-        LogState($"해금됨: id={id}", state.Definition, logUnlockStackTrace);
+        LogState($"{logMessage}: id={id}", state.Definition, logUnlockStackTrace);
 
         if (state.Stone != null)
         {
@@ -323,6 +421,7 @@ public class WayPointManager : MonoBehaviour
 
         OnWayPointTravelStarted?.Invoke(state);
         MovePlayer(targetPlayer, state.Stone.SpawnPosition);
+        RefreshWorldChunks();
         OnWayPointTravelCompleted?.Invoke(state);
 
         return true;
@@ -413,6 +512,16 @@ public class WayPointManager : MonoBehaviour
         targetPlayer.position = destination;
     }
 
+    // 순간이동 직후 플레이어 위치 기준으로 청크 활성 상태를 즉시 맞춘다.
+    private void RefreshWorldChunks()
+    {
+        WorldChunkManager chunkManager = FindFirstObjectByType<WorldChunkManager>(FindObjectsInactive.Include);
+        if (chunkManager != null)
+        {
+            chunkManager.RefreshActiveChunks(true);
+        }
+    }
+
     // 이동 실패 이벤트와 경고 로그를 한 곳에서 처리한다.
     private void NotifyTravelFailed(WayPointRunTime state, string reason)
     {
@@ -435,5 +544,12 @@ public class WayPointManager : MonoBehaviour
         }
 
         Debug.Log($"[WayPointManager] {message}", context != null ? context : this);
+    }
+
+    /// 지도 열린 후 해금 테스트 함수
+    [ContextMenu("Function: WayPoint Open")]
+    public void TestWayPoint()
+    {
+        UnlockByExternalAction("red_forest");
     }
 }

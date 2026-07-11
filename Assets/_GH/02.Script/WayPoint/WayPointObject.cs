@@ -20,7 +20,7 @@ public class WayPointObject : MonoBehaviour, TestInteractable, IInteractable
 
     private void Awake()
     {
-        bool unlockedOnStart = targetWayPoint != null && targetWayPoint.unlockedOnStart;
+        bool unlockedOnStart = targetWayPoint != null && targetWayPoint.IsUnlockedOnInitialize;
         SetActiveVisual(unlockedOnStart);
     }
 
@@ -102,6 +102,11 @@ public class WayPointObject : MonoBehaviour, TestInteractable, IInteractable
     private bool CanRegisterWayPoint()
     {
         if (targetWayPoint == null || WayPointManager.Instance == null || isActiveObj)
+        {
+            return false;
+        }
+
+        if (!WayPointManager.Instance.CanUnlockByInteraction(targetWayPoint))
         {
             return false;
         }

@@ -67,7 +67,7 @@ public class WayPointStone : MonoBehaviour, TestInteractable, IInteractable
         }
     }
 
-    private void OnDisable()
+    private void OnDestroy()
     {
         if (WayPointManager.Instance != null)
         {

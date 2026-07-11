@@ -129,7 +129,7 @@ public class WayPointMapIconUI : MonoBehaviour, IPointerEnterHandler, IPointerMo
             return;
         }
 
-        owner.ShowTooltip(state, eventData.position);
+        owner.ShowTooltip(state, transform as RectTransform);
     }
 
     // 마우스 이동에 맞춰 툴팁 위치를 갱신한다.
@@ -140,7 +140,7 @@ public class WayPointMapIconUI : MonoBehaviour, IPointerEnterHandler, IPointerMo
             return;
         }
 
-        owner.MoveTooltip(eventData.position);
+        owner.MoveTooltip(transform as RectTransform);
     }
 
     // 마우스가 아이콘에서 벗어나면 툴팁을 숨긴다.
