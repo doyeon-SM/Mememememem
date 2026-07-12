@@ -10,7 +10,6 @@ public class PlantSystem : MonoBehaviour
     public static PlantSystem Instance { get; private set; }
 
     private Dictionary<string, PlantJSONSaveData> facilityDatabase = new Dictionary<string, PlantJSONSaveData>();
-
     private string saveFilePath;
 
     private void Awake()
@@ -19,7 +18,6 @@ public class PlantSystem : MonoBehaviour
         {
             Instance = this;
             saveFilePath = Path.Combine(Application.persistentDataPath, "TerritoryPlantData.json");
-            System.Diagnostics.Process.Start(Application.persistentDataPath);
             LoadAllPlantData();
         }
         else
@@ -28,9 +26,6 @@ public class PlantSystem : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// 시설 UI(생산/제작)가 열릴 때, 해당 시설의 고유 ID 장부를 건네주는 통로 함수
-    /// </summary>
     public PlantJSONSaveData GetFacilityData(string buildingId)
     {
         if (string.IsNullOrEmpty(buildingId)) return null;
@@ -53,9 +48,6 @@ public class PlantSystem : MonoBehaviour
         return facilityDatabase[buildingId];
     }
 
-    /// <summary>
-    /// 특정 시설에서 멤 슬롯 배치, 제작 시작, 수령 완료 등의 변동이 일어났을 때 실시간 장부를 동기화하는 함수
-    /// </summary>
     public void UpdateFacilityData(string buildingId, PlantJSONSaveData updatedData)
     {
         if (string.IsNullOrEmpty(buildingId) || updatedData == null) return;
@@ -73,8 +65,49 @@ public class PlantSystem : MonoBehaviour
     }
 
     /// <summary>
-    /// 현재 영지 메모리 상의 전체 딕셔너리 데이터를 JSON 포맷 문자열로 변환하여 로컬 디스크에 저장
+    /// 씬 이동이나 게임 종료 시, 맵에 배치된 모든 건물의 실시간 현황 저장.
     /// </summary>
+    public void SaveAllFacilitiesRealtimeSync()
+    {
+        var productionFacilities = FindObjectsByType<ProductionFacilityRuntime>(FindObjectsSortMode.None);
+        foreach (var facility in productionFacilities)
+        {
+            if (facility == null || facility.buildingData == null) continue;
+            var br = facility.GetComponent<BuildingRuntime>();
+            string uniqueId = br != null ? $"{facility.buildingData.buildingName}_{br.gridX}_{br.gridZ}" : facility.buildingData.buildingId;
+
+            PlantJSONSaveData data = GetFacilityData(uniqueId);
+            data.isActive = facility.isProducing;
+            data.currentCraftingItemId = facility.craftingItem != null ? facility.craftingItem.Item_ID : "";
+            data.currentProgressTime = facility.currentProgressTime;
+            data.currentStorageCount = facility.currentStorageCount;
+
+            if (facilityDatabase.ContainsKey(uniqueId)) facilityDatabase[uniqueId] = data;
+        }
+
+        
+        var craftingFacilities = FindObjectsByType<ProductionCraftRuntime>(FindObjectsSortMode.None);
+        foreach (var craft in craftingFacilities)
+        {
+            if (craft == null || craft.buildingData == null) continue;
+            var br = craft.GetComponent<BuildingRuntime>();
+            string uniqueId = br != null ? $"{craft.buildingData.buildingName}_{br.gridX}_{br.gridZ}" : craft.buildingData.buildingId;
+
+            PlantJSONSaveData data = GetFacilityData(uniqueId);
+            data.isActive = craft.isProducing;
+            data.currentCraftingItemId = craft.currentCraftingItem != null ? craft.currentCraftingItem.Item_ID : "";
+            data.targetQuantity = craft.targetQuantity;
+            data.remainingQuantity = craft.remainingQuantity;
+            data.currentProgressTime = craft.currentProgressTime;
+            data.currentStorageCount = craft.currentStorageCount;
+
+            if (facilityDatabase.ContainsKey(uniqueId)) facilityDatabase[uniqueId] = data;
+        }
+
+        
+        SaveAllPlantData();
+    }
+
     public void SaveAllPlantData()
     {
         try
@@ -88,18 +121,14 @@ public class PlantSystem : MonoBehaviour
 
             string jsonString = JsonUtility.ToJson(wrapper, true);
             File.WriteAllText(saveFilePath, jsonString);
-
-            Debug.Log($"[PlantSystem] 영지 시설 가동 데이터 JSON 세이브 성공! 경로: {saveFilePath}");
+            Debug.Log($"[PlantSystem] 영지 전체 시설 최종 동기화 JSON 세이브 성공! 경로: {saveFilePath}");
         }
         catch (Exception e)
         {
-            Debug.LogError($"[PlantSystem] 세이브 도중 치명적인 오류 발생: {e.Message}");
+            Debug.LogError($"[PlantSystem] 세이브 도중 오류 발생: {e.Message}");
         }
     }
 
-    /// <summary>
-    /// 게임 기동 시 로컬 디스크에서 JSON 파일을 안전하게 읽어와 딕셔너리 메모리를 복원
-    /// </summary>
     public void LoadAllPlantData()
     {
         facilityDatabase.Clear();
@@ -117,7 +146,6 @@ public class PlantSystem : MonoBehaviour
 
             if (wrapper != null)
             {
-                
                 float offlineSeconds = 0f;
                 if (!string.IsNullOrEmpty(wrapper.lastSaveTime))
                 {
@@ -125,7 +153,7 @@ public class PlantSystem : MonoBehaviour
                     TimeSpan offlineSpan = DateTime.UtcNow - lastSave;
                     offlineSeconds = (float)offlineSpan.TotalSeconds;
 
-                    Debug.Log($"[PlantSystem] 오프라인 방치 시간 감지: 약 {offlineSeconds:F1}초 동안 자원이 백그라운드에서 가공되었습니다.");
+                    Debug.Log($"[PlantSystem] 오프라인 방치 시간 감지: 약 {offlineSeconds:F1}초 백그라운드 연산 가동.");
                 }
 
                 if (wrapper.SaveDataList != null)
@@ -137,7 +165,6 @@ public class PlantSystem : MonoBehaviour
                         if (entry.isActive && offlineSeconds > 0f)
                         {
                             float unitCraftTime = 30f;
-
                             int offlineProducedCount = Mathf.FloorToInt(offlineSeconds / unitCraftTime);
 
                             if (offlineProducedCount > 0)
@@ -150,7 +177,7 @@ public class PlantSystem : MonoBehaviour
 
                                     if (entry.remainingQuantity <= 0)
                                     {
-                                        entry.isActive = false; 
+                                        entry.isActive = false;
                                         entry.currentProgressTime = 0f;
                                     }
                                 }
@@ -173,6 +200,7 @@ public class PlantSystem : MonoBehaviour
         }
     }
 
-    private void OnApplicationPause(bool pause) { if (pause) SaveAllPlantData(); }
-    private void OnApplicationQuit() { SaveAllPlantData(); }
+    private void OnApplicationPause(bool pause) { if (pause) SaveAllFacilitiesRealtimeSync(); }
+    private void OnApplicationQuit() { SaveAllFacilitiesRealtimeSync(); }
+    private void OnDestroy() { SaveAllFacilitiesRealtimeSync(); } 
 }

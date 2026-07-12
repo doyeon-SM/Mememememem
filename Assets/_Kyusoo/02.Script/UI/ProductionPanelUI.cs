@@ -40,6 +40,7 @@ public class ProductionPanelUI : MonoBehaviour
     //[SerializeField] private Sprite farmingStatIcon;
 
     // 현재 UI 창이 조준하고 있는 타겟 시설 스크립트 캐싱
+    public ProductionFacilityRuntime TargetFacility => targetFacility;
     private ProductionFacilityRuntime targetFacility;
 
     private void Awake()

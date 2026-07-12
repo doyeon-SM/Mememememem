@@ -67,6 +67,7 @@ public class CraftingPanelUI : MonoBehaviour
     [SerializeField] private Button getBtn;
 
     private ProductionCraftRuntime targetFacility;
+    public ProductionCraftRuntime TargetFacility => targetFacility;
 
     private ItemData activeSelectedRecipe;
     private HDY.Recipe.RecipeData activeSelectedRecipeData;
