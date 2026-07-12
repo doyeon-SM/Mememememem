@@ -15,12 +15,12 @@ namespace KMS
 
         [Header("Interaction")]
         [SerializeField] private Key interactKey = Key.F;
-        [SerializeField] private bool primaryActionTriggersInteraction = true;
 
         public Vector2 Move { get; private set; }
         public Vector2 Look { get; private set; }
         public bool IsSprinting { get; private set; }
         public bool IsAiming { get; private set; }
+        public bool IsCursorReleaseHeld { get; private set; }
 
         public event Action<Vector2> MoveChanged;
         public event Action<Vector2> LookChanged;
@@ -53,6 +53,7 @@ namespace KMS
             SetLook(Vector2.zero);
             SetSprint(false);
             IsAiming = false;
+            IsCursorReleaseHeld = false;
             quickSlotScrollAmount = 0f;
         }
 
@@ -122,6 +123,7 @@ namespace KMS
 
         private void UpdateButtons(Keyboard keyboard, Mouse mouse, Gamepad gamepad)
         {
+            IsCursorReleaseHeld = keyboard != null && keyboard.leftAltKey.isPressed;
             UpdateInventoryButtons(keyboard, mouse);
 
             if (isGameplayInputBlocked)
@@ -141,10 +143,6 @@ namespace KMS
             if (WasPressed(mouse?.leftButton, gamepad?.rightTrigger))
             {
                 PrimaryActionPressed?.Invoke();
-                if (primaryActionTriggersInteraction)
-                {
-                    InteractPressed?.Invoke();
-                }
             }
 
             if (WasReleased(mouse?.leftButton, gamepad?.rightTrigger))
@@ -226,7 +224,7 @@ namespace KMS
         {
             if (keyboard != null)
             {
-                if (keyboard.iKey.wasPressedThisFrame || keyboard.tabKey.wasPressedThisFrame)
+                if (keyboard.iKey.wasPressedThisFrame || keyboard.eKey.wasPressedThisFrame)
                 {
                     InventoryPressed?.Invoke();
                 }

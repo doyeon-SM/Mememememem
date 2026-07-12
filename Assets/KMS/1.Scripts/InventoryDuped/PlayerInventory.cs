@@ -95,6 +95,7 @@ public class PlayerInventory : MonoBehaviour
     public event Action<ItemData,int> OnItemObtained;
     public event Action<int> OnQuickSlotChanged;
     public event Action<int> OnSelectedQuickSlotChanged;
+    public event Action<int> OnQuickSlotSelectionRequested;
 
     private void Awake()
     {
@@ -111,11 +112,11 @@ public class PlayerInventory : MonoBehaviour
 
         int remaining = amount;
 
-        // 퀵슬롯에 아이템이 있으면 추가 없으면 인벤토리에 아이템이 있으면 추가 없으면 인벤토리에 빈슬롯에 추가 빈슬롯없으면 퀵슬롯 빈슬롯에 추가
+        // 기존 스택을 먼저 채운 뒤, 새 스택은 퀵슬롯 빈 칸부터 만든다.
         remaining = AddToExistingStacks(quickSlots, item, remaining);
         remaining = AddToExistingStacks(inventory, item, remaining);
-        remaining = AddToEmptySlots(inventory, item, remaining);
         remaining = AddToEmptySlots(quickSlots, item, remaining);
+        remaining = AddToEmptySlots(inventory, item, remaining);
 
         int addedAmount = amount - remaining;
 
@@ -207,6 +208,8 @@ public class PlayerInventory : MonoBehaviour
     // 퀵슬롯 아이템 선택. 사용중이면 마지막 입력 기록
     public void SelectQuickSlot(int index)
     {
+        OnQuickSlotSelectionRequested?.Invoke(index);
+
         if (!quickSlots.IsValidIndex(index)) return;
 
         if (quickSlotUseReservation != null)

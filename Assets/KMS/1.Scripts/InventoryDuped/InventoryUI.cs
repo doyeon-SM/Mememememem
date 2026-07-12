@@ -113,14 +113,14 @@ namespace KMS.InventoryDuped
 
         public void ShowItemTooltip(ItemStack stack, Vector2 position)
         {
-            if (!isInventoryOpen || dragSource != null || itemTooltipUI == null) return;
+            if (dragSource != null || itemTooltipUI == null) return;
 
             itemTooltipUI.Show(stack, position);
         }
 
         public void MoveItemTooltip(Vector2 position)
         {
-            if (!isInventoryOpen || dragSource != null || itemTooltipUI == null) return;
+            if (dragSource != null || itemTooltipUI == null) return;
 
             itemTooltipUI.Move(position);
         }

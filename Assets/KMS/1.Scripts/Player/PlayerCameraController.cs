@@ -27,7 +27,6 @@ namespace KMS
 
         [Header("Cursor")]
         [SerializeField] private bool lockCursorOnStart = true;
-        [SerializeField] private bool toggleCursorWithMenu = true;
 
         public float Yaw => yaw;
         public float Pitch => pitch;
@@ -61,24 +60,24 @@ namespace KMS
             }
         }
 
-        private void OnEnable()
-        {
-            if (input != null)
-            {
-                input.MenuPressed += ToggleCursor;
-            }
-        }
-
-        private void OnDisable()
-        {
-            if (input != null)
-            {
-                input.MenuPressed -= ToggleCursor;
-            }
-        }
-
         private void LateUpdate()
         {
+            if (input != null && !input.IsGameplayInputBlocked)
+            {
+                bool shouldLockCursor = !input.IsCursorReleaseHeld;
+                CursorLockMode expectedLockMode = shouldLockCursor
+                    ? CursorLockMode.Locked
+                    : CursorLockMode.None;
+                bool expectedVisible = !shouldLockCursor;
+
+                if (cursorLocked != shouldLockCursor ||
+                    Cursor.lockState != expectedLockMode ||
+                    Cursor.visible != expectedVisible)
+                {
+                    SetCursorLocked(shouldLockCursor);
+                }
+            }
+
             if (cameraTransform == null || followTarget == null) return;
 
             Vector2 look = input != null && cursorLocked ? input.Look : Vector2.zero;
@@ -105,12 +104,6 @@ namespace KMS
             cursorLocked = locked;
             Cursor.lockState = locked ? CursorLockMode.Locked : CursorLockMode.None;
             Cursor.visible = !locked;
-        }
-
-        private void ToggleCursor()
-        {
-            if (!toggleCursorWithMenu) return;
-            SetCursorLocked(!cursorLocked);
         }
 
         private float GetCameraDistance(Vector3 pivot, Quaternion rotation)

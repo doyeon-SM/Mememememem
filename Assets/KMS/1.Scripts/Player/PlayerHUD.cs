@@ -18,6 +18,7 @@ namespace KMS
         [SerializeField] private string messageOverlayName = "message-overlay";
         [SerializeField] private string messageLabelName = "message-label";
         [SerializeField] private string notificationContainerName = "notification-container";
+        [SerializeField] private string throwGuideName = "throw-guide";
 
         [Header("Notifications")]
         [SerializeField] private float notificationDuration = 2.5f;
@@ -27,6 +28,7 @@ namespace KMS
         private VisualElement messageOverlay;
         private Label messageLabel;
         private VisualElement notificationContainer;
+        private VisualElement throwGuide;
 
         private void Reset()
         {
@@ -79,6 +81,14 @@ namespace KMS
             StartCoroutine(RemoveNotificationAfterDelay(label));
         }
 
+        public void SetThrowGuideVisible(bool isVisible)
+        {
+            if (throwGuide != null)
+            {
+                throwGuide.style.display = isVisible ? DisplayStyle.Flex : DisplayStyle.None;
+            }
+        }
+
         private void BindElements()
         {
             if (uiDocument == null || uiDocument.rootVisualElement == null) return;
@@ -89,6 +99,7 @@ namespace KMS
             messageOverlay = root.Q<VisualElement>(messageOverlayName);
             messageLabel = root.Q<Label>(messageLabelName);
             notificationContainer = root.Q<VisualElement>(notificationContainerName);
+            throwGuide = root.Q<VisualElement>(throwGuideName);
         }
 
         private void Refresh()
