@@ -6,7 +6,7 @@ using UnityEngine.Serialization;
 /// 웨이포인트 이동 지점과 도착 위치를 제공하고 상호작용 시 이동용 지도를 여는 씬 오브젝트입니다.
 /// 활성화될 때 <see cref="WayPointManager"/>에 자동 등록됩니다.
 /// </summary>
-public class WayPointStone : MonoBehaviour, TestInteractable, IInteractable
+public class WayPointStone : MonoBehaviour, IInteractable
 {
     [Header("WayPoint")]
     [SerializeField] private WayPointDefinition definition;
@@ -68,27 +68,20 @@ public class WayPointStone : MonoBehaviour, TestInteractable, IInteractable
         }
     }
 
-    // 플레이어가 실제 웨이포인트 스톤과 상호작용하면 이동 가능 모드로 지도 UI를 연다.
-    /// <summary>웨이포인트 이동 모드로 지도 UI를 엽니다.</summary>
-    public void Interact()
+    /// <summary>웨이포인트 정의가 연결된 스톤만 상호작용할 수 있습니다.</summary>
+    public bool CanInteract(PlayerInteraction interactor)
+    {
+        return definition != null;
+    }
+
+    /// <summary>KMS 상호작용 요청을 받아 웨이포인트 이동 모드로 지도 UI를 엽니다.</summary>
+    public void Interact(PlayerInteraction interactor)
     {
         WayPointMapUI targetMapUI = ResolveMapUI();
         if (targetMapUI != null)
         {
             targetMapUI.OpenFromStone(definition);
         }
-    }
-
-    // KMS 플레이어 상호작용 시스템에서 이 스톤을 사용할 수 있는지 확인한다.
-    public bool CanInteract(PlayerInteraction interactor)
-    {
-        return definition != null;
-    }
-
-    // KMS 플레이어 상호작용 시스템에서 호출될 때 기존 지도 열기 로직을 실행한다.
-    public void Interact(PlayerInteraction interactor)
-    {
-        Interact();
     }
 
     // 매니저가 해금 상태를 반영할 때 내부 상태만 갱신한다.

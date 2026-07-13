@@ -9,6 +9,7 @@ using UnityEngine;
 public class Chest : MonoBehaviour, KMS.IInteractable
 {
     [Header("Setting")]
+    [SerializeField] private string chestId;
     [Tooltip("현재는 다중 드랍으로 구조 작성")][SerializeField] private ChestItem[] dropItem;
     [Tooltip("False일 경우 0번 인덱스만 드랍")][SerializeField] private bool isOverlap;
 

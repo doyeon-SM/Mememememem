@@ -6,7 +6,7 @@ using UnityEngine.EventSystems;
 /// 플레이어 상호작용으로 연결된 웨이포인트를 최초 해금하는 등록 오브젝트입니다.
 /// 해금 상태의 원본은 <see cref="WayPointManager"/>이며 이 컴포넌트는 상호작용 가능 상태만 반영합니다.
 /// </summary>
-public class WayPointObject : MonoBehaviour, TestInteractable, IInteractable
+public class WayPointObject : MonoBehaviour, IInteractable
 {
     [Header("Ref")]
     [SerializeField] private WayPointDefinition targetWayPoint;
@@ -70,8 +70,14 @@ public class WayPointObject : MonoBehaviour, TestInteractable, IInteractable
         Unsubscribe();
     }
 
-    // 플레이어가 오브젝트와 상호작용하면 연결된 웨이포인트를 해금한다.
-    public void Interact()
+    /// <summary>현재 해금 상태와 UI 입력 상태를 기준으로 등록 가능 여부를 반환합니다.</summary>
+    public bool CanInteract(PlayerInteraction interactor)
+    {
+        return CanRegisterWayPoint();
+    }
+
+    /// <summary>KMS 상호작용 요청을 받아 연결된 웨이포인트를 해금합니다.</summary>
+    public void Interact(PlayerInteraction interactor)
     {
         if (!CanRegisterWayPoint())
         {
@@ -79,18 +85,6 @@ public class WayPointObject : MonoBehaviour, TestInteractable, IInteractable
         }
 
         WayPointManager.Instance.Unlock(targetWayPoint.id);
-    }
-
-    // KMS 플레이어 상호작용 시스템에서 이 오브젝트를 사용할 수 있는지 확인한다.
-    public bool CanInteract(PlayerInteraction interactor)
-    {
-        return CanRegisterWayPoint();
-    }
-
-    // KMS 플레이어 상호작용 시스템에서 호출될 때 기존 웨이포인트 해금 로직을 실행한다.
-    public void Interact(PlayerInteraction interactor)
-    {
-        Interact();
     }
 
     // 지도 UI나 다른 UI를 클릭하는 중에는 플레이어 입력이 등록 오브젝트로 전달되지 않게 막는다.
