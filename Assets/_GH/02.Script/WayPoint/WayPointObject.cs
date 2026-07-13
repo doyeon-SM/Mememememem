@@ -2,13 +2,14 @@
 using UnityEngine;
 using UnityEngine.EventSystems;
 
+/// <summary>
+/// 플레이어 상호작용으로 연결된 웨이포인트를 최초 해금하는 등록 오브젝트입니다.
+/// 해금 상태의 원본은 <see cref="WayPointManager"/>이며 이 컴포넌트는 상호작용 가능 상태만 반영합니다.
+/// </summary>
 public class WayPointObject : MonoBehaviour, TestInteractable, IInteractable
 {
     [Header("Ref")]
     [SerializeField] private WayPointDefinition targetWayPoint;
-    [SerializeField] private GameObject lockedVisual;
-    [SerializeField] private GameObject activeVisual;
-    [SerializeField] private bool instantiatePrefabVisualReferences = true;
 
     [Header("Interaction")]
     [SerializeField] private string interactionPrompt = "웨이포인트 등록";
@@ -20,13 +21,11 @@ public class WayPointObject : MonoBehaviour, TestInteractable, IInteractable
 
     private void Awake()
     {
-        bool unlockedOnStart = targetWayPoint != null && targetWayPoint.IsUnlockedOnInitialize;
-        SetActiveVisual(unlockedOnStart);
+        isActiveObj = targetWayPoint != null && targetWayPoint.IsUnlockedOnInitialize;
     }
 
     private void Start()
     {
-        ResolveVisualReferences();
         TrySubscribe();
         RefreshStateFromManager();
     }
@@ -79,11 +78,7 @@ public class WayPointObject : MonoBehaviour, TestInteractable, IInteractable
             return;
         }
 
-        bool unlocked = WayPointManager.Instance.Unlock(targetWayPoint.id);
-        if (unlocked)
-        {
-            SetActiveVisual(true);
-        }
+        WayPointManager.Instance.Unlock(targetWayPoint.id);
     }
 
     // KMS 플레이어 상호작용 시스템에서 이 오브젝트를 사용할 수 있는지 확인한다.
@@ -124,17 +119,16 @@ public class WayPointObject : MonoBehaviour, TestInteractable, IInteractable
         return true;
     }
 
-    // 매니저에 저장된 현재 해금 상태를 오브젝트 비주얼에 반영한다.
+    // 매니저에 저장된 현재 해금 상태를 상호작용 가능 여부에 반영한다.
     private void RefreshStateFromManager()
     {
-        bool unlocked = targetWayPoint != null
+        isActiveObj = targetWayPoint != null
             && WayPointManager.Instance != null
             && WayPointManager.Instance.IsUnlocked(targetWayPoint.id);
-
-        SetActiveVisual(unlocked);
     }
 
-    // 같은 웨이포인트 상태가 바뀌면 잠금/활성 비주얼을 교체한다.
+    // 같은 웨이포인트 상태가 바뀌면 상호작용 상태만 갱신한다.
+    // 지도 UI는 WayPointManager의 동일 이벤트를 구독해 별도로 갱신한다.
     private void HandleWayPointStateChanged(WayPointRunTime state)
     {
         if (state == null || targetWayPoint == null || state.Definition != targetWayPoint)
@@ -142,52 +136,7 @@ public class WayPointObject : MonoBehaviour, TestInteractable, IInteractable
             return;
         }
 
-        SetActiveVisual(state.IsActive);
-    }
-
-    // 잠금 오브젝트와 활성 오브젝트를 현재 상태에 맞춰 켜고 끈다.
-    private void SetActiveVisual(bool active)
-    {
-        ResolveVisualReferences();
-        isActiveObj = active;
-
-        if (lockedVisual != null)
-        {
-            lockedVisual.SetActive(!active);
-        }
-
-        if (activeVisual != null)
-        {
-            activeVisual.SetActive(active);
-        }
-    }
-
-    // 인스펙터에 프리팹 에셋을 넣은 경우 실제 씬 자식 오브젝트로 생성해서 SetActive가 동작하게 한다.
-    private void ResolveVisualReferences()
-    {
-        if (!instantiatePrefabVisualReferences)
-        {
-            return;
-        }
-
-        lockedVisual = ResolveVisualReference(lockedVisual, "LockedVisual");
-        activeVisual = ResolveVisualReference(activeVisual, "ActiveVisual");
-    }
-
-    // 씬 오브젝트가 아닌 프리팹 참조라면 자식으로 인스턴스화한다.
-    private GameObject ResolveVisualReference(GameObject visual, string instanceName)
-    {
-        if (visual == null || visual.scene.IsValid())
-        {
-            return visual;
-        }
-
-        GameObject instance = Instantiate(visual, transform);
-        instance.name = instanceName;
-        instance.transform.localPosition = Vector3.zero;
-        instance.transform.localRotation = Quaternion.identity;
-        instance.transform.localScale = Vector3.one;
-        return instance;
+        isActiveObj = state.IsActive;
     }
 }
 

@@ -5,8 +5,13 @@ using UnityEngine;
 using UnityEngine.Serialization;
 using UnityEngine.UI;
 
+/// <summary>
+/// 지도 선택 버튼, 웨이포인트 아이콘, 툴팁과 이동 요청을 관리하는 지도 UI입니다.
+/// 실제 해금 및 이동 가능 여부는 <see cref="WayPointManager"/>에 위임합니다.
+/// </summary>
 public class WayPointMapUI : MonoBehaviour
 {
+    /// <summary>현재 씬의 지도 UI 인스턴스입니다.</summary>
     public static WayPointMapUI Instance { get; private set; }
 
     [Header("Map")]
@@ -69,8 +74,13 @@ public class WayPointMapUI : MonoBehaviour
     private bool cachedCanvasOriginalOverrideSorting;
     private int cachedCanvasOriginalSortingOrder;
 
+    /// <summary>현재 지도를 열 때 적용된 보기 전용 또는 이동 모드입니다.</summary>
     public WayPointMapOpenMode CurrentOpenMode => currentOpenMode;
+
+    /// <summary>현재 화면에 표시 중인 지도 정의입니다.</summary>
     public WayPointMapDefinition CurrentMap => currentMap;
+
+    /// <summary>지도 UI가 현재 계층에서 실제로 표시되는지 나타냅니다.</summary>
     public bool IsVisible => mapImage != null ? mapImage.gameObject.activeInHierarchy : gameObject.activeInHierarchy;
 
     private void Awake()
@@ -130,6 +140,9 @@ public class WayPointMapUI : MonoBehaviour
     }
 
     // UI가 열릴 때 보기 전용인지 이동 가능 모드인지 설정한다.
+    /// <summary>다음 UI 열기에 사용할 모드와 초기 지도를 준비하고 화면을 갱신합니다.</summary>
+    /// <param name="openMode">보기 전용 또는 웨이포인트 이동 모드입니다.</param>
+    /// <param name="mapOverride">null이 아니면 처음 표시할 지도입니다.</param>
     public void PrepareOpen(WayPointMapOpenMode openMode, WayPointMapDefinition mapOverride = null)
     {
         BringCanvasToFront();
@@ -140,6 +153,8 @@ public class WayPointMapUI : MonoBehaviour
     }
 
     // Stone에서 직접 지도 이동 모드를 열고 싶을 때 호출한다.
+    /// <summary>상호작용한 스톤의 지도를 이동 모드로 엽니다.</summary>
+    /// <param name="sourceWayPoint">지도를 연 출발 웨이포인트입니다.</param>
     public void OpenFromStone(WayPointDefinition sourceWayPoint)
     {
         WayPointMapDefinition targetMap = sourceWayPoint != null ? sourceWayPoint.mapDefinition : null;
@@ -158,17 +173,17 @@ public class WayPointMapUI : MonoBehaviour
     }
 
     // 현재 모드에서 이 웨이포인트를 클릭 이동할 수 있는지 확인한다.
+    /// <summary>현재 UI 모드와 웨이포인트 상태를 기준으로 아이콘 클릭 이동 가능 여부를 확인합니다.</summary>
     public bool CanTravelByClick(WayPointRunTime state)
     {
         return currentOpenMode == WayPointMapOpenMode.Travel
             && state != null
-            && state.IsActive
-            && state.Stone != null
             && WayPointManager.Instance != null
-            && WayPointManager.Instance.IsMapAvailable(state.Definition.mapDefinition);
+            && WayPointManager.Instance.CanTravel(state.Id);
     }
 
     // 스테이지 버튼을 눌렀을 때 해당 맵으로 지도 배경과 아이콘을 바꾼다.
+    /// <summary>사용 가능한 지도라면 지도 배경과 아이콘을 해당 스테이지로 전환합니다.</summary>
     public void SelectMap(WayPointMapDefinition mapDefinition)
     {
         if (mapDefinition == null || WayPointManager.Instance == null)
@@ -187,6 +202,7 @@ public class WayPointMapUI : MonoBehaviour
     }
 
     // 아이콘 클릭 시 이동 모드일 때만 순간이동을 시도한다.
+    /// <summary>아이콘에서 전달받은 웨이포인트 ID로 이동을 요청하고 성공 시 지도를 닫습니다.</summary>
     public void TravelTo(string id)
     {
         if (currentOpenMode != WayPointMapOpenMode.Travel || WayPointManager.Instance == null)
@@ -213,6 +229,7 @@ public class WayPointMapUI : MonoBehaviour
     }
 
     // 아이콘 위에 마우스를 올렸을 때 툴팁을 표시한다.
+    /// <summary>지정 웨이포인트 아이콘 옆에 상태 툴팁을 표시합니다.</summary>
     public void ShowTooltip(WayPointRunTime state, RectTransform iconRectTransform)
     {
         if (state == null || state.Definition == null)
@@ -234,6 +251,7 @@ public class WayPointMapUI : MonoBehaviour
     }
 
     // 아이콘 위치를 기준으로 좌/우 중 더 여유 있는 쪽에 툴팁을 고정한다.
+    /// <summary>현재 툴팁을 지정 아이콘 위치에 맞춰 재배치합니다.</summary>
     public void MoveTooltip(RectTransform iconRectTransform)
     {
         if (tooltipRoot == null || !tooltipRoot.gameObject.activeSelf || iconRectTransform == null)
@@ -316,6 +334,7 @@ public class WayPointMapUI : MonoBehaviour
     }
 
     // 마우스가 아이콘에서 벗어나면 툴팁을 숨긴다.
+    /// <summary>현재 표시 중인 웨이포인트 툴팁을 숨깁니다.</summary>
     public void HideTooltip()
     {
         currentTooltipState = null;
@@ -828,7 +847,9 @@ public class WayPointMapUI : MonoBehaviour
             return lockedWayPointStatusText;
         }
 
-        if (state.Stone == null)
+        if (WayPointManager.Instance != null
+            && WayPointManager.Instance.IsWayPointInCurrentScene(state.Definition)
+            && state.Stone == null)
         {
             statusColor = cannotTravelColor;
             return missingStoneStatusText;

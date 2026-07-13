@@ -4,6 +4,10 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 #endif
 
+/// <summary>
+/// 지도 UI의 열기·닫기, 커서 상태와 플레이어 입력 차단을 함께 관리합니다.
+/// 일반 단축키는 보기 모드로, 웨이포인트 스톤은 이동 모드로 열 수 있습니다.
+/// </summary>
 public class WayPointUIToggle : MonoBehaviour
 {
     [Header("UI")]
@@ -65,6 +69,7 @@ public class WayPointUIToggle : MonoBehaviour
     }
 
     // M 키로 지도 UI를 열고 닫는다. M 키는 기본적으로 보기 전용 모드다.
+    /// <summary>현재 설정된 단축키 지도 모드로 열림 상태를 전환합니다.</summary>
     public void Toggle()
     {
         if (isOpen)
@@ -77,12 +82,14 @@ public class WayPointUIToggle : MonoBehaviour
     }
 
     // 버튼 등에서 기본 모드로 지도 UI를 열 때 사용한다.
+    /// <summary>인스펙터에 설정된 기본 모드와 지도로 UI를 엽니다.</summary>
     public void Open()
     {
         Open(shortcutOpenMode, shortcutMap);
     }
 
     // Stone 상호작용처럼 특정 모드와 맵으로 지도 UI를 열 때 사용한다.
+    /// <summary>지정한 모드와 초기 지도로 UI를 엽니다.</summary>
     public void Open(WayPointMapOpenMode openMode, WayPointMapDefinition mapOverride = null)
     {
         ResolveReferences();
@@ -96,12 +103,14 @@ public class WayPointUIToggle : MonoBehaviour
     }
 
     // 닫기 버튼이나 이동 성공 후 지도 UI를 닫을 때 사용한다.
+    /// <summary>지도 UI를 닫고 커서 및 플레이어 입력 상태를 복구합니다.</summary>
     public void Close()
     {
         SetOpen(false);
     }
 
     // UI 활성화와 입력 잠금, 커서 상태를 한 번에 적용한다.
+    /// <summary>지도 UI, 입력 차단, 커서 상태를 지정한 열림 상태로 일괄 적용합니다.</summary>
     public void SetOpen(bool open)
     {
         ResolveReferences();

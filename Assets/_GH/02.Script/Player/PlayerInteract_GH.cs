@@ -4,6 +4,10 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 #endif
 
+/// <summary>
+/// 플레이어 전방을 검사해 GH 상호작용 대상의 프롬프트와 실행 요청을 처리합니다.
+/// 입력 시스템 이벤트와 직접 호출 양쪽에서 <see cref="TryInteract"/>를 사용할 수 있습니다.
+/// </summary>
 public class PlayerInteract_GH : MonoBehaviour
 {
     [Header("Raycast")]
@@ -65,6 +69,7 @@ public class PlayerInteract_GH : MonoBehaviour
         isInputSubscribed = true;
     }
 
+    /// <summary>현재 전방의 상호작용 대상을 다시 검사하고 가능하면 상호작용을 실행합니다.</summary>
     public void TryInteract()
     {
         UpdateCurrentTarget();

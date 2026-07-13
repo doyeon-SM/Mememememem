@@ -2,6 +2,10 @@
 using UnityEngine;
 using UnityEngine.Serialization;
 
+/// <summary>
+/// 웨이포인트 이동 지점과 도착 위치를 제공하고 상호작용 시 이동용 지도를 여는 씬 오브젝트입니다.
+/// 활성화될 때 <see cref="WayPointManager"/>에 자동 등록됩니다.
+/// </summary>
 public class WayPointStone : MonoBehaviour, TestInteractable, IInteractable
 {
     [Header("WayPoint")]
@@ -18,13 +22,6 @@ public class WayPointStone : MonoBehaviour, TestInteractable, IInteractable
     [SerializeField] private Vector3 fallbackSpawnPosition;
     [SerializeField] private bool useFallbackSpawnPosition;
 
-    [Header("Visual")]
-    [SerializeField] private Renderer targetRenderer;
-    [SerializeField] private Material lockedMaterial;
-    [SerializeField] private Material unlockedMaterial;
-    [SerializeField] private GameObject lockedVisual;
-    [SerializeField] private GameObject unlockedVisual;
-
     [Header("State")]
     [SerializeField] private bool isUnlocked;
 
@@ -36,6 +33,7 @@ public class WayPointStone : MonoBehaviour, TestInteractable, IInteractable
     public bool IsUnlocked => isUnlocked;
     public string InteractionPrompt => interactionPrompt;
 
+    /// <summary>이 웨이포인트로 이동했을 때 플레이어를 배치할 월드 좌표입니다.</summary>
     public Vector3 SpawnPosition
     {
         get
@@ -54,11 +52,6 @@ public class WayPointStone : MonoBehaviour, TestInteractable, IInteractable
         }
     }
 
-    private void Awake()
-    {
-        RefreshVisual();
-    }
-
     private void OnEnable()
     {
         if (WayPointManager.Instance != null)
@@ -75,17 +68,8 @@ public class WayPointStone : MonoBehaviour, TestInteractable, IInteractable
         }
     }
 
-    private void OnValidate()
-    {
-        if (targetRenderer == null)
-        {
-            targetRenderer = GetComponentInChildren<Renderer>();
-        }
-
-        RefreshVisual();
-    }
-
     // 플레이어가 실제 웨이포인트 스톤과 상호작용하면 이동 가능 모드로 지도 UI를 연다.
+    /// <summary>웨이포인트 이동 모드로 지도 UI를 엽니다.</summary>
     public void Interact()
     {
         WayPointMapUI targetMapUI = ResolveMapUI();
@@ -107,26 +91,28 @@ public class WayPointStone : MonoBehaviour, TestInteractable, IInteractable
         Interact();
     }
 
-    // 매니저가 해금 상태를 반영할 때 스톤 비주얼을 갱신한다.
-    public void SetUnlockedVisual(bool unlocked)
+    // 매니저가 해금 상태를 반영할 때 내부 상태만 갱신한다.
+    /// <summary>매니저가 계산한 해금 상태를 씬 스톤에 반영합니다.</summary>
+    public void SetUnlockedState(bool unlocked)
     {
         isUnlocked = unlocked;
-        RefreshVisual();
     }
 
     // 이전 코드 호환용으로 활성 상태 설정을 유지한다.
     public void SetActive(bool active)
     {
-        SetUnlockedVisual(active);
+        SetUnlockedState(active);
     }
 
     // 런타임에서 웨이포인트 정의를 바꿀 때 사용한다.
+    /// <summary>런타임에 이 스톤이 나타낼 웨이포인트 정의를 교체합니다.</summary>
     public void SetDefinition(WayPointDefinition newDefinition)
     {
         definition = newDefinition;
     }
 
     // 런타임에서 도착 위치 Transform을 바꿀 때 사용한다.
+    /// <summary>런타임에 플레이어 도착 위치를 교체합니다.</summary>
     public void SetSpawnPoint(Transform newSpawnPoint)
     {
         spawnPoint = newSpawnPoint;
@@ -148,29 +134,6 @@ public class WayPointStone : MonoBehaviour, TestInteractable, IInteractable
 
         mapUI = FindFirstObjectByType<WayPointMapUI>(FindObjectsInactive.Include);
         return mapUI;
-    }
-
-    // 해금 상태에 맞춰 머티리얼과 잠금/해금 오브젝트를 교체한다.
-    private void RefreshVisual()
-    {
-        if (targetRenderer != null)
-        {
-            Material targetMaterial = isUnlocked ? unlockedMaterial : lockedMaterial;
-            if (targetMaterial != null)
-            {
-                targetRenderer.sharedMaterial = targetMaterial;
-            }
-        }
-
-        if (lockedVisual != null)
-        {
-            lockedVisual.SetActive(!isUnlocked);
-        }
-
-        if (unlockedVisual != null)
-        {
-            unlockedVisual.SetActive(isUnlocked);
-        }
     }
 
     // 선택 시 에디터에서 실제 도착 위치를 확인하기 위한 기즈모를 그린다.
