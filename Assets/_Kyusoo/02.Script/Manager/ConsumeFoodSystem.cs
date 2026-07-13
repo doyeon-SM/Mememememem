@@ -1,8 +1,9 @@
+using HDY.Inventory;
+using HDY.Item;
+using KMS.InventoryDuped;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
-using KMS.InventoryDuped;
-using HDY.Item;
-using HDY.Inventory;
 
 public class ConsumeFoodSystem : MonoBehaviour
 {
@@ -16,10 +17,19 @@ public class ConsumeFoodSystem : MonoBehaviour
     private float timer = 0f;
     private bool isWorkStoppedDueToStarvation = false;
 
+    private bool isWaitingForMissedMeal = false;
+
+    private int maxSatiety = 0;
+    private int currentSatiety = 0;
+
     /// <summary>
     /// 현재 음식이 부족하여 영지 전체가 중지되었는지 여부 반환
     /// </summary>
     public bool IsWorkStoppedDueToStarvation => isWorkStoppedDueToStarvation;
+    public int MaxSatiety => maxSatiety;
+    public int CurrentSatiety => currentSatiety;
+
+    public event Action<int, int> OnFoodAmountChanged;
 
     private void Awake()
     {
@@ -29,56 +39,142 @@ public class ConsumeFoodSystem : MonoBehaviour
         if (foodWarehouseUI == null) foodWarehouseUI = GetComponent<FoodWarehouseUI>();
     }
 
+    private void Start()
+    {
+        int totalSatiety = CalculateTotalStorageSatiety(out _);
+        maxSatiety = totalSatiety;
+        currentSatiety = totalSatiety;
+        NotifyFoodStatusChanged();
+    }
+
     private void Update()
     {
-        timer += Time.deltaTime;
-        if (timer >= consumeInterval)
+        if (!isWorkStoppedDueToStarvation)
         {
-            timer = 0f;
-            ProcessFoodConsumption();
+            timer += Time.deltaTime;
+            if (timer >= consumeInterval)
+            {
+                timer = 0f;
+                ProcessTimerTick(); 
+            }
         }
     }
 
-    /// <summary>
-    /// 1분 주기로 가동되는 함수.
-    /// 멤의 허기량을 1분마다 채워주기.
-    /// 분당 총 허기량 파악, 좌측에 배치된 음식 아이템의 총 포만도 계산
-    /// 총 허기량 > 포만감 => 작업 중지처리 / 포만감 > 총 허기량 => 음식 감산 처리
-    /// 1분 주기로 가동되거나, 음식을 좌측 창고로 드래그앤드롭하여 보관 상태가 바뀔 때 호출하여 사전 검증할 수 있습니다.
-    /// </summary>
-    public void ProcessFoodConsumption()
+    private void ProcessTimerTick()
     {
         if (foodWarehouseUI == null) return;
 
         int totalHunger = TotalHungerManager.Instance != null ? TotalHungerManager.Instance.TotalHungerPerMinute : 0;
-
         int totalSatietyAvailable = CalculateTotalStorageSatiety(out List<int> validFoodIndices);
-
-        Debug.Log($"[ConsumeFoodSystem] 소모 주기 도래 -> 현재 총 허기량: {totalHunger} / 창고 잔여 포만감: {totalSatietyAvailable}");
 
         if (totalHunger > totalSatietyAvailable)
         {
-            if (!isWorkStoppedDueToStarvation)
-            {
-                isWorkStoppedDueToStarvation = true;
-                SetAllFacilitiesWorkingState(false); 
-                Debug.LogWarning("<color=red><b>[영지 경보]</b></color> 잔여 음식의 총 포만감이 허기량보다 부족합니다! 모든 시설의 작업이 일시 중지됩니다. (기존 진행도 보존)");
-            }
-            return;
+            isWorkStoppedDueToStarvation = true;
+            isWaitingForMissedMeal = true;
+
+            SetAllFacilitiesWorkingState(false);
+            Debug.LogWarning("<color=red><b>[영지 경보]</b></color> 1분 주기 도래: 음식 부족으로 모든 시설 가동이 정지됩니다.");
+
+            currentSatiety = totalSatietyAvailable;
         }
+        else
+        {
+            if (totalHunger > 0)
+            {
+                ConsumeFoodFromStorage(totalHunger, validFoodIndices);
+            }
+
+            currentSatiety = CalculateTotalStorageSatiety(out _);
+        }
+
+        NotifyFoodStatusChanged();
+    }
+
+    /// <summary>
+    /// 음식 창고 영역 내부에서 슬롯 교환 및 이동시 처리
+    /// </summary>
+    public void OnStorageToStorageMove()
+    {
+        int totalSatiety = CalculateTotalStorageSatiety(out _);
+        currentSatiety = totalSatiety;
+
+        NotifyFoodStatusChanged();
+    }
+
+    /// <summary>
+    /// 인벤토리 -> 음식 창고 드랍시 동작
+    /// </summary>
+    public void OnRightToLeftMove()
+    {
+        if (foodWarehouseUI == null) return;
+
+        int totalHunger = TotalHungerManager.Instance != null ? TotalHungerManager.Instance.TotalHungerPerMinute : 0;
+        int totalSatietyAvailable = CalculateTotalStorageSatiety(out List<int> validFoodIndices);
+
+        maxSatiety = totalSatietyAvailable;
+        currentSatiety = totalSatietyAvailable;
 
         if (isWorkStoppedDueToStarvation)
         {
-            isWorkStoppedDueToStarvation = false;
-            SetAllFacilitiesWorkingState(true); 
-            Debug.Log("<color=lime><b>[영지 정상화]</b></color> 음식을 충분히 확보했습니다. 모든 시설이 다시 가동을 시작합니다.");
+            if (totalSatietyAvailable >= totalHunger)
+            {
+                if (isWaitingForMissedMeal)
+                {
+                    if (totalHunger > 0)
+                    {
+                        ConsumeFoodFromStorage(totalHunger, validFoodIndices);
+                    }
+                    isWaitingForMissedMeal = false; 
 
-            timer = 0f;
+                    timer = 0f;
+                }
+
+                isWorkStoppedDueToStarvation = false;
+                SetAllFacilitiesWorkingState(true);
+
+                int remaining = CalculateTotalStorageSatiety(out _);
+                //maxSatiety = remaining;
+                currentSatiety = remaining;
+            }
         }
 
-        if (totalHunger > 0)
+        NotifyFoodStatusChanged();
+    }
+
+    /// <summary>
+    /// 좌측 음식 창고 -> 우측 인벤토리로 회수 이동했을 때
+    /// </summary>
+    public void OnLeftToRightMove()
+    {
+        int totalHunger = TotalHungerManager.Instance != null ? TotalHungerManager.Instance.TotalHungerPerMinute : 0;
+        int totalSatietyAvailable = CalculateTotalStorageSatiety(out _);
+
+        maxSatiety = totalSatietyAvailable;
+        currentSatiety = totalSatietyAvailable;
+
+        if (totalHunger > totalSatietyAvailable && !isWorkStoppedDueToStarvation)
         {
-            ConsumeFoodFromStorage(totalHunger, validFoodIndices);
+            isWorkStoppedDueToStarvation = true;
+            isWaitingForMissedMeal = false;
+
+            SetAllFacilitiesWorkingState(false);
+            Debug.LogWarning("<color=red><b>[영지 경보]</b></color> 창고 음식 회수로 보관량이 허기량보다 부족해져 즉시 작업이 정지됩니다.");
+        }
+
+        NotifyFoodStatusChanged();
+    }
+
+    /// <summary>
+    /// 변경된 포만감 상태를 갱신
+    /// </summary>
+    private void NotifyFoodStatusChanged()
+    {
+        OnFoodAmountChanged?.Invoke(currentSatiety, maxSatiety);
+
+        var persistentUI = FindFirstObjectByType<FoodAmountUI>();
+        if (persistentUI != null)
+        {
+            persistentUI.RefreshUI(currentSatiety, maxSatiety);
         }
     }
 
@@ -111,7 +207,6 @@ public class ConsumeFoodSystem : MonoBehaviour
                 }
             }
         }
-
         return sumSatiety;
     }
 
@@ -142,18 +237,13 @@ public class ConsumeFoodSystem : MonoBehaviour
 
             while (slot.amount > 0 && remainingHunger > 0)
             {
-                slot.amount--;           
-                remainingHunger -= singleSatiety; 
+                slot.amount--;
+                remainingHunger -= singleSatiety;
             }
 
-            if (slot.amount <= 0)
-            {
-                slot.Clear();
-            }
-
+            if (slot.amount <= 0) slot.Clear();
             if (remainingHunger <= 0) break;
         }
-
         foodWarehouseUI.RefreshAllPanelsAndSlots();
     }
 
@@ -166,33 +256,23 @@ public class ConsumeFoodSystem : MonoBehaviour
         foreach (var facility in productionFacilities)
         {
             if (facility == null) continue;
-
-            if (!isWorking)
-            {
-                facility.isProducing = false; 
-            }
-            else
-            {
-                facility.CheckProductionCondition();
-            }
+            if (!isWorking) facility.isProducing = false;
+            else facility.CheckProductionCondition();
         }
 
         var craftingFacilities = FindObjectsByType<ProductionCraftRuntime>(FindObjectsSortMode.None);
         foreach (var craft in craftingFacilities)
         {
             if (craft == null) continue;
-
-            if (!isWorking)
-            {
-                craft.isProducing = false; 
-            }
+            if (!isWorking) craft.isProducing = false;
             else
             {
-                if (craft.currentCraftingItem != null && craft.DeployedMems.Count > 0)
-                {
-                    craft.isProducing = true;
-                }
+                if (craft.currentCraftingItem != null && craft.DeployedMems.Count > 0) craft.isProducing = true;
             }
         }
+    }
+    private void OnDestroy()
+    {
+        if (Instance == this) Instance = null;
     }
 }

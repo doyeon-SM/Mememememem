@@ -1,4 +1,6 @@
-﻿using UnityEngine;
+﻿using HDY.UI;
+using UnityEngine;
+using HDY.Upgrade;
 
 public class PanelManager : MonoBehaviour
 {
@@ -7,7 +9,7 @@ public class PanelManager : MonoBehaviour
     [Header("시설별 Panel GameObject")]
     [SerializeField] private GameObject craftingPanel;
     [SerializeField] private GameObject productionPanel;
-    [SerializeField] private GameObject inventoryPanel;
+    [SerializeField] private GameObject foodWarehousePanel;
     [SerializeField] private GameObject UIPanel;
 
     [Header("시설별 UI 패널 컴포넌트")]
@@ -35,21 +37,6 @@ public class PanelManager : MonoBehaviour
                 CloseAllPanels();
             }
         }
-
-        if (UnityEngine.InputSystem.Keyboard.current.iKey.wasPressedThisFrame)
-        {
-            if (inventoryPanel != null)
-            {
-                if (inventoryPanel.activeSelf)
-                {
-                    CloseAllPanels();
-                }
-                else
-                {
-                    OpenInventoryPanel();
-                }
-            }
-        }
     }
 
     /// <summary>
@@ -59,7 +46,8 @@ public class PanelManager : MonoBehaviour
     {
         if (facility == null) return;
 
-        CloseAllPanels(); // 다른 패널은 정리
+        if (UIManager.Instance != null) UIManager.Instance.CloseCurrent();
+        CloseAllPanels();
 
         if (craftingPanel != null && craftingPanelUI != null)
         {
@@ -84,7 +72,8 @@ public class PanelManager : MonoBehaviour
     {
         if (facility == null) return;
 
-        CloseAllPanels(); // 다른 패널은 정리
+        if (UIManager.Instance != null) UIManager.Instance.CloseCurrent();
+        CloseAllPanels();
 
         if (productionPanel != null && productionPanelUI != null)
         {
@@ -102,17 +91,39 @@ public class PanelManager : MonoBehaviour
         }
     }
 
-    public void OpenInventoryPanel()
+
+    public void OpenFoodWareHousePanel()
     {
-        CloseAllPanels(); 
+        if (UIManager.Instance != null) UIManager.Instance.CloseCurrent();
+        CloseAllPanels();
 
-        if (inventoryPanel != null)
+        if (foodWarehousePanel != null)
         {
-            SetCommonGroupActive(true);      
-            SetCameraControllersEnabled(false); 
+            SetCommonGroupActive(true);
+            SetCameraControllersEnabled(false);
 
-            inventoryPanel.SetActive(true);
+            foodWarehousePanel.SetActive(true);
         }
+    }
+
+
+    /// <summary>
+    /// UIManager를 통해 패널 활성화시 기존 시설물 창들을 세이브 후 클리어 처리, 공통 UI 닫기 버튼 On 및 카메라 차단
+    /// </summary>
+    public void NotifyHUDPanelOpened()
+    {
+        SaveActivePanelData();
+
+        if (craftingPanelUI != null) craftingPanelUI.ClosePanel();
+        if (productionPanelUI != null) productionPanelUI.ClosePanel();
+        if (foodWarehousePanel != null) foodWarehousePanel.SetActive(false);
+        if (UIPanel != null) UIPanel.SetActive(false);
+
+        if (craftingPanel != null) craftingPanel.SetActive(false);
+        if (productionPanel != null) productionPanel.SetActive(false);
+
+        SetCommonGroupActive(true);
+        SetCameraControllersEnabled(false);
     }
 
     /// <summary>
@@ -122,9 +133,11 @@ public class PanelManager : MonoBehaviour
     {
         SaveActivePanelData();
 
+        if (UIManager.Instance != null) UIManager.Instance.CloseCurrent();
+
         if (craftingPanelUI != null) craftingPanelUI.ClosePanel();
         if (productionPanelUI != null) productionPanelUI.ClosePanel();
-        if (inventoryPanel != null) inventoryPanel.SetActive(false);
+        if (foodWarehousePanel != null) foodWarehousePanel.SetActive(false);
         if (UIPanel != null) UIPanel.SetActive(false);
 
         if (craftingPanel != null) craftingPanel.SetActive(false);
@@ -139,7 +152,8 @@ public class PanelManager : MonoBehaviour
     {
         bool isCraftActive = craftingPanel != null && craftingPanel.activeSelf;
         bool isProductActive = productionPanel != null && productionPanel.activeSelf;
-        bool isInventoryActive = inventoryPanel != null && inventoryPanel.activeSelf;
+        bool isInventoryActive = foodWarehousePanel != null && foodWarehousePanel.activeSelf;
+        bool isHUDActive = UIManager.Instance != null && UIManager.Instance.HasActivePanel();
         return isCraftActive || isProductActive || isInventoryActive;
     }
 

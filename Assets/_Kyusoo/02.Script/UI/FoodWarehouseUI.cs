@@ -1,10 +1,11 @@
-using UnityEngine;
-using UnityEngine.UI;
-using System.Collections.Generic;
-using KMS.InventoryDuped;
+using HDY.Inventory;
 using HDY.Item;
 using HDY.Upgrade;
-using HDY.Inventory;
+using KMS.InventoryDuped;
+using System.Collections.Generic;
+using TMPro;
+using UnityEngine;
+using UnityEngine.UI;
 public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner
 {
     [Header("데이터 참조")]
@@ -25,9 +26,10 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner
     [Header("통합 음식 가방 (오른쪽, 70칸 10x7 - 슬롯은 씬에 미리 배치)")]
     [SerializeField] private Transform inventoryGrid;
 
-    [Header("공용 (드래그 고스트 / 툴팁)")]
+    [Header("공용 (드래그, 툴팁, 텍스트)")]
     [SerializeField] private ItemDragUI itemDragUI;
     [SerializeField] private ItemTooltipUI itemTooltipUI;
+    [SerializeField] private TextMeshProUGUI totalHungerText;
 
     private class FilteredFoodSource
     {
@@ -75,6 +77,11 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner
         HideItemTooltip();
 
         RefreshAll();
+
+        if (TotalHungerManager.Instance != null)
+        {
+            UpdateHungerText(TotalHungerManager.Instance.TotalHungerPerMinute);
+        }
     }
 
     private void OnEnable()
@@ -86,6 +93,11 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner
             warehouseInventory.OnRowCountChanged += HandleRowCountChanged;
         }
         if (sortUI != null) sortUI.OnSortRequested += HandleSortRequested;
+
+        if (TotalHungerManager.Instance != null)
+        {
+            TotalHungerManager.Instance.OnTotalHungerChanged += UpdateHungerText;
+        }
     }
 
     private void OnDisable()
@@ -97,6 +109,11 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner
             warehouseInventory.OnRowCountChanged -= HandleRowCountChanged;
         }
         if (sortUI != null) sortUI.OnSortRequested -= HandleSortRequested;
+
+        if (TotalHungerManager.Instance != null)
+        {
+            TotalHungerManager.Instance.OnTotalHungerChanged -= UpdateHungerText;
+        }
     }
 
     public void BeginSlotDrag(InventorySlotUI source, ItemStack stack, Vector2 position)
@@ -173,7 +190,7 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner
                 RefreshAll();
                 if (ConsumeFoodSystem.Instance != null)
                 {
-                    ConsumeFoodSystem.Instance.ProcessFoodConsumption();
+                    ConsumeFoodSystem.Instance.OnStorageToStorageMove();
                 }
             }
             return;
@@ -195,7 +212,7 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner
                 RefreshAll();
                 if (ConsumeFoodSystem.Instance != null)
                 {
-                    ConsumeFoodSystem.Instance.ProcessFoodConsumption();
+                    ConsumeFoodSystem.Instance.OnRightToLeftMove();
                 }
             }
             return;
@@ -219,7 +236,7 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner
                 RefreshAll();
                 if (ConsumeFoodSystem.Instance != null)
                 {
-                    ConsumeFoodSystem.Instance.ProcessFoodConsumption();
+                    ConsumeFoodSystem.Instance.OnLeftToRightMove();
                 }
             }
             return;
@@ -369,5 +386,13 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner
 
         ItemData data = catalogManager.FindItemData(stack.itemId);
         return data != null && data.Category == ItemCategory.Food;
+    }
+
+    private void UpdateHungerText(int totalHunger)
+    {
+        if (totalHungerText != null)
+        {
+            totalHungerText.text = $"{totalHunger}";
+        }
     }
 }
