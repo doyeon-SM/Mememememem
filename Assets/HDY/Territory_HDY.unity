@@ -4836,17 +4836,6 @@ RectTransform:
   m_CorrespondingSourceObject: {fileID: 8269600135094962253, guid: 236d3979de6102f4b849f9aaec590f13, type: 3}
   m_PrefabInstance: {fileID: 1092630398}
   m_PrefabAsset: {fileID: 0}
---- !u!114 &430924385 stripped
-MonoBehaviour:
-  m_CorrespondingSourceObject: {fileID: 7726244257232390833, guid: 236d3979de6102f4b849f9aaec590f13, type: 3}
-  m_PrefabInstance: {fileID: 1092630398}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4bafc9e63828f4e4ea3743419b154f6d, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::ProductionMemSlotUI
 --- !u!1 &431675219
 GameObject:
   m_ObjectHideFlags: 0
@@ -4989,17 +4978,6 @@ RectTransform:
   m_CorrespondingSourceObject: {fileID: 8269600135094962253, guid: 236d3979de6102f4b849f9aaec590f13, type: 3}
   m_PrefabInstance: {fileID: 262074451}
   m_PrefabAsset: {fileID: 0}
---- !u!114 &432954861 stripped
-MonoBehaviour:
-  m_CorrespondingSourceObject: {fileID: 7726244257232390833, guid: 236d3979de6102f4b849f9aaec590f13, type: 3}
-  m_PrefabInstance: {fileID: 262074451}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4bafc9e63828f4e4ea3743419b154f6d, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::ProductionMemSlotUI
 --- !u!1 &452423084
 GameObject:
   m_ObjectHideFlags: 0
@@ -7971,17 +7949,6 @@ RectTransform:
   m_CorrespondingSourceObject: {fileID: 8269600135094962253, guid: 5d526e620fed9434f925cdb90c0acb05, type: 3}
   m_PrefabInstance: {fileID: 943939709}
   m_PrefabAsset: {fileID: 0}
---- !u!114 &591804987 stripped
-MonoBehaviour:
-  m_CorrespondingSourceObject: {fileID: 196068311882470263, guid: 5d526e620fed9434f925cdb90c0acb05, type: 3}
-  m_PrefabInstance: {fileID: 943939709}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 5cd2124102726f74ba3792b1c757f382, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::CraftingMemSlotUI
 --- !u!1001 &608263467
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -11595,20 +11562,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0622d51f74b2fd242928c176313c8208, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ProductionPanelUI
-  productionPanelRoot: {fileID: 1430563583}
-  centerProductionPanel: {fileID: 729551338}
-  CloseButtonGroup: {fileID: 632706760}
-  closeBtn: {fileID: 366878321}
-  PlaceButtonGroup: {fileID: 590951674}
   buildingName: {fileID: 915820902}
   buildingLevel: {fileID: 407238962}
   levelUp: {fileID: 109969722}
   memSlotImages:
-  - {fileID: 2050517568}
-  - {fileID: 2066315674}
-  - {fileID: 1973154708}
-  - {fileID: 432954861}
-  - {fileID: 430924385}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
   defaultMode: {fileID: 31080661}
   creatingMode: {fileID: 772819440}
   creatingItem: {fileID: 31444479}
@@ -18090,13 +18052,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2082b725a04745d40817d0e6e7e5fd84, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CraftingPanelUI
-  craftingPanelRoot: {fileID: 1430563583}
-  centerCraftingPanel: {fileID: 242883171}
-  CloseButtonGroup: {fileID: 632706760}
-  closeBtn: {fileID: 366878321}
-  PlaceButtonGroup: {fileID: 590951674}
   buildingName: {fileID: 2047887844}
-  singleMemSlot: {fileID: 591804987}
+  singleMemSlot: {fileID: 0}
   defaultModeObject: {fileID: 2035392909}
   recipeGridParent: {fileID: 1284124135}
   recipeSlotPrefab: {fileID: 925688358971106770, guid: c10158d42f03c3044a0372260d433b25, type: 3}
@@ -23208,17 +23165,6 @@ RectTransform:
   m_CorrespondingSourceObject: {fileID: 8269600135094962253, guid: 236d3979de6102f4b849f9aaec590f13, type: 3}
   m_PrefabInstance: {fileID: 1585329976}
   m_PrefabAsset: {fileID: 0}
---- !u!114 &1973154708 stripped
-MonoBehaviour:
-  m_CorrespondingSourceObject: {fileID: 7726244257232390833, guid: 236d3979de6102f4b849f9aaec590f13, type: 3}
-  m_PrefabInstance: {fileID: 1585329976}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4bafc9e63828f4e4ea3743419b154f6d, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::ProductionMemSlotUI
 --- !u!1001 &1979455430
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -24146,17 +24092,6 @@ RectTransform:
   m_CorrespondingSourceObject: {fileID: 8269600135094962253, guid: 236d3979de6102f4b849f9aaec590f13, type: 3}
   m_PrefabInstance: {fileID: 1028040472}
   m_PrefabAsset: {fileID: 0}
---- !u!114 &2050517568 stripped
-MonoBehaviour:
-  m_CorrespondingSourceObject: {fileID: 7726244257232390833, guid: 236d3979de6102f4b849f9aaec590f13, type: 3}
-  m_PrefabInstance: {fileID: 1028040472}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4bafc9e63828f4e4ea3743419b154f6d, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::ProductionMemSlotUI
 --- !u!1001 &2051141107
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -24366,17 +24301,6 @@ RectTransform:
   m_CorrespondingSourceObject: {fileID: 8269600135094962253, guid: 236d3979de6102f4b849f9aaec590f13, type: 3}
   m_PrefabInstance: {fileID: 2099110914}
   m_PrefabAsset: {fileID: 0}
---- !u!114 &2066315674 stripped
-MonoBehaviour:
-  m_CorrespondingSourceObject: {fileID: 7726244257232390833, guid: 236d3979de6102f4b849f9aaec590f13, type: 3}
-  m_PrefabInstance: {fileID: 2099110914}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4bafc9e63828f4e4ea3743419b154f6d, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::ProductionMemSlotUI
 --- !u!1 &2067166981
 GameObject:
   m_ObjectHideFlags: 0
