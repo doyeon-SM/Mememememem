@@ -12,6 +12,8 @@ namespace KMS
         [SerializeField] private PlayerMovement movement;
         [SerializeField] private PlayerInventory inventory;
         [SerializeField] private PlayerHUD hud;
+        [SerializeField] private PlayerCameraController cameraController;
+        [SerializeField] private CapsuleTrajectoryPreview trajectoryPreview;
         [SerializeField] private Animator animator;
         [SerializeField] private Transform throwOrigin;
         [SerializeField] private GameObject capsulePrefab;
@@ -24,6 +26,7 @@ namespace KMS
         [SerializeField, Min(1f)] private float aimDistance = 30f;
         [SerializeField] private LayerMask aimLayers = ~0;
         [SerializeField] private float fallbackReleaseNormalizedTime = 0.2f;
+        [SerializeField, Min(0f)] private float aimRotationSpeed = 720f;
 
         private static readonly int ThrowPrepareHash = Animator.StringToHash("ThrowPrepare");
         private static readonly int ThrowReadyHash = Animator.StringToHash("ThrowReady");
@@ -33,6 +36,8 @@ namespace KMS
         private float holdTime;
         private bool capsuleReleased;
         private bool previousMovementEnabled = true;
+        private Vector3 lockedThrowTarget;
+        private bool hasLockedThrowTarget;
 
         private void Reset()
         {
@@ -49,6 +54,8 @@ namespace KMS
             if (movement == null) movement = GetComponent<PlayerMovement>();
             if (inventory == null) inventory = GetComponent<PlayerInventory>();
             if (hud == null) hud = GetComponent<PlayerHUD>();
+            if (cameraController == null) cameraController = GetComponent<PlayerCameraController>();
+            if (trajectoryPreview == null) trajectoryPreview = GetComponent<CapsuleTrajectoryPreview>();
             if (movement != null && movement.Animator != null) animator = movement.Animator;
             else if (animator == null) animator = GetComponentInChildren<Animator>();
 
@@ -90,6 +97,17 @@ namespace KMS
 
         private void Update()
         {
+            if (state == ThrowState.Preparing || state == ThrowState.Ready)
+            {
+                RotateTowardsCamera(false);
+            }
+
+            if (state == ThrowState.Ready && trajectoryPreview != null)
+            {
+                Vector3 origin = GetThrowOriginPosition();
+                trajectoryPreview.Show(origin, CalculateInitialVelocity(origin, ResolveAimTarget()));
+            }
+
             if (state == ThrowState.Preparing)
             {
                 holdTime += Time.deltaTime;
@@ -124,7 +142,9 @@ namespace KMS
             state = ThrowState.Preparing;
             holdTime = 0f;
             capsuleReleased = false;
+            hasLockedThrowTarget = false;
             LockMovement();
+            if (cameraController != null) cameraController.SetAimZoom(true);
 
             if (animator != null)
             {
@@ -145,6 +165,11 @@ namespace KMS
             if (state != ThrowState.Ready) return;
 
             state = ThrowState.Throwing;
+            RotateTowardsCamera(true);
+            lockedThrowTarget = ResolveAimTarget();
+            hasLockedThrowTarget = true;
+            if (trajectoryPreview != null) trajectoryPreview.Hide();
+            if (cameraController != null) cameraController.SetAimZoom(false);
             if (hud != null) hud.SetThrowGuideVisible(false);
             if (animator != null)
             {
@@ -169,9 +194,7 @@ namespace KMS
                 return;
             }
 
-            Vector3 origin = throwOrigin != null
-                ? throwOrigin.position
-                : transform.position + Vector3.up * 1.25f + transform.forward * 0.45f;
+            Vector3 origin = GetThrowOriginPosition();
             Vector3 direction = ResolveThrowDirection(origin);
             GameObject capsule = Instantiate(capsulePrefab, origin, Quaternion.LookRotation(direction));
             Rigidbody body = capsule.GetComponent<Rigidbody>();
@@ -185,7 +208,7 @@ namespace KMS
             }
 
             body.isKinematic = false;
-            body.linearVelocity = direction * throwSpeed + Vector3.up * upwardThrowSpeed;
+            body.linearVelocity = CalculateInitialVelocity(origin, lockedThrowTarget);
             IgnorePlayerCollisions(capsule);
             capsuleReleased = true;
             inventory.CommitQuickSlotUse();
@@ -199,6 +222,7 @@ namespace KMS
             inventory.EndQuickSlotUse();
             RestoreMovement();
             state = ThrowState.Idle;
+            hasLockedThrowTarget = false;
         }
 
         private bool HasSelectedCapsule()
@@ -209,8 +233,29 @@ namespace KMS
 
         private Vector3 ResolveThrowDirection(Vector3 origin)
         {
+            Vector3 target = hasLockedThrowTarget ? lockedThrowTarget : ResolveAimTarget();
+            Vector3 direction = target - origin;
+            return direction.sqrMagnitude > 0.001f ? direction.normalized : transform.forward;
+        }
+
+        private Vector3 CalculateInitialVelocity(Vector3 origin, Vector3 target)
+        {
+            Vector3 direction = target - origin;
+            if (direction.sqrMagnitude < 0.001f) direction = transform.forward;
+            return direction.normalized * throwSpeed + Vector3.up * upwardThrowSpeed;
+        }
+
+        private Vector3 GetThrowOriginPosition()
+        {
+            return throwOrigin != null
+                ? throwOrigin.position
+                : transform.position + Vector3.up * 1.25f + transform.forward * 0.45f;
+        }
+
+        private Vector3 ResolveAimTarget()
+        {
             Camera aimCamera = Camera.main;
-            if (aimCamera == null) return transform.forward;
+            if (aimCamera == null) return transform.position + transform.forward * aimDistance;
 
             Ray ray = new Ray(aimCamera.transform.position, aimCamera.transform.forward);
             Vector3 target = ray.GetPoint(aimDistance);
@@ -226,8 +271,22 @@ namespace KMS
                 break;
             }
 
-            Vector3 direction = target - origin;
-            return direction.sqrMagnitude > 0.001f ? direction.normalized : transform.forward;
+            return target;
+        }
+
+        private void RotateTowardsCamera(bool immediate)
+        {
+            Camera aimCamera = Camera.main;
+            if (aimCamera == null) return;
+
+            Vector3 forward = aimCamera.transform.forward;
+            forward.y = 0f;
+            if (forward.sqrMagnitude < 0.001f) return;
+
+            Quaternion targetRotation = Quaternion.LookRotation(forward.normalized, Vector3.up);
+            transform.rotation = immediate
+                ? targetRotation
+                : Quaternion.RotateTowards(transform.rotation, targetRotation, aimRotationSpeed * Time.deltaTime);
         }
 
         private void IgnorePlayerCollisions(GameObject capsule)
@@ -267,6 +326,8 @@ namespace KMS
             }
 
             if (hud != null) hud.SetThrowGuideVisible(false);
+            if (trajectoryPreview != null) trajectoryPreview.Hide();
+            if (cameraController != null) cameraController.SetAimZoom(false);
             if (animator != null)
             {
                 animator.SetBool(ThrowReadyHash, false);
@@ -279,6 +340,7 @@ namespace KMS
             state = ThrowState.Idle;
             holdTime = 0f;
             capsuleReleased = false;
+            hasLockedThrowTarget = false;
         }
     }
 }

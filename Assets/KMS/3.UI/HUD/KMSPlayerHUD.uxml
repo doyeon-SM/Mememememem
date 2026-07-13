@@ -3,6 +3,7 @@
     <ui:VisualElement name="hud-root">
         <ui:VisualElement name="health-info-container">
             <ui:ProgressBar value="63.8" title="Health" name="player-health-bar" class="blocks-progress-bar"/>
+            <ui:VisualElement name="clock-anchor"/>
             <ui:ProgressBar name="player-stamina-bar" low-value="0" high-value="100" value="100" title="Hunger" class="blocks-progress-bar"/>
         </ui:VisualElement>
         <ui:VisualElement name="notification-container" class="notification-container"/>

@@ -143,11 +143,15 @@ public class PlayerInventory : MonoBehaviour
     {
         if (target == null || data == null) return;
 
-        target.width = Mathf.Max(1, data.width);
-        target.height = Mathf.Max(1, data.height);
+        int savedCount = data.slots != null ? data.slots.Length : 0;
+        int restoredWidth = Mathf.Max(1, target.width, data.width);
+        int minimumHeightForSavedSlots = Mathf.CeilToInt(savedCount / (float)restoredWidth);
+        int restoredHeight = Mathf.Max(1, target.height, data.height, minimumHeightForSavedSlots);
+
+        target.width = restoredWidth;
+        target.height = restoredHeight;
         target.Initialize();
 
-        int savedCount = data.slots != null ? data.slots.Length : 0;
         int copyCount = Mathf.Min(target.slots.Length, savedCount);
 
         for (int i = 0; i < target.slots.Length; i++)
@@ -161,9 +165,9 @@ public class PlayerInventory : MonoBehaviour
             target.slots[i].Set(data.slots[i].itemId, data.slots[i].amount);
         }
 
-        if (savedCount != target.slots.Length)
+        if (savedCount > target.slots.Length)
         {
-            Debug.LogWarning($"[PlayerInventory] {containerName} 저장 슬롯 수({savedCount})와 복원 슬롯 수({target.slots.Length})가 다릅니다.");
+            Debug.LogError($"[PlayerInventory] {containerName} restore truncated slots: saved={savedCount}, target={target.slots.Length}.");
         }
     }
 

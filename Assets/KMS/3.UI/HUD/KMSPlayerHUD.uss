@@ -18,18 +18,24 @@
 /* Health Info Container */
 #health-info-container {
     position: absolute;
-    bottom: 20px;
-    left: 20px;
+    bottom: 8%;
+    left: 50%;
     right: auto;
+    translate: -50% 0;
     background-color: rgba(0, 0, 0, 0.0);
-    padding: 15px;
+    padding: 0;
     border-radius: 5px;
-    width: 320px;
+    width: 42%;
+    min-width: 500px;
+    max-width: 800px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
 }
 
 /* Progress Bars */
 #player-health-bar {
-    width: 100%;
+    width: 42%;
     height: 30px;
     min-height: 30px;
     -unity-background-image-tint-color: rgb(255, 255, 255);
@@ -38,7 +44,7 @@
 }
 
 #player-stamina-bar {
-    width: 100%;
+    width: 42%;
     height: 30px;
     min-height: 30px;
     -unity-background-image-tint-color: rgb(255, 255, 255);
@@ -84,12 +90,19 @@
 .throw-guide {
     position: absolute;
     left: 50%;
-    bottom: 18%;
+    top: 12%;
     translate: -50% 0;
     padding: 12px 20px;
     background-color: rgba(0, 0, 0, 0.72);
     border-radius: 8px;
     align-items: center;
+}
+
+#clock-anchor {
+    width: 12%;
+    min-width: 60px;
+    height: 44px;
+    flex-shrink: 0;
 }
 
 .throw-guide__title {

@@ -12,9 +12,13 @@ namespace KMS.EditorTools
     {
         private const string SourceClipPath = "Assets/KMS/4.Animation/Dodo/Clips/New_Throw.fbx";
         private const string SlashClipPath = "Assets/KMS/4.Animation/Dodo/Clips/Slash.anim";
+        private const string RealThrowFolder = "Assets/KMS/4.Animation/Dodo/Dodo/Dodo_Animation";
+        private const string RealThrowPreparePath = RealThrowFolder + "/ThrowPrepare.anim";
+        private const string RealThrowCastingPath = RealThrowFolder + "/ThrowCasting.anim";
+        private const string RealThrowFinishPath = RealThrowFolder + "/ThrowFinish.anim";
         private const string ClipFolder = "Assets/KMS/4.Animation/Dodo/Clips/ThrowTemp";
         private const string ControllerPath = "Assets/KMS/4.Animation/Dodo/Controllers/KMS_DodoAnimator.controller";
-        private const string PlayerPrefabPath = "Assets/KMS/2.Prefabs/0708_Player_KMS.prefab";
+        private const string PlayerPrefabPath = "Assets/KMS/2.Prefabs/0712_Player_KMS.prefab";
         private const string CapsulePrefabPath = "Assets/HDY/2.Prefabs/ItemPrefab/TestCapsule.prefab";
         private const float TemporarySlashDuration = 0.5f;
 
@@ -26,10 +30,22 @@ namespace KMS.EditorTools
                 .FirstOrDefault(clip => !clip.name.StartsWith("__preview__"));
 
             EnsureFolder("Assets/KMS/4.Animation/Dodo/Clips", "ThrowTemp");
-            AnimationClip prepare;
-            AnimationClip idle;
-            AnimationClip go;
-            if (source != null)
+            AnimationClip prepare = AssetDatabase.LoadAssetAtPath<AnimationClip>(RealThrowPreparePath);
+            AnimationClip idle = AssetDatabase.LoadAssetAtPath<AnimationClip>(RealThrowCastingPath);
+            AnimationClip go = AssetDatabase.LoadAssetAtPath<AnimationClip>(RealThrowFinishPath);
+            bool hasRealThrowClips = prepare != null && idle != null && go != null;
+
+            if (hasRealThrowClips)
+            {
+                ConfigureClip(prepare, false, null);
+                ConfigureClip(idle, true, null);
+                ConfigureClip(go, false, new[]
+                {
+                    new AnimationEvent { functionName = "OnCapsuleRelease", time = go.length * 0.45f },
+                    new AnimationEvent { functionName = "OnCapsuleThrowFinished", time = go.length * 0.98f }
+                });
+            }
+            else if (source != null)
             {
                 prepare = CreateOrUpdateClip(source, $"{ClipFolder}/Throw_Prepare.anim", "Throw_Prepare", false, null);
                 idle = CreateOrUpdateClip(source, $"{ClipFolder}/Throw_Idle.anim", "Throw_Idle", true, null);
@@ -56,7 +72,7 @@ namespace KMS.EditorTools
             ConfigurePlayerPrefab();
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
-            Debug.Log("[CapsuleThrowSetup] 임시 투척 클립, Animator, 0708_Player_KMS 연결 완료");
+            Debug.Log("[CapsuleThrowSetup] 투척 클립, Animator, 0712_Player_KMS 연결 완료");
         }
 
         private static AnimationClip CreateOrUpdateClip(
@@ -87,6 +103,16 @@ namespace KMS.EditorTools
             return target;
         }
 
+        private static void ConfigureClip(AnimationClip clip, bool loop, AnimationEvent[] events)
+        {
+            SerializedObject serializedClip = new SerializedObject(clip);
+            SerializedProperty loopTime = serializedClip.FindProperty("m_AnimationClipSettings.m_LoopTime");
+            if (loopTime != null) loopTime.boolValue = loop;
+            serializedClip.ApplyModifiedPropertiesWithoutUndo();
+            AnimationUtility.SetAnimationEvents(clip, events ?? new AnimationEvent[0]);
+            EditorUtility.SetDirty(clip);
+        }
+
         private static void ConfigureAnimator(AnimationClip prepareClip, AnimationClip idleClip, AnimationClip goClip, AnimationClip slashClip)
         {
             AnimatorController controller = AssetDatabase.LoadAssetAtPath<AnimatorController>(ControllerPath);
@@ -112,6 +138,9 @@ namespace KMS.EditorTools
             prepare.motion = prepareClip;
             idle.motion = idleClip;
             go.motion = goClip;
+            prepare.speed = 1f;
+            idle.speed = 1f;
+            go.speed = 1f;
             slash.motion = slashClip;
             slash.speed = Mathf.Max(0.01f, slashClip.length / TemporarySlashDuration);
 
@@ -122,9 +151,8 @@ namespace KMS.EditorTools
 
             AnimatorStateTransition toIdle = prepare.AddTransition(idle);
             toIdle.hasExitTime = true;
-            toIdle.exitTime = 0.9f;
-            toIdle.duration = 0.1f;
-            toIdle.AddCondition(AnimatorConditionMode.If, 0f, "ThrowReady");
+            toIdle.exitTime = 0.95f;
+            toIdle.duration = 0.05f;
 
             AnimatorStateTransition prepareToGo = prepare.AddTransition(go);
             prepareToGo.hasExitTime = false;
@@ -161,6 +189,8 @@ namespace KMS.EditorTools
             {
                 PlayerCapsuleThrowController throwController = root.GetComponent<PlayerCapsuleThrowController>();
                 if (throwController == null) throwController = root.AddComponent<PlayerCapsuleThrowController>();
+                CapsuleTrajectoryPreview trajectoryPreview = root.GetComponent<CapsuleTrajectoryPreview>();
+                if (trajectoryPreview == null) trajectoryPreview = root.AddComponent<CapsuleTrajectoryPreview>();
 
                 PlayerMovement movement = root.GetComponent<PlayerMovement>();
                 Animator animator = movement != null ? movement.Animator : null;
@@ -194,12 +224,15 @@ namespace KMS.EditorTools
                 serialized.FindProperty("movement").objectReferenceValue = movement;
                 serialized.FindProperty("inventory").objectReferenceValue = root.GetComponent<PlayerInventory>();
                 serialized.FindProperty("hud").objectReferenceValue = root.GetComponent<PlayerHUD>();
+                serialized.FindProperty("cameraController").objectReferenceValue = root.GetComponent<PlayerCameraController>();
+                serialized.FindProperty("trajectoryPreview").objectReferenceValue = trajectoryPreview;
                 serialized.FindProperty("animator").objectReferenceValue = animator;
                 serialized.FindProperty("throwOrigin").objectReferenceValue = origin;
                 serialized.FindProperty("capsulePrefab").objectReferenceValue = AssetDatabase.LoadAssetAtPath<GameObject>(CapsulePrefabPath);
                 serialized.FindProperty("throwSpeed").floatValue = 12f;
                 serialized.FindProperty("upwardThrowSpeed").floatValue = 2.5f;
                 serialized.FindProperty("fallbackReleaseNormalizedTime").floatValue = 0.2f;
+                serialized.FindProperty("aimRotationSpeed").floatValue = 720f;
                 serialized.ApplyModifiedPropertiesWithoutUndo();
 
                 KMS.Harvesting.PlayerHarvestController harvestController = root.GetComponent<KMS.Harvesting.PlayerHarvestController>();

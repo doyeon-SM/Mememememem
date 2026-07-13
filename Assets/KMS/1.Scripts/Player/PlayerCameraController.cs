@@ -8,6 +8,7 @@ namespace KMS
         [SerializeField] private PlayerInput input;
         [SerializeField] private Transform followTarget;
         [SerializeField] private Transform cameraTransform;
+        [SerializeField] private Camera targetCamera;
 
         [Header("Orbit")]
         [SerializeField] private Vector3 targetOffset;
@@ -18,6 +19,10 @@ namespace KMS
         [SerializeField] private float minPitch = -35f;
         [SerializeField] private float maxPitch = 70f;
         [SerializeField] private float positionSmoothTime = 0.04f;
+
+        [Header("Aim Zoom")]
+        [SerializeField, Min(0f)] private float aimFovReduction = 5f;
+        [SerializeField, Min(0.01f)] private float zoomSmoothTime = 0.2f;
 
         [Header("Collision")]
         [SerializeField] private bool avoidClipping = true;
@@ -35,6 +40,9 @@ namespace KMS
         private float pitch = 20f;
         private Vector3 cameraVelocity;
         private bool cursorLocked;
+        private float defaultFieldOfView;
+        private float targetFieldOfView;
+        private float fieldOfViewVelocity;
 
         private void Reset()
         {
@@ -48,6 +56,13 @@ namespace KMS
             if (input == null) input = GetComponent<PlayerInput>();
             if (followTarget == null) followTarget = transform;
             if (cameraTransform == null && Camera.main != null) cameraTransform = Camera.main.transform;
+            if (targetCamera == null && cameraTransform != null) targetCamera = cameraTransform.GetComponent<Camera>();
+
+            if (targetCamera != null)
+            {
+                defaultFieldOfView = targetCamera.fieldOfView;
+                targetFieldOfView = defaultFieldOfView;
+            }
 
             yaw = followTarget.eulerAngles.y;
         }
@@ -62,6 +77,8 @@ namespace KMS
 
         private void LateUpdate()
         {
+            UpdateAimZoom();
+
             if (input != null && !input.IsGameplayInputBlocked)
             {
                 bool shouldLockCursor = !input.IsCursorReleaseHeld;
@@ -104,6 +121,30 @@ namespace KMS
             cursorLocked = locked;
             Cursor.lockState = locked ? CursorLockMode.Locked : CursorLockMode.None;
             Cursor.visible = !locked;
+        }
+
+        public void SetAimZoom(bool isAiming)
+        {
+            if (targetCamera == null) return;
+            targetFieldOfView = isAiming
+                ? Mathf.Max(1f, defaultFieldOfView - aimFovReduction)
+                : defaultFieldOfView;
+        }
+
+        private void UpdateAimZoom()
+        {
+            if (targetCamera == null) return;
+            targetCamera.fieldOfView = Mathf.SmoothDamp(
+                targetCamera.fieldOfView,
+                targetFieldOfView,
+                ref fieldOfViewVelocity,
+                zoomSmoothTime);
+        }
+
+        private void OnDisable()
+        {
+            if (targetCamera != null) targetCamera.fieldOfView = defaultFieldOfView;
+            fieldOfViewVelocity = 0f;
         }
 
         private float GetCameraDistance(Vector3 pivot, Quaternion rotation)
