@@ -23,6 +23,7 @@ namespace KMS.InventoryDuped
         [SerializeField] private KMS.PlayerInput playerInput;
         [SerializeField] private KMS.PlayerMovement playerMovement;
         [SerializeField] private KMS.PlayerCameraController cameraController;
+        [SerializeField] private KMS.PlayerHUD playerHud;
 
         // [HDY 요청] Item_ID만으로 테스트 지급을 할 수 있는 디버그 UI 훅.
         [Header("디버그 - Item_ID로 아이템 지급 (테스트용)")]
@@ -66,6 +67,7 @@ namespace KMS.InventoryDuped
 
             isInventoryOpen = false;
             if (inventoryPanel != null) inventoryPanel.SetActive(false);
+            if (playerHud != null) playerHud.SetSurvivalStatusVisible(true);
             HideItemTooltip();
             RefreshAll();
         }
@@ -113,14 +115,14 @@ namespace KMS.InventoryDuped
 
         public void ShowItemTooltip(ItemStack stack, Vector2 position)
         {
-            if (!isInventoryOpen || dragSource != null || itemTooltipUI == null) return;
+            if (dragSource != null || itemTooltipUI == null) return;
 
             itemTooltipUI.Show(stack, position);
         }
 
         public void MoveItemTooltip(Vector2 position)
         {
-            if (!isInventoryOpen || dragSource != null || itemTooltipUI == null) return;
+            if (dragSource != null || itemTooltipUI == null) return;
 
             itemTooltipUI.Move(position);
         }
@@ -153,6 +155,7 @@ namespace KMS.InventoryDuped
             if (playerInput == null) playerInput = FindFirstObjectByType<KMS.PlayerInput>();
             if (playerMovement == null) playerMovement = FindFirstObjectByType<KMS.PlayerMovement>();
             if (cameraController == null) cameraController = FindFirstObjectByType<KMS.PlayerCameraController>();
+            if (playerHud == null) playerHud = FindFirstObjectByType<KMS.PlayerHUD>();
         }
 
         private void SelectQuickSlot(int index)
@@ -212,6 +215,7 @@ namespace KMS.InventoryDuped
             isInventoryOpen = open;
 
             if (inventoryPanel != null) inventoryPanel.SetActive(open);
+            if (playerHud != null) playerHud.SetSurvivalStatusVisible(!open);
             if (playerInput != null) playerInput.SetGameplayInputBlocked(open ? true : previousGameplayInputBlocked);
             if (playerMovement != null) playerMovement.IsMovementEnabled = open ? false : previousMovementEnabled;
 
