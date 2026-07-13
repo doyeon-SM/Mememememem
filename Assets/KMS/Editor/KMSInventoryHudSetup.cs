@@ -2,6 +2,8 @@ using KMS.InventoryDuped;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.InputSystem.UI;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
@@ -60,6 +62,19 @@ namespace KMS.Editor
         public static void ApplyFromCommandLine()
         {
             Apply();
+        }
+
+        [MenuItem("KMS/Setup/Ensure Scene Inventory UI")]
+        public static void EnsureSceneInventoryUi()
+        {
+            EnsureSceneInventoryUi(Test2ScenePath);
+            AssetDatabase.SaveAssets();
+            Debug.Log("[KMSInventoryHudSetup] Ensured inventory Canvas and EventSystem in Test2Scene_KMS.");
+        }
+
+        public static void EnsureSceneInventoryUiFromCommandLine()
+        {
+            EnsureSceneInventoryUi();
         }
 
         public static void ValidateFromCommandLine()
@@ -127,13 +142,63 @@ namespace KMS.Editor
             Require(test2Scene.IsValid() && test2Scene.isLoaded, "Test2Scene_KMS could not be loaded.");
 
             PlayerInventory test2Inventory = Object.FindFirstObjectByType<PlayerInventory>(FindObjectsInactive.Include);
+            InventoryUI test2InventoryUi = Object.FindFirstObjectByType<InventoryUI>(FindObjectsInactive.Include);
+            EventSystem test2EventSystem = Object.FindFirstObjectByType<EventSystem>(FindObjectsInactive.Include);
             Require(test2Inventory != null, "PlayerInventory is missing from Test2Scene_KMS.");
+            Require(test2InventoryUi != null, "InventoryUI is missing from Test2Scene_KMS.");
+            Require(test2EventSystem != null, "EventSystem is missing from Test2Scene_KMS.");
+            Require(test2EventSystem.GetComponent<InputSystemUIInputModule>() != null,
+                "InputSystemUIInputModule is missing from Test2Scene_KMS EventSystem.");
             Require(test2Inventory.inventory.width == InventoryColumns && test2Inventory.inventory.height == InventoryRows,
                 $"Test2Scene_KMS player inventory is {test2Inventory.inventory.width}x{test2Inventory.inventory.height}, expected 10x6.");
             Require(test2Inventory.quickSlots.width == InventoryColumns && test2Inventory.quickSlots.height == 1,
                 "Test2Scene_KMS quick slots are not 10x1.");
+            Require(test2InventoryUi.inventoryGrid.GetComponentsInChildren<InventorySlotUI>(true).Length == InventoryColumns * InventoryRows,
+                "Test2Scene_KMS does not resolve 60 inventory slots from Canvas_Root.");
+            Require(test2InventoryUi.quickSlotRoot.GetComponentsInChildren<InventorySlotUI>(true).Length == InventoryColumns,
+                "Test2Scene_KMS does not resolve 10 quick slots from Canvas_Root.");
 
-            Debug.Log("[KMSInventoryHudSetup] Scene validation passed: Test2Scene_KMS resolves the 60+10 player inventory.");
+            Debug.Log("[KMSInventoryHudSetup] Scene validation passed: Test2Scene_KMS resolves the 60+10 player inventory and clickable UI.");
+        }
+
+        private static void EnsureSceneInventoryUi(string scenePath)
+        {
+            Scene scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
+            Require(scene.IsValid() && scene.isLoaded, $"Scene could not be loaded: {scenePath}");
+
+            InventoryUI inventoryUi = Object.FindFirstObjectByType<InventoryUI>(FindObjectsInactive.Include);
+            if (inventoryUi == null)
+            {
+                GameObject canvasPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(CanvasPrefabPath);
+                Require(canvasPrefab != null, $"Canvas prefab not found: {CanvasPrefabPath}");
+
+                GameObject canvasInstance = (GameObject)PrefabUtility.InstantiatePrefab(canvasPrefab, scene);
+                canvasInstance.name = "InventoryCanvas_Root";
+            }
+
+            EventSystem eventSystem = Object.FindFirstObjectByType<EventSystem>(FindObjectsInactive.Include);
+            if (eventSystem == null)
+            {
+                GameObject eventSystemObject = new GameObject("EventSystem");
+                SceneManager.MoveGameObjectToScene(eventSystemObject, scene);
+                eventSystem = eventSystemObject.AddComponent<EventSystem>();
+            }
+
+            StandaloneInputModule legacyInputModule = eventSystem.GetComponent<StandaloneInputModule>();
+            if (legacyInputModule != null)
+            {
+                Object.DestroyImmediate(legacyInputModule);
+            }
+
+            InputSystemUIInputModule inputModule = eventSystem.GetComponent<InputSystemUIInputModule>();
+            if (inputModule == null)
+            {
+                inputModule = eventSystem.gameObject.AddComponent<InputSystemUIInputModule>();
+                inputModule.AssignDefaultActions();
+            }
+
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
         }
 
         private static void ConfigureHotbar(Transform quickSlot)
