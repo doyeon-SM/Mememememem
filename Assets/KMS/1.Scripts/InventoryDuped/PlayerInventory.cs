@@ -1,6 +1,7 @@
 using System;
 using HDY.Item;
 using UnityEngine;
+using KMS.Persistence;
 
 namespace KMS.InventoryDuped
 {
@@ -103,6 +104,67 @@ public class PlayerInventory : MonoBehaviour
         quickSlots.Initialize();
 
         catalogManager = ItemCatalogManager.Resolve(catalogManager);
+    }
+
+    private void Start()
+    {
+        PlayerPersistenceManager.EnsureInstance().RegisterPlayer(this, GetComponent<KMS.PlayerStats>());
+    }
+
+    public PlayerInventorySaveData CaptureSaveData()
+    {
+        return new PlayerInventorySaveData
+        {
+            inventory = InventoryContainerSaveData.Capture(inventory),
+            quickSlots = InventoryContainerSaveData.Capture(quickSlots),
+            selectedQuickSlotIndex = selectedQuickSlotIndex
+        };
+    }
+
+    public void RestoreSaveData(PlayerInventorySaveData data)
+    {
+        if (data == null) return;
+
+        quickSlotUseReservation = null;
+        pendingQuickSlotIndex = -1;
+
+        RestoreContainer(inventory, data.inventory, "inventory");
+        RestoreContainer(quickSlots, data.quickSlots, "quickSlots");
+
+        selectedQuickSlotIndex = quickSlots.IsValidIndex(data.selectedQuickSlotIndex)
+            ? data.selectedQuickSlotIndex
+            : 0;
+
+        OnInventoryChanged?.Invoke();
+        NotifyAllQuickSlotsChanged();
+    }
+
+    private static void RestoreContainer(InventoryContainer target, InventoryContainerSaveData data, string containerName)
+    {
+        if (target == null || data == null) return;
+
+        target.width = Mathf.Max(1, data.width);
+        target.height = Mathf.Max(1, data.height);
+        target.Initialize();
+
+        int savedCount = data.slots != null ? data.slots.Length : 0;
+        int copyCount = Mathf.Min(target.slots.Length, savedCount);
+
+        for (int i = 0; i < target.slots.Length; i++)
+        {
+            if (i >= copyCount || data.slots[i] == null || data.slots[i].IsEmpty)
+            {
+                target.slots[i].Clear();
+                continue;
+            }
+
+            target.slots[i].Set(data.slots[i].itemId, data.slots[i].amount);
+        }
+
+        if (savedCount != target.slots.Length)
+        {
+            Debug.LogWarning($"[PlayerInventory] {containerName} 저장 슬롯 수({savedCount})와 복원 슬롯 수({target.slots.Length})가 다릅니다.");
+        }
     }
 
     // 아이템 추가

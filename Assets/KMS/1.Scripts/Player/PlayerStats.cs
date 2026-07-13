@@ -1,6 +1,7 @@
 using System;
 using UnityEngine;
 using UnityEngine.Serialization;
+using KMS.Persistence;
 
 namespace KMS
 {
@@ -89,9 +90,9 @@ namespace KMS
         public bool ConsumeHunger(float amount)
         {
             if (amount <= 0f) return true;
-            if (CurrentHunger < amount) return false;
+            if (CurrentHunger <= 0f) return false;
 
-            CurrentHunger -= amount;
+            CurrentHunger = Mathf.Max(0f, CurrentHunger - amount);
             HungerChanged?.Invoke(CurrentHunger, maxHunger);
 
             return true;
@@ -132,6 +133,31 @@ namespace KMS
         public void Kill()
         {
             TakeDamage(CurrentHealth);
+        }
+
+        public PlayerStatsSaveData CaptureSaveData()
+        {
+            return new PlayerStatsSaveData
+            {
+                currentHealth = CurrentHealth,
+                currentHunger = CurrentHunger
+            };
+        }
+
+        public void RestoreSaveData(PlayerStatsSaveData data)
+        {
+            if (data == null) return;
+
+            bool wasAlive = IsAlive;
+            CurrentHealth = Mathf.Clamp(data.currentHealth, 0f, maxHealth);
+            CurrentHunger = Mathf.Clamp(data.currentHunger, 0f, maxHunger);
+            IsAlive = CurrentHealth > 0f;
+
+            HealthChanged?.Invoke(CurrentHealth, maxHealth);
+            HungerChanged?.Invoke(CurrentHunger, maxHunger);
+
+            if (wasAlive && !IsAlive) Died?.Invoke();
+            else if (!wasAlive && IsAlive) Revived?.Invoke();
         }
 
         private void ApplyStarvationDamage()
