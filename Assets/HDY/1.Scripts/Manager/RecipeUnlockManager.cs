@@ -12,6 +12,7 @@ namespace HDY.Recipe
     /// RequestTerritoryLevel: 이 레시피를 해금하기 위해 필요한 영지 레벨(기본값 1).
     /// RequestGold: 여신상 UI에서 이 레시피를 구매할 때 필요한 골드.
     /// MaterialCosts: 골드와 함께 필요한 재료(공용 업그레이드 팝업에 표시/차감됨).
+    /// RewardExp: 이 레시피 해금에 성공했을 때 획득하는 영지 경험치(TerritoryData.CurrentExp).
     /// IsUnlocked: 실제 해금 여부(두 조건을 모두 만족해야 true가 됨).
     /// </summary>
     [Serializable]
@@ -29,6 +30,9 @@ namespace HDY.Recipe
         [Tooltip("골드와 함께 필요한 재료 (공용 업그레이드 팝업에 표시/차감)")]
         public List<Recipe_Requset_Item_Data> MaterialCosts = new List<Recipe_Requset_Item_Data>();
 
+        [Tooltip("이 레시피 해금에 성공하면 획득하는 영지 경험치")]
+        public int RewardExp = 0;
+
         public bool IsUnlocked;
     }
 
@@ -45,6 +49,10 @@ namespace HDY.Recipe
     /// ApplyUnlock을 호출해준다. TryPurchase는 결제 로직 자체는 그대로 남겨뒀지만(다른 곳에서 쓸 수도 있어
     /// 삭제하지 않음), 여신상 UI의 새 흐름에서는 더 이상 호출되지 않는다.
     ///
+    /// [영지 경험치 보상] 해금에 성공하면(ApplyUnlock/TryPurchase/Unlock 모두 포함) RecipeUnlockEntry.RewardExp만큼
+    /// TerritoryData.AddExp가 호출된다. territoryData 참조는 인스펙터에 비어있으면 자동 탐색(FindFirstObjectByType)
+    /// 한다. 이미 해금된 항목을 다시 해금 처리해도(재호출) 경험치가 중복 지급되지 않도록 가드한다.
+    ///
     /// [저장/불러오기 대응] TerritoryData와 함께 저장/불러오기 시스템이 이 매니저의 생명주기를 직접 관리할
     /// 예정이라, 더 이상 DontDestroyOnLoad 싱글톤을 쓰지 않는다(일반 컴포넌트).
     /// </summary>
@@ -53,9 +61,15 @@ namespace HDY.Recipe
         [Header("아이템 카탈로그 참조 (Item_ID -> ItemData 탐색용, 비어있으면 자동 탐색)")]
         [SerializeField] private ItemCatalogManager itemCatalogManager;
 
+        [Header("영지 데이터 참조 (경험치 지급용, 비어있으면 자동 탐색)")]
+        [SerializeField] private TerritoryData territoryData;
+
         private void Awake()
         {
             itemCatalogManager = ItemCatalogManager.Resolve(itemCatalogManager);
+
+            if (territoryData == null) territoryData = FindFirstObjectByType<TerritoryData>();
+            if (territoryData == null) Debug.LogWarning("[RecipeUnlockManager] territoryData를 찾을 수 없습니다.", this);
         }
 
         [Header("제작법 해금 목록 (인스펙터에서 Item_ID + 요구 레벨/골드/재료 + 해금여부를 함께 등록/확인)")]
@@ -75,19 +89,46 @@ namespace HDY.Recipe
             return entry != null && entry.IsUnlocked;
         }
 
-        /// <summary>해당 제작법(Item_ID)을 강제로 해금 처리한다(디버그/치트용). 목록에 없으면 새 항목을 추가해 해금 처리.</summary>
+        /// <summary>
+        /// 레시피 해금에 성공했을 때 RewardExp만큼 영지 경험치를 지급한다.
+        /// territoryData가 비어있으면(자동 탐색도 실패) 경고만 남기고 아무 것도 하지 않는다.
+        /// </summary>
+        private void GrantUnlockExp(RecipeUnlockEntry entry)
+        {
+            if (entry == null || entry.RewardExp <= 0) return;
+
+            if (territoryData == null) territoryData = FindFirstObjectByType<TerritoryData>();
+            if (territoryData == null)
+            {
+                Debug.LogWarning("[RecipeUnlockManager] territoryData를 찾을 수 없어 경험치를 지급하지 못했습니다.", this);
+                return;
+            }
+
+            territoryData.AddExp(entry.RewardExp);
+        }
+
+        /// <summary>해당 제작법(Item_ID)을 강제로 해금 처리한다(디버그/치트용). 목록에 없으면 새 항목을 추가해 해금 처리.
+        /// 치트 해금도 RewardExp만큼 영지 경험치를 지급한다(이미 해금된 항목이면 중복 지급하지 않음).</summary>
         public void Unlock(string itemId)
         {
             if (string.IsNullOrEmpty(itemId)) return;
 
             var entry = recipeUnlocks.Find(e => e.Item_ID == itemId);
+            bool alreadyUnlocked = entry != null && entry.IsUnlocked;
+
             if (entry != null)
             {
                 entry.IsUnlocked = true;
             }
             else
             {
-                recipeUnlocks.Add(new RecipeUnlockEntry { Item_ID = itemId, RequestTerritoryLevel = 1, IsUnlocked = true });
+                entry = new RecipeUnlockEntry { Item_ID = itemId, RequestTerritoryLevel = 1, IsUnlocked = true };
+                recipeUnlocks.Add(entry);
+            }
+
+            if (!alreadyUnlocked)
+            {
+                GrantUnlockExp(entry);
             }
 
             Debug.Log($"[RecipeUnlockManager] 레시피 강제 해금: Item_ID={itemId}");
@@ -130,14 +171,17 @@ namespace HDY.Recipe
         /// [공용 업그레이드 팝업 경유 흐름에서 사용] 결제(골드+재료)가 이미 끝난 뒤 호출된다.
         /// 순수하게 해금 상태만 반영한다 - 조건 검사나 결제는 팝업(UpgradePopupUI)과
         /// RecipeUnlockUpgrade(IUpgradable 어댑터)가 이미 마친 상태에서 호출되므로 여기서 다시 검사하지 않는다.
+        /// 이미 해금된 항목이면 아무 것도 하지 않는다(재호출 시 경험치 중복 지급 방지).
         /// </summary>
         public void ApplyUnlock(string itemId)
         {
             var entry = recipeUnlocks.Find(e => e.Item_ID == itemId);
-            if (entry == null) return;
+            if (entry == null || entry.IsUnlocked) return;
 
             entry.IsUnlocked = true;
             Debug.Log($"[RecipeUnlockManager] 레시피 해금 완료(팝업 결제 후 적용): Item_ID={itemId}");
+
+            GrantUnlockExp(entry);
 
             OnRecipeUnlocksChanged?.Invoke();
         }
@@ -145,7 +189,8 @@ namespace HDY.Recipe
         /// <summary>
         /// [구 버전 호환용, 새 흐름에서는 호출되지 않음] 영지 레벨 조건과 골드를 모두 확인해서 실제
         /// 구매(해금)를 시도한다. 조건을 만족하지 못하거나(레벨 부족/이미 해금됨) 골드가 부족하면 아무 것도
-        /// 바뀌지 않고 false를 반환한다. 성공하면 골드가 차감되고 IsUnlocked가 true로 바뀐다.
+        /// 바뀌지 않고 false를 반환한다. 성공하면 골드가 차감되고 IsUnlocked가 true로 바뀌며 RewardExp만큼
+        /// 영지 경험치를 획득한다.
         /// 재료(MaterialCosts)는 확인/차감하지 않는다 - 재료까지 반영하려면 공용 업그레이드 팝업 경유 흐름
         /// (RecipeUnlockUpgrade + ApplyUnlock)을 사용해야 한다.
         /// </summary>
@@ -160,6 +205,9 @@ namespace HDY.Recipe
 
             entry.IsUnlocked = true;
             Debug.Log($"[RecipeUnlockManager] 레시피 구매 완료: Item_ID={itemId}, 지불 골드={entry.RequestGold}");
+
+            territoryData.AddExp(entry.RewardExp);
+
             OnRecipeUnlocksChanged?.Invoke();
             return true;
         }

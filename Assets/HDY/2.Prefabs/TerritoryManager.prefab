@@ -67,16 +67,19 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HDY.Recipe.RecipeUnlockManager
   itemCatalogManager: {fileID: 0}
+  territoryData: {fileID: 0}
   recipeUnlocks:
   - Item_ID: item_iron
     RequestTerritoryLevel: 1
     RequestGold: 1000
     MaterialCosts: []
+    RewardExp: 100
     IsUnlocked: 0
   - Item_ID: item_woodplank
     RequestTerritoryLevel: 1
     RequestGold: 1000
     MaterialCosts: []
+    RewardExp: 100
     IsUnlocked: 0
 --- !u!114 &3109777930955922154
 MonoBehaviour:
@@ -91,6 +94,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HDY.Territory.TerritoryExpansionManager
   gridManager: {fileID: 0}
+  territoryData: {fileID: 0}
   startingGridSize: 5
   expansionSteps:
   - RequestTerritoryLevel: 1
@@ -99,4 +103,5 @@ MonoBehaviour:
       Amount: 100
     - Item_ID: item_irongemstone
       Amount: 100
+    RewardExp: 0
     IsExpanded: 0
