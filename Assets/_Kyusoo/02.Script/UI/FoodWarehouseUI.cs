@@ -45,6 +45,9 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner
 
     private InventorySlotUI dragSource;
 
+    public InventoryContainer FoodStorageContainer => foodStorageContainer;
+    public ItemCatalogManager CatalogManager => catalogManager;
+
     private void Awake()
     {
         if (playerInventory == null) playerInventory = FindFirstObjectByType<PlayerInventory>();
@@ -163,8 +166,16 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner
     {
         if (from.group == SlotGroup.Storage && to.group == SlotGroup.Storage)
         {
-            InventorySlotMoveHelper.MoveSlot(foodStorageContainer, from.slotIndex, foodStorageContainer, to.slotIndex, catalogManager);
-            RefreshAll();
+            bool moved = InventorySlotMoveHelper.MoveSlot(foodStorageContainer, from.slotIndex, foodStorageContainer, to.slotIndex, catalogManager);
+
+            if (moved)
+            {
+                RefreshAll();
+                if (ConsumeFoodSystem.Instance != null)
+                {
+                    ConsumeFoodSystem.Instance.ProcessFoodConsumption();
+                }
+            }
             return;
         }
 
@@ -177,8 +188,16 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner
             FilteredFoodSource src = rightFilteredFoods[from.slotIndex];
             InventoryContainer realFromContainer = (src.originalGroup == SlotGroup.Inventory) ? playerInventory.inventory : warehouseInventory.storage;
 
-            InventorySlotMoveHelper.MoveSlot(realFromContainer, src.originalIndex, foodStorageContainer, to.slotIndex, catalogManager);
-            RefreshAll();
+            bool moved = InventorySlotMoveHelper.MoveSlot(realFromContainer, src.originalIndex, foodStorageContainer, to.slotIndex, catalogManager);
+
+            if (moved)
+            {
+                RefreshAll();
+                if (ConsumeFoodSystem.Instance != null)
+                {
+                    ConsumeFoodSystem.Instance.ProcessFoodConsumption();
+                }
+            }
             return;
         }
 
@@ -196,9 +215,13 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner
             {
                 leftStack.amount -= added;
                 if (leftStack.amount <= 0) leftStack.Clear();
-            }
 
-            RefreshAll();
+                RefreshAll();
+                if (ConsumeFoodSystem.Instance != null)
+                {
+                    ConsumeFoodSystem.Instance.ProcessFoodConsumption();
+                }
+            }
             return;
         }
     }
@@ -210,7 +233,10 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner
     {
         if (storageSlotPrefab == null || storageContentParent == null || warehouseInventory == null) return;
 
-        int required = 5 * warehouseInventory.storage.height;
+        int upgradedRows = warehouseInventory.storage.height - warehouseInventory.StartingRows;
+        int currentRows = 1 + Mathf.Max(0, upgradedRows);
+
+        int required = 5 * currentRows;
         int current = storageSlots != null ? storageSlots.Length : 0;
 
         ItemStack[] oldSlots = foodStorageContainer.slots;
@@ -254,6 +280,10 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner
         }
     }
 
+    public void RefreshAllPanelsAndSlots()
+    {
+        RefreshAll();
+    }
 
     private void RefreshAll()
     {
@@ -279,6 +309,7 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner
                 if (IsFoodItem(stack))
                 {
                     rightFilteredFoods.Add(new FilteredFoodSource { originalGroup = SlotGroup.Inventory, originalIndex = i, stack = stack });
+                    Debug.Log($"<color=cyan>[FoodWarehouseUI]</color> 플레이어 인벤토리 {i}번 슬롯에서 음식 필터링 완료: ID = {stack.itemId}, 수량 = {stack.amount}개");
                 }
             }
         }
@@ -291,9 +322,11 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner
                 if (IsFoodItem(stack))
                 {
                     rightFilteredFoods.Add(new FilteredFoodSource { originalGroup = SlotGroup.Storage, originalIndex = i, stack = stack });
+                    Debug.Log($"<color=orange>[FoodWarehouseUI]</color> 일반 창고 {i}번 슬롯에서 음식 필터링 완료: ID = {stack.itemId}, 수량 = {stack.amount}개");
                 }
             }
         }
+        Debug.Log($"<color=green><b>[FoodWarehouseUI]</b></color> 인벤토리 및 일반 창고 전수조사 마감 -> 우측 대시보드에 총 <b>{rightFilteredFoods.Count}개</b>의 음식 스택이 빌드되었습니다.");
     }
 
     private void RefreshStorageSlots()

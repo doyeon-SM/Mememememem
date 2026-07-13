@@ -72,11 +72,19 @@ public class ProductionCraftRuntime : MonoBehaviour
 
         currentCraftingItem = targetItem;
         targetQuantity = quantity;
-        remainingQuantity = quantity; 
+        remainingQuantity = quantity;
         currentProgressTime = 0f;
 
         totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(craftingDuration, addMems);
-        isProducing = true;
+
+        if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
+        {
+            isProducing = true;
+        }
+        else
+        {
+            isProducing = false;
+        }
     }
 
     /// <summary>
@@ -84,7 +92,6 @@ public class ProductionCraftRuntime : MonoBehaviour
     /// </summary>
     private void RecalculateCraftingTimer()
     {
-        // 강제 보상 Transction이 동작되도록 처리되어있는지 확인
         if (addMems.Count == 0)
         {
             isProducing = false;
@@ -96,14 +103,20 @@ public class ProductionCraftRuntime : MonoBehaviour
             return;
         }
 
-        if (isProducing && currentCraftingItem != null && totalRequiredTime > 0f)
+        if (currentCraftingItem != null)
         {
-            float currentProgressPercent = currentProgressTime / totalRequiredTime;
-
+            float currentProgressPercent = totalRequiredTime > 0f ? (currentProgressTime / totalRequiredTime) : 0f;
             totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(craftingDuration, addMems);
             currentProgressTime = totalRequiredTime * currentProgressPercent;
 
-            Debug.Log($"제작대 멤 배치 변경으로 인한 시간 재조정 완료.");
+            if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
+            {
+                isProducing = true;
+            }
+            else
+            {
+                isProducing = false;
+            }
         }
     }
 
@@ -127,6 +140,9 @@ public class ProductionCraftRuntime : MonoBehaviour
         targetEntry.IsActive = true;
 
         RecalculateCraftingTimer();
+
+        if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
+
         return true;
     }
 
@@ -146,6 +162,8 @@ public class ProductionCraftRuntime : MonoBehaviour
             addMems.RemoveAt(index);
 
             RecalculateCraftingTimer();
+
+            if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
         }
     }
 

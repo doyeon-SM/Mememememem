@@ -9594,6 +9594,14 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 5686809902589899048, guid: e5e80955d5db15140b61d0af065870a7, type: 3}
+      propertyPath: itemDataList.Array.size
+      value: 7
+      objectReference: {fileID: 0}
+    - target: {fileID: 5686809902589899048, guid: e5e80955d5db15140b61d0af065870a7, type: 3}
+      propertyPath: 'itemDataList.Array.data[6]'
+      value: 
+      objectReference: {fileID: 11400000, guid: ea66ddcf71186c940abc78c6d559c11c, type: 2}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -11216,7 +11224,10 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 1106855712551666943, guid: a7f5d427487749a4c9e96945e7cc54cb, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1962060379}
   m_SourcePrefab: {fileID: 100100000, guid: a7f5d427487749a4c9e96945e7cc54cb, type: 3}
 --- !u!1 &904294959
 GameObject:
@@ -21359,7 +21370,7 @@ MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 7294453871775686018, guid: a7f5d427487749a4c9e96945e7cc54cb, type: 3}
   m_PrefabInstance: {fileID: 904226659}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
+  m_GameObject: {fileID: 1962060376}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 290440fbfa7042e419242e695d93a01b, type: 3}
@@ -22021,6 +22032,24 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1953500674}
   m_CullTransparentMesh: 1
+--- !u!1 &1962060376 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 1106855712551666943, guid: a7f5d427487749a4c9e96945e7cc54cb, type: 3}
+  m_PrefabInstance: {fileID: 904226659}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &1962060379
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1962060376}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 232bb0abbbcf39a4c946f25aade9c4bf, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::TotalHungerManager
+  totalHungerPerMinute: 0
 --- !u!1 &1966980850
 GameObject:
   m_ObjectHideFlags: 0
@@ -22501,6 +22530,18 @@ PrefabInstance:
       propertyPath: catalogManager
       value: 
       objectReference: {fileID: 804506785}
+    - target: {fileID: 8134413188249864202, guid: 6d184de363ae2b84ba4f1cf668139a20, type: 3}
+      propertyPath: storage.slots.Array.size
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 8134413188249864202, guid: 6d184de363ae2b84ba4f1cf668139a20, type: 3}
+      propertyPath: storage.slots.Array.data[0].amount
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: 8134413188249864202, guid: 6d184de363ae2b84ba4f1cf668139a20, type: 3}
+      propertyPath: storage.slots.Array.data[0].itemId
+      value: item_apple
+      objectReference: {fileID: 0}
     - target: {fileID: 8795295949904946308, guid: 6d184de363ae2b84ba4f1cf668139a20, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0
@@ -29919,6 +29960,7 @@ GameObject:
   - component: {fileID: 5614062247229036038}
   - component: {fileID: 7222780268827766726}
   - component: {fileID: 2292513040613387392}
+  - component: {fileID: 7222780268827766727}
   m_Layer: 5
   m_Name: P_WarehouseRoot
   m_TagString: Untagged
@@ -31066,6 +31108,20 @@ MonoBehaviour:
   inventoryGrid: {fileID: 7413012781622149438}
   itemDragUI: {fileID: 2515181059516723298}
   itemTooltipUI: {fileID: 3080059906163699993}
+--- !u!114 &7222780268827766727
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6000750068819107402}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0043b50aadfe6204fb4d42b1f24e431a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ConsumeFoodSystem
+  foodWarehouseUI: {fileID: 7222780268827766726}
+  consumeInterval: 60
 --- !u!114 &7290880655225677214
 MonoBehaviour:
   m_ObjectHideFlags: 0
