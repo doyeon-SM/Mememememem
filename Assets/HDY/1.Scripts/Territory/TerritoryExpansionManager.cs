@@ -9,6 +9,7 @@ namespace HDY.Territory
     /// 영지 확장 한 단계. RecipeUnlockEntry와 같은 모양(요구 레벨 + 재료 + 완료 여부)으로 맞췄다 -
     /// 여신상 UI의 레벨별 줄(GoddessStatueUI_LevelRow)에 레시피와 동일한 방식으로 표시하기 위함이다.
     /// 골드는 요구하지 않는다(재료만 소비).
+    /// RewardExp: 이 확장 단계 완료에 성공했을 때 획득하는 영지 경험치(TerritoryData.CurrentExp).
     /// </summary>
     [Serializable]
     public class TerritoryExpansionEntry
@@ -18,6 +19,9 @@ namespace HDY.Territory
 
         [Tooltip("이 확장 단계에 필요한 재료 (골드는 없음)")]
         public List<Recipe_Requset_Item_Data> MaterialCosts = new List<Recipe_Requset_Item_Data>();
+
+        [Tooltip("이 확장 단계에 성공하면 획득하는 영지 경험치")]
+        public int RewardExp = 0;
 
         public bool IsExpanded;
     }
@@ -30,6 +34,10 @@ namespace HDY.Territory
     /// [순차 진행] 확장 단계는 리스트 순서대로 하나씩만 진행 가능하다(GetNextPendingEntry). 완료된 단계는
     /// IsExpanded=true로 표시되고, 그 다음 단계가 정의된 요구 레벨에 맞는 줄에 노출된다.
     ///
+    /// [영지 경험치 보상] 확장에 성공하면(ApplyExpand) TerritoryExpansionEntry.RewardExp만큼 TerritoryData.AddExp가
+    /// 호출된다. territoryData 참조는 인스펙터에 비어있으면 자동 탐색(FindFirstObjectByType)한다. ApplyExpand는
+    /// 이미 entry.IsExpanded 가드가 있어 재호출로 인한 경험치 중복 지급은 발생하지 않는다.
+    ///
     /// [그리드 크기 자체 추적 - 중요한 제약] GridManager의 현재 그리드 크기(currentWidth/currentHeight)는
     /// private이고 공개된 조회 방법이 없다(팀원 파일이라 추가 불가). 그래서 이 매니저가 startingGridSize(기본
     /// 5, GridManager.Start()의 InitializeGrid(5,5)와 맞춰야 함)부터 시작해서 확장할 때마다 +1씩 자체적으로
@@ -41,6 +49,9 @@ namespace HDY.Territory
     {
         [Header("데이터 참조")]
         [SerializeField] private GridManager gridManager;
+
+        [Header("영지 데이터 참조 (경험치 지급용, 비어있으면 자동 탐색)")]
+        [SerializeField] private TerritoryData territoryData;
 
         [Header("그리드 크기 추적 (GridManager가 현재 크기를 공개하지 않아 자체 추적)")]
         [Tooltip("GridManager.Start()의 InitializeGrid(5,5)와 반드시 맞춰야 한다.")]
@@ -60,6 +71,9 @@ namespace HDY.Territory
         {
             if (gridManager == null) gridManager = FindFirstObjectByType<GridManager>();
             if (gridManager == null) Debug.LogWarning("[TerritoryExpansionManager] gridManager를 찾을 수 없습니다.", this);
+
+            if (territoryData == null) territoryData = FindFirstObjectByType<TerritoryData>();
+            if (territoryData == null) Debug.LogWarning("[TerritoryExpansionManager] territoryData를 찾을 수 없습니다.", this);
 
             currentGridSize = startingGridSize;
         }
@@ -89,7 +103,8 @@ namespace HDY.Territory
 
         /// <summary>
         /// [공용 업그레이드 팝업 경유 흐름에서 사용] 재료 결제가 이미 끝난 뒤 호출된다. 순수하게
-        /// 완료 상태 반영 + 그리드 크기 자체 추적값 증가 + GridManager.ExpandGrid 호출만 담당한다.
+        /// 완료 상태 반영 + 그리드 크기 자체 추적값 증가 + GridManager.ExpandGrid 호출 + RewardExp만큼
+        /// 영지 경험치 지급을 담당한다. 이미 완료된 단계면 아무 것도 하지 않는다(재호출 시 경험치 중복 지급 방지).
         /// </summary>
         public void ApplyExpand(TerritoryExpansionEntry entry)
         {
@@ -99,6 +114,16 @@ namespace HDY.Territory
             currentGridSize += 1;
 
             gridManager?.ExpandGrid(currentGridSize, currentGridSize);
+
+            if (territoryData == null) territoryData = FindFirstObjectByType<TerritoryData>();
+            if (territoryData != null)
+            {
+                territoryData.AddExp(entry.RewardExp);
+            }
+            else
+            {
+                Debug.LogWarning("[TerritoryExpansionManager] territoryData를 찾을 수 없어 경험치를 지급하지 못했습니다.", this);
+            }
 
             Debug.Log($"[TerritoryExpansionManager] 영지 확장 완료: {currentGridSize}x{currentGridSize}");
 
