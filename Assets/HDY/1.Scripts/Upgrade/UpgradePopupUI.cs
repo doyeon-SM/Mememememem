@@ -23,7 +23,8 @@ namespace HDY.Upgrade
     ///   개수만큼 materialCostRowPrefab을 채워 넣는 역할만 한다.
     /// - 이번 업그레이드에 필요한 재료가 하나도 없으면(예: 멤창고 페이지 업그레이드는 골드만 사용) 재료 스크롤 뷰
     ///   자체를 꺼서 빈 영역이 보이지 않도록 한다(materialScrollRect 기준으로 토글).
-    /// - 골드 비용이 0 이하면(예: 영지 확장은 재료만 사용) goldCostText 자체를 비활성화한다.
+    /// - 골드 비용은 0이어도 숨기지 않는다 - goldCostText는 항상 켜져 있고, "골드: 0"처럼 공통 형식
+    ///   "골드: {금액}"으로 표시한다(재료만 필요한 업그레이드, 예: 영지 확장도 "골드: 0"으로 뜬다).
     ///
     /// [사용법] 다른 UI에서 UpgradePopupUI.Instance.Show(target)만 호출하면 된다. 확인 버튼을 누르면
     /// 팝업이 직접 TerritoryData에서 골드를 확인/차감하고(재료는 IMaterialInventory 연결 시 함께 확인/차감),
@@ -66,7 +67,7 @@ namespace HDY.Upgrade
 
         [Header("제목 / 골드 텍스트")]
         [SerializeField] private TMP_Text titleText;
-        [Tooltip("골드 비용이 0 이하면(재료만 필요한 업그레이드) 이 텍스트 자체를 비활성화한다.")]
+        [Tooltip("골드 비용이 0이어도 숨기지 않고 항상 켜둔 채로 \"골드: {금액}\" 형식으로 표시한다.")]
         [SerializeField] private TMP_Text goldCostText;
 
         [Header("확인 / 취소 버튼")]
@@ -196,12 +197,11 @@ namespace HDY.Upgrade
 
             if (titleText != null) titleText.text = currentTarget.GetUpgradeTitle();
 
-            // 골드 비용이 0 이하면(재료만 필요한 업그레이드, 예: 영지 확장) 텍스트 자체를 감춘다.
-            bool hasGoldCost = cost.GoldCost > 0;
+            // 골드가 0이어도(재료만 필요한 업그레이드, 예: 영지 확장 포함) 숨기지 않고 항상 공통 형식으로 표시한다.
             if (goldCostText != null)
             {
-                goldCostText.gameObject.SetActive(hasGoldCost);
-                if (hasGoldCost) goldCostText.text = cost.GoldCost.ToString();
+                goldCostText.gameObject.SetActive(true);
+                goldCostText.text = $"골드: {cost.GoldCost}";
             }
 
             if (confirmButtonLabel != null) confirmButtonLabel.text = currentTarget.GetUpgradeDescription();

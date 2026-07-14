@@ -7,6 +7,14 @@ namespace HDY.Territory
     /// RecipeUnlockUpgrade와 마찬가지로 대상이 매번 달라질 수 있어(어떤 단계를 선택했는지) MonoBehaviour가
     /// 아니라 일반 클래스이며, GoddessStatueUI가 슬롯을 선택할 때마다 new로 즉석에서 만들어 넘긴다.
     /// 골드는 요구하지 않으므로 GetUpgradeCost()의 GoldCost는 항상 0이다.
+    ///
+    /// [제목] 영지 확장은 레시피와 달리 특정 아이템을 해금하는 게 아니라서 아이템 이름이 없다. 그래서
+    /// WarehouseUpgrade("창고 확장")와 같은 방식으로 고정 문구를 쓰되, 여신상 UI에서 이제 여러 확장 단계
+    /// (예: Lv.3, Lv.4)의 grid가 동시에 노출될 수 있어(GoddessStatueUI.BuildRows 참고) 어떤 단계를 보고
+    /// 있는지 구분할 수 있도록 요구 레벨을 함께 표시한다.
+    ///
+    /// [재료/골드 표시는 팝업이 범용으로 처리] GetUpgradeCost()가 반환하는 GoldCost/MaterialCosts만 채워주면,
+    /// 재료 스크롤 뷰 표시 여부·골드 텍스트 표시 여부는 UpgradePopupUI.RefreshDisplay가 알아서 처리한다.
     /// </summary>
     public class TerritoryExpansionUpgrade : IUpgradable
     {
@@ -23,7 +31,7 @@ namespace HDY.Territory
 
         public string GetUpgradeTitle()
         {
-            return "Unlock";
+            return $"영지 확장 (Lv.{entry.RequestTerritoryLevel})";
         }
 
         public string GetUpgradeDescription()
