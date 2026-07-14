@@ -1,17 +1,19 @@
-﻿using System;
-using System.IO;
-using System.Collections.Generic;
-using UnityEngine;
-using UnityEngine.SceneManagement;
-using HDY.Territory;
+﻿using HDY.Capture;
 using HDY.Inventory;
 using HDY.Item;
+using HDY.Mem;
+using HDY.Territory;
+using HDY.Recipe;
 using KMS.InventoryDuped;
 using MemSystem.Data;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using UnityEngine;
+using UnityEngine.SceneManagement;
 
-// =================================================================
-// 📦 [데이터 세이브 및 직렬화 전용 규격 구조체 정의]
-// =================================================================
 [Serializable]
 public class SerializableItemStack
 {
@@ -25,6 +27,16 @@ public class SerializableContainerData
     public int width;
     public int height;
     public List<SerializableItemStack> slots = new List<SerializableItemStack>();
+}
+
+[Serializable]
+public class PlacedBuildingSaveData
+{
+    public string buildingName;
+    public int gridX;
+    public int gridZ;
+    public float rotationY;
+    public PlantJSONSaveData runtimeData;
 }
 
 [Serializable]
@@ -48,37 +60,37 @@ public class TerritorySaveData
     public SerializableContainerData playerInventoryData;
     public SerializableContainerData warehouseStorageData;
     public SerializableContainerData foodWarehouseStorageData;
+    public SerializableContainerData foodBagStorageData;
 
     [Header("음식 소모 시뮬레이션 데이터")]
     public int maxSatiety;
     public int currentSatiety;
     public bool isWorkStoppedDueToStarvation;
 
-    [Header("배치된 런타임 시설 및 일꾼 데이터")]
-    public List<PlantJSONSaveData> facilitySaveList = new List<PlantJSONSaveData>();
+    [Header("멤 창고 데이터")]
+    public int unlockedPageCount = 2;
+    public List<CapturedMemEntry> serializedCapturedMems = new List<CapturedMemEntry>();
+
+    [Header("배치된 시설 레이아웃 청사진 및 일꾼 마스터 데이터")]
+    public List<PlacedBuildingSaveData> placedBuildings = new List<PlacedBuildingSaveData>();
 }
 
-/// <summary>
-/// 👑 [영지 데이터 영구 저장/복원 및 오프라인 방치 정산 마스터 매니저]
-/// UI 기능이 완전히 배제된 순수 데이터 제어 스크립트입니다.
-/// 사라진 PlantSystem의 모든 장부 데이터베이스 및 오프라인 대기 연산 역할을 단독 수행합니다.
-/// 게임 종료, 강제 종료(일시정지), 씬 이동 직전 "오직 단 한 번" 전체 백업 세이브를 수행합니다.
-/// </summary>
 public class RecordManager : MonoBehaviour
 {
     public static RecordManager Instance { get; private set; }
 
     private string saveFilePath;
-
-    // 🌟 [PlantSystem 완벽 흡수]: 전역 시설 장부 데이터베이스 캐싱 딕셔너리
     private Dictionary<string, PlantJSONSaveData> facilityDatabase = new Dictionary<string, PlantJSONSaveData>();
+    private bool isApplicationQuitting = false;
+
+    private const string LastPlayTimeKey = "OfflineLastPlayTime";
 
     private void Awake()
     {
         if (Instance == null)
         {
             Instance = this;
-            DontDestroyOnLoad(gameObject); // 씬 전환 도중 세이브 파괴 방지
+            DontDestroyOnLoad(gameObject);
             saveFilePath = Path.Combine(Application.persistentDataPath, "TerritoryRecord.json");
         }
         else
@@ -90,13 +102,11 @@ public class RecordManager : MonoBehaviour
 
     private void Start()
     {
-        // 🚀 게임 기동 또는 영지 씬 진입 시 전체 복원 가동
-        LoadTerritoryRecordData();
+        StartCoroutine(DelayedLoadRoutine());
     }
 
     private void OnEnable()
     {
-        // 씬 이탈(전투 씬 이동 등) 직전 트리거를 잡기 위해 유니티 이벤트 바인딩
         SceneManager.sceneUnloaded += OnSceneUnloadedTrigger;
     }
 
@@ -105,10 +115,12 @@ public class RecordManager : MonoBehaviour
         SceneManager.sceneUnloaded -= OnSceneUnloadedTrigger;
     }
 
-    // =================================================================
-    // 🧬 [PlantSystem 흡수 통합: 시설 데이터베이스 관리 API 구역]
-    // =================================================================
-    /// <summary>기존 PlantSystem.Instance.GetFacilityData를 대체합니다.</summary>
+    private IEnumerator DelayedLoadRoutine()
+    {
+        yield return null;
+        LoadTerritoryRecordData();
+    }
+
     public PlantJSONSaveData GetFacilityData(string buildingId)
     {
         if (string.IsNullOrEmpty(buildingId)) return null;
@@ -130,7 +142,6 @@ public class RecordManager : MonoBehaviour
         return facilityDatabase[buildingId];
     }
 
-    /// <summary>기존 PlantSystem.Instance.UpdateFacilityData를 대체합니다.</summary>
     public void UpdateFacilityData(string buildingId, PlantJSONSaveData updatedData)
     {
         if (string.IsNullOrEmpty(buildingId) || updatedData == null) return;
@@ -141,169 +152,184 @@ public class RecordManager : MonoBehaviour
             facilityDatabase.Add(buildingId, updatedData);
     }
 
-    /// <summary>
-    /// 필드의 모든 생산 기지와 제작 공방을 실시간 전수 조사하여 런타임 수치를 메모리 장부에 동기화합니다.
-    /// </summary>
-    private void SynchronizeAllFacilitiesRealtime()
+    private void SetPrivateFieldSafely(object targetObject, string fieldName, object valueToSet)
     {
-        // 1. 일반 생산 시설(채광, 벌목 등) 전수조사 스캔
-        var productionFacilities = FindObjectsByType<ProductionFacilityRuntime>(FindObjectsSortMode.None);
-        foreach (var facility in productionFacilities)
+        if (targetObject == null || valueToSet == null) return;
+
+        try
         {
-            if (facility == null || facility.buildingData == null) continue;
-            var br = facility.GetComponent<BuildingRuntime>();
-            string uniqueId = br != null ? $"{facility.buildingData.buildingName}_{br.gridX}_{br.gridZ}" : facility.buildingData.buildingId;
+            var fieldInfo = targetObject.GetType().GetField(fieldName,
+                System.Reflection.BindingFlags.NonPublic |
+                System.Reflection.BindingFlags.Public |
+                System.Reflection.BindingFlags.Instance);
 
-            PlantJSONSaveData data = GetFacilityData(uniqueId);
-            data.isActive = facility.isProducing;
-            data.currentCraftingItemId = facility.craftingItem != null ? facility.craftingItem.Item_ID : "";
-            data.currentProgressTime = facility.currentProgressTime;
-            data.currentStorageCount = facility.currentStorageCount;
+            if (fieldInfo == null) return;
 
-            // 투입되어 일하던 멤(Mem) 이름 리스트 백업
-            data.DeployedMemIDs.Clear();
-            if (facility.DeployedMems != null)
+            if (fieldInfo.FieldType.IsAssignableFrom(valueToSet.GetType()))
             {
-                foreach (var mem in facility.DeployedMems)
-                {
-                    if (mem != null) data.DeployedMemIDs.Add(mem.memName);
-                }
+                fieldInfo.SetValue(targetObject, valueToSet);
             }
-
-            if (facilityDatabase.ContainsKey(uniqueId)) facilityDatabase[uniqueId] = data;
+            else
+            {
+                object convertedValue = Convert.ChangeType(valueToSet, fieldInfo.FieldType);
+                fieldInfo.SetValue(targetObject, convertedValue);
+            }
         }
-
-        // 2. 제작 공방 시설(제작대 등) 전수조사 스캔
-        var craftingFacilities = FindObjectsByType<ProductionCraftRuntime>(FindObjectsSortMode.None);
-        foreach (var craft in craftingFacilities)
+        catch (Exception e)
         {
-            if (craft == null || craft.buildingData == null) continue;
-            var br = craft.GetComponent<BuildingRuntime>();
-            string uniqueId = br != null ? $"{craft.buildingData.buildingName}_{br.gridX}_{br.gridZ}" : craft.buildingData.buildingId;
-
-            PlantJSONSaveData data = GetFacilityData(uniqueId);
-            data.isActive = craft.isProducing;
-            data.currentCraftingItemId = craft.currentCraftingItem != null ? craft.currentCraftingItem.Item_ID : "";
-            data.targetQuantity = craft.targetQuantity;
-            data.remainingQuantity = craft.remainingQuantity;
-            data.currentProgressTime = craft.currentProgressTime;
-            data.currentStorageCount = craft.currentStorageCount;
-
-            data.DeployedMemIDs.Clear();
-            if (craft.DeployedMems != null)
-            {
-                foreach (var mem in craft.DeployedMems)
-                {
-                    if (mem != null) data.DeployedMemIDs.Add(mem.memName);
-                }
-            }
-
-            if (facilityDatabase.ContainsKey(uniqueId)) facilityDatabase[uniqueId] = data;
+            Debug.LogWarning($"[RecordManager] 리플렉션 안전 장치 가동 우회 ({fieldName}): {e.Message}");
         }
     }
 
-    // =================================================================
-    // 💾 [마스터 데이터 일괄 취합 및 파일 쓰기 핵심 세이브 엔진]
-    // =================================================================
-    /// <summary>
-    /// 🌟 [핵심 사양]: 종료 / 강제종료 / 씬 이동 직전에 단 한번 무겁게 호출되는 마감 직렬화 세이브 함수
-    /// </summary>
     public void ExecuteBulkSaveProcess()
     {
         try
         {
-            // 필드 내 배치된 모든 생산/제작 월드 시설물 데이터 전수 스캔 주입
-            SynchronizeAllFacilitiesRealtime();
+            if (isApplicationQuitting && (ConsumeFoodSystem.Instance == null || FindFirstObjectByType<PlayerInventory>() == null))
+            {
+                Debug.LogWarning("<color=orange>[RecordManager]</color> 어플리케이션 종료 연쇄 파괴 단계를 감지하여 세이브 파일 오염 방지를 위해 쓰기를 유보합니다.");
+                return;
+            }
+
+            var activeBuildings = FindObjectsByType<BuildingRuntime>(FindObjectsSortMode.None);
+
+            if (isApplicationQuitting && activeBuildings.Length == 0 && File.Exists(saveFilePath))
+            {
+                Debug.LogWarning("<color=red>[RecordManager]</color> 종료 과정 중 시설 오브젝트가 먼저 파괴된 상태로 탐지되어 데이터 오염 방지를 위해 세이브를 건너뜁니다.");
+                return;
+            }
 
             TerritorySaveData saveData = new TerritorySaveData();
-            saveData.lastSaveTime = DateTime.UtcNow.ToString("o"); // ISO 8601 표준 포맷 시간 기록
+            saveData.lastSaveTime = DateTime.UtcNow.ToString("o");
 
-            // 1. 영지 기초 재화 및 레벨 데이터 취합 복사
             var territoryData = FindFirstObjectByType<TerritoryData>();
             if (territoryData != null)
             {
                 saveData.territoryLevel = territoryData.Level;
                 saveData.currentExp = territoryData.CurrentExp;
-                saveData.requiredExp = territoryData.RequiredExp;
                 saveData.gold = territoryData.Gold;
                 saveData.satisfaction = territoryData.Satisfaction;
                 saveData.elapsedTime = territoryData.ElapsedTime;
+                saveData.requiredExp = 100;
             }
 
-            // 2. 타일 확장 그리드 크기 및 단계 정보 취합 복사
             var expansion = FindFirstObjectByType<TerritoryExpansionManager>();
             if (expansion != null)
             {
-                // 리플렉션을 사용해 private 필드인 currentGridSize 강제 추출 백업
                 var fieldGridSize = typeof(TerritoryExpansionManager).GetField("currentGridSize", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                if (fieldGridSize != null)
-                {
-                    saveData.currentGridSize = (int)fieldGridSize.GetValue(expansion);
-                }
+                if (fieldGridSize != null) saveData.currentGridSize = (int)fieldGridSize.GetValue(expansion);
 
-                foreach (var step in expansion.ExpansionSteps)
-                {
-                    saveData.expansionExpandedStates.Add(step.IsExpanded);
-                }
+                foreach (var step in expansion.ExpansionSteps) saveData.expansionExpandedStates.Add(step.IsExpanded);
             }
 
-            // 3. 가방 / 일반 창고 / 음식 창고 실물 장부 슬롯 팩킹 직렬화
-            var pInventory = FindFirstObjectByType<PlayerInventory>();
-            if (pInventory != null && pInventory.inventory != null)
+            if (MemCaptureManager.Instance != null)
             {
-                saveData.playerInventoryData = PackContainerData(pInventory.inventory);
+                saveData.unlockedPageCount = MemCaptureManager.Instance.UnlockedPageCount;
+                if (MemCaptureManager.Instance.CapturedMems != null)
+                {
+                    foreach (var entry in MemCaptureManager.Instance.CapturedMems)
+                    {
+                        saveData.serializedCapturedMems.Add(entry);
+                    }
+                }
             }
+
+            foreach (var br in activeBuildings)
+            {
+                if (br == null || br.buildingData == null) continue;
+
+                PlacedBuildingSaveData bSave = new PlacedBuildingSaveData();
+                bSave.buildingName = br.buildingData.buildingName;
+                bSave.gridX = br.gridX;
+                bSave.gridZ = br.gridZ;
+                bSave.rotationY = br.transform.eulerAngles.y;
+
+                string uniqueId = $"{br.buildingData.buildingName}_{br.gridX}_{br.gridZ}";
+                PlantJSONSaveData rData = GetFacilityData(uniqueId);
+
+                rData.DeployedMemIDs.Clear();
+
+                if (br.TryGetComponent<ProductionFacilityRuntime>(out var facility))
+                {
+                    rData.isActive = facility.isProducing;
+                    rData.currentCraftingItemId = facility.craftingItem != null ? facility.craftingItem.Item_ID : "";
+                    rData.currentProgressTime = facility.currentProgressTime;
+                    rData.currentStorageCount = facility.currentStorageCount;
+
+                    if (facility.DeployedMemEntries != null)
+                    {
+                        foreach (var entry in facility.DeployedMemEntries)
+                        {
+                            if (entry != null && !string.IsNullOrEmpty(entry.KeyId))
+                            {
+                                rData.DeployedMemIDs.Add(entry.KeyId);
+                            }
+                        }
+                    }
+                }
+                else if (br.TryGetComponent<ProductionCraftRuntime>(out var craft))
+                {
+                    rData.isActive = craft.isProducing;
+                    rData.currentCraftingItemId = craft.currentCraftingItem != null ? craft.currentCraftingItem.Item_ID : "";
+                    rData.targetQuantity = craft.targetQuantity;
+                    rData.remainingQuantity = craft.remainingQuantity;
+                    rData.currentProgressTime = craft.currentProgressTime;
+                    rData.currentStorageCount = craft.currentStorageCount;
+
+                    if (craft.DeployedMemEntries != null)
+                    {
+                        foreach (var entry in craft.DeployedMemEntries)
+                        {
+                            if (entry != null && !string.IsNullOrEmpty(entry.KeyId))
+                                rData.DeployedMemIDs.Add(entry.KeyId);
+                        }
+                    }
+                }
+
+                bSave.runtimeData = rData;
+                saveData.placedBuildings.Add(bSave);
+            }
+
+            var pInventory = FindFirstObjectByType<PlayerInventory>();
+            if (pInventory != null && pInventory.inventory != null) saveData.playerInventoryData = PackContainerData(pInventory.inventory);
 
             var wInventory = FindFirstObjectByType<WarehouseInventory>();
-            if (wInventory != null && wInventory.storage != null)
-            {
-                saveData.warehouseStorageData = PackContainerData(wInventory.storage);
-            }
+            if (wInventory != null && wInventory.storage != null) saveData.warehouseStorageData = PackContainerData(wInventory.storage);
 
-            if (ConsumeFoodSystem.Instance != null && ConsumeFoodSystem.Instance.FoodStorageContainer != null)
+            if (ConsumeFoodSystem.Instance != null)
             {
-                saveData.foodWarehouseStorageData = PackContainerData(ConsumeFoodSystem.Instance.FoodStorageContainer);
+                if (ConsumeFoodSystem.Instance.FoodStorageContainer != null)
+                    saveData.foodWarehouseStorageData = PackContainerData(ConsumeFoodSystem.Instance.FoodStorageContainer);
 
-                // 음식 보급망 내부 핵심 수치 장부 백업
+                if (ConsumeFoodSystem.Instance.FoodBagContainer != null)
+                    saveData.foodBagStorageData = PackContainerData(ConsumeFoodSystem.Instance.FoodBagContainer);
+
                 saveData.maxSatiety = ConsumeFoodSystem.Instance.MaxSatiety;
                 saveData.currentSatiety = ConsumeFoodSystem.Instance.CurrentSatiety;
                 saveData.isWorkStoppedDueToStarvation = ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation;
             }
 
-            // 4. 메모리 내 통합 관리 중인 모든 시설 리스트 마스터 세이브 데이터에 최종 편입
-            foreach (var kvp in facilityDatabase)
-            {
-                saveData.facilitySaveList.Add(kvp.Value);
-            }
-
-            // 5. 로컬 JSON 파일 최종 디스크 기록
             string jsonString = JsonUtility.ToJson(saveData, true);
             File.WriteAllText(saveFilePath, jsonString);
 
-            Debug.Log($"<color=lime><b>[RecordManager]</b></color> 전체 데이터 일괄 백업 세이브 대성공! 경로: <color=yellow>{saveFilePath}</color>");
+            PlayerPrefs.SetString(LastPlayTimeKey, saveData.lastSaveTime);
+            PlayerPrefs.Save();
 
-            // 🌟 [기획 사양]: 파일 저장이 끝나는 즉시 로컬 파일 위치를 유저 컴퓨터의 탐색기 창으로 강제 활성화 노출
-            if (Application.platform == RuntimePlatform.WindowsEditor)
-            {
-                System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{saveFilePath.Replace("/", "\\")}\"");
-            }
+            Debug.Log($"<color=lime><b>[RecordManager]</b></color> 영지 전체 데이터 JSON 백업 일괄 세이브 성공!");
         }
         catch (Exception e)
         {
-            Debug.LogError($"[RecordManager] 일괄 마감 세이브 처리 중 예외 발생: {e.Message}");
+            Debug.LogError($"[RecordManager] 일괄 마감 세이브 도중 치명적 예외: {e.Message}");
         }
     }
 
-    // =================================================================
-    // 📥 [역직렬화 데이터 복원 및 오프라인 방치 보상 연산 로드 엔진]
-    // =================================================================
     public void LoadTerritoryRecordData()
     {
         facilityDatabase.Clear();
 
         if (!File.Exists(saveFilePath))
         {
-            Debug.Log("<color=cyan>[RecordManager]</color> 최초 기동으로 확인되어 디폴트 JSON 구조를 초기 개설합니다.");
+            Debug.Log("<color=cyan>[RecordManager]</color> 최초 파일이 없어 디폴트 뼈대를 자동 개설합니다.");
             ExecuteBulkSaveProcess();
             return;
         }
@@ -314,124 +340,251 @@ public class RecordManager : MonoBehaviour
             TerritorySaveData saveData = JsonUtility.FromJson<TerritorySaveData>(jsonString);
             if (saveData == null) return;
 
-            // 1. 기초 재화 및 경험치 장부 복구 복원
             var territoryData = FindFirstObjectByType<TerritoryData>();
             if (territoryData != null)
             {
-                // 리플렉션을 통해 private 변수 강제 주입 우회 연산 시전
-                typeof(TerritoryData).GetField("level", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).SetValue(territoryData, saveData.territoryLevel);
-                typeof(TerritoryData).GetField("currentExp", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).SetValue(territoryData, saveData.currentExp);
-                typeof(TerritoryData).GetField("requiredExp", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).SetValue(territoryData, saveData.requiredExp);
-                typeof(TerritoryData).GetField("gold", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).SetValue(territoryData, saveData.gold);
-                typeof(TerritoryData).GetField("satisfaction", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).SetValue(territoryData, saveData.satisfaction);
-                typeof(TerritoryData).GetField("elapsedTime", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).SetValue(territoryData, saveData.elapsedTime);
+                SetPrivateFieldSafely(territoryData, "level", saveData.territoryLevel);
+                SetPrivateFieldSafely(territoryData, "currentExp", saveData.currentExp);
+                SetPrivateFieldSafely(territoryData, "gold", saveData.gold);
+                SetPrivateFieldSafely(territoryData, "satisfaction", saveData.satisfaction);
+                SetPrivateFieldSafely(territoryData, "elapsedTime", saveData.elapsedTime);
             }
 
-            // 2. 타일 확장 매니저 및 실물 타일 격자 크기 복구 복원
             var expansion = FindFirstObjectByType<TerritoryExpansionManager>();
-            if (expansion != null)
-            {
-                typeof(TerritoryExpansionManager).GetField("currentGridSize", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).SetValue(expansion, saveData.currentGridSize);
+            var gridManager = FindFirstObjectByType<GridManager>();
 
-                if (saveData.expansionExpandedStates != null)
+            if (expansion != null) SetPrivateFieldSafely(expansion, "currentGridSize", saveData.currentGridSize);
+
+            if (gridManager != null)
+            {
+                gridManager.ExpandGrid(saveData.currentGridSize, saveData.currentGridSize);
+                var oldBuildings = FindObjectsByType<BuildingRuntime>(FindObjectsSortMode.None);
+                foreach (var oldB in oldBuildings) Destroy(oldB.gameObject);
+            }
+
+            if (MemCaptureManager.Instance != null && saveData.serializedCapturedMems != null && saveData.serializedCapturedMems.Count > 0)
+            {
+                SetPrivateFieldSafely(MemCaptureManager.Instance, "unlockedPageCount", saveData.unlockedPageCount);
+
+                var capMemsField = typeof(MemCaptureManager).GetField("capturedMems", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+                List<CapturedMemEntry> runtimeMemsList = capMemsField?.GetValue(MemCaptureManager.Instance) as List<CapturedMemEntry>;
+
+                if (runtimeMemsList != null)
                 {
-                    for (int i = 0; i < expansion.ExpansionSteps.Count; i++)
+                    runtimeMemsList.Clear();
+                    foreach (var savedMem in saveData.serializedCapturedMems)
                     {
-                        if (i < saveData.expansionExpandedStates.Count)
-                        {
-                            expansion.ExpansionSteps[i].IsExpanded = saveData.expansionExpandedStates[i];
-                        }
+                        runtimeMemsList.Add(savedMem);
                     }
                 }
 
-                // 타일 맵을 다루는 GridManager를 찾아 저장된 크기로 강제 확장 동기화 명령 하달
-                var gridManager = FindFirstObjectByType<GridManager>();
-                if (gridManager != null)
+                var changeEvent = typeof(MemCaptureManager).GetField("OnCapturedMemsChanged", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public)?.GetValue(MemCaptureManager.Instance) as Action;
+                changeEvent?.Invoke();
+            }
+
+            var bTemplateField = typeof(GridManager).GetField("buildings", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+            var floorContainerField = typeof(GridManager).GetField("floorContainer", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+            var occupiedField = typeof(GridManager).GetField("occupiedCells", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+            var objGridField = typeof(GridManager).GetField("buildingObjectsGrid", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+            var dataGridField = typeof(GridManager).GetField("buildingDataGrid", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+
+            List<BuildingData> buildingTemplates = bTemplateField?.GetValue(gridManager) as List<BuildingData>;
+            Transform floorContainer = floorContainerField?.GetValue(gridManager) as Transform;
+
+            bool[,] occupiedCells = occupiedField?.GetValue(gridManager) as bool[,];
+            GameObject[,] buildingObjectsGrid = objGridField?.GetValue(gridManager) as GameObject[,];
+            BuildingData[,] buildingDataGrid = dataGridField?.GetValue(gridManager) as BuildingData[,];
+
+            if (occupiedCells == null)
+            {
+                int s = saveData.currentGridSize;
+                occupiedCells = new bool[s, s];
+                buildingObjectsGrid = new GameObject[s, s];
+                buildingDataGrid = new BuildingData[s, s];
+            }
+
+            int w = occupiedCells.GetLength(0);
+            int h = occupiedCells.GetLength(1);
+
+            if (saveData.placedBuildings != null && buildingTemplates != null)
+            {
+                foreach (var bSave in saveData.placedBuildings)
                 {
-                    gridManager.ExpandGrid(saveData.currentGridSize, saveData.currentGridSize);
+                    BuildingData matchData = buildingTemplates.Find(b => b.buildingName == bSave.buildingName);
+                    if (matchData == null || matchData.buildingPrefab == null) continue;
+
+                    int currentRotationIndex = Mathf.RoundToInt(bSave.rotationY / 90f) % 4;
+                    bool isRotated = (currentRotationIndex == 1 || currentRotationIndex == 3);
+                    int bWidth = isRotated ? matchData.height : matchData.width;
+                    int bHeight = isRotated ? matchData.width : matchData.height;
+
+                    float offsetX = bSave.gridX + (bWidth / 2.0f);
+                    float offsetZ = bSave.gridZ + (bHeight / 2.0f);
+                    Vector3 spawnPos = new Vector3(offsetX, 0f, offsetZ);
+
+                    GameObject spawnedObj = Instantiate(matchData.buildingPrefab, spawnPos, Quaternion.Euler(0f, bSave.rotationY, 0f), floorContainer);
+
+                    if (spawnedObj.TryGetComponent<BuildingRuntime>(out BuildingRuntime buildingRuntime))
+                    {
+                        buildingRuntime.enabled = true;
+                        buildingRuntime.Initialize(matchData, bSave.gridX, bSave.gridZ);
+                    }
+
+                    var entry = bSave.runtimeData;
+                    if (entry == null)
+                    {
+                        entry = new PlantJSONSaveData { Building_ID = $"{matchData.buildingName}_{bSave.gridX}_{bSave.gridZ}" };
+                    }
+
+                    List<CapturedMemEntry> matchedEntries = new List<CapturedMemEntry>();
+                    List<MemData> restoredMems = new List<MemData>();
+
+                    if (MemCaptureManager.Instance != null && entry.DeployedMemIDs != null)
+                    {
+                        var warehouseList = MemCaptureManager.Instance.CapturedMems;
+                        foreach (var savedKeyId in entry.DeployedMemIDs)
+                        {
+                            var warehouseMatch = warehouseList.FirstOrDefault(m => m != null && m.KeyId == savedKeyId);
+
+                            if (warehouseMatch != null)
+                            {
+                                warehouseMatch.IsActive = true;
+                                matchedEntries.Add(warehouseMatch);
+
+                                MemData mData = new MemData();
+                                mData.memName = warehouseMatch.MemId;
+
+                                var template = MemCatalogManager.Instance != null ? MemCatalogManager.Instance.FindMemData(warehouseMatch.MemId) : null;
+                                mData.maxHunger = (template != null) ? template.maxHunger : 10;
+
+                                restoredMems.Add(mData);
+                            }
+                        }
+                    }
+
+                    if (spawnedObj.TryGetComponent<ProductionFacilityRuntime>(out var facility))
+                    {
+                        facility.buildingData = matchData;
+                        facility.isProducing = entry.isActive;
+                        facility.currentProgressTime = entry.currentProgressTime;
+                        facility.currentStorageCount = entry.currentStorageCount;
+
+                        // 🌟 [교정]: 다른 UI 매니저의 순서와 관계없이 하드디스크 에셋 통계에서 직통으로 대조하여 에러를 완벽히 소멸시킵니다.
+                        facility.craftingItem = FindItemDataInProject(entry.currentCraftingItemId);
+
+                        facility.UpdateMaxStorage();
+
+                        if (facility.DeployedMems != null && facility.DeployedMemEntries != null)
+                        {
+                            facility.DeployedMems.Clear();
+                            facility.DeployedMemEntries.Clear();
+
+                            facility.DeployedMems.AddRange(restoredMems);
+                            facility.DeployedMemEntries.AddRange(matchedEntries);
+                        }
+
+                        facility.CheckProductionCondition();
+                    }
+                    else if (spawnedObj.TryGetComponent<ProductionCraftRuntime>(out var craft))
+                    {
+                        craft.buildingData = matchData;
+                        craft.isProducing = entry.isActive;
+                        craft.targetQuantity = entry.targetQuantity;
+                        craft.remainingQuantity = entry.remainingQuantity;
+                        craft.currentProgressTime = entry.currentProgressTime;
+                        craft.currentStorageCount = entry.currentStorageCount;
+
+                        // 🌟 [교정]: 제작대의 진행 중인 아이템 데이터 참조 결속을 프로젝션 파일 쿼리로 직결 복구합니다.
+                        craft.currentCraftingItem = FindItemDataInProject(entry.currentCraftingItemId);
+
+                        if (craft.DeployedMems != null && craft.DeployedMemEntries != null)
+                        {
+                            craft.DeployedMems.Clear();
+                            craft.DeployedMemEntries.Clear();
+
+                            craft.DeployedMems.AddRange(restoredMems);
+                            craft.DeployedMemEntries.AddRange(matchedEntries);
+                        }
+
+                        // 🌟 [추가]: 제작대의 정지되어 있던 진행 주기 타이머 버프 공식을 최종 재계산하여 진행도가 굳지 않도록 깨워줍니다.
+                        if (craft.currentCraftingItem != null && craft.DeployedMems.Count > 0)
+                        {
+                            craft.totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(20f, craft.DeployedMems);
+                            craft.isProducing = (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation) ? entry.isActive : false;
+                        }
+                    }
+
+                    for (int x = bSave.gridX; x < bSave.gridX + bWidth; x++)
+                    {
+                        for (int z = bSave.gridZ; z < bSave.gridZ + bHeight; z++)
+                        {
+                            if (x >= 0 && x < w && z >= 0 && z < h)
+                            {
+                                occupiedCells[x, z] = true;
+                                buildingObjectsGrid[x, z] = spawnedObj;
+                                buildingDataGrid[x, z] = matchData;
+                            }
+                        }
+                    }
+
+                    string uniqueId = $"{matchData.buildingName}_{bSave.gridX}_{bSave.gridZ}";
+                    facilityDatabase[uniqueId] = entry;
                 }
             }
 
-            // 3. 가방 / 일반 창고 / 음식 창고 실물 ItemStack 데이터 장부 동기화 원복
+            SetPrivateFieldSafely(gridManager, "occupiedCells", occupiedCells);
+            SetPrivateFieldSafely(gridManager, "buildingObjectsGrid", buildingObjectsGrid);
+            SetPrivateFieldSafely(gridManager, "buildingDataGrid", buildingDataGrid);
+
             var pInventory = FindFirstObjectByType<PlayerInventory>();
-            if (pInventory != null && saveData.playerInventoryData != null)
-            {
-                UnpackContainerData(saveData.playerInventoryData, pInventory.inventory);
-            }
+            if (pInventory != null && saveData.playerInventoryData != null) UnpackContainerData(saveData.playerInventoryData, pInventory.inventory);
 
             var wInventory = FindFirstObjectByType<WarehouseInventory>();
-            if (wInventory != null && saveData.warehouseStorageData != null)
-            {
-                UnpackContainerData(saveData.warehouseStorageData, wInventory.storage);
-            }
+            if (wInventory != null && saveData.warehouseStorageData != null) UnpackContainerData(saveData.warehouseStorageData, wInventory.storage);
 
-            if (ConsumeFoodSystem.Instance != null && saveData.foodWarehouseStorageData != null)
-            {
-                UnpackContainerData(saveData.foodWarehouseStorageData, ConsumeFoodSystem.Instance.FoodStorageContainer);
-            }
-
-            // 4. 🌟 [사라진 PlantSystem 완벽 통합]: 오프라인 방치 시간 계산 및 시설 보상 누적 정산 연산
-            float offlineSeconds = 0f;
-            if (!string.IsNullOrEmpty(saveData.lastSaveTime))
-            {
-                DateTime lastSave = DateTime.Parse(saveData.lastSaveTime);
-                TimeSpan offlineSpan = DateTime.UtcNow - lastSave;
-                offlineSeconds = (float)offlineSpan.TotalSeconds;
-                Debug.Log($"[RecordManager] 오프라인 누적 시간 감지: 약 {offlineSeconds:F1}초 방치 보상 연산 개시.");
-            }
-
-            if (saveData.facilitySaveList != null)
-            {
-                foreach (var entry in saveData.facilitySaveList)
-                {
-                    if (entry == null || string.IsNullOrEmpty(entry.Building_ID)) continue;
-
-                    // 가동 중이던 시설물이었고 오프라인 방치 시간이 유효하다면 보상 누적
-                    if (entry.isActive && offlineSeconds > 0f)
-                    {
-                        float unitCraftTime = 30f; // 기본 단위 생산 시간 30초 고정
-                        int offlineProducedCount = Mathf.FloorToInt(offlineSeconds / unitCraftTime);
-
-                        if (offlineProducedCount > 0)
-                        {
-                            if (entry.remainingQuantity > 0) // 목표 수량이 존재하는 공방 제작 시설
-                            {
-                                int realProduceLimit = Mathf.Min(offlineProducedCount, entry.remainingQuantity);
-                                entry.currentStorageCount += realProduceLimit;
-                                entry.remainingQuantity -= realProduceLimit;
-
-                                if (entry.remainingQuantity <= 0)
-                                {
-                                    entry.isActive = false;
-                                    entry.currentProgressTime = 0f;
-                                }
-                            }
-                            else // 한정 수량이 없는 무제한 수집 생산 기지
-                            {
-                                entry.currentStorageCount += offlineProducedCount;
-                            }
-                        }
-                    }
-                    facilityDatabase.Add(entry.Building_ID, entry);
-                }
-            }
-
-            // 5. 음식 보급망 수치 장부 강제 동기화 리프레시 요청
             if (ConsumeFoodSystem.Instance != null)
             {
+                if (saveData.foodWarehouseStorageData != null)
+                    UnpackContainerData(saveData.foodWarehouseStorageData, ConsumeFoodSystem.Instance.FoodStorageContainer);
+
+                if (saveData.foodBagStorageData != null)
+                    UnpackContainerData(saveData.foodBagStorageData, ConsumeFoodSystem.Instance.FoodBagContainer);
+
                 ConsumeFoodSystem.Instance.ForceSyncManualState(saveData.currentSatiety, saveData.maxSatiety, saveData.isWorkStoppedDueToStarvation);
                 ConsumeFoodSystem.Instance.ProcessFoodConsumption(true);
             }
 
+            if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
+
+            ProcessOfflineRewards();
+
             var warehouseUI = FindFirstObjectByType<FoodWarehouseUI>();
             if (warehouseUI != null) warehouseUI.RefreshAllPanelsAndSlots();
 
-            Debug.Log($"<color=cyan><b>[RecordManager]</b></color> 로컬 JSON으로부터 전체 인프라 완전 복원 완료. 경로: {saveFilePath}");
+            RefreshActivePanelMemSlotsRealtime();
+
+            SatisFactoryUI satisfactionUI = FindFirstObjectByType<SatisFactoryUI>();
+            if (satisfactionUI != null)
+            {
+                satisfactionUI.RecalculateSatisfaction();
+            }
+
+            Debug.Log($"<color=cyan><b>[RecordManager]</b></color> 저장 기록으로부터 무결성 완전 로드 성공!");
         }
         catch (Exception e)
         {
             Debug.LogError($"[RecordManager] 데이터 복원(Load) 중 치명적 예외 발생: {e.Message}");
         }
+    }
+
+    /// <summary>
+    /// 🌟 [추가 유틸리티]: 씬의 매니저 상태와 관계없이 프로젝트 내부 카탈로그 에셋 전체에서 고유 고유 ID에 해당하는 ItemData 참조를 역추적해옵니다.
+    /// </summary>
+    private ItemData FindItemDataInProject(string itemId)
+    {
+        if (string.IsNullOrEmpty(itemId)) return null;
+        ItemData[] allItems = Resources.FindObjectsOfTypeAll<ItemData>();
+        return allItems.FirstOrDefault(item => item != null && item.Item_ID == itemId);
     }
 
     private SerializableContainerData PackContainerData(InventoryContainer container)
@@ -441,11 +594,7 @@ public class RecordManager : MonoBehaviour
         {
             foreach (var slot in container.slots)
             {
-                data.slots.Add(new SerializableItemStack
-                {
-                    itemId = slot != null ? slot.itemId : "",
-                    amount = slot != null ? slot.amount : 0
-                });
+                data.slots.Add(new SerializableItemStack { itemId = slot != null ? slot.itemId : "", amount = slot != null ? slot.amount : 0 });
             }
         }
         return data;
@@ -462,21 +611,16 @@ public class RecordManager : MonoBehaviour
         {
             target.slots[i] = new ItemStack();
             if (!string.IsNullOrEmpty(source.slots[i].itemId) && source.slots[i].amount > 0)
-            {
                 target.slots[i].Set(source.slots[i].itemId, source.slots[i].amount);
-            }
             else
-            {
                 target.slots[i].Clear();
-            }
         }
     }
 
-    // =================================================================
-    // 🚪 [종료 / 강제종료 / 씬 이동 단일 시점 마감 연쇄 트리거 접점]
-    // =================================================================
     private void OnApplicationQuit()
     {
+        if (isApplicationQuitting) return;
+        isApplicationQuitting = true;
         ExecuteBulkSaveProcess();
     }
 
@@ -490,6 +634,166 @@ public class RecordManager : MonoBehaviour
 
     private void OnSceneUnloadedTrigger(Scene currentScene)
     {
+        if (isApplicationQuitting) return;
+        ExecuteBulkProcess();
+    }
+
+    private void ExecuteBulkProcess()
+    {
         ExecuteBulkSaveProcess();
+    }
+
+    public void SaveCurrentTime()
+    {
+        PlayerPrefs.SetString(LastPlayTimeKey, DateTime.UtcNow.ToString("o"));
+        PlayerPrefs.Save();
+    }
+
+    public void ProcessOfflineRewards()
+    {
+        if (!PlayerPrefs.HasKey(LastPlayTimeKey)) return;
+
+        string lastTimeStr = PlayerPrefs.GetString(LastPlayTimeKey);
+        if (!DateTime.TryParse(lastTimeStr, out DateTime lastPlayTime)) return;
+
+        DateTime nowTime = DateTime.UtcNow;
+        TimeSpan offlineSpan = nowTime - lastPlayTime;
+        double totalOfflineSeconds = offlineSpan.TotalSeconds;
+
+        if (totalOfflineSeconds <= 0) return;
+
+        int totalHungerCostPerMinute = TotalHungerManager.Instance != null ? TotalHungerManager.Instance.TotalHungerPerMinute : 0;
+        int totalFoodSatiety = ConsumeFoodSystem.Instance != null ? ConsumeFoodSystem.Instance.CurrentSatiety : 0;
+
+        double actualRewardSeconds = 0;
+
+        if (totalHungerCostPerMinute > 0)
+        {
+            int foodMinutes = totalFoodSatiety / totalHungerCostPerMinute;
+            int activeProductionMinutes = foodMinutes + 1;
+            double maxProductionSeconds = activeProductionMinutes * 60.0;
+
+            actualRewardSeconds = Math.Min(totalOfflineSeconds, maxProductionSeconds);
+        }
+        else
+        {
+            actualRewardSeconds = totalOfflineSeconds;
+        }
+
+        if (actualRewardSeconds > 0)
+        {
+            ApplyOfflineProductionToFacilities(actualRewardSeconds);
+
+            if (totalHungerCostPerMinute > 0)
+            {
+                int activeMinutes = Mathf.CeilToInt((float)actualRewardSeconds / 60f);
+                int consumedSatiety = activeMinutes * totalHungerCostPerMinute;
+
+                if (ConsumeFoodSystem.Instance != null)
+                {
+                    int finalSatiety = Mathf.Max(0, totalFoodSatiety - consumedSatiety);
+                    ConsumeFoodSystem.Instance.ProcessFoodConsumption(false);
+                    ConsumeFoodSystem.Instance.ForceSyncManualState(finalSatiety, ConsumeFoodSystem.Instance.MaxSatiety, ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation);
+                }
+            }
+        }
+
+        SaveCurrentTime();
+    }
+
+    private void ApplyOfflineProductionToFacilities(double activeSeconds)
+    {
+        var productionFacilities = FindObjectsByType<ProductionFacilityRuntime>(FindObjectsSortMode.None);
+        foreach (var facility in productionFacilities)
+        {
+            if (facility == null || !facility.isProducing) continue;
+
+            float craftInterval = 30f;
+            double totalAccumulatedSeconds = facility.currentProgressTime + activeSeconds;
+
+            int rewardCount = Mathf.FloorToInt((float)totalAccumulatedSeconds / craftInterval);
+            float remainingProgressTime = (float)(totalAccumulatedSeconds % craftInterval);
+
+            if (rewardCount > 0)
+            {
+                facility.currentStorageCount += rewardCount;
+                facility.UpdateMaxStorage();
+            }
+
+            facility.currentProgressTime = remainingProgressTime;
+
+            string uniqueId = $"{facility.buildingData.buildingName}_{facility.GetComponent<BuildingRuntime>().gridX}_{facility.GetComponent<BuildingRuntime>().gridZ}";
+            if (facilityDatabase.ContainsKey(uniqueId))
+            {
+                facilityDatabase[uniqueId].currentStorageCount = facility.currentStorageCount;
+                facilityDatabase[uniqueId].currentProgressTime = facility.currentProgressTime;
+            }
+        }
+
+        var craftingFacilities = FindObjectsByType<ProductionCraftRuntime>(FindObjectsSortMode.None);
+        foreach (var craft in craftingFacilities)
+        {
+            if (craft == null || !craft.isProducing) continue;
+
+            float craftInterval = 30f;
+            double totalAccumulatedSeconds = craft.currentProgressTime + activeSeconds;
+
+            int rewardCount = Mathf.FloorToInt((float)totalAccumulatedSeconds / craftInterval);
+            float remainingProgressTime = (float)(totalAccumulatedSeconds % craftInterval);
+
+            if (rewardCount > 0)
+            {
+                if (craft.remainingQuantity > 0)
+                {
+                    int realLimit = Mathf.Min(rewardCount, craft.remainingQuantity);
+                    craft.currentStorageCount += realLimit;
+                    craft.remainingQuantity -= realLimit;
+
+                    if (craft.remainingQuantity <= 0)
+                    {
+                        craft.isProducing = false;
+                        remainingProgressTime = 0f;
+                    }
+                }
+                else
+                {
+                    craft.currentStorageCount += rewardCount;
+                }
+            }
+
+            craft.currentProgressTime = remainingProgressTime;
+
+            string uniqueId = $"{craft.buildingData.buildingName}_{craft.GetComponent<BuildingRuntime>().gridX}_{craft.GetComponent<BuildingRuntime>().gridZ}";
+            if (facilityDatabase.ContainsKey(uniqueId))
+            {
+                facilityDatabase[uniqueId].currentStorageCount = craft.currentStorageCount;
+                facilityDatabase[uniqueId].remainingQuantity = craft.remainingQuantity;
+                facilityDatabase[uniqueId].isActive = craft.isProducing;
+                facilityDatabase[uniqueId].currentProgressTime = craft.currentProgressTime;
+            }
+        }
+    }
+
+    private void RefreshActivePanelMemSlotsRealtime()
+    {
+        var prodPanels = FindObjectsByType<ProductionPanelUI>(FindObjectsSortMode.None);
+        foreach (var panel in prodPanels)
+        {
+            if (panel != null && panel.gameObject.activeInHierarchy)
+            {
+                panel.RefreshUI();
+                Debug.Log($"[RecordManager] Production UI Forced Refreshed.");
+            }
+        }
+
+        var craftPanels = FindObjectsByType<CraftingPanelUI>(FindObjectsSortMode.None);
+        foreach (var panel in craftPanels)
+        {
+            if (panel != null && panel.gameObject.activeInHierarchy)
+            {
+                panel.RefreshUI();
+                Debug.Log($"[RecordManager] Crafting UI Forced Refreshed.");
+            }
+        }
     }
 }

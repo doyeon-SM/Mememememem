@@ -125,7 +125,7 @@ public class GridManager : MonoBehaviour
         {
             if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame)
             {
-                if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject()) return;
+                if (EventSystem.current != null && IsPointerOverBlockingUI()) return;
                 TryPickUpBuilding(MouseGridX, MouseGridZ);
             }
         }
@@ -583,6 +583,8 @@ public class GridManager : MonoBehaviour
 
         buildRecordManager.ClearRecordOnSave();
         ChangePlacementMode();
+
+        TriggerSatisfactionUpdate();
     }
 
     /// <summary>
@@ -601,6 +603,8 @@ public class GridManager : MonoBehaviour
         RestoreRollbackData(rollbackData);
 
         ChangePlacementMode();
+
+        TriggerSatisfactionUpdate();
     }
 
     /// <summary>
@@ -713,6 +717,48 @@ public class GridManager : MonoBehaviour
         return false;
     }
 
+    /// <summary>
+    /// 타일 전수조사를 통한 만족도 계산
+    /// </summary>
+    public int GetTotalSatisfactionFromGrid()
+    {
+        int totalSatisfaction = 0;
+        if (buildingObjectsGrid == null) return 0;
+
+        HashSet<GameObject> countedBuildings = new HashSet<GameObject>();
+
+        for (int x = 0; x < currentWidth; x++)
+        {
+            for (int z = 0; z < currentHeight; z++)
+            {
+                GameObject buildingObj = buildingObjectsGrid[x, z];
+
+                if (buildingObj != null && !countedBuildings.Contains(buildingObj))
+                {
+                    countedBuildings.Add(buildingObj); 
+
+                    if (buildingObj.TryGetComponent<BuildingRuntime>(out BuildingRuntime runtime))
+                    {
+                        if (runtime.buildingData != null)
+                        {
+                            totalSatisfaction += runtime.buildingData.satisfaction;
+                        }
+                    }
+                }
+            }
+        }
+
+        return totalSatisfaction;
+    }
+
+    private void TriggerSatisfactionUpdate()
+    {
+        SatisFactoryUI satisfactionUI = UnityEngine.Object.FindFirstObjectByType<SatisFactoryUI>();
+        if (satisfactionUI != null)
+        {
+            satisfactionUI.RecalculateSatisfaction();
+        }
+    }
 
     /// <summary>
     /// 확장에 대한 테스트함수
