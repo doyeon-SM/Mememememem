@@ -22,19 +22,32 @@ public class ConsumeFoodSystem : MonoBehaviour
     private int maxSatiety = 0;
     private int currentSatiety = 0;
 
-    /// <summary>
-    /// 현재 음식이 부족하여 영지 전체가 중지되었는지 여부 반환
-    /// </summary>
+    // RecordManager가 세이브/로드 시 직접 접근할 수 있도록 음식 창고 사이즈 정의
+    private InventoryContainer foodStorageContainer = new InventoryContainer { width = 5, height = 2 };
+
+    /// <summary>현재 음식이 부족하여 영지 전체가 중지되었는지 여부 반환</summary>
     public bool IsWorkStoppedDueToStarvation => isWorkStoppedDueToStarvation;
     public int MaxSatiety => maxSatiety;
     public int CurrentSatiety => currentSatiety;
+
+    // RecordManager가 들여다볼 수 있도록 통로 개방
+    public InventoryContainer FoodStorageContainer => foodStorageContainer;
 
     public event Action<int, int> OnFoodAmountChanged;
 
     private void Awake()
     {
-        if (Instance == null) Instance = this;
-        else Destroy(gameObject);
+        if (Instance == null)
+        {
+            Instance = this;
+            DontDestroyOnLoad(gameObject); 
+            foodStorageContainer.Initialize();
+        }
+        else
+        {
+            Destroy(gameObject);
+            return;
+        }
 
         if (foodWarehouseUI == null) foodWarehouseUI = GetComponent<FoodWarehouseUI>();
     }
@@ -55,95 +68,80 @@ public class ConsumeFoodSystem : MonoBehaviour
             if (timer >= consumeInterval)
             {
                 timer = 0f;
-                ProcessTimerTick(); 
+                // 1분 주기 타이머 호출 시에는 수동 변경이 아니므로 false 전달
+                ProcessFoodConsumption(false);
             }
         }
     }
 
-    private void ProcessTimerTick()
+    /// <summary>
+    /// RecordManager 및 외부 UI 드래그앤드롭 이벤트가 
+    /// 수동 제어 분기(isManualChange)를 명시하여 호출할 수 있도록 매개변수를 완벽하게 탑재했습니다!
+    /// </summary>
+    public void ProcessFoodConsumption(bool isManualChange = false)
     {
         if (foodWarehouseUI == null) return;
 
         int totalHunger = TotalHungerManager.Instance != null ? TotalHungerManager.Instance.TotalHungerPerMinute : 0;
         int totalSatietyAvailable = CalculateTotalStorageSatiety(out List<int> validFoodIndices);
 
-        if (totalHunger > totalSatietyAvailable)
+        if (isManualChange)
         {
-            isWorkStoppedDueToStarvation = true;
-            isWaitingForMissedMeal = true;
-
-            SetAllFacilitiesWorkingState(false);
-            Debug.LogWarning("<color=red><b>[영지 경보]</b></color> 1분 주기 도래: 음식 부족으로 모든 시설 가동이 정지됩니다.");
-
+            maxSatiety = totalSatietyAvailable;
             currentSatiety = totalSatietyAvailable;
         }
-        else
+
+        if (totalHunger > totalSatietyAvailable)
+        {
+            if (!isWorkStoppedDueToStarvation)
+            {
+                isWorkStoppedDueToStarvation = true;
+                isWaitingForMissedMeal = true;
+
+                SetAllFacilitiesWorkingState(false);
+                Debug.LogWarning("<color=red><b>[영지 경보]</b></color> 음식 부족으로 모든 시설 가동이 정지됩니다.");
+            }
+            currentSatiety = totalSatietyAvailable;
+            NotifyFoodStatusChanged();
+            return;
+        }
+
+        if (isWorkStoppedDueToStarvation)
+        {
+            isWorkStoppedDueToStarvation = false;
+            SetAllFacilitiesWorkingState(true);
+            Debug.Log("<color=lime><b>[영지 정상화]</b></color> 음식을 충분히 확보했습니다. 모든 시설이 다시 가동을 시작합니다.");
+            timer = 0f;
+        }
+
+        if (!isManualChange || (isManualChange && isWaitingForMissedMeal))
         {
             if (totalHunger > 0)
             {
                 ConsumeFoodFromStorage(totalHunger, validFoodIndices);
+                isWaitingForMissedMeal = false;
             }
-
-            currentSatiety = CalculateTotalStorageSatiety(out _);
         }
 
+        currentSatiety = CalculateTotalStorageSatiety(out _);
         NotifyFoodStatusChanged();
     }
 
-    /// <summary>
-    /// 음식 창고 영역 내부에서 슬롯 교환 및 이동시 처리
-    /// </summary>
+    /// <summary>음식 창고 영역 내부에서 슬롯 교환 및 이동시 처리</summary>
     public void OnStorageToStorageMove()
     {
         int totalSatiety = CalculateTotalStorageSatiety(out _);
         currentSatiety = totalSatiety;
-
         NotifyFoodStatusChanged();
     }
 
-    /// <summary>
-    /// 인벤토리 -> 음식 창고 드랍시 동작
-    /// </summary>
+    /// <summary>인벤토리 -> 음식 창고 드랍시 동작</summary>
     public void OnRightToLeftMove()
     {
-        if (foodWarehouseUI == null) return;
-
-        int totalHunger = TotalHungerManager.Instance != null ? TotalHungerManager.Instance.TotalHungerPerMinute : 0;
-        int totalSatietyAvailable = CalculateTotalStorageSatiety(out List<int> validFoodIndices);
-
-        maxSatiety = totalSatietyAvailable;
-        currentSatiety = totalSatietyAvailable;
-
-        if (isWorkStoppedDueToStarvation)
-        {
-            if (totalSatietyAvailable >= totalHunger)
-            {
-                if (isWaitingForMissedMeal)
-                {
-                    if (totalHunger > 0)
-                    {
-                        ConsumeFoodFromStorage(totalHunger, validFoodIndices);
-                    }
-                    isWaitingForMissedMeal = false; 
-
-                    timer = 0f;
-                }
-
-                isWorkStoppedDueToStarvation = false;
-                SetAllFacilitiesWorkingState(true);
-
-                int remaining = CalculateTotalStorageSatiety(out _);
-                //maxSatiety = remaining;
-                currentSatiety = remaining;
-            }
-        }
-
-        NotifyFoodStatusChanged();
+        ProcessFoodConsumption(true);
     }
 
-    /// <summary>
-    /// 좌측 음식 창고 -> 우측 인벤토리로 회수 이동했을 때
-    /// </summary>
+    /// <summary>좌측 음식 창고 -> 우측 인벤토리로 회수 이동했을 때</summary>
     public void OnLeftToRightMove()
     {
         int totalHunger = TotalHungerManager.Instance != null ? TotalHungerManager.Instance.TotalHungerPerMinute : 0;
@@ -165,9 +163,17 @@ public class ConsumeFoodSystem : MonoBehaviour
     }
 
     /// <summary>
-    /// 변경된 포만감 상태를 갱신
+    /// 외부 로드 시스템이나 데이터 강제 주입 후, 강제 수치 리프레시를 제어하기 위한 개방형 통로
     /// </summary>
-    private void NotifyFoodStatusChanged()
+    public void ForceSyncManualState(int loadedCurrent, int loadedMax, bool loadedStarvation)
+    {
+        maxSatiety = loadedMax;
+        currentSatiety = loadedCurrent;
+        isWorkStoppedDueToStarvation = loadedStarvation;
+        NotifyFoodStatusChanged();
+    }
+
+    public void NotifyFoodStatusChanged()
     {
         OnFoodAmountChanged?.Invoke(currentSatiety, maxSatiety);
 
@@ -178,20 +184,16 @@ public class ConsumeFoodSystem : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// 좌측 창고에 추가한 모든 아이템의 포만감 계산
-    /// </summary>
     private int CalculateTotalStorageSatiety(out List<int> validFoodIndices)
     {
         validFoodIndices = new List<int>();
         int sumSatiety = 0;
 
-        InventoryContainer storageContainer = foodWarehouseUI.FoodStorageContainer;
-        if (storageContainer == null || storageContainer.slots == null) return 0;
+        if (foodStorageContainer == null || foodStorageContainer.slots == null) return 0;
 
-        for (int i = 0; i < storageContainer.slots.Length; i++)
+        for (int i = 0; i < foodStorageContainer.slots.Length; i++)
         {
-            ItemStack slot = storageContainer.slots[i];
+            ItemStack slot = foodStorageContainer.slots[i];
             if (slot == null || slot.IsEmpty) continue;
 
             ItemData itemData = foodWarehouseUI.CatalogManager.FindItemData(slot.itemId);
@@ -210,26 +212,25 @@ public class ConsumeFoodSystem : MonoBehaviour
         return sumSatiety;
     }
 
-    /// <summary>
-    /// 왼쪽 위부터 순서대로 포만감을 정량 계산하며 실물 수량을 차감합니다.
-    /// </summary>
     private void ConsumeFoodFromStorage(int hungerToConsume, List<int> foodIndices)
     {
-        InventoryContainer storageContainer = foodWarehouseUI.FoodStorageContainer;
         int remainingHunger = hungerToConsume;
 
         foreach (int index in foodIndices)
         {
-            ItemStack slot = storageContainer.slots[index];
+            ItemStack slot = foodStorageContainer.slots[index];
             ItemData itemData = foodWarehouseUI.CatalogManager.FindItemData(slot.itemId);
 
             int singleSatiety = 0;
-            foreach (ItemEffect effect in itemData.EatEffects)
+            if (itemData != null && itemData.EatEffects != null)
             {
-                if (effect != null && effect.Effect == EffectType.Satiety)
+                foreach (ItemEffect effect in itemData.EatEffects)
                 {
-                    singleSatiety = (int)effect.Value;
-                    break;
+                    if (effect != null && effect.Effect == EffectType.Satiety)
+                    {
+                        singleSatiety = (int)effect.Value;
+                        break;
+                    }
                 }
             }
 
@@ -247,9 +248,6 @@ public class ConsumeFoodSystem : MonoBehaviour
         foodWarehouseUI.RefreshAllPanelsAndSlots();
     }
 
-    /// <summary>
-    /// 허기량을 충족 여부에 따른 영지 전체의 생산/제작 시설 작동 변수(isProducing)를 켜고 끕니다.
-    /// </summary>
     private void SetAllFacilitiesWorkingState(bool isWorking)
     {
         var productionFacilities = FindObjectsByType<ProductionFacilityRuntime>(FindObjectsSortMode.None);
@@ -270,9 +268,5 @@ public class ConsumeFoodSystem : MonoBehaviour
                 if (craft.currentCraftingItem != null && craft.DeployedMems.Count > 0) craft.isProducing = true;
             }
         }
-    }
-    private void OnDestroy()
-    {
-        if (Instance == this) Instance = null;
     }
 }

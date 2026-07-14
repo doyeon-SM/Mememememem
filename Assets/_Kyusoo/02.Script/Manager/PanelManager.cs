@@ -112,7 +112,7 @@ public class PanelManager : MonoBehaviour
     /// </summary>
     public void NotifyHUDPanelOpened()
     {
-        SaveActivePanelData();
+        //SaveActivePanelData();
 
         if (craftingPanelUI != null) craftingPanelUI.ClosePanel();
         if (productionPanelUI != null) productionPanelUI.ClosePanel();
@@ -131,7 +131,7 @@ public class PanelManager : MonoBehaviour
     /// </summary>
     public void CloseAllPanels()
     {
-        SaveActivePanelData();
+        //SaveActivePanelData();
 
         if (UIManager.Instance != null) UIManager.Instance.CloseCurrent();
 
@@ -172,47 +172,47 @@ public class PanelManager : MonoBehaviour
         if (zoomController != null) zoomController.enabled = isEnable;
     }
 
-    /// <summary>
-    /// 현재 켜져 있는 생산/제작 패널의 실시간 데이터를 패널을 닫기 전에 저장.
-    /// </summary>
-    private void SaveActivePanelData()
-    {
-        if (productionPanel != null && productionPanel.activeSelf && productionPanelUI != null)
-        {
-            var facility = productionPanelUI.TargetFacility;
-            if (facility != null && facility.buildingData != null && PlantSystem.Instance != null)
-            {
-                var br = facility.GetComponent<BuildingRuntime>();
-                string uniqueId = br != null ? $"{facility.buildingData.buildingName}_{br.gridX}_{br.gridZ}" : facility.buildingData.buildingId;
+    ///// <summary>
+    ///// 현재 켜져 있는 생산/제작 패널의 실시간 데이터를 패널을 닫기 전에 저장.
+    ///// </summary>
+    //private void SaveActivePanelData()
+    //{
+    //    if (productionPanel != null && productionPanel.activeSelf && productionPanelUI != null)
+    //    {
+    //        var facility = productionPanelUI.TargetFacility;
+    //        if (facility != null && facility.buildingData != null && PlantSystem.Instance != null)
+    //        {
+    //            var br = facility.GetComponent<BuildingRuntime>();
+    //            string uniqueId = br != null ? $"{facility.buildingData.buildingName}_{br.gridX}_{br.gridZ}" : facility.buildingData.buildingId;
 
-                var data = PlantSystem.Instance.GetFacilityData(uniqueId);
-                data.isActive = facility.isProducing;
-                data.currentCraftingItemId = facility.craftingItem != null ? facility.craftingItem.Item_ID : "";
-                data.currentProgressTime = facility.currentProgressTime;
-                data.currentStorageCount = facility.currentStorageCount;
+    //            var data = PlantSystem.Instance.GetFacilityData(uniqueId);
+    //            data.isActive = facility.isProducing;
+    //            data.currentCraftingItemId = facility.craftingItem != null ? facility.craftingItem.Item_ID : "";
+    //            data.currentProgressTime = facility.currentProgressTime;
+    //            data.currentStorageCount = facility.currentStorageCount;
 
-                PlantSystem.Instance.UpdateFacilityData(uniqueId, data);
-            }
-        }
+    //            PlantSystem.Instance.UpdateFacilityData(uniqueId, data);
+    //        }
+    //    }
 
-        if (craftingPanel != null && craftingPanel.activeSelf && craftingPanelUI != null)
-        {
-            var craft = craftingPanelUI.TargetFacility;
-            if (craft != null && craft.buildingData != null && PlantSystem.Instance != null)
-            {
-                var br = craft.GetComponent<BuildingRuntime>();
-                string uniqueId = br != null ? $"{craft.buildingData.buildingName}_{br.gridX}_{br.gridZ}" : craft.buildingData.buildingId;
+    //    if (craftingPanel != null && craftingPanel.activeSelf && craftingPanelUI != null)
+    //    {
+    //        var craft = craftingPanelUI.TargetFacility;
+    //        if (craft != null && craft.buildingData != null && PlantSystem.Instance != null)
+    //        {
+    //            var br = craft.GetComponent<BuildingRuntime>();
+    //            string uniqueId = br != null ? $"{craft.buildingData.buildingName}_{br.gridX}_{br.gridZ}" : craft.buildingData.buildingId;
 
-                var data = PlantSystem.Instance.GetFacilityData(uniqueId);
-                data.isActive = craft.isProducing;
-                data.currentCraftingItemId = craft.currentCraftingItem != null ? craft.currentCraftingItem.Item_ID : "";
-                data.targetQuantity = craft.targetQuantity;
-                data.remainingQuantity = craft.remainingQuantity;
-                data.currentProgressTime = craft.currentProgressTime;
-                data.currentStorageCount = craft.currentStorageCount;
+    //            var data = PlantSystem.Instance.GetFacilityData(uniqueId);
+    //            data.isActive = craft.isProducing;
+    //            data.currentCraftingItemId = craft.currentCraftingItem != null ? craft.currentCraftingItem.Item_ID : "";
+    //            data.targetQuantity = craft.targetQuantity;
+    //            data.remainingQuantity = craft.remainingQuantity;
+    //            data.currentProgressTime = craft.currentProgressTime;
+    //            data.currentStorageCount = craft.currentStorageCount;
 
-                PlantSystem.Instance.UpdateFacilityData(uniqueId, data);
-            }
-        }
-    }
+    //            PlantSystem.Instance.UpdateFacilityData(uniqueId, data);
+    //        }
+    //    }
+    //}
 }
