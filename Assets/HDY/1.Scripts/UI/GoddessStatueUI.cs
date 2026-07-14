@@ -32,10 +32,20 @@ namespace HDY.UI
     /// 이미 구독했으면 다시 시도하지 않도록 subscribedToPopupClosed 플래그로 관리한다(Start는 모든 Awake가
     /// 끝난 뒤 호출되는 것이 보장되므로, 최초 활성화 시점에는 여기서 반드시 성공한다).
     ///
-    /// [영지 확장 슬롯] TerritoryExpansionManager.GetNextPendingEntry()로 "지금 진행 가능한 다음 확장 단계"
-    /// 하나만 찾아서, 그 단계가 요구하는 레벨의 줄에 레시피 슬롯들보다 먼저 표시한다(예약된 문자열 id
-    /// TerritoryExpansionSlotId로 구분). 레시피와 같은 슬롯 컴포넌트(GoddessRecipeSlotUI)를 재사용하되,
-    /// 아이콘은 territoryExpansionIcon(전용 아이콘, ItemData 기반 아님)을 사용한다.
+    /// [영지 확장 슬롯 - 레벨별 독립 노출 + 레벨별 고유 id] TerritoryExpansionManager.GetAllPendingEntries()로
+    /// "아직 완료되지 않은 확장 단계 전부"를 가져와서, 각 단계가 요구하는 레벨의 줄에 슬롯을 하나씩 미리
+    /// 노출한다. 즉 Lv.3 단계가 아직 안 끝났어도 Lv.4 줄의 grid 자체는 항상 만들어지고, 다만 "지금 실제로
+    /// 진행 가능한 단계"(TerritoryExpansionManager.CanAttemptExpand = 순차 진행 규칙)가 아니면 그 슬롯은
+    /// 잠금(비활성) 상태로만 보인다. 이렇게 여러 확장 슬롯이 동시에 존재할 수 있기 때문에, 슬롯 id는
+    /// 고정 문자열 하나가 아니라 요구 레벨을 포함한 고유 id(BuildExpansionSlotId, 예: "__territory_expansion__:4")
+    /// 를 슬롯마다 따로 부여한다 - 그렇지 않으면 여러 슬롯이 같은 id를 공유하게 되어, 하나를 선택했을 때
+    /// RefreshSelection(ItemId 일치 여부로 강조 표시를 켬)이 같은 id를 가진 다른 슬롯까지 함께 강조해버린다.
+    /// 슬롯 id -> 확장 단계 매핑은 expansionEntriesBySlotId에 BuildRows에서 채워두고, 클릭 시 그 매핑으로
+    /// "정확히 그 슬롯이 가리키던" 단계를 찾는다(GetNextPendingEntry()에 기대지 않음 - 여러 슬롯이 동시에
+    /// 떠 있을 수 있으므로 클릭한 슬롯과 항상 일치한다는 보장이 없다). 같은 레벨에 확장 단계가 두 개 이상
+    /// 걸려있는 경우는 지원하지 않는다(줄 하나에 확장 슬롯은 최대 하나 - 먼저 나온 것만 표시하고 경고 로그를
+    /// 남긴다). 레시피와 같은 슬롯 컴포넌트(GoddessRecipeSlotUI)를 재사용하되, 아이콘은
+    /// territoryExpansionIcon(전용 아이콘, ItemData 기반 아님)을 사용한다.
     ///
     /// [스크롤] 마우스 휠 스크롤은 Unity의 ScrollRect가 기본으로 지원하므로 이 스크립트에서 별도 처리하지 않는다.
     /// [그리드 최대 2줄] 각 줄의 슬롯 배치는 GoddessStatueUI_LevelRow의 Grid Layout Group(Constraint를
@@ -43,8 +53,16 @@ namespace HDY.UI
     /// </summary>
     public class GoddessStatueUI : MonoBehaviour
     {
-        /// <summary>영지 확장 슬롯을 나타내는 예약된 id. 실제 Item_ID와 겹치지 않도록 언더스코어로 감쌌다.</summary>
-        private const string TerritoryExpansionSlotId = "__territory_expansion__";
+        /// <summary>영지 확장 슬롯 id의 접두사. 실제 Item_ID와 겹치지 않도록 언더스코어로 감쌌다.
+        /// 뒤에 요구 레벨을 붙여(BuildExpansionSlotId) 슬롯마다 고유한 id를 만든다 - 레벨별로 여러 확장
+        /// 슬롯이 동시에 노출될 수 있어서, 전부 같은 id를 쓰면 하나를 선택했을 때 다른 확장 슬롯까지
+        /// 함께 강조 표시되는 문제가 생긴다.</summary>
+        private const string TerritoryExpansionSlotIdPrefix = "__territory_expansion__:";
+
+        private static string BuildExpansionSlotId(int requestTerritoryLevel)
+        {
+            return TerritoryExpansionSlotIdPrefix + requestTerritoryLevel;
+        }
 
         [Header("데이터 참조")]
         [SerializeField] private RecipeUnlockManager recipeUnlockManager;
@@ -60,6 +78,11 @@ namespace HDY.UI
         [SerializeField] private GoddessStatueUI_LevelRow rowPrefab;
 
         private readonly List<GoddessStatueUI_LevelRow> rows = new List<GoddessStatueUI_LevelRow>();
+
+        /// <summary>슬롯 id(레벨별로 고유, BuildExpansionSlotId) -> 그 슬롯이 가리키는 확장 단계.
+        /// BuildRows에서 채우고 ClearRows에서 비운다. 클릭된 슬롯이 정확히 어떤 단계인지 찾는 데 쓴다.</summary>
+        private readonly Dictionary<string, TerritoryExpansionEntry> expansionEntriesBySlotId = new Dictionary<string, TerritoryExpansionEntry>();
+
         private string selectedItemId;
 
         // UpgradePopupUI.Instance(싱글톤)는 Awake 실행 순서에 따라 이 컴포넌트의 OnEnable 시점에 아직 없을
@@ -152,8 +175,11 @@ namespace HDY.UI
 
         /// <summary>
         /// RecipeUnlocks를 요구 영지 레벨별로 묶어서 줄(row)들을 새로 만든다. 기존 줄은 전부 지운다.
-        /// 영지 확장의 "다음 진행 가능한 단계"가 있으면, 그 단계가 요구하는 레벨의 줄에 슬롯을 하나 더 추가한다
-        /// (그 레벨에 레시피가 하나도 없어도 줄 자체는 새로 만든다). 슬롯 채우는 순서는 영지 확장 -> 레시피 순.
+        /// 아직 완료되지 않은 영지 확장 단계는 전부(순서 무관) 각자가 요구하는 레벨의 줄에 슬롯을 하나씩
+        /// 추가한다(그 레벨에 레시피가 하나도 없어도 줄 자체는 새로 만든다) - "지금 실제로 진행 가능한지"는
+        /// CanAttemptExpand로만 판단해서 슬롯의 잠금(비활성) 여부에 반영한다. 슬롯 채우는 순서는 영지 확장
+        /// -> 레시피 순. 확장 슬롯마다 BuildExpansionSlotId로 레벨별 고유 id를 부여하고, 그 id -> 단계
+        /// 매핑을 expansionEntriesBySlotId에 기록해둔다(클릭 시 정확히 어떤 단계인지 찾기 위함).
         /// </summary>
         private void BuildRows()
         {
@@ -173,23 +199,41 @@ namespace HDY.UI
                 list.Add(entry);
             }
 
-            var pendingExpansion = territoryExpansionManager != null ? territoryExpansionManager.GetNextPendingEntry() : null;
-
-            if (pendingExpansion != null && !groups.ContainsKey(pendingExpansion.RequestTerritoryLevel))
+            // 레벨별 독립 노출: 완료되지 않은 확장 단계는 전부 각자의 요구 레벨에 매칭해둔다.
+            // (같은 레벨에 두 개 이상 걸려있으면 줄 하나에 슬롯 하나만 넣을 수 있는 구조상 첫 번째만 쓴다.)
+            var pendingExpansionsByLevel = new Dictionary<int, TerritoryExpansionEntry>();
+            if (territoryExpansionManager != null)
             {
-                groups[pendingExpansion.RequestTerritoryLevel] = new List<RecipeUnlockEntry>();
+                foreach (var entry in territoryExpansionManager.GetAllPendingEntries())
+                {
+                    if (pendingExpansionsByLevel.ContainsKey(entry.RequestTerritoryLevel))
+                    {
+                        Debug.LogWarning($"[GoddessStatueUI] 요구 레벨 {entry.RequestTerritoryLevel}에 확장 단계가 두 개 이상 등록되어 있습니다. 줄 하나에는 확장 슬롯을 하나만 표시할 수 있어 먼저 등록된 단계만 노출합니다.", this);
+                        continue;
+                    }
+
+                    pendingExpansionsByLevel[entry.RequestTerritoryLevel] = entry;
+
+                    if (!groups.ContainsKey(entry.RequestTerritoryLevel))
+                    {
+                        groups[entry.RequestTerritoryLevel] = new List<RecipeUnlockEntry>();
+                    }
+                }
             }
+
+            int currentTerritoryLevel = territoryData != null ? territoryData.Level : 0;
 
             foreach (var pair in groups)
             {
                 var row = Instantiate(rowPrefab, rowsParent);
 
                 GoddessStatueUI_LevelRow.ExtraSlotInfo? extraSlot = null;
-                if (pendingExpansion != null && pair.Key == pendingExpansion.RequestTerritoryLevel)
+                if (pendingExpansionsByLevel.TryGetValue(pair.Key, out var expansionEntry))
                 {
-                    int currentLevel = territoryData != null ? territoryData.Level : 0;
-                    bool interactable = territoryExpansionManager.CanAttemptExpand(pendingExpansion, currentLevel);
-                    extraSlot = new GoddessStatueUI_LevelRow.ExtraSlotInfo(TerritoryExpansionSlotId, territoryExpansionIcon, false, interactable);
+                    bool interactable = territoryExpansionManager.CanAttemptExpand(expansionEntry, currentTerritoryLevel);
+                    string slotId = BuildExpansionSlotId(expansionEntry.RequestTerritoryLevel);
+                    expansionEntriesBySlotId[slotId] = expansionEntry;
+                    extraSlot = new GoddessStatueUI_LevelRow.ExtraSlotInfo(slotId, territoryExpansionIcon, false, interactable);
                 }
 
                 row.Setup(pair.Key, pair.Value, FindItemIcon, CanAttemptUnlock, extraSlot);
@@ -208,6 +252,7 @@ namespace HDY.UI
             }
 
             rows.Clear();
+            expansionEntriesBySlotId.Clear();
         }
 
         private Sprite FindItemIcon(string itemId)
@@ -223,7 +268,7 @@ namespace HDY.UI
         }
 
         /// <summary>
-        /// 슬롯 선택 처리. 강조 표시를 갱신한 뒤, 선택된 것이 레시피인지 영지 확장 예약 id인지에 따라
+        /// 슬롯 선택 처리. 강조 표시를 갱신한 뒤, 선택된 것이 레시피인지 영지 확장 슬롯인지에 따라
         /// 알맞은 IUpgradable 어댑터를 즉석에서 만들어 공용 업그레이드 팝업을 띄운다.
         /// </summary>
         private void HandleSlotSelected(string itemId)
@@ -253,12 +298,14 @@ namespace HDY.UI
             // 혹시 OnEnable/Start 양쪽에서 구독을 놓쳤다면(비정상적인 타이밍) 여기서 한 번 더 시도한다.
             TrySubscribeToPopupClosed();
 
-            if (selectedItemId == TerritoryExpansionSlotId)
+            if (selectedItemId.StartsWith(TerritoryExpansionSlotIdPrefix))
             {
-                var expansionEntry = territoryExpansionManager != null ? territoryExpansionManager.GetNextPendingEntry() : null;
-                if (expansionEntry == null)
+                // 슬롯 id에 요구 레벨이 포함되어 있어(BuildExpansionSlotId), BuildRows에서 만들어둔 매핑으로
+                // "정확히 이 슬롯이 가리키던" 확장 단계를 찾는다 - 여러 확장 슬롯이 동시에 떠 있을 수 있으므로
+                // GetNextPendingEntry()에 기대지 않는다.
+                if (!expansionEntriesBySlotId.TryGetValue(selectedItemId, out var expansionEntry) || expansionEntry == null)
                 {
-                    Debug.LogWarning("[GoddessStatueUI] 진행 가능한 영지 확장 단계를 찾을 수 없습니다.", this);
+                    Debug.LogWarning($"[GoddessStatueUI] 슬롯 id '{selectedItemId}'에 해당하는 영지 확장 단계를 찾을 수 없습니다.", this);
                     return;
                 }
 
