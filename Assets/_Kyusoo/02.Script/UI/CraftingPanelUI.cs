@@ -608,4 +608,12 @@ public class CraftingPanelUI : MonoBehaviour
         targetFacility = null;
         
     }
+
+    public void RefreshUI()
+    {
+        if (targetFacility == null) return;
+        RefreshStaticUI();         
+        RefreshCraftingModeUI();   
+        UpdateStorageText();      
+    }
 }

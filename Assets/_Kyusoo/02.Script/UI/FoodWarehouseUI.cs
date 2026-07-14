@@ -1,4 +1,4 @@
-using HDY.Inventory;
+ï»¿using HDY.Inventory;
 using HDY.Item;
 using HDY.Upgrade;
 using KMS.InventoryDuped;
@@ -6,48 +6,46 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+
 public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner
 {
-    [Header("µ¥ÀÌÅÍ ÂüÁ¶")]
+    [Header("ë°ì´í„° ì°¸ì¡°")]
     [SerializeField] private PlayerInventory playerInventory;
     [SerializeField] private WarehouseInventory warehouseInventory;
     [SerializeField] private ItemCatalogManager catalogManager;
 
-    [Header("À½½Ä Ã¢°í (¿ŞÂÊ, 5 x n ½ºÅ©·Ñ - ½½·ÔÀº ·±Å¸ÀÓ »ı¼º)")]
+    [Header("ìŒì‹ ì°½ê³  (ì™¼ìª½, 5 x n ìŠ¤í¬ë¡¤ - ìŠ¬ë¡¯ì€ ëŸ°íƒ€ì„ ìƒì„±)")]
     [SerializeField] private ScrollRect storageScrollRect;
     [SerializeField] private RectTransform storageContentParent;
     [SerializeField] private InventorySlotUI storageSlotPrefab;
     [SerializeField] private WarehouseSortUI sortUI;
 
-    [Header("À½½Ä Ã¢°í ¾÷±×·¹ÀÌµå (ÇÑ ÁÙ - 5Ä­ È®Àå)")]
+    [Header("ìŒì‹ ì°½ê³  ì—…ê·¸ë ˆì´ë“œ (í•œ ì¤„ - 5ì¹¸ í™•ì¥)")]
     [SerializeField] private Button upgradeButton;
     [SerializeField] private WarehouseUpgrade warehouseUpgrade;
 
-    [Header("ÅëÇÕ À½½Ä °¡¹æ (¿À¸¥ÂÊ, 70Ä­ 10x7 - ½½·ÔÀº ¾À¿¡ ¹Ì¸® ¹èÄ¡)")]
+    [Header("í†µí•© ìŒì‹ ê°€ë°© (ì˜¤ë¥¸ìª½, 70ì¹¸ 10x7 - ìŠ¬ë¡¯ì€ ì”¬ì— ë¯¸ë¦¬ ë°°ì¹˜)")]
     [SerializeField] private Transform inventoryGrid;
 
-    [Header("°ø¿ë (µå·¡±×, ÅøÆÁ, ÅØ½ºÆ®)")]
+    [Header("ê³µìš© (ë“œë˜ê·¸, íˆ´íŒ, í…ìŠ¤íŠ¸)")]
     [SerializeField] private ItemDragUI itemDragUI;
     [SerializeField] private ItemTooltipUI itemTooltipUI;
     [SerializeField] private TextMeshProUGUI totalHungerText;
 
     private class FilteredFoodSource
     {
-        public SlotGroup originalGroup; 
-        public int originalIndex;       
-        public ItemStack stack;         
+        public SlotGroup originalGroup;
+        public int originalIndex;
+        public ItemStack stack;
     }
 
     private InventorySlotUI[] storageSlots;
     private InventorySlotUI[] inventorySlots;
 
-    private InventoryContainer foodStorageContainer = new InventoryContainer();
-
     private List<FilteredFoodSource> rightFilteredFoods = new List<FilteredFoodSource>();
-
     private InventorySlotUI dragSource;
-
-    public InventoryContainer FoodStorageContainer => foodStorageContainer;
+    public InventoryContainer FoodStorageContainer => ConsumeFoodSystem.Instance != null ? ConsumeFoodSystem.Instance.FoodStorageContainer : null;
+    public InventoryContainer FoodBagContainer => ConsumeFoodSystem.Instance != null ? ConsumeFoodSystem.Instance.FoodBagContainer : null;
     public ItemCatalogManager CatalogManager => catalogManager;
 
     private void Awake()
@@ -71,11 +69,10 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner
         }
 
         BindPlayerSlots();
-
         EnsureStorageSlotCount();
-
         HideItemTooltip();
 
+        FetchFoodFromInventories();
         RefreshAll();
 
         if (TotalHungerManager.Instance != null)
@@ -98,6 +95,10 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner
         {
             TotalHungerManager.Instance.OnTotalHungerChanged += UpdateHungerText;
         }
+
+        // ğŸŒŸ [ìš”êµ¬ì‚¬í•­ 1]: ìŒì‹ ë³´ê¸‰ê³  UI ì°½ì´ ì—´ë¦´ ë•Œë§ˆë‹¤ ê°€ë°© ë° ì¼ë°˜ ë³´ê´€ ì°½ê³ ì— ìƒˆë¡œ ë“¤ì–´ì˜¨ ìŒì‹ì„ ì „ë¶€ ìˆ˜ê±° ìº¡ì²˜ ì²˜ë¦¬í•©ë‹ˆë‹¤.
+        FetchFoodFromInventories();
+        RefreshAll();
     }
 
     private void OnDisable()
@@ -114,6 +115,72 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner
         {
             TotalHungerManager.Instance.OnTotalHungerChanged -= UpdateHungerText;
         }
+    }
+
+    /// <summary>
+    /// ì™¸ë¶€ ê°€ë°©ê³¼ ì¼ë°˜ ì°½ê³ ì˜ ì›ë³¸ ìŒì‹ë“¤ì„ ì™„ì „íˆ ê¸ì–´ì™€ ì´ê´€í•œ í›„ ì›ë³¸ ì¹¸ì„ ì •ëˆ(Clear)ì‹œí‚µë‹ˆë‹¤.
+    /// </summary>
+    private void FetchFoodFromInventories()
+    {
+        var bagContainer = FoodBagContainer;
+        if (bagContainer == null || bagContainer.slots == null) return;
+
+        if (playerInventory != null && playerInventory.inventory != null && playerInventory.inventory.slots != null)
+        {
+            for (int i = 0; i < playerInventory.inventory.slots.Length; i++)
+            {
+                ItemStack slot = playerInventory.inventory.slots[i];
+                if (IsFoodItem(slot))
+                {
+                    int remaining = AddItemToContainer(bagContainer, slot.itemId, slot.amount);
+                    if (remaining <= 0) slot.Clear(); 
+                    else slot.amount = remaining;
+                }
+            }
+        }
+
+        if (warehouseInventory != null && warehouseInventory.storage != null && warehouseInventory.storage.slots != null)
+        {
+            for (int i = 0; i < warehouseInventory.storage.slots.Length; i++)
+            {
+                ItemStack slot = warehouseInventory.storage.slots[i];
+                if (IsFoodItem(slot))
+                {
+                    int remaining = AddItemToContainer(bagContainer, slot.itemId, slot.amount);
+                    if (remaining <= 0) slot.Clear(); 
+                    else slot.amount = remaining;
+                }
+            }
+        }
+
+        if (ConsumeFoodSystem.Instance != null)
+        {
+            ConsumeFoodSystem.Instance.ProcessFoodConsumption(true);
+        }
+    }
+
+    private int AddItemToContainer(InventoryContainer container, string itemId, int amount)
+    {
+        int remaining = amount;
+        for (int i = 0; i < container.slots.Length; i++)
+        {
+            if (container.slots[i] == null) container.slots[i] = new ItemStack();
+            if (container.slots[i].itemId == itemId && !container.slots[i].IsEmpty)
+            {
+                container.slots[i].amount += remaining;
+                return 0;
+            }
+        }
+        for (int i = 0; i < container.slots.Length; i++)
+        {
+            if (container.slots[i] == null) container.slots[i] = new ItemStack();
+            if (container.slots[i].IsEmpty)
+            {
+                container.slots[i].Set(itemId, remaining);
+                return 0;
+            }
+        }
+        return remaining;
     }
 
     public void BeginSlotDrag(InventorySlotUI source, ItemStack stack, Vector2 position)
@@ -178,20 +245,20 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner
         warehouseInventory?.ApplySort(criteria);
     }
 
-
     private void MoveBetweenSlots(InventorySlotUI from, InventorySlotUI to)
     {
+        var storageContainer = FoodStorageContainer;
+        var bagContainer = FoodBagContainer;
+        if (storageContainer == null || bagContainer == null) return;
+
         if (from.group == SlotGroup.Storage && to.group == SlotGroup.Storage)
         {
-            bool moved = InventorySlotMoveHelper.MoveSlot(foodStorageContainer, from.slotIndex, foodStorageContainer, to.slotIndex, catalogManager);
+            bool moved = InventorySlotMoveHelper.MoveSlot(storageContainer, from.slotIndex, storageContainer, to.slotIndex, catalogManager);
 
             if (moved)
             {
                 RefreshAll();
-                if (ConsumeFoodSystem.Instance != null)
-                {
-                    ConsumeFoodSystem.Instance.OnStorageToStorageMove();
-                }
+                ConsumeFoodSystem.Instance?.OnStorageToStorageMove();
             }
             return;
         }
@@ -203,9 +270,8 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner
             if (from.slotIndex >= rightFilteredFoods.Count) return;
 
             FilteredFoodSource src = rightFilteredFoods[from.slotIndex];
-            InventoryContainer realFromContainer = (src.originalGroup == SlotGroup.Inventory) ? playerInventory.inventory : warehouseInventory.storage;
 
-            bool moved = InventorySlotMoveHelper.MoveSlot(realFromContainer, src.originalIndex, foodStorageContainer, to.slotIndex, catalogManager);
+            bool moved = InventorySlotMoveHelper.MoveSlot(bagContainer, src.originalIndex, storageContainer, to.slotIndex, catalogManager);
 
             if (moved)
             {
@@ -220,12 +286,12 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner
 
         if (from.group == SlotGroup.Storage && to.group == SlotGroup.Inventory)
         {
-            ItemStack leftStack = foodStorageContainer.slots[from.slotIndex];
+            ItemStack leftStack = storageContainer.slots[from.slotIndex];
             if (leftStack == null || leftStack.IsEmpty) return;
 
             int initialAmount = leftStack.amount;
 
-            int remaining = playerInventory.AddItem(leftStack.itemId, initialAmount);
+            int remaining = AddItemToContainer(bagContainer, leftStack.itemId, initialAmount);
             int added = initialAmount - remaining;
 
             if (added > 0)
@@ -234,21 +300,16 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner
                 if (leftStack.amount <= 0) leftStack.Clear();
 
                 RefreshAll();
-                if (ConsumeFoodSystem.Instance != null)
-                {
-                    ConsumeFoodSystem.Instance.OnLeftToRightMove();
-                }
+                ConsumeFoodSystem.Instance?.OnLeftToRightMove();
             }
             return;
         }
     }
 
-    /// <summary>
-    /// °¡·Î 5Ä­ °íÁ¤, ¾÷±×·¹ÀÌµå Çà ¼ö¿¡ ¸ÂÃç ½½·ÔÀ» °³¼³
-    /// </summary>
     private void EnsureStorageSlotCount()
     {
-        if (storageSlotPrefab == null || storageContentParent == null || warehouseInventory == null) return;
+        var storageContainer = FoodStorageContainer;
+        if (storageSlotPrefab == null || storageContentParent == null || warehouseInventory == null || storageContainer == null) return;
 
         int upgradedRows = warehouseInventory.storage.height - warehouseInventory.StartingRows;
         int currentRows = 1 + Mathf.Max(0, upgradedRows);
@@ -256,15 +317,15 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner
         int required = 5 * currentRows;
         int current = storageSlots != null ? storageSlots.Length : 0;
 
-        ItemStack[] oldSlots = foodStorageContainer.slots;
-        foodStorageContainer.slots = new ItemStack[required];
+        ItemStack[] oldSlots = storageContainer.slots;
+        storageContainer.slots = new ItemStack[required];
         for (int i = 0; i < required; i++)
         {
-            if (oldSlots != null && i < oldSlots.Length) foodStorageContainer.slots[i] = oldSlots[i];
-            else foodStorageContainer.slots[i] = new ItemStack();
+            if (oldSlots != null && i < oldSlots.Length) storageContainer.slots[i] = oldSlots[i];
+            else storageContainer.slots[i] = new ItemStack();
         }
-        foodStorageContainer.width = 5;
-        foodStorageContainer.height = required / 5;
+        storageContainer.width = 5;
+        storageContainer.height = required / 5;
 
         if (required <= current) return;
         var grown = new InventorySlotUI[required];
@@ -278,12 +339,9 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner
         storageSlots = grown;
     }
 
-    /// <summary>
-    /// ¿ìÃø ÀÎº¥Åä¸® 70Ä­ °İÀÚ »ı¼º
-    /// </summary>
     private void BindPlayerSlots()
     {
-        int maxBagCount = 70; 
+        int maxBagCount = 70;
         inventorySlots = new InventorySlotUI[maxBagCount];
 
         if (inventoryGrid == null) return;
@@ -305,61 +363,38 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner
     private void RefreshAll()
     {
         BuildRightFilteredFoodList();
-
         RefreshStorageSlots();
-
         RefreshInventorySlots();
     }
 
-    /// <summary>
-    /// °¡¹æ°ú Ã¢°í¸¦ ¼øÈ¸ÇÏ¿© 'Food' Ä«Å×°í¸®¸¸ Ã£¾Æ³» ¿ìÃø¿¡ °¡Á®¿À±â
-    /// </summary>
     private void BuildRightFilteredFoodList()
     {
         rightFilteredFoods.Clear();
+        var bagContainer = FoodBagContainer;
+        if (bagContainer == null || bagContainer.slots == null) return;
 
-        if (playerInventory != null && playerInventory.inventory.slots != null)
+        for (int i = 0; i < bagContainer.slots.Length; i++)
         {
-            for (int i = 0; i < playerInventory.inventory.slots.Length; i++)
+            ItemStack stack = bagContainer.slots[i];
+            if (stack != null && !stack.IsEmpty)
             {
-                ItemStack stack = playerInventory.inventory.slots[i];
-                if (IsFoodItem(stack))
-                {
-                    rightFilteredFoods.Add(new FilteredFoodSource { originalGroup = SlotGroup.Inventory, originalIndex = i, stack = stack });
-                    Debug.Log($"<color=cyan>[FoodWarehouseUI]</color> ÇÃ·¹ÀÌ¾î ÀÎº¥Åä¸® {i}¹ø ½½·Ô¿¡¼­ À½½Ä ÇÊÅÍ¸µ ¿Ï·á: ID = {stack.itemId}, ¼ö·® = {stack.amount}°³");
-                }
+                rightFilteredFoods.Add(new FilteredFoodSource { originalGroup = SlotGroup.Inventory, originalIndex = i, stack = stack });
             }
         }
-
-        if (warehouseInventory != null && warehouseInventory.storage.slots != null)
-        {
-            for (int i = 0; i < warehouseInventory.storage.slots.Length; i++)
-            {
-                ItemStack stack = warehouseInventory.storage.slots[i];
-                if (IsFoodItem(stack))
-                {
-                    rightFilteredFoods.Add(new FilteredFoodSource { originalGroup = SlotGroup.Storage, originalIndex = i, stack = stack });
-                    Debug.Log($"<color=orange>[FoodWarehouseUI]</color> ÀÏ¹İ Ã¢°í {i}¹ø ½½·Ô¿¡¼­ À½½Ä ÇÊÅÍ¸µ ¿Ï·á: ID = {stack.itemId}, ¼ö·® = {stack.amount}°³");
-                }
-            }
-        }
-        Debug.Log($"<color=green><b>[FoodWarehouseUI]</b></color> ÀÎº¥Åä¸® ¹× ÀÏ¹İ Ã¢°í Àü¼öÁ¶»ç ¸¶°¨ -> ¿ìÃø ´ë½Ãº¸µå¿¡ ÃÑ <b>{rightFilteredFoods.Count}°³</b>ÀÇ À½½Ä ½ºÅÃÀÌ ºôµåµÇ¾ú½À´Ï´Ù.");
     }
 
     private void RefreshStorageSlots()
     {
-        if (storageSlots == null) return;
+        var storageContainer = FoodStorageContainer;
+        if (storageSlots == null || storageContainer == null) return;
 
         for (int i = 0; i < storageSlots.Length; i++)
         {
             if (storageSlots[i] == null) continue;
-            storageSlots[i].SetStack(foodStorageContainer.slots[i]);
+            storageSlots[i].SetStack(storageContainer.slots[i]);
         }
     }
 
-    /// <summary>
-    /// ¿ìÃø ÀÎº¥Åä¸® ½½·Ô¿¡ °¡¹æ+Ã¢°í¿¡¼­ ¼öÁıµÈ ÅëÇÕ À½½Ä ¸®½ºÆ®¸¦ Â÷·Ê´ë·Î ¼ø¼­´ë·Î °¡Á®¿À±â
-    /// </summary>
     private void RefreshInventorySlots()
     {
         if (inventorySlots == null) return;

@@ -1,4 +1,4 @@
-using HDY.Inventory;
+ï»¿using HDY.Inventory;
 using HDY.Item;
 using KMS.InventoryDuped;
 using System;
@@ -11,27 +11,27 @@ public class ConsumeFoodSystem : MonoBehaviour
 
     [SerializeField] private FoodWarehouseUI foodWarehouseUI;
 
-    [Header("¼Ò¸ğ ÁÖ±â ¼³Á¤ (ÃÊ ´ÜÀ§)")]
+    [Header("ì†Œëª¨ ì£¼ê¸° ì„¤ì • (ì´ˆ ë‹¨ìœ„)")]
     [SerializeField] private float consumeInterval = 60f;
 
     private float timer = 0f;
     private bool isWorkStoppedDueToStarvation = false;
-
     private bool isWaitingForMissedMeal = false;
 
-    private int maxSatiety = 0;
-    private int currentSatiety = 0;
+    [SerializeField] private int maxSatiety = 0;
+    [SerializeField] private int currentSatiety = 0;
 
-    // RecordManager°¡ ¼¼ÀÌºê/·Îµå ½Ã Á÷Á¢ Á¢±ÙÇÒ ¼ö ÀÖµµ·Ï À½½Ä Ã¢°í »çÀÌÁî Á¤ÀÇ
     private InventoryContainer foodStorageContainer = new InventoryContainer { width = 5, height = 2 };
+    private InventoryContainer foodBagContainer = new InventoryContainer { width = 10, height = 7 };
 
-    /// <summary>ÇöÀç À½½ÄÀÌ ºÎÁ·ÇÏ¿© ¿µÁö ÀüÃ¼°¡ ÁßÁöµÇ¾ú´ÂÁö ¿©ºÎ ¹İÈ¯</summary>
+    /// <summary>í˜„ì¬ ìŒì‹ì´ ë¶€ì¡±í•˜ì—¬ ì˜ì§€ ì „ì²´ê°€ ì¤‘ì§€ë˜ì—ˆëŠ”ì§€ ì—¬ë¶€ ë°˜í™˜</summary>
     public bool IsWorkStoppedDueToStarvation => isWorkStoppedDueToStarvation;
     public int MaxSatiety => maxSatiety;
     public int CurrentSatiety => currentSatiety;
 
-    // RecordManager°¡ µé¿©´Ùº¼ ¼ö ÀÖµµ·Ï Åë·Î °³¹æ
+    // RecordManager ë° FoodWarehouseUIê°€ ì§ì ‘ ê³µìœ í•˜ì—¬ ë§í¬í•  í”„ë¡œí¼í‹° í†µë¡œ ê°œë°©
     public InventoryContainer FoodStorageContainer => foodStorageContainer;
+    public InventoryContainer FoodBagContainer => foodBagContainer;
 
     public event Action<int, int> OnFoodAmountChanged;
 
@@ -40,8 +40,11 @@ public class ConsumeFoodSystem : MonoBehaviour
         if (Instance == null)
         {
             Instance = this;
-            DontDestroyOnLoad(gameObject); 
+            DontDestroyOnLoad(gameObject);
+
+            // ì¥ë¶€ ìŠ¬ë¡¯ ë°°ì • êµ¬ì¡° ì´ˆê¸°í™” ì™„ìˆ˜
             foodStorageContainer.Initialize();
+            foodBagContainer.Initialize();
         }
         else
         {
@@ -49,7 +52,7 @@ public class ConsumeFoodSystem : MonoBehaviour
             return;
         }
 
-        if (foodWarehouseUI == null) foodWarehouseUI = GetComponent<FoodWarehouseUI>();
+        if (foodWarehouseUI == null) foodWarehouseUI = FindFirstObjectByType<FoodWarehouseUI>();
     }
 
     private void Start()
@@ -68,19 +71,17 @@ public class ConsumeFoodSystem : MonoBehaviour
             if (timer >= consumeInterval)
             {
                 timer = 0f;
-                // 1ºĞ ÁÖ±â Å¸ÀÌ¸Ó È£Ãâ ½Ã¿¡´Â ¼öµ¿ º¯°æÀÌ ¾Æ´Ï¹Ç·Î false Àü´Ş
                 ProcessFoodConsumption(false);
             }
         }
     }
 
     /// <summary>
-    /// RecordManager ¹× ¿ÜºÎ UI µå·¡±×¾Øµå·Ó ÀÌº¥Æ®°¡ 
-    /// ¼öµ¿ Á¦¾î ºĞ±â(isManualChange)¸¦ ¸í½ÃÇÏ¿© È£ÃâÇÒ ¼ö ÀÖµµ·Ï ¸Å°³º¯¼ö¸¦ ¿Ïº®ÇÏ°Ô Å¾ÀçÇß½À´Ï´Ù!
+    /// ìŒì‹ ì†Œëª¨ ì°¨ê° ì—°ì‚° ë° í¬ë§Œê° ê°•ì œ ì‹¤ì‹œê°„ ì •ì‚° í†µì œ ì´ê´„ ì—”ì§„
     /// </summary>
     public void ProcessFoodConsumption(bool isManualChange = false)
     {
-        if (foodWarehouseUI == null) return;
+        if (foodWarehouseUI == null) foodWarehouseUI = FindFirstObjectByType<FoodWarehouseUI>();
 
         int totalHunger = TotalHungerManager.Instance != null ? TotalHungerManager.Instance.TotalHungerPerMinute : 0;
         int totalSatietyAvailable = CalculateTotalStorageSatiety(out List<int> validFoodIndices);
@@ -99,7 +100,7 @@ public class ConsumeFoodSystem : MonoBehaviour
                 isWaitingForMissedMeal = true;
 
                 SetAllFacilitiesWorkingState(false);
-                Debug.LogWarning("<color=red><b>[¿µÁö °æº¸]</b></color> À½½Ä ºÎÁ·À¸·Î ¸ğµç ½Ã¼³ °¡µ¿ÀÌ Á¤ÁöµË´Ï´Ù.");
+                Debug.LogWarning("<color=red><b>[ì˜ì§€ ê²½ë³´]</b></color> ìŒì‹ ë¶€ì¡±ìœ¼ë¡œ ëª¨ë“  ì‹œì„¤ ê°€ë™ì´ ì •ì§€ë©ë‹ˆë‹¤.");
             }
             currentSatiety = totalSatietyAvailable;
             NotifyFoodStatusChanged();
@@ -110,7 +111,7 @@ public class ConsumeFoodSystem : MonoBehaviour
         {
             isWorkStoppedDueToStarvation = false;
             SetAllFacilitiesWorkingState(true);
-            Debug.Log("<color=lime><b>[¿µÁö Á¤»óÈ­]</b></color> À½½ÄÀ» ÃæºĞÈ÷ È®º¸Çß½À´Ï´Ù. ¸ğµç ½Ã¼³ÀÌ ´Ù½Ã °¡µ¿À» ½ÃÀÛÇÕ´Ï´Ù.");
+            Debug.Log("<color=lime><b>[ì˜ì§€ ì •ìƒí™”]</b></color> ìŒì‹ì„ ì¶©ë¶„íˆ í™•ë³´í–ˆìŠµë‹ˆë‹¤. ëª¨ë“  ì‹œì„¤ì´ ë‹¤ì‹œ ê°€ë™ì„ ì‹œì‘í•©ë‹ˆë‹¤.");
             timer = 0f;
         }
 
@@ -127,7 +128,6 @@ public class ConsumeFoodSystem : MonoBehaviour
         NotifyFoodStatusChanged();
     }
 
-    /// <summary>À½½Ä Ã¢°í ¿µ¿ª ³»ºÎ¿¡¼­ ½½·Ô ±³È¯ ¹× ÀÌµ¿½Ã Ã³¸®</summary>
     public void OnStorageToStorageMove()
     {
         int totalSatiety = CalculateTotalStorageSatiety(out _);
@@ -135,13 +135,11 @@ public class ConsumeFoodSystem : MonoBehaviour
         NotifyFoodStatusChanged();
     }
 
-    /// <summary>ÀÎº¥Åä¸® -> À½½Ä Ã¢°í µå¶ø½Ã µ¿ÀÛ</summary>
     public void OnRightToLeftMove()
     {
         ProcessFoodConsumption(true);
     }
 
-    /// <summary>ÁÂÃø À½½Ä Ã¢°í -> ¿ìÃø ÀÎº¥Åä¸®·Î È¸¼ö ÀÌµ¿ÇßÀ» ¶§</summary>
     public void OnLeftToRightMove()
     {
         int totalHunger = TotalHungerManager.Instance != null ? TotalHungerManager.Instance.TotalHungerPerMinute : 0;
@@ -156,15 +154,12 @@ public class ConsumeFoodSystem : MonoBehaviour
             isWaitingForMissedMeal = false;
 
             SetAllFacilitiesWorkingState(false);
-            Debug.LogWarning("<color=red><b>[¿µÁö °æº¸]</b></color> Ã¢°í À½½Ä È¸¼ö·Î º¸°ü·®ÀÌ Çã±â·®º¸´Ù ºÎÁ·ÇØÁ® Áï½Ã ÀÛ¾÷ÀÌ Á¤ÁöµË´Ï´Ù.");
+            Debug.LogWarning("<color=red><b>[ì˜ì§€ ê²½ë³´]</b></color> ì°½ê³  ìŒì‹ íšŒìˆ˜ë¡œ ë³´ê´€ëŸ‰ì´ í—ˆê¸°ëŸ‰ë³´ë‹¤ ë¶€ì¡±í•´ì ¸ ì¦‰ì‹œ ì‘ì—…ì´ ì •ì§€ë©ë‹ˆë‹¤.");
         }
 
         NotifyFoodStatusChanged();
     }
 
-    /// <summary>
-    /// ¿ÜºÎ ·Îµå ½Ã½ºÅÛÀÌ³ª µ¥ÀÌÅÍ °­Á¦ ÁÖÀÔ ÈÄ, °­Á¦ ¼öÄ¡ ¸®ÇÁ·¹½Ã¸¦ Á¦¾îÇÏ±â À§ÇÑ °³¹æÇü Åë·Î
-    /// </summary>
     public void ForceSyncManualState(int loadedCurrent, int loadedMax, bool loadedStarvation)
     {
         maxSatiety = loadedMax;
@@ -191,12 +186,16 @@ public class ConsumeFoodSystem : MonoBehaviour
 
         if (foodStorageContainer == null || foodStorageContainer.slots == null) return 0;
 
+        // UIì°½ì´ êº¼ì ¸ìˆì„ ë•Œì—ë„ ì—ëŸ¬ ì—†ì´ ë°±ê³¼ì‚¬ì „ ìŠ¤ìº” ì—ì…‹ ë°ì´í„°ë¥¼ ì°¾ì•„ì˜¬ ìˆ˜ ìˆë„ë¡ ì•ˆì „ ë°©ì–´ ë¶„ê¸°ë¥¼ ì„¤ê³„í•©ë‹ˆë‹¤.
+        ItemCatalogManager catalog = foodWarehouseUI != null ? foodWarehouseUI.CatalogManager : FindFirstObjectByType<ItemCatalogManager>();
+        if (catalog == null) return 0;
+
         for (int i = 0; i < foodStorageContainer.slots.Length; i++)
         {
             ItemStack slot = foodStorageContainer.slots[i];
             if (slot == null || slot.IsEmpty) continue;
 
-            ItemData itemData = foodWarehouseUI.CatalogManager.FindItemData(slot.itemId);
+            ItemData itemData = catalog.FindItemData(slot.itemId);
             if (itemData == null || itemData.EatEffects == null) continue;
 
             foreach (ItemEffect effect in itemData.EatEffects)
@@ -215,14 +214,16 @@ public class ConsumeFoodSystem : MonoBehaviour
     private void ConsumeFoodFromStorage(int hungerToConsume, List<int> foodIndices)
     {
         int remainingHunger = hungerToConsume;
+        ItemCatalogManager catalog = foodWarehouseUI != null ? foodWarehouseUI.CatalogManager : FindFirstObjectByType<ItemCatalogManager>();
 
         foreach (int index in foodIndices)
         {
             ItemStack slot = foodStorageContainer.slots[index];
-            ItemData itemData = foodWarehouseUI.CatalogManager.FindItemData(slot.itemId);
+            ItemData itemData = catalog != null ? catalog.FindItemData(slot.itemId) : null;
+            if (itemData == null) continue;
 
             int singleSatiety = 0;
-            if (itemData != null && itemData.EatEffects != null)
+            if (itemData.EatEffects != null)
             {
                 foreach (ItemEffect effect in itemData.EatEffects)
                 {
@@ -245,7 +246,8 @@ public class ConsumeFoodSystem : MonoBehaviour
             if (slot.amount <= 0) slot.Clear();
             if (remainingHunger <= 0) break;
         }
-        foodWarehouseUI.RefreshAllPanelsAndSlots();
+
+        if (foodWarehouseUI != null) foodWarehouseUI.RefreshAllPanelsAndSlots();
     }
 
     private void SetAllFacilitiesWorkingState(bool isWorking)
@@ -268,5 +270,45 @@ public class ConsumeFoodSystem : MonoBehaviour
                 if (craft.currentCraftingItem != null && craft.DeployedMems.Count > 0) craft.isProducing = true;
             }
         }
+    }
+
+    public void ConsumeSatietyFromWarehouse(int satietyToConsume)
+    {
+        int remainingSatiety = satietyToConsume;
+
+        // ì°½ê³  ìŠ¬ë¡¯ì„ ìˆœíšŒí•˜ë©° ìŒì‹ ì†Œëª¨
+        foreach (var slot in foodStorageContainer.slots)
+        {
+            if (slot == null || slot.IsEmpty) continue;
+
+            // ì•„ì´í…œ ì •ë³´ ì¡°íšŒ (ì•„ì´í…œ ì¹´íƒˆë¡œê·¸ ì—°ë™)
+            var itemData = foodWarehouseUI.CatalogManager.FindItemData(slot.itemId);
+            int itemSatiety = GetSatietyValue(itemData); // ì•„ì´í…œ ë°ì´í„°ì—ì„œ í¬ë§Œê° ìˆ˜ì¹˜ ì¶”ì¶œí•˜ëŠ” í•¨ìˆ˜
+
+            if (itemSatiety <= 0) continue;
+
+            while (slot.amount > 0 && remainingSatiety >= itemSatiety)
+            {
+                slot.amount--;
+                remainingSatiety -= itemSatiety;
+            }
+
+            if (slot.amount <= 0) slot.Clear();
+            if (remainingSatiety <= 0) break;
+        }
+
+        // UI ê°±ì‹  ë° ìƒíƒœ ë™ê¸°í™”
+        currentSatiety = CalculateTotalStorageSatiety(out _);
+        NotifyFoodStatusChanged();
+    }
+
+    private int GetSatietyValue(ItemData data)
+    {
+        if (data == null || data.EatEffects == null) return 0;
+        foreach (var effect in data.EatEffects)
+        {
+            if (effect.Effect == EffectType.Satiety) return (int)effect.Value;
+        }
+        return 0;
     }
 }

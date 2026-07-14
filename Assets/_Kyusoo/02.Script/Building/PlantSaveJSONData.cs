@@ -1,22 +1,23 @@
-using System.Collections.Generic;
+ï»¿using System.Collections.Generic;
 using UnityEngine;
 
+[System.Serializable]
 public class PlantJSONSaveData
 {
-    [Header("½Ã¼³ID. ÀÌ ¾ÆÀÌµğ·Î ½Ã¼³º° µ¥ÀÌÅÍ ±¸ºĞ")]
-    public string Building_ID;            
+    [Header("ì‹œì„¤ID. ì´ ì•„ì´ë””ë¡œ ì‹œì„¤ë³„ ë°ì´í„° êµ¬ë¶„")]
+    public string Building_ID;
 
-    [Header("µ¿ÀÛ ¿©ºÎ, Á¦ÀÛ¿ë ¾ÆÀÌÅÛid, ¸ñÇ¥ ¼ö·®, ¹Ì¿Ï¼ºµÈ ³²Àº ¼ö·®")]
-    public bool isActive;               
-    public string currentCraftingItemId;   
-    public int targetQuantity;            
-    public int remainingQuantity;          
+    [Header("ë™ì‘ ì—¬ë¶€, ì œì‘ìš© ì•„ì´í…œid, ëª©í‘œ ìˆ˜ëŸ‰, ë¯¸ì™„ì„±ëœ ë‚¨ì€ ìˆ˜ëŸ‰")]
+    public bool isActive;
+    public string currentCraftingItemId;
+    public int targetQuantity;
+    public int remainingQuantity;
 
-    public float currentProgressTime;      
-    public int currentStorageCount;        
+    public float currentProgressTime;
+    public int currentStorageCount;
 
-    [Header("¹èÄ¡µÈ ¸â Á¤º¸ ¸®½ºÆ®")]
-    public List<string> DeployedMemIDs = new List<string>(); 
+    [Header("ë°°ì¹˜ëœ ë©¤ ì •ë³´ ë¦¬ìŠ¤íŠ¸")]
+    public List<string> DeployedMemIDs = new List<string>();
 }
 
 [System.Serializable]
