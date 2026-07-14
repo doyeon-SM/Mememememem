@@ -1,6 +1,5 @@
 using System;
 using UnityEngine;
-using UnityEngine.Serialization;
 using KMS.Persistence;
 
 namespace KMS
@@ -12,9 +11,7 @@ namespace KMS
         [SerializeField] private float startingHealth = 100f;
 
         [Header("Hunger")]
-        [FormerlySerializedAs("maxStamina")]
         [SerializeField] private float maxHunger = 100f;
-        [FormerlySerializedAs("startingStamina")]
         [SerializeField] private float startingHunger = 100f;
         [SerializeField] private float starvationDamagePerSecond = 5f;
 
@@ -30,14 +27,6 @@ namespace KMS
         public event Action<float> Healed;
         public event Action Died;
         public event Action Revived;
-
-        public float MaxStamina => MaxHunger;
-        public float CurrentStamina => CurrentHunger;
-        public event Action<float, float> StaminaChanged
-        {
-            add => HungerChanged += value;
-            remove => HungerChanged -= value;
-        }
 
         private void Awake()
         {
@@ -110,12 +99,6 @@ namespace KMS
             CurrentHunger = Mathf.Min(maxHunger, CurrentHunger + amount);
             HungerChanged?.Invoke(CurrentHunger, maxHunger);
         }
-
-        public bool ConsumeStamina(float amount) => ConsumeHunger(amount);
-
-        public bool HasStamina(float amount) => HasHunger(amount);
-
-        public void RestoreStamina(float amount) => RestoreHunger(amount);
 
         public void Revive(float healthPercent = 1f)
         {

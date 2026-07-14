@@ -12,8 +12,19 @@
         </ui:VisualElement>
         <ui:VisualElement name="health-info-container">
             <ui:ProgressBar value="63.8" title="Health" name="player-health-bar" class="blocks-progress-bar"/>
-            <ui:VisualElement name="clock-anchor"/>
-            <ui:ProgressBar name="player-stamina-bar" low-value="0" high-value="100" value="100" title="Hunger" class="blocks-progress-bar"/>
+            <ui:VisualElement name="clock-anchor">
+                <ui:VisualElement name="day-night-clock">
+                    <ui:VisualElement name="clock-day-half"/>
+                    <ui:VisualElement name="clock-night-half"/>
+                    <ui:VisualElement name="clock-inner-face">
+                        <ui:Label name="clock-period-label" text="DAY"/>
+                    </ui:VisualElement>
+                    <ui:VisualElement name="clock-hand">
+                        <ui:VisualElement name="clock-marker" class="clock-marker--day"/>
+                    </ui:VisualElement>
+                </ui:VisualElement>
+            </ui:VisualElement>
+            <ui:ProgressBar name="player-hunger-bar" low-value="0" high-value="100" value="100" title="Hunger" class="blocks-progress-bar"/>
         </ui:VisualElement>
         <ui:VisualElement name="notification-container" class="notification-container"/>
         <ui:VisualElement name="throw-guide" class="throw-guide" style="display: none;">
