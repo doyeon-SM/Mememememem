@@ -1,5 +1,8 @@
+using System;
 using System.Collections;
+using HDY.Territory;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.Serialization;
 using UnityEngine.UIElements;
 
@@ -7,6 +10,18 @@ namespace KMS
 {
     public class PlayerHUD : MonoBehaviour
     {
+        private static int cachedSessionGold;
+        private static bool hasConnectedGoldSource;
+        private static int connectedGoldSourceId;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetSessionCache()
+        {
+            cachedSessionGold = 0;
+            hasConnectedGoldSource = false;
+            connectedGoldSourceId = 0;
+        }
+
         [Header("References")]
         [SerializeField] private PlayerStats stats;
         [SerializeField] private UIDocument uiDocument;
@@ -22,6 +37,12 @@ namespace KMS
         [SerializeField] private string survivalStatusContainerName = "health-info-container";
         [SerializeField] private string inventoryButtonName = "inventory-button";
 
+        [Header("Status Text")]
+        [SerializeField] private TerritoryData territoryData;
+        [SerializeField] private string realTimeLabelName = "real-time-label";
+        [SerializeField] private string goldLabelName = "gold-label";
+        [SerializeField, Min(0.1f)] private float statusRefreshInterval = 0.25f;
+
         [Header("Notifications")]
         [SerializeField] private float notificationDuration = 2.5f;
 
@@ -33,8 +54,15 @@ namespace KMS
         private VisualElement throwGuide;
         private VisualElement survivalStatusContainer;
         private Button inventoryButton;
+        private Label realTimeLabel;
+        private Label goldLabel;
         private KMS.InventoryDuped.InventoryUI inventoryUi;
         private bool isSurvivalStatusVisible = true;
+        private bool hasStarted;
+        private Coroutine statusTextCoroutine;
+        private string lastDisplayedTime;
+        private int lastDisplayedGold = int.MinValue;
+        private bool hasDisplayedGold;
 
         private void Reset()
         {
@@ -51,6 +79,8 @@ namespace KMS
 
         private void OnEnable()
         {
+            SceneManager.activeSceneChanged += HandleActiveSceneChanged;
+
             if (stats != null)
             {
                 stats.HealthChanged += HandleHealthChanged;
@@ -58,16 +88,36 @@ namespace KMS
                 stats.Died += HandleDied;
                 stats.Revived += HandleRevived;
             }
+
+            if (hasStarted)
+            {
+                StartStatusTextUpdates();
+            }
         }
 
         private void Start()
         {
             BindElements();
             Refresh();
+            hasStarted = true;
+            StartStatusTextUpdates();
         }
 
         private void OnDisable()
         {
+            if (territoryData != null)
+            {
+                cachedSessionGold = territoryData.Gold;
+            }
+
+            SceneManager.activeSceneChanged -= HandleActiveSceneChanged;
+
+            if (statusTextCoroutine != null)
+            {
+                StopCoroutine(statusTextCoroutine);
+                statusTextCoroutine = null;
+            }
+
             if (inventoryButton != null)
             {
                 inventoryButton.clicked -= HandleInventoryButtonClicked;
@@ -134,6 +184,8 @@ namespace KMS
             throwGuide = root.Q<VisualElement>(throwGuideName);
             survivalStatusContainer = root.Q<VisualElement>(survivalStatusContainerName);
             inventoryButton = root.Q<Button>(inventoryButtonName);
+            realTimeLabel = root.Q<Label>(realTimeLabelName);
+            goldLabel = root.Q<Label>(goldLabelName);
 
             if (inventoryButton != null)
             {
@@ -162,6 +214,95 @@ namespace KMS
 
             HandleHealthChanged(stats.CurrentHealth, stats.MaxHealth);
             HandleHungerChanged(stats.CurrentHunger, stats.MaxHunger);
+        }
+
+        private void StartStatusTextUpdates()
+        {
+            if (statusTextCoroutine != null)
+            {
+                StopCoroutine(statusTextCoroutine);
+            }
+
+            RefreshStatusTexts();
+            statusTextCoroutine = StartCoroutine(RefreshStatusTextsRoutine());
+        }
+
+        private IEnumerator RefreshStatusTextsRoutine()
+        {
+            WaitForSecondsRealtime wait = new WaitForSecondsRealtime(Mathf.Max(0.1f, statusRefreshInterval));
+
+            while (true)
+            {
+                yield return wait;
+                RefreshStatusTexts();
+            }
+        }
+
+        private void RefreshStatusTexts()
+        {
+            string currentTime = DateTime.Now.ToString("HH:mm:ss");
+            if (realTimeLabel != null && currentTime != lastDisplayedTime)
+            {
+                lastDisplayedTime = currentTime;
+                realTimeLabel.text = $"현재 시간 {currentTime}";
+            }
+
+            if (territoryData == null)
+            {
+                territoryData = FindFirstObjectByType<TerritoryData>();
+            }
+
+            if (territoryData != null)
+            {
+                SynchronizeGoldSource();
+            }
+
+            SetGoldText(cachedSessionGold);
+        }
+
+        private void SynchronizeGoldSource()
+        {
+            int sourceId = territoryData.GetInstanceID();
+
+            if (!hasConnectedGoldSource)
+            {
+                cachedSessionGold = territoryData.Gold;
+                hasConnectedGoldSource = true;
+                connectedGoldSourceId = sourceId;
+                return;
+            }
+
+            if (connectedGoldSourceId != sourceId)
+            {
+                int difference = cachedSessionGold - territoryData.Gold;
+                if (difference != 0)
+                {
+                    territoryData.AddGold(difference);
+                }
+
+                connectedGoldSourceId = sourceId;
+            }
+
+            cachedSessionGold = territoryData.Gold;
+        }
+
+        private void HandleActiveSceneChanged(Scene previousScene, Scene nextScene)
+        {
+            territoryData = null;
+
+            if (hasStarted)
+            {
+                RefreshStatusTexts();
+            }
+        }
+
+        private void SetGoldText(int gold)
+        {
+            if (goldLabel == null || (hasDisplayedGold && gold == lastDisplayedGold)) return;
+
+            lastDisplayedGold = gold;
+            hasDisplayedGold = true;
+            goldLabel.text = $"보유 골드 {gold:N0}";
         }
 
         private void HandleHealthChanged(float current, float max)

@@ -37,6 +37,7 @@ namespace KMS
         public event Action PreviousPressed;
         public event Action MenuPressed;
         public event Action InventoryPressed;
+        public event Action CollectionPressed;
         public event Action<int> QuickSlotPressed;
         public event Action<int> QuickSlotScrolled;
 
@@ -236,6 +237,11 @@ namespace KMS
                 if (keyboard.iKey.wasPressedThisFrame || keyboard.eKey.wasPressedThisFrame)
                 {
                     InventoryPressed?.Invoke();
+                }
+
+                if (keyboard.oKey.wasPressedThisFrame)
+                {
+                    CollectionPressed?.Invoke();
                 }
 
                 if (keyboard.digit1Key.wasPressedThisFrame) InvokeQuickSlot(0);

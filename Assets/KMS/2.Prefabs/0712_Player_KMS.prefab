@@ -1541,6 +1541,7 @@ GameObject:
   - component: {fileID: 5797813752608326662}
   - component: {fileID: 3540616809798737260}
   - component: {fileID: 7457846233448879733}
+  - component: {fileID: 4812345678901234567}
   m_Layer: 3
   m_Name: 0712_Player_KMS
   m_TagString: Player
@@ -1766,6 +1767,29 @@ MonoBehaviour:
   throwGuideName: throw-guide
   survivalStatusContainerName: health-info-container
   notificationDuration: 2.5
+--- !u!114 &4812345678901234567
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2157912231843724579}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7c23c35fc5eb4fe597fc64cad654cc89, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::KMS.KMSMemDexLauncher
+  uiDocument: {fileID: 6477896841844138712}
+  collectionButtonName: collection-button
+  memDexPrefab: {fileID: 6947569884078246553, guid: 73388961ba2024149adf73e0f355ad57, type: 3}
+  runtimeServicesPrefab: {fileID: 6103025047468129001, guid: 64a2de168be14be98e597b9162ca50f3, type: 3}
+  modalSortingOrder: 200
+  playerInput: {fileID: 0}
+  playerMovement: {fileID: 0}
+  cameraController: {fileID: 0}
+  inventoryUi: {fileID: 0}
+  preferHdyUiManagerWhenAvailable: 0
+  hdyOpenMethodName: OpenPrefab
 --- !u!114 &7684839475638990318
 MonoBehaviour:
   m_ObjectHideFlags: 0
