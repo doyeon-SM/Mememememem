@@ -14,9 +14,31 @@ namespace HDY.UI
     /// (줄바꿈 계산은 이 스크립트가 하지 않고 Grid Layout Group에 맡긴다).
     /// 슬롯은 매번 Setup()에서 slotPrefab을 필요한 개수만큼 Instantiate해서 채운다(레시피 데이터 기반이라
     /// 미리 배치해두기 어려움 - Mem 창고 그리드와 다른 점).
+    ///
+    /// [영지 확장 슬롯 - 순서] 이 줄이 대표하는 레벨에 영지 확장 단계가 걸려있으면, 슬롯을 하나 추가한다
+    /// (extraSlot). 채우는 순서는 "영지 확장 -> 레시피" 순이다 - extraSlot을 먼저 넣고 그 다음 레시피
+    /// 슬롯들을 채운다. 슬롯 컴포넌트(GoddessRecipeSlotUI)는 레시피와 동일한 것을 그대로 재사용하고,
+    /// Item_ID 자리에는 실제 아이템이 아닌 예약된 문자열 id를 넣어 클릭 시 구분한다(GoddessStatueUI가 처리).
     /// </summary>
     public class GoddessStatueUI_LevelRow : MonoBehaviour
     {
+        /// <summary>레시피 슬롯들보다 먼저 채워질 슬롯 하나(예: 영지 확장)의 표시 정보.</summary>
+        public readonly struct ExtraSlotInfo
+        {
+            public readonly string Id;
+            public readonly Sprite Icon;
+            public readonly bool IsUnlocked;
+            public readonly bool Interactable;
+
+            public ExtraSlotInfo(string id, Sprite icon, bool isUnlocked, bool interactable)
+            {
+                Id = id;
+                Icon = icon;
+                IsUnlocked = isUnlocked;
+                Interactable = interactable;
+            }
+        }
+
         [Header("레벨 표시 (텍스트, 아이콘은 선택 사항)")]
         [SerializeField] private TMP_Text levelText;
         [SerializeField] private Image levelIconImage; // 순수 장식용. 값에 따라 바뀌지 않음(원하면 직접 커스터마이징)
@@ -27,21 +49,24 @@ namespace HDY.UI
 
         private readonly List<GoddessRecipeSlotUI> slots = new List<GoddessRecipeSlotUI>();
 
-        /// <summary>이 줄 안의 슬롯이 클릭되었을 때 발생. Item_ID를 함께 전달한다.</summary>
+        /// <summary>이 줄 안의 슬롯이 클릭되었을 때 발생. Item_ID(또는 영지 확장 예약 id)를 함께 전달한다.</summary>
         public event Action<string> OnSlotSelected;
 
         /// <summary>
         /// 이 줄을 특정 요구 레벨과 그 레벨의 레시피 목록으로 채운다. 기존에 있던 슬롯은 전부 지우고 새로 만든다.
+        /// 채우는 순서는 "영지 확장(extraSlot) -> 레시피(entries)" 순이다.
         /// </summary>
         /// <param name="requiredLevel">이 줄이 대표하는 요구 영지 레벨</param>
         /// <param name="entries">이 레벨을 요구하는 레시피 항목들</param>
         /// <param name="findItemIcon">Item_ID로 아이콘 스프라이트를 찾는 함수(카탈로그 조회는 상위가 담당)</param>
         /// <param name="canAttemptUnlock">이 항목이 지금 선택(구매 시도) 가능한지 판단하는 함수</param>
+        /// <param name="extraSlot">레시피보다 먼저 채울 슬롯 하나(없으면 null)</param>
         public void Setup(
             int requiredLevel,
             IReadOnlyList<RecipeUnlockEntry> entries,
             Func<string, Sprite> findItemIcon,
-            Func<RecipeUnlockEntry, bool> canAttemptUnlock)
+            Func<RecipeUnlockEntry, bool> canAttemptUnlock,
+            ExtraSlotInfo? extraSlot = null)
         {
             if (levelText != null)
             {
@@ -50,22 +75,36 @@ namespace HDY.UI
 
             ClearSlots();
 
-            if (entries == null || slotsParent == null || slotPrefab == null) return;
+            if (slotsParent == null || slotPrefab == null) return;
 
-            foreach (var entry in entries)
+            if (extraSlot.HasValue)
             {
+                var info = extraSlot.Value;
                 var slot = Instantiate(slotPrefab, slotsParent);
-                var icon = findItemIcon != null ? findItemIcon(entry.Item_ID) : null;
-                bool interactable = canAttemptUnlock != null && canAttemptUnlock(entry);
 
-                slot.SetData(entry.Item_ID, icon, entry.IsUnlocked, interactable);
+                slot.SetData(info.Id, info.Icon, info.IsUnlocked, info.Interactable);
                 slot.OnClicked += HandleSlotClicked;
 
                 slots.Add(slot);
             }
+
+            if (entries != null)
+            {
+                foreach (var entry in entries)
+                {
+                    var slot = Instantiate(slotPrefab, slotsParent);
+                    var icon = findItemIcon != null ? findItemIcon(entry.Item_ID) : null;
+                    bool interactable = canAttemptUnlock != null && canAttemptUnlock(entry);
+
+                    slot.SetData(entry.Item_ID, icon, entry.IsUnlocked, interactable);
+                    slot.OnClicked += HandleSlotClicked;
+
+                    slots.Add(slot);
+                }
+            }
         }
 
-        /// <summary>현재 선택된 Item_ID에 맞게 이 줄의 슬롯들 강조 표시를 갱신한다.</summary>
+        /// <summary>현재 선택된 Item_ID(또는 영지 확장 예약 id)에 맞게 이 줄의 슬롯들 강조 표시를 갱신한다.</summary>
         public void RefreshSelection(string selectedItemId)
         {
             foreach (var slot in slots)

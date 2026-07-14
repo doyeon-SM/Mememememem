@@ -3,6 +3,8 @@ using MemSystem.Data;
 using System.Collections.Generic;
 using UnityEngine;
 using HDY.Item;
+using HDY.Inventory;
+
 public class ProductionFacilityRuntime : MonoBehaviour
 {
     [Header("시설 기반 정보 (배치 시 데이터 주입됨)")]
@@ -104,6 +106,7 @@ public class ProductionFacilityRuntime : MonoBehaviour
         }
         if (addMems.Count >= maxCapacity)
         {
+            // 배치교체 필요
             Debug.LogWarning($"배치 인원이 가득 찼습니다.");
             return false;
         }
@@ -173,11 +176,12 @@ public class ProductionFacilityRuntime : MonoBehaviour
 
         int amountToCollect = currentStorageCount;
 
-        // 창고에 아이템 추가하는 함수 작성
-        
-        currentStorageCount = 0;
-
-        // 아이템 수량 텍스트 수정처리(Event발행, currentStorageCount)
+        WarehouseInventory warehouse = FindFirstObjectByType<WarehouseInventory>();
+        if(warehouse != null)
+        {
+            int remaining = warehouse.AddItem(craftingItem, amountToCollect);
+            currentStorageCount = remaining;
+        }
 
     }
 }

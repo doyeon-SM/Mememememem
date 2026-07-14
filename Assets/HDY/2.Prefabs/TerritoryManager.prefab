@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 5970667789763052088}
   - component: {fileID: 7294453871775686018}
   - component: {fileID: 6791824935543099561}
+  - component: {fileID: 3109777930955922154}
   m_Layer: 0
   m_Name: TerritoryManager
   m_TagString: Untagged
@@ -49,7 +50,7 @@ MonoBehaviour:
   minSatisfaction: 0
   level: 1
   currentExp: 0
-  requiredExp: 100
+  requiredExp: 64000000c8000000f4010000
   foodStorage: []
   gold: 0
   elapsedTime: 0
@@ -66,12 +67,73 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HDY.Recipe.RecipeUnlockManager
   itemCatalogManager: {fileID: 0}
+  territoryData: {fileID: 0}
   recipeUnlocks:
-  - Item_ID: item_iron
+  - Item_ID: blueprint_projucion_stand
     RequestTerritoryLevel: 1
+    RequestGold: 0
+    MaterialCosts: []
+    RewardExp: 100
+    IsUnlocked: 0
+  - Item_ID: item_iron
+    RequestTerritoryLevel: 2
     RequestGold: 1000
+    MaterialCosts: []
+    RewardExp: 100
     IsUnlocked: 0
   - Item_ID: item_woodplank
-    RequestTerritoryLevel: 1
+    RequestTerritoryLevel: 2
     RequestGold: 1000
+    MaterialCosts: []
+    RewardExp: 100
     IsUnlocked: 0
+  - Item_ID: blueprint_logging_farm
+    RequestTerritoryLevel: 3
+    RequestGold: 5000
+    MaterialCosts: []
+    RewardExp: 200
+    IsUnlocked: 0
+  - Item_ID: blueprint_iron_ore_quarry
+    RequestTerritoryLevel: 3
+    RequestGold: 5000
+    MaterialCosts: []
+    RewardExp: 200
+    IsUnlocked: 0
+  - Item_ID: blueprint_barry_farm
+    RequestTerritoryLevel: 3
+    RequestGold: 5000
+    MaterialCosts: []
+    RewardExp: 200
+    IsUnlocked: 0
+--- !u!114 &3109777930955922154
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1106855712551666943}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7a444e2dc5a8d25499a4d4c23ca0ca46, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HDY.Territory.TerritoryExpansionManager
+  gridManager: {fileID: 0}
+  territoryData: {fileID: 0}
+  startingGridSize: 5
+  expansionSteps:
+  - RequestTerritoryLevel: 3
+    MaterialCosts:
+    - Item_ID: item_wood
+      Amount: 100
+    - Item_ID: item_irongemstone
+      Amount: 100
+    RewardExp: 0
+    IsExpanded: 0
+  - RequestTerritoryLevel: 4
+    MaterialCosts:
+    - Item_ID: item_woodplank
+      Amount: 50
+    - Item_ID: item_iron
+      Amount: 50
+    RewardExp: 0
+    IsExpanded: 0

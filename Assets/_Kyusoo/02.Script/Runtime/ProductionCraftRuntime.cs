@@ -1,8 +1,11 @@
-﻿using System.Collections.Generic;
-using UnityEngine;
+﻿using HDY.Capture;
+using HDY.Item;
+using HDY.Recipe;
+using KMS.InventoryDuped;
+using HDY.Inventory;
 using MemSystem.Data;
-using HDY.Capture;
-using HDY.Item; // 🌟 팀원 확정 아이템 네임스페이스 연결 완료
+using System.Collections.Generic;
+using UnityEngine;
 
 public class ProductionCraftRuntime : MonoBehaviour
 {
@@ -171,15 +174,51 @@ public class ProductionCraftRuntime : MonoBehaviour
     /// </summary>
     public void CancelCrafting()
     {
-        if (!isProducing && currentCraftingItem == null) return;
+        if(!isProducing && currentCraftingItem == null) return;
 
-        if (currentStorageCount == 0)
+        var inventory = FindFirstObjectByType<PlayerInventory>();
+        var warehouse = FindFirstObjectByType<WarehouseInventory>();
+        
+        if (currentStorageCount > 0)
         {
-             // TODO:: 제작 완료가 0개일 때 소모재료 전체 인벤토리 or 창고로 보내기
+            if (inventory != null)
+            {
+                inventory.AddItem(currentCraftingItem, currentStorageCount);
+            }
         }
-        else
+
+        if (remainingQuantity > 0)
         {
-            // TODO:: 제작 완료가 1개 이상일 때 완성된 수량 -> 인벤토리 수령, 잔여 미완성 재료 -> 인벤토리 or 창고
+            RecipeData matchedRecipe = null;
+            RecipeData[] allRecipes = Resources.FindObjectsOfTypeAll<RecipeData>();
+            foreach (RecipeData recipe in allRecipes)
+            {
+                if (recipe != null && recipe.Recipe_Item_ID == currentCraftingItem.Item_ID)
+                {
+                    matchedRecipe = recipe;
+                    break;
+                }
+            }
+
+            if (matchedRecipe != null && matchedRecipe.Requset_Items_ID != null)
+            {
+                foreach (var req in matchedRecipe.Requset_Items_ID)
+                {
+                    if (req == null || string.IsNullOrEmpty(req.Item_ID)) continue;
+
+                    int refundAmount = req.Amount * remainingQuantity;
+                    if (refundAmount <= 0) continue;
+
+                    if (inventory != null)
+                    {
+                        refundAmount = inventory.AddItem(req.Item_ID, refundAmount);
+                    }
+                    if (refundAmount > 0 && warehouse != null)
+                    {
+                        warehouse.AddItem(req.Item_ID, refundAmount);
+                    }
+                }
+            }
         }
 
         isProducing = false;
@@ -200,9 +239,15 @@ public class ProductionCraftRuntime : MonoBehaviour
     {
         if (currentStorageCount <= 0) return false;
 
-        //  TODO :: 인벤토리로 수령하기
+        //
+        PlayerInventory inventory = FindFirstObjectByType<PlayerInventory>();
+        if(inventory != null)
+        {
+            int remaining = inventory.AddItem(currentCraftingItem, currentStorageCount);
+            currentStorageCount = remaining;
+        }
 
-        currentStorageCount = 0;
+        if (currentStorageCount > 0) return false;
 
         if (remainingQuantity <= 0 && !isProducing)
         {
