@@ -2344,7 +2344,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_PanelSettings: {fileID: 11400000, guid: 078617a76b5fb4433800df5984ca3db2, type: 2}
   m_ParentUI: {fileID: 0}
-  sourceAsset: {fileID: 9197481963319205126, guid: c0abc88e32f234dd9969699ab3c6aa07, type: 3}
+  sourceAsset: {fileID: 9197481963319205126, guid: a9e5e94483104f2ca4af1736f588c4fb, type: 3}
   m_SortingOrder: 0
   m_Position: 0
   m_WorldSpaceSizeMode: 1
@@ -2382,10 +2382,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::KMS.PlayerStats
   maxHealth: 100
   startingHealth: 100
-  maxStamina: 100
-  startingStamina: 100
-  staminaRegenPerSecond: 18
-  staminaRegenDelay: 0.6
+  maxHunger: 100
+  startingHunger: 100
+  starvationDamagePerSecond: 5
 --- !u!114 &4405603357810947506
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2421,8 +2420,9 @@ MonoBehaviour:
     m_Bits: 247
   groundedOffset: -0.12
   groundedRadius: 0.28
-  jumpStaminaCost: 8
-  sprintStaminaCostPerSecond: 6
+  moveHungerCostPerSecond: 1
+  jumpHungerCost: 8
+  sprintHungerCostPerSecond: 6
   externalForceDecay: 8
 --- !u!114 &1362890632475711223
 MonoBehaviour:
@@ -2491,7 +2491,7 @@ MonoBehaviour:
   stats: {fileID: 4096632536079421107}
   uiDocument: {fileID: 438533187111882974}
   healthBarName: player-health-bar
-  staminaBarName: player-stamina-bar
+  hungerBarName: player-hunger-bar
   messageOverlayName: message-overlay
   messageLabelName: message-label
   notificationContainerName: notification-container

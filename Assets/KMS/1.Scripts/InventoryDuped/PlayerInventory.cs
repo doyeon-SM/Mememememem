@@ -357,8 +357,12 @@ public class PlayerInventory : MonoBehaviour
     public bool CommitQuickSlotUse()
     {
         if (quickSlotUseReservation == null) return false;
+        if (quickSlotUseReservation.committed) return false;
 
         quickSlotUseReservation.committed = true;
+
+        int usedSlotIndex = quickSlotUseReservation.slotIndex;
+        OnQuickSlotChanged?.Invoke(usedSlotIndex);
 
         return true;
     }
@@ -389,6 +393,8 @@ public class PlayerInventory : MonoBehaviour
     public void EndQuickSlotUse()
     {
         if (quickSlotUseReservation == null) return;
+
+        bool wasCommitted = quickSlotUseReservation.committed;
         if (!quickSlotUseReservation.committed)
         {
             RollbackQuickSlotUse();
@@ -398,13 +404,16 @@ public class PlayerInventory : MonoBehaviour
 
         quickSlotUseReservation = null;
 
-        OnQuickSlotChanged?.Invoke(usedSlotIndex);
+        if (!wasCommitted)
+        {
+            OnQuickSlotChanged?.Invoke(usedSlotIndex);
+        }
 
         int pendingIndex = pendingQuickSlotIndex;
         pendingQuickSlotIndex = -1;
 
         if (quickSlots.IsValidIndex(pendingIndex)) ApplyQuickSlotSelection(pendingIndex);
-        else OnSelectedQuickSlotChanged?.Invoke(selectedQuickSlotIndex);
+        else if (!wasCommitted) OnSelectedQuickSlotChanged?.Invoke(selectedQuickSlotIndex);
     }
 
     // 해당 퀵슬롯이 사용중이라 잠겨있는지 확인
