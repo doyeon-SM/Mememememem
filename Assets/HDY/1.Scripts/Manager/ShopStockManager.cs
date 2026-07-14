@@ -1,11 +1,12 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using HDY.Territory;
 
 namespace HDY.Shop
 {
     /// <summary>
-    /// 모든 상점의 "현재 재고"와 "다음 재입고 시각"을 관리하는 런타임 매니저.
+    /// 모든 상점의 "현재 재고"와 "다음 재입고까지 남은 인게임 하루 수"를 관리하는 런타임 매니저.
     /// ShopData(SO)는 정적 설정(품목 목록, 재입고 주기)만 갖고, 실제로 몇 개 남았는지 같은
     /// 가변 상태는 이 컴포넌트가 메모리에 들고 있는다.
     ///
@@ -15,24 +16,40 @@ namespace HDY.Shop
     ///
     /// [씬 배치 싱글톤] ItemCatalogManager와 동일한 패턴 - 씬에 하나 배치, Resolve()로 폴백 탐색.
     ///
-    /// [리얼타임 재입고] DateTime.UtcNow 기준으로 상점별 "다음 재입고 시각"을 Update에서 매 프레임
-    /// 비교한다. 도달하면 그 상점에 속한 모든 품목의 구매 재고와 판매 재고를 각자의 최대치로 동시에
-    /// 리셋하고(같은 재입고 타이머 하나를 공유) 다음 시각을 다시 계산한다.
+    /// [인게임 시간 기반 재입고] 예전에는 DateTime.UtcNow(리얼타임)로 다음 재입고 시각을 직접 계산해서
+    /// 매 프레임 비교했지만, 이제는 GameTimeManager의 인게임 하루(기본 20분 = TerritoryData.ElapsedTime
+    /// 1200초)를 기준으로 삼는다. 상점별 ShopData.RestockIntervalMinutes를 GameTimeManager.DayLengthSeconds로
+    /// 나눠 "며칠(인게임 하루 수)마다 재입고할지"로 환산해두고(restockIntervalDays, 최소 1일), 인게임 하루가
+    /// 넘어갈 때마다(GameTimeManager.OnInGameDayChanged) 각 상점이 그만큼의 하루가 지났는지 확인해서
+    /// 재입고한다. 리얼타임 폴링(Update)이 사라지고 이벤트 구독으로 바뀌었다 - 게임이 실제로 진행되는
+    /// 동안(TerritoryData.ElapsedTime이 쌓이는 동안)만 재입고 타이머가 흐른다(예전처럼 앱을 꺼놨다 켜도
+    /// 그 사이 지난 리얼타임만큼 즉시 재입고되는 일은 이제 없다).
     ///
-    /// [TODO: 세이브/로드] 지금은 저장 시스템이 없어 앱을 껐다 켜면 재고/다음 재입고 시각이 초기화된다.
-    /// 나중에 세이브 시스템이 생기면 상점별 nextRestockTimeUtc(및 두 재고 풀)를 저장/복원하도록
-    /// 이어붙이면 된다.
+    /// [GetTimeUntilRestock도 인게임 시간 기준] ShopUI의 재입고 카운트다운(mm:ss) 표시가 이 메서드를 쓰는데,
+    /// 이제 리얼타임이 아니라 "인게임 시간으로 앞으로 몇 초 후 재입고되는지"를 TimeSpan으로 환산해서
+    /// 반환한다 - 표시 형식(mm:ss)은 그대로라 ShopUI 쪽은 손댈 필요가 없다.
+    ///
+    /// [TODO: 세이브/로드] 지금은 저장 시스템이 없어 앱을 껐다 켜면 재고/lastRestockedDay가 초기화된다.
+    /// 나중에 세이브 시스템이 생기면 상점별 lastRestockedDay(및 두 재고 풀)를 저장/복원하도록 이어붙이면 된다.
     /// </summary>
     public class ShopStockManager : MonoBehaviour
     {
         public static ShopStockManager Instance { get; private set; }
+
+        [Header("데이터 참조 (비어있으면 자동 탐색)")]
+        [SerializeField] private GameTimeManager gameTimeManager;
 
         [Header("상점 목록 (인스펙터에서 등록)")]
         [SerializeField] private List<ShopData> allShops = new List<ShopData>();
 
         private readonly Dictionary<ShopItemData, int> currentPurchaseStock = new Dictionary<ShopItemData, int>();
         private readonly Dictionary<ShopItemData, int> currentSellStock = new Dictionary<ShopItemData, int>();
-        private readonly Dictionary<ShopData, DateTime> nextRestockTimeUtc = new Dictionary<ShopData, DateTime>();
+
+        /// <summary>상점이 마지막으로 재입고된 인게임 날짜(GameTimeManager.CurrentInGameDay 기준).</summary>
+        private readonly Dictionary<ShopData, int> lastRestockedDay = new Dictionary<ShopData, int>();
+
+        /// <summary>ShopData.RestockIntervalMinutes를 인게임 하루 수로 환산한 값(최소 1일).</summary>
+        private readonly Dictionary<ShopData, int> restockIntervalDays = new Dictionary<ShopData, int>();
 
         /// <summary>구매 재고 또는 판매 재고가 바뀔 때마다(소비되거나 재입고로 리셋될 때) 발행. UI가 구독해서 해당 슬롯만 갱신할 수 있다.</summary>
         public event Action<ShopItemData> OnStockChanged;
@@ -51,29 +68,34 @@ namespace HDY.Shop
 
             Instance = this;
 
+            gameTimeManager = GameTimeManager.Resolve(gameTimeManager);
+            if (gameTimeManager == null) Debug.LogWarning("[ShopStockManager] gameTimeManager를 찾을 수 없습니다. 인게임 시간 기반 재입고가 동작하지 않습니다.", this);
+        }
+
+        private void Start()
+        {
+            // GameTimeManager.CurrentInGameDay/DayLengthSeconds는 GameTimeManager.Awake에서 이미
+            // 동기화되어 있으므로(Unity가 모든 Awake가 끝난 뒤 Start를 호출함을 보장), 여기서 안전하게
+            // 참조할 수 있다.
             InitializeAllShops();
         }
 
-        private void Update()
+        private void OnEnable()
         {
-            var now = DateTime.UtcNow;
-
-            foreach (var shop in allShops)
-            {
-                if (shop == null) continue;
-                if (!nextRestockTimeUtc.TryGetValue(shop, out var nextTime)) continue;
-
-                if (now >= nextTime)
-                {
-                    RestockShop(shop, now);
-                }
-            }
+            if (gameTimeManager != null) gameTimeManager.OnInGameDayChanged += HandleInGameDayChanged;
         }
 
-        /// <summary>시작 시 모든 상점의 품목 구매/판매 재고를 각자의 최대치로 채우고, 다음 재입고 시각을 지금부터 계산한다.</summary>
+        private void OnDisable()
+        {
+            if (gameTimeManager != null) gameTimeManager.OnInGameDayChanged -= HandleInGameDayChanged;
+        }
+
+        /// <summary>시작 시 모든 상점의 품목 구매/판매 재고를 각자의 최대치로 채우고, RestockIntervalMinutes를
+        /// 인게임 하루 수로 환산해두고, "지금 막 재입고한 것"으로 기준일을 맞춰둔다.</summary>
         private void InitializeAllShops()
         {
-            var now = DateTime.UtcNow;
+            int currentDay = gameTimeManager != null ? gameTimeManager.CurrentInGameDay : 0;
+            float dayLengthMinutes = gameTimeManager != null ? gameTimeManager.DayLengthSeconds / 60f : 20f;
 
             foreach (var shop in allShops)
             {
@@ -86,11 +108,34 @@ namespace HDY.Shop
                     currentSellStock[item] = item.Selling_MaxAmount;
                 }
 
-                nextRestockTimeUtc[shop] = now.AddMinutes(Mathf.Max(1, shop.RestockIntervalMinutes));
+                int intervalDays = Mathf.Max(1, Mathf.RoundToInt(shop.RestockIntervalMinutes / Mathf.Max(0.0001f, dayLengthMinutes)));
+                restockIntervalDays[shop] = intervalDays;
+                lastRestockedDay[shop] = currentDay;
             }
         }
 
-        private void RestockShop(ShopData shop, DateTime now)
+        /// <summary>인게임 하루가 넘어갈 때마다(GameTimeManager.OnInGameDayChanged) 호출된다. 각 상점이
+        /// 자신의 재입고 주기(하루 수)만큼 지났는지 확인해서, 지났으면 재입고한다.</summary>
+        private void HandleInGameDayChanged()
+        {
+            if (gameTimeManager == null) return;
+
+            int currentDay = gameTimeManager.CurrentInGameDay;
+
+            foreach (var shop in allShops)
+            {
+                if (shop == null) continue;
+                if (!lastRestockedDay.TryGetValue(shop, out int lastDay)) continue;
+                if (!restockIntervalDays.TryGetValue(shop, out int intervalDays)) continue;
+
+                if (currentDay - lastDay >= intervalDays)
+                {
+                    RestockShop(shop, currentDay);
+                }
+            }
+        }
+
+        private void RestockShop(ShopData shop, int currentDay)
         {
             foreach (var item in shop.Items)
             {
@@ -101,7 +146,7 @@ namespace HDY.Shop
                 OnStockChanged?.Invoke(item);
             }
 
-            nextRestockTimeUtc[shop] = now.AddMinutes(Mathf.Max(1, shop.RestockIntervalMinutes));
+            lastRestockedDay[shop] = currentDay;
 
             Debug.Log($"[ShopStockManager] 상점 재입고 완료: {shop.ShopName}");
 
@@ -144,13 +189,23 @@ namespace HDY.Shop
             OnStockChanged?.Invoke(item);
         }
 
-        /// <summary>해당 상점이 다음 재입고까지 남은 시간을 반환한다. 등록되지 않았으면 TimeSpan.Zero.</summary>
+        /// <summary>
+        /// 해당 상점이 다음 재입고까지 남은 시간을 인게임 시간 기준으로 계산해서 반환한다. 등록되지
+        /// 않았거나 gameTimeManager가 없으면 TimeSpan.Zero. ShopUI의 재입고 카운트다운(mm:ss) 표시에 쓰인다.
+        /// </summary>
         public TimeSpan GetTimeUntilRestock(ShopData shop)
         {
-            if (shop == null || !nextRestockTimeUtc.TryGetValue(shop, out var nextTime)) return TimeSpan.Zero;
+            if (shop == null || gameTimeManager == null) return TimeSpan.Zero;
+            if (!lastRestockedDay.TryGetValue(shop, out int lastDay)) return TimeSpan.Zero;
+            if (!restockIntervalDays.TryGetValue(shop, out int intervalDays)) return TimeSpan.Zero;
 
-            var remaining = nextTime - DateTime.UtcNow;
-            return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
+            int nextRestockDay = lastDay + intervalDays;
+            int daysRemaining = nextRestockDay - gameTimeManager.CurrentInGameDay;
+
+            float remainingSeconds = daysRemaining * gameTimeManager.DayLengthSeconds - gameTimeManager.InGameTimeOfDaySeconds;
+            remainingSeconds = Mathf.Max(0f, remainingSeconds);
+
+            return TimeSpan.FromSeconds(remainingSeconds);
         }
 
         /// <summary>

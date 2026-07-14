@@ -5,6 +5,7 @@ using UnityEngine.UI;
 using UnityEngine.InputSystem;
 using HDY.Shop;
 using HDY.Upgrade;
+using HDY.Territory;
 
 namespace HDY.UI
 {
@@ -39,6 +40,12 @@ namespace HDY.UI
     /// 오브젝트가 어긋나지 않는다. ShopUI.Close()처럼 내부적으로 SetActive(false)만 하는 메서드를
     /// 그대로 연결하면, 스택은 여전히 "열려있다"고 착각해 같은 버튼을 다시 눌러도 아무 반응이 없는
     /// 상태가 될 수 있다.
+    ///
+    /// [시간 데이터 연결 - GameTimeManager] 리얼타임(KST)/인게임 시간(20분=하루) 표시를 위한
+    /// GameTimeManager 참조를 들고 있다. 이 매니저는 시간 데이터 계산만 담당하고 Text 갱신은 직접 하지
+    /// 않으므로, 시간 표시 Text를 실제로 붙이는 작업은 GameTime 프로퍼티로 GameTimeManager에 접근해서
+    /// (GetRealTimeText()/GetInGameTimeText() 조회 또는 OnRealTimeTextChanged/OnInGameTimeTextChanged
+    /// 이벤트 구독) 별도로 진행하면 된다.
     /// </summary>
     public class UIManager : MonoBehaviour
     {
@@ -61,10 +68,16 @@ namespace HDY.UI
         [Header("상점 전용 - 상점 창을 처음 열 때 기본으로 보여줄 상점")]
         [SerializeField] private ShopData defaultShop;
 
+        [Header("시간 데이터 참조 (리얼타임/인게임 시간, 비어있으면 자동 탐색 - Text 연결은 별도 진행)")]
+        [SerializeField] private GameTimeManager gameTimeManager;
+
         private readonly Stack<GameObject> openStack = new Stack<GameObject>();
 
         /// <summary>지금 열려있는 UI가 어떤 프리팹에서 나온 건지 식별하는 키. 같은 버튼 재클릭 판별에 사용.</summary>
         private GameObject currentPrefabKey;
+
+        /// <summary>리얼타임(KST)/인게임 시간 데이터. 시간 표시 Text 연결은 이 프로퍼티로 GameTimeManager에 접근해서 진행하면 된다.</summary>
+        public GameTimeManager GameTime => gameTimeManager;
 
         private void Awake()
         {
@@ -78,6 +91,9 @@ namespace HDY.UI
             Instance = this;
 
             if (uiRoot == null) Debug.LogWarning("[UIManager] uiRoot가 비어있습니다. UI를 어디에 배치할지 알 수 없습니다.", this);
+
+            gameTimeManager = GameTimeManager.Resolve(gameTimeManager);
+            if (gameTimeManager == null) Debug.LogWarning("[UIManager] gameTimeManager를 찾을 수 없습니다. 시간 UI를 연결할 수 없습니다.", this);
 
             foreach (var entry in hudEntries)
             {
