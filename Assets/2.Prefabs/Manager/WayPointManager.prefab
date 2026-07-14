@@ -10,6 +10,7 @@ GameObject:
   m_Component:
   - component: {fileID: 4213579412577935304}
   - component: {fileID: 8656020411438665445}
+  - component: {fileID: 5809573651412473617}
   m_Layer: 0
   m_Name: WayPointManager
   m_TagString: Untagged
@@ -25,7 +26,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1601920176619167970}
   serializedVersion: 2
-  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: -0.7852907, y: 0, z: -2.4715605}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
@@ -57,3 +58,26 @@ MonoBehaviour:
   dontDestroyOnLoad: 1
   logWayPointState: 1
   logUnlockStackTrace: 1
+--- !u!114 &5809573651412473617
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1601920176619167970}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 682a78aa9ef757f4580f748fec4e013b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::WayPointUIToggle
+  targetUI: {fileID: 0}
+  mapUI: {fileID: 0}
+  hideOnStart: 1
+  legacyToggleKey: 109
+  shortcutOpenMode: 0
+  shortcutMap: {fileID: 0}
+  shortcutTravelSceneNames:
+  - Territory
+  notifyInputManager: 1
+  blockKmsPlayerInput: 1
+  unlockCursorWhileOpen: 1

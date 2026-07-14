@@ -5,13 +5,28 @@ using KMS.Harvesting;
 using KMS.InventoryDuped;
 using UnityEngine;
 
+/// <summary>현재 장착 아이템으로 월드 오브젝트와 상호작용할 수 있는지 나타냅니다.</summary>
+public enum WorldObjectInteractionState
+{
+    Available,
+    NoToolEquipped,
+    WrongToolType,
+    InsufficientToolGrade,
+    Depleted
+}
+
 /// <summary>
 /// 도구 종류와 요구 등급을 검증하고 HP가 0이 되면 각 드롭 항목을 독립 추첨하는 채집 오브젝트입니다.
 /// 고갈 중에는 Renderer와 Collider만 끄며, 청크 재활성화 시 절대 리스폰 시각으로 상태를 복구합니다.
 /// </summary>
-public class WorldObject : MonoBehaviour
+public class WorldObject : MonoBehaviour, KMS.IInteractable
 {
     [Header("Setting")]
+    [Tooltip("UI에 표시할 이름입니다. 비워 두면 GameObject 이름을 사용합니다.")]
+    [SerializeField] private string displayName;
+    [SerializeField] private string interactionPrompt = "채집";
+    [Tooltip("활성화하면 PlayerInteraction의 상호작용 키로도 채집합니다. 꺼져 있어도 포커스 감지와 정보 UI는 동작합니다.")]
+    [SerializeField] private bool harvestWithInteractInput;
     [SerializeField] private ObjectType myType;
     [SerializeField] private ObjectDropItem[] dropItems;
     [SerializeField] private int maxObjectHp = 1;
@@ -42,7 +57,32 @@ public class WorldObject : MonoBehaviour
     private const float GroundRaycastHeight = 3f;
     private const float GroundRaycastDistance = 8f;
     private const int MaxDropVisualCount = 8;
-    private bool IsDead => currentObjectHp <= 0;
+
+    /// <summary>이름, 체력 또는 상호작용 상태가 바뀌었을 때 발생합니다.</summary>
+    public event System.Action<WorldObject> StateChanged;
+
+    /// <summary>UI에 표시할 오브젝트 이름입니다.</summary>
+    public string DisplayName => string.IsNullOrWhiteSpace(displayName) ? gameObject.name : displayName;
+
+    /// <inheritdoc />
+    public string InteractionPrompt => interactionPrompt;
+
+    /// <summary>현재 남은 체력입니다.</summary>
+    public int CurrentHp => currentObjectHp;
+
+    /// <summary>최대 체력입니다.</summary>
+    public int MaxHp => maxObjectHp;
+
+    /// <summary>상호작용에 필요한 도구 타입입니다.</summary>
+    public ObjectType RequiredToolType => myType;
+
+    /// <summary>상호작용에 필요한 최소 도구 등급입니다.</summary>
+    public CommonClass RequiredToolGrade => needGrade;
+
+    /// <summary>현재 고갈되어 상호작용할 수 없는지 나타냅니다.</summary>
+    public bool IsDepleted => currentObjectHp <= 0;
+
+    private bool IsDead => IsDepleted;
     private float debugTime;
     private float respawnAtTime = float.PositiveInfinity;
     private bool[] rendererInitialStates;
@@ -77,30 +117,38 @@ public class WorldObject : MonoBehaviour
             Respawn();
         }
     }
+
+    /// <summary>
+    /// 플레이어의 근접/시선 감지에 포함되도록 고갈 전에는 참을 반환합니다.
+    /// 도구 적합성은 정보 UI에 실패 사유를 보여줘야 하므로 여기서 제외하고 EvaluateInteraction에서 판정합니다.
+    /// </summary>
+    public bool CanInteract(KMS.PlayerInteraction interactor)
+    {
+        return !IsDead;
+    }
+
+    /// <summary>옵션이 켜져 있으면 플레이어 상호작용 키로 현재 퀵슬롯 도구를 사용합니다.</summary>
+    public void Interact(KMS.PlayerInteraction interactor)
+    {
+        if (!harvestWithInteractInput || interactor == null)
+        {
+            return;
+        }
+
+        PlayerInventory inventory = interactor.GetComponentInParent<PlayerInventory>();
+        ItemData selectedTool = ResolveSelectedTool(inventory);
+        ObjectInteract(inventory, selectedTool);
+    }
     /// <summary>
     /// 도구로 채집 피해를 적용합니다. 종류·등급·고갈 상태 검증에 실패하면 상태를 변경하지 않습니다.
     /// </summary>
     /// <returns>이번 상호작용이 유효하게 적용되었으면 참입니다.</returns>
     public bool ObjectInteract(PlayerInventory inventory, ItemData data)
     {
-        if(data == null)
+        WorldObjectInteractionState interactionState = EvaluateInteraction(data);
+        if (interactionState != WorldObjectInteractionState.Available)
         {
-            Debug.Log($"data null");
-            return false;
-        }
-        if (IsDead)
-        {
-            Debug.Log($"{this.name} IsDead");
-            return false;
-        }
-        if (myType != data.ObjectType) 
-        {
-            Debug.Log($"{this.name} myType != toolTargetType");
-            return false;
-        }
-        if(data.ItemClass < needGrade)
-        {
-            Debug.Log($"{this.name} 요구 등급 부족");
+            Debug.Log($"{name} 상호작용 불가: {interactionState}", this);
             return false;
         }
 
@@ -110,9 +158,70 @@ public class WorldObject : MonoBehaviour
         {
             ItemDrops(data);
             BeginRespawnCooldown();
+
+            if (IsDead)
+            {
+                NotifyStateChanged();
+            }
+
+            return true;
         }
 
+        NotifyStateChanged();
         return true;
+    }
+
+    /// <summary>
+    /// 현재 장착 아이템으로 상호작용 가능한지 실제 채집과 동일한 순서로 판정합니다.
+    /// UI는 이 결과를 사용해 불가능 사유를 표시할 수 있습니다.
+    /// </summary>
+    public WorldObjectInteractionState EvaluateInteraction(ItemData tool)
+    {
+        if (IsDead)
+        {
+            return WorldObjectInteractionState.Depleted;
+        }
+
+        if (tool == null)
+        {
+            return WorldObjectInteractionState.NoToolEquipped;
+        }
+
+        if (tool.Category != ItemCategory.Tool || myType != tool.ObjectType)
+        {
+            return WorldObjectInteractionState.WrongToolType;
+        }
+
+        if (tool.ItemClass < needGrade)
+        {
+            return WorldObjectInteractionState.InsufficientToolGrade;
+        }
+
+        return WorldObjectInteractionState.Available;
+    }
+
+    private static ItemData ResolveSelectedTool(PlayerInventory inventory)
+    {
+        if (inventory == null)
+        {
+            return null;
+        }
+
+        ItemStack selectedSlot = inventory.GetSelectedQuickSlot();
+        if (selectedSlot == null || selectedSlot.IsEmpty)
+        {
+            return null;
+        }
+
+        ItemCatalogManager catalogManager = ItemCatalogManager.Instance;
+        if (catalogManager == null)
+        {
+            catalogManager = FindFirstObjectByType<ItemCatalogManager>();
+        }
+
+        return catalogManager != null
+            ? catalogManager.FindItemData(selectedSlot.itemId)
+            : null;
     }
 
     private void ItemDrops(ItemData tool)
@@ -138,7 +247,7 @@ public class WorldObject : MonoBehaviour
             for (int i = 0; i < visualCount; i++)
             {
                 Vector3 spawnPosition = GetDropSpawnPosition();
-                Quaternion spawnRotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
+                Quaternion spawnRotation = Quaternion.Euler(0f, UnityEngine.Random.Range(0f, 360f), 0f);
 
                 WorldDropPool.Spawn(dropPrefab, spawnPosition, spawnRotation, autoReturnToPoolSeconds);
             }
@@ -158,7 +267,7 @@ public class WorldObject : MonoBehaviour
     private Vector3 GetDropSpawnPosition()
     {
         Vector3 origin = dropSpawnPoint != null ? dropSpawnPoint.position : transform.position;
-        Vector2 randomCircle = Random.insideUnitCircle * dropSpreadRadius;
+        Vector2 randomCircle = UnityEngine.Random.insideUnitCircle * dropSpreadRadius;
         Vector3 dropPosition = origin + new Vector3(randomCircle.x, 0f, randomCircle.y);
         Vector3 rayStart = dropPosition + Vector3.up * GroundRaycastHeight;
 
@@ -205,6 +314,12 @@ public class WorldObject : MonoBehaviour
         currentObjectHp = maxObjectHp;
         respawnAtTime = float.PositiveInfinity;
         SetResourceAvailable(true);
+        NotifyStateChanged();
+    }
+
+    private void NotifyStateChanged()
+    {
+        StateChanged?.Invoke(this);
     }
 
     private void CacheResourceComponents()
