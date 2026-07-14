@@ -780,6 +780,7 @@ GameObject:
   - component: {fileID: 6609507855568644948}
   - component: {fileID: 845823779146350221}
   - component: {fileID: 1355334650300166560}
+  - component: {fileID: 7314621249000000001}
   m_Layer: 3
   m_Name: 0708_Player_KMS
   m_TagString: Player
@@ -840,7 +841,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 19102, guid: 0000000000000000e000000000000000, type: 0}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: 
   m_PanelSettings: {fileID: 11400000, guid: ea47c811135b491d92316667619daf26, type: 2}
   m_ParentUI: {fileID: 0}
@@ -1051,6 +1052,32 @@ MonoBehaviour:
   drawDebugRay: 1
   debugMissColor: {r: 1, g: 0, b: 0, a: 1}
   debugHitColor: {r: 0, g: 1, b: 0, a: 1}
+  logHitTarget: 1
+--- !u!114 &7314621249000000001
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2343506189397637329}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7c861a4ff3b84806beec7f0f42177a81, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::KMS.Combat.PlayerMeleeAttackController
+  input: {fileID: 3809924721451799791}
+  movement: {fileID: 8934387602833054668}
+  inventory: {fileID: 3531216659770184960}
+  cameraTransform: {fileID: 0}
+  animator: {fileID: 363531072513294657}
+  catalogManager: {fileID: 0}
+  attackLayer:
+    serializedVersion: 2
+    m_Bits: 1049847
+  attackOriginHeight: 1.2
+  drawDebugRay: 1
+  debugMissColor: {r: 1, g: 0, b: 0, a: 1}
+  debugHitColor: {r: 1, g: 0.92, b: 0.016, a: 1}
   logHitTarget: 1
 --- !u!114 &845823779146350221
 MonoBehaviour:
