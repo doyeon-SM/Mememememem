@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.Serialization;
 
 namespace KMS
 {
@@ -44,9 +43,7 @@ namespace KMS
 
         [Header("Hunger Costs")]
         [SerializeField] private float moveHungerCostPerSecond = 1f;
-        [FormerlySerializedAs("jumpStaminaCost")]
         [SerializeField] private float jumpHungerCost = 8f;
-        [FormerlySerializedAs("sprintStaminaCostPerSecond")]
         [SerializeField] private float sprintHungerCostPerSecond = 6f;
 
         [Header("External Forces")]

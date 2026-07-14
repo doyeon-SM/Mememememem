@@ -1,5 +1,8 @@
 ﻿using KMS.InventoryDuped;
+using System;
+using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
 #endif
@@ -19,6 +22,10 @@ public class WayPointUIToggle : MonoBehaviour
     [SerializeField] private KeyCode legacyToggleKey = KeyCode.M;
     [SerializeField] private WayPointMapOpenMode shortcutOpenMode = WayPointMapOpenMode.PreviewOnly;
     [SerializeField] private WayPointMapDefinition shortcutMap;
+
+    [Header("Shortcut Travel Exception")]
+    [Tooltip("현재 활성 씬 이름이 목록에 있으면 단축키 지도를 Travel 모드로 엽니다. 비어 있으면 모든 씬에서 기존 모드를 유지합니다.")]
+    [SerializeField] private List<string> shortcutTravelSceneNames = new List<string>();
 
     [Header("Gameplay")]
     [SerializeField] private bool notifyInputManager = true;
@@ -78,14 +85,14 @@ public class WayPointUIToggle : MonoBehaviour
             return;
         }
 
-        Open(shortcutOpenMode, shortcutMap);
+        Open(ResolveShortcutOpenMode(), shortcutMap);
     }
 
     // 버튼 등에서 기본 모드로 지도 UI를 열 때 사용한다.
     /// <summary>인스펙터에 설정된 기본 모드와 지도로 UI를 엽니다.</summary>
     public void Open()
     {
-        Open(shortcutOpenMode, shortcutMap);
+        Open(ResolveShortcutOpenMode(), shortcutMap);
     }
 
     // Stone 상호작용처럼 특정 모드와 맵으로 지도 UI를 열 때 사용한다.
@@ -167,6 +174,27 @@ public class WayPointUIToggle : MonoBehaviour
         }
 #endif
         return Input.GetKeyDown(legacyToggleKey);
+    }
+
+    // 영지나 메인 홈처럼 예외로 등록한 씬에서는 일반 단축키 지도도 이동 모드로 연다.
+    private WayPointMapOpenMode ResolveShortcutOpenMode()
+    {
+        if (shortcutOpenMode == WayPointMapOpenMode.Travel)
+        {
+            return WayPointMapOpenMode.Travel;
+        }
+
+        string activeSceneName = SceneManager.GetActiveScene().name;
+        foreach (string allowedSceneName in shortcutTravelSceneNames)
+        {
+            if (!string.IsNullOrWhiteSpace(allowedSceneName)
+                && string.Equals(allowedSceneName.Trim(), activeSceneName, StringComparison.Ordinal))
+            {
+                return WayPointMapOpenMode.Travel;
+            }
+        }
+
+        return shortcutOpenMode;
     }
 
     // 지도 UI가 열렸을 때 플레이 입력과 마우스 커서 상태를 바꾼다.

@@ -14,6 +14,7 @@ namespace KMS
         [SerializeField] private PlayerHUD hud;
         [SerializeField] private PlayerCameraController cameraController;
         [SerializeField] private CapsuleTrajectoryPreview trajectoryPreview;
+        [SerializeField] private PlayerHeldItemSpriteController heldItemSprite;
         [SerializeField] private Animator animator;
         [SerializeField] private Transform throwOrigin;
         [SerializeField] private GameObject capsulePrefab;
@@ -56,6 +57,7 @@ namespace KMS
             if (hud == null) hud = GetComponent<PlayerHUD>();
             if (cameraController == null) cameraController = GetComponent<PlayerCameraController>();
             if (trajectoryPreview == null) trajectoryPreview = GetComponent<CapsuleTrajectoryPreview>();
+            if (heldItemSprite == null) heldItemSprite = GetComponent<PlayerHeldItemSpriteController>();
             if (movement != null && movement.Animator != null) animator = movement.Animator;
             else if (animator == null) animator = GetComponentInChildren<Animator>();
 
@@ -212,6 +214,7 @@ namespace KMS
             IgnorePlayerCollisions(capsule);
             capsuleReleased = true;
             inventory.CommitQuickSlotUse();
+            if (heldItemSprite != null) heldItemSprite.SetThrowVisualSuppressed(true);
         }
 
         public void FinishThrowFromAnimationEvent()
@@ -220,6 +223,7 @@ namespace KMS
             if (!capsuleReleased) ReleaseCapsuleFromAnimationEvent();
 
             inventory.EndQuickSlotUse();
+            if (heldItemSprite != null) heldItemSprite.SetThrowVisualSuppressed(false);
             RestoreMovement();
             state = ThrowState.Idle;
             hasLockedThrowTarget = false;
@@ -328,6 +332,7 @@ namespace KMS
             if (hud != null) hud.SetThrowGuideVisible(false);
             if (trajectoryPreview != null) trajectoryPreview.Hide();
             if (cameraController != null) cameraController.SetAimZoom(false);
+            if (heldItemSprite != null) heldItemSprite.SetThrowVisualSuppressed(false);
             if (animator != null)
             {
                 animator.SetBool(ThrowReadyHash, false);

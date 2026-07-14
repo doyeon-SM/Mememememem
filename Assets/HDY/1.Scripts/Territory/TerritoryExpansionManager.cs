@@ -31,8 +31,13 @@ namespace HDY.Territory
     /// 실제 그리드 크기 변경은 GridManager.ExpandGrid(newWidth, newHeight)(_Kyusoo 팀원 파일, 수정하지 않음)를
     /// 그대로 호출해서 처리한다.
     ///
-    /// [순차 진행] 확장 단계는 리스트 순서대로 하나씩만 진행 가능하다(GetNextPendingEntry). 완료된 단계는
-    /// IsExpanded=true로 표시되고, 그 다음 단계가 정의된 요구 레벨에 맞는 줄에 노출된다.
+    /// [순차 진행 - 실제 확장 가능 여부] 확장은 리스트 순서대로 하나씩만 "진행"할 수 있다(CanAttemptExpand가
+    /// GetNextPendingEntry()와 비교해서 판단). 완료된 단계는 IsExpanded=true로 표시된다.
+    ///
+    /// [UI 노출은 진행 순서와 별개] 여신상 UI(GoddessStatueUI)는 GetAllPendingEntries()로 아직 완료되지
+    /// 않은 확장 단계를 전부(순서 무관) 각자의 요구 레벨 줄에 노출한다 - 예를 들어 Lv.3 단계가 아직 안
+    /// 끝났어도 Lv.4 줄의 grid 자체는 보이고, 다만 그 슬롯은 잠금(비활성) 상태로 표시된다. "지금 클릭해서
+    /// 실제로 진행할 수 있는지"는 여전히 CanAttemptExpand(= 순차 진행 규칙)로만 판단한다.
     ///
     /// [영지 경험치 보상] 확장에 성공하면(ApplyExpand) TerritoryExpansionEntry.RewardExp만큼 TerritoryData.AddExp가
     /// 호출된다. territoryData 참조는 인스펙터에 비어있으면 자동 탐색(FindFirstObjectByType)한다. ApplyExpand는
@@ -78,7 +83,8 @@ namespace HDY.Territory
             currentGridSize = startingGridSize;
         }
 
-        /// <summary>아직 완료되지 않은 첫 번째(가장 앞선) 확장 단계를 반환한다. 전부 완료됐으면 null.</summary>
+        /// <summary>아직 완료되지 않은 첫 번째(가장 앞선) 확장 단계를 반환한다. 전부 완료됐으면 null.
+        /// "지금 실제로 진행 가능한 단계"를 뜻한다 - CanAttemptExpand/ApplyExpand가 이 값을 기준으로 판단한다.</summary>
         public TerritoryExpansionEntry GetNextPendingEntry()
         {
             foreach (var entry in expansionSteps)
@@ -87,6 +93,20 @@ namespace HDY.Territory
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// 아직 완료되지 않은 확장 단계를 리스트 순서 그대로 전부 반환한다(GetNextPendingEntry와 달리 순서
+        /// 제약 없이 전부). 여신상 UI가 "지금 진행 가능한 단계"뿐 아니라 "앞으로 나올 단계"도 각자의 요구
+        /// 레벨 줄에 미리 보여주기(잠금 상태로) 위해 사용한다. 실제 진행 가능 여부 판단에는 쓰지 않는다 -
+        /// 그건 여전히 CanAttemptExpand(=GetNextPendingEntry 기준)의 몫이다.
+        /// </summary>
+        public IEnumerable<TerritoryExpansionEntry> GetAllPendingEntries()
+        {
+            foreach (var entry in expansionSteps)
+            {
+                if (!entry.IsExpanded) yield return entry;
+            }
         }
 
         /// <summary>

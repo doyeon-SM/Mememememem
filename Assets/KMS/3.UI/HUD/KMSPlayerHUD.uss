@@ -103,7 +103,7 @@
     justify-content: center;
 }
 
-#player-stamina-bar {
+#player-hunger-bar {
     width: 42%;
     height: 30px;
     min-height: 30px;
@@ -160,9 +160,101 @@
 
 #clock-anchor {
     width: 12%;
-    min-width: 60px;
-    height: 44px;
+    min-width: 76px;
+    height: 76px;
     flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+}
+
+#day-night-clock {
+    position: relative;
+    width: 72px;
+    height: 72px;
+    min-width: 72px;
+    min-height: 72px;
+    overflow: hidden;
+    border-left-width: 3px;
+    border-right-width: 3px;
+    border-top-width: 3px;
+    border-bottom-width: 3px;
+    border-left-color: rgba(255, 255, 255, 0.88);
+    border-right-color: rgba(255, 255, 255, 0.88);
+    border-top-color: rgba(255, 255, 255, 0.88);
+    border-bottom-color: rgba(255, 255, 255, 0.88);
+    border-radius: 36px;
+    background-color: rgb(20, 25, 38);
+}
+
+#clock-day-half,
+#clock-night-half {
+    position: absolute;
+    top: 0;
+    width: 50%;
+    height: 100%;
+}
+
+#clock-day-half {
+    left: 0;
+    background-color: rgb(242, 187, 69);
+}
+
+#clock-night-half {
+    right: 0;
+    background-color: rgb(45, 58, 105);
+}
+
+#clock-inner-face {
+    position: absolute;
+    left: 8px;
+    top: 8px;
+    width: 50px;
+    height: 50px;
+    border-radius: 25px;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(16, 20, 30, 0.94);
+}
+
+#clock-period-label {
+    color: rgb(255, 232, 169);
+    font-size: 11px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+}
+
+#clock-hand {
+    position: absolute;
+    left: 31px;
+    top: 1px;
+    width: 4px;
+    height: 66px;
+    transform-origin: 50% 50%;
+}
+
+#clock-marker {
+    position: absolute;
+    left: -3px;
+    top: 0;
+    width: 10px;
+    height: 10px;
+    border-radius: 5px;
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-left-color: white;
+    border-right-color: white;
+    border-top-color: white;
+    border-bottom-color: white;
+}
+
+.clock-marker--day {
+    background-color: rgb(255, 221, 99);
+}
+
+.clock-marker--night {
+    background-color: rgb(139, 177, 255);
 }
 
 .throw-guide__title {

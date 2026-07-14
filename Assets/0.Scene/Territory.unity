@@ -6858,6 +6858,22 @@ PrefabInstance:
       propertyPath: m_AnchoredPosition.y
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 780825849964587885, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 780825849964587885, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
+      propertyPath: m_AnchorMin.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 780825849964587885, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 780825849964587885, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 3458375096759521491, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
       propertyPath: m_AnchorMax.y
       value: 0
@@ -6879,6 +6895,22 @@ PrefabInstance:
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 3458375096759521491, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3462333334858564800, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3462333334858564800, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
+      propertyPath: m_AnchorMin.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3462333334858564800, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3462333334858564800, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
       propertyPath: m_AnchoredPosition.y
       value: 0
       objectReference: {fileID: 0}
@@ -6907,6 +6939,22 @@ PrefabInstance:
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 4962541421081146795, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5276701816144487534, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5276701816144487534, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
+      propertyPath: m_AnchorMin.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5276701816144487534, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5276701816144487534, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
       propertyPath: m_AnchoredPosition.y
       value: 0
       objectReference: {fileID: 0}
@@ -8346,11 +8394,13 @@ MonoBehaviour:
   craftingPanel: {fileID: 242883171}
   productionPanel: {fileID: 729551338}
   foodWarehousePanel: {fileID: 7966042353924332551}
+  exploreMapPanel: {fileID: 0}
   UIPanel: {fileID: 1430563583}
   craftingPanelUI: {fileID: 1523739711}
   productionPanelUI: {fileID: 1019664542}
   closeButtonGroup: {fileID: 632706760}
   placeButtonGroup: {fileID: 590951674}
+  waypointui: {fileID: 0}
 --- !u!1 &480812633
 GameObject:
   m_ObjectHideFlags: 0
@@ -8903,7 +8953,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 2572933242375814330, guid: 095479d5a1c569049ac3a549e06e0d57, type: 3}
       propertyPath: m_IsActive
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 2871966991077259528, guid: 095479d5a1c569049ac3a549e06e0d57, type: 3}
       propertyPath: uiToggle
@@ -8988,6 +9038,7 @@ MonoBehaviour:
   legacyToggleKey: 109
   shortcutOpenMode: 0
   shortcutMap: {fileID: 0}
+  shortcutTravelSceneNames: []
   notifyInputManager: 1
   blockKmsPlayerInput: 1
   unlockCursorWhileOpen: 1
@@ -9705,14 +9756,6 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 5686809902589899048, guid: e5e80955d5db15140b61d0af065870a7, type: 3}
-      propertyPath: itemDataList.Array.size
-      value: 7
-      objectReference: {fileID: 0}
-    - target: {fileID: 5686809902589899048, guid: e5e80955d5db15140b61d0af065870a7, type: 3}
-      propertyPath: 'itemDataList.Array.data[6]'
-      value: 
-      objectReference: {fileID: 11400000, guid: ea66ddcf71186c940abc78c6d559c11c, type: 2}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -11061,6 +11104,14 @@ PrefabInstance:
       propertyPath: territoryData
       value: 
       objectReference: {fileID: 1819747704}
+    - target: {fileID: 4875038272747656768, guid: a7f5d427487749a4c9e96945e7cc54cb, type: 3}
+      propertyPath: realTimeText
+      value: 
+      objectReference: {fileID: 1173144924}
+    - target: {fileID: 4875038272747656768, guid: a7f5d427487749a4c9e96945e7cc54cb, type: 3}
+      propertyPath: inGameTimeText
+      value: 
+      objectReference: {fileID: 1408853912}
     - target: {fileID: 5970667789763052088, guid: a7f5d427487749a4c9e96945e7cc54cb, type: 3}
       propertyPath: m_LocalPosition.x
       value: 4.31449
@@ -15388,6 +15439,17 @@ RectTransform:
   m_CorrespondingSourceObject: {fileID: 5184948352188630742, guid: 7d47d694a1fa95b4990850eacd0c9aa2, type: 3}
   m_PrefabInstance: {fileID: 5014726230988947142}
   m_PrefabAsset: {fileID: 0}
+--- !u!114 &1173144924 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 9095339789492433754, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
+  m_PrefabInstance: {fileID: 316692413}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4688fdb7df04437aeb418b961361dc5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.TextMeshPro::TMPro.TextMeshProUGUI
 --- !u!224 &1177997372 stripped
 RectTransform:
   m_CorrespondingSourceObject: {fileID: 5184948352188630742, guid: 7d47d694a1fa95b4990850eacd0c9aa2, type: 3}
@@ -16561,6 +16623,17 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1404398845}
   m_CullTransparentMesh: 1
+--- !u!114 &1408853912 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 3434373517168777483, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
+  m_PrefabInstance: {fileID: 316692413}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4688fdb7df04437aeb418b961361dc5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.TextMeshPro::TMPro.TextMeshProUGUI
 --- !u!224 &1414586837 stripped
 RectTransform:
   m_CorrespondingSourceObject: {fileID: 5184948352188630742, guid: 7d47d694a1fa95b4990850eacd0c9aa2, type: 3}
@@ -16804,6 +16877,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ConsumeFoodSystem
   foodWarehouseUI: {fileID: 965430487036185205}
   consumeInterval: 60
+  maxSatiety: 0
+  currentSatiety: 0
 --- !u!114 &1423062863
 MonoBehaviour:
   m_ObjectHideFlags: 0
