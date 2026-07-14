@@ -18,6 +18,9 @@ namespace KMS
         [SerializeField] private string messageOverlayName = "message-overlay";
         [SerializeField] private string messageLabelName = "message-label";
         [SerializeField] private string notificationContainerName = "notification-container";
+        [SerializeField] private string throwGuideName = "throw-guide";
+        [SerializeField] private string survivalStatusContainerName = "health-info-container";
+        [SerializeField] private string inventoryButtonName = "inventory-button";
 
         [Header("Notifications")]
         [SerializeField] private float notificationDuration = 2.5f;
@@ -27,6 +30,11 @@ namespace KMS
         private VisualElement messageOverlay;
         private Label messageLabel;
         private VisualElement notificationContainer;
+        private VisualElement throwGuide;
+        private VisualElement survivalStatusContainer;
+        private Button inventoryButton;
+        private KMS.InventoryDuped.InventoryUI inventoryUi;
+        private bool isSurvivalStatusVisible = true;
 
         private void Reset()
         {
@@ -38,6 +46,7 @@ namespace KMS
         {
             if (stats == null) stats = GetComponent<PlayerStats>();
             if (uiDocument == null) uiDocument = GetComponent<UIDocument>();
+            if (inventoryUi == null) inventoryUi = FindFirstObjectByType<KMS.InventoryDuped.InventoryUI>();
         }
 
         private void OnEnable()
@@ -59,6 +68,11 @@ namespace KMS
 
         private void OnDisable()
         {
+            if (inventoryButton != null)
+            {
+                inventoryButton.clicked -= HandleInventoryButtonClicked;
+            }
+
             if (stats != null)
             {
                 stats.HealthChanged -= HandleHealthChanged;
@@ -79,16 +93,67 @@ namespace KMS
             StartCoroutine(RemoveNotificationAfterDelay(label));
         }
 
+        public void SetThrowGuideVisible(bool isVisible)
+        {
+            if (throwGuide != null)
+            {
+                throwGuide.style.display = isVisible ? DisplayStyle.Flex : DisplayStyle.None;
+            }
+        }
+
+        public void SetSurvivalStatusVisible(bool isVisible)
+        {
+            isSurvivalStatusVisible = isVisible;
+
+            if (survivalStatusContainer == null)
+            {
+                BindElements();
+            }
+
+            if (survivalStatusContainer != null)
+            {
+                survivalStatusContainer.style.display = isVisible ? DisplayStyle.Flex : DisplayStyle.None;
+            }
+        }
+
         private void BindElements()
         {
             if (uiDocument == null || uiDocument.rootVisualElement == null) return;
 
             VisualElement root = uiDocument.rootVisualElement;
+            if (inventoryButton != null)
+            {
+                inventoryButton.clicked -= HandleInventoryButtonClicked;
+            }
+
             healthBar = root.Q<ProgressBar>(healthBarName);
             hungerBar = root.Q<ProgressBar>(hungerBarName);
             messageOverlay = root.Q<VisualElement>(messageOverlayName);
             messageLabel = root.Q<Label>(messageLabelName);
             notificationContainer = root.Q<VisualElement>(notificationContainerName);
+            throwGuide = root.Q<VisualElement>(throwGuideName);
+            survivalStatusContainer = root.Q<VisualElement>(survivalStatusContainerName);
+            inventoryButton = root.Q<Button>(inventoryButtonName);
+
+            if (inventoryButton != null)
+            {
+                inventoryButton.clicked += HandleInventoryButtonClicked;
+            }
+
+            if (survivalStatusContainer != null)
+            {
+                survivalStatusContainer.style.display = isSurvivalStatusVisible ? DisplayStyle.Flex : DisplayStyle.None;
+            }
+        }
+
+        private void HandleInventoryButtonClicked()
+        {
+            if (inventoryUi == null)
+            {
+                inventoryUi = FindFirstObjectByType<KMS.InventoryDuped.InventoryUI>();
+            }
+
+            inventoryUi?.Toggle();
         }
 
         private void Refresh()

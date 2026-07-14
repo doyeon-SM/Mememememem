@@ -47,11 +47,11 @@ namespace HDY.Territory
         [SerializeField] private int level = 1;
         [SerializeField] private int currentExp = 0;
         [Tooltip("다음 레벨업에 필요한 경험치. 계산식은 임시값이며 기획 확정 후 교체 예정")]
-        [SerializeField] private int requiredExp = 100;
+        [SerializeField] private List<int> requiredExp;
 
         public int Level => level;
         public int CurrentExp => currentExp;
-        public int RequiredExp => requiredExp;
+        public int RequiredExp => requiredExp[level-1];
 
         /// <summary>
         /// 영지 경험치를 획득한다. requiredExp를 넘기면 자동으로 레벨업 처리.
@@ -60,14 +60,15 @@ namespace HDY.Territory
         public void AddExp(int amount)
         {
             if (amount <= 0) return;
+            if (requiredExp[level - 1] <= 0) requiredExp[level - 1] = 10000;
 
             currentExp += amount;
 
-            while (currentExp >= requiredExp)
-            {
-                currentExp -= requiredExp;
+            while (currentExp >= requiredExp[level-1])
+            {                
+                currentExp -= requiredExp[level-1];
                 level++;
-                requiredExp = Mathf.RoundToInt(requiredExp * 1.2f);
+                //requiredExp = Mathf.RoundToInt(requiredExp * 1.2f);
                 Debug.Log($"[TerritoryData] 영지 레벨업! 현재 레벨: {level}");
             }
         }

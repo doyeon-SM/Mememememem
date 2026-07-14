@@ -1,6 +1,7 @@
 using System;
 using HDY.Item;
 using UnityEngine;
+using KMS.Persistence;
 
 namespace KMS.InventoryDuped
 {
@@ -95,6 +96,7 @@ public class PlayerInventory : MonoBehaviour
     public event Action<ItemData,int> OnItemObtained;
     public event Action<int> OnQuickSlotChanged;
     public event Action<int> OnSelectedQuickSlotChanged;
+    public event Action<int> OnQuickSlotSelectionRequested;
 
     private void Awake()
     {
@@ -104,6 +106,71 @@ public class PlayerInventory : MonoBehaviour
         catalogManager = ItemCatalogManager.Resolve(catalogManager);
     }
 
+    private void Start()
+    {
+        PlayerPersistenceManager.EnsureInstance().RegisterPlayer(this, GetComponent<KMS.PlayerStats>());
+    }
+
+    public PlayerInventorySaveData CaptureSaveData()
+    {
+        return new PlayerInventorySaveData
+        {
+            inventory = InventoryContainerSaveData.Capture(inventory),
+            quickSlots = InventoryContainerSaveData.Capture(quickSlots),
+            selectedQuickSlotIndex = selectedQuickSlotIndex
+        };
+    }
+
+    public void RestoreSaveData(PlayerInventorySaveData data)
+    {
+        if (data == null) return;
+
+        quickSlotUseReservation = null;
+        pendingQuickSlotIndex = -1;
+
+        RestoreContainer(inventory, data.inventory, "inventory");
+        RestoreContainer(quickSlots, data.quickSlots, "quickSlots");
+
+        selectedQuickSlotIndex = quickSlots.IsValidIndex(data.selectedQuickSlotIndex)
+            ? data.selectedQuickSlotIndex
+            : 0;
+
+        OnInventoryChanged?.Invoke();
+        NotifyAllQuickSlotsChanged();
+    }
+
+    private static void RestoreContainer(InventoryContainer target, InventoryContainerSaveData data, string containerName)
+    {
+        if (target == null || data == null) return;
+
+        int savedCount = data.slots != null ? data.slots.Length : 0;
+        int restoredWidth = Mathf.Max(1, target.width, data.width);
+        int minimumHeightForSavedSlots = Mathf.CeilToInt(savedCount / (float)restoredWidth);
+        int restoredHeight = Mathf.Max(1, target.height, data.height, minimumHeightForSavedSlots);
+
+        target.width = restoredWidth;
+        target.height = restoredHeight;
+        target.Initialize();
+
+        int copyCount = Mathf.Min(target.slots.Length, savedCount);
+
+        for (int i = 0; i < target.slots.Length; i++)
+        {
+            if (i >= copyCount || data.slots[i] == null || data.slots[i].IsEmpty)
+            {
+                target.slots[i].Clear();
+                continue;
+            }
+
+            target.slots[i].Set(data.slots[i].itemId, data.slots[i].amount);
+        }
+
+        if (savedCount > target.slots.Length)
+        {
+            Debug.LogError($"[PlayerInventory] {containerName} restore truncated slots: saved={savedCount}, target={target.slots.Length}.");
+        }
+    }
+
     // 아이템 추가
     public int AddItem(ItemData item, int amount)
     {
@@ -111,11 +178,11 @@ public class PlayerInventory : MonoBehaviour
 
         int remaining = amount;
 
-        // 퀵슬롯에 아이템이 있으면 추가 없으면 인벤토리에 아이템이 있으면 추가 없으면 인벤토리에 빈슬롯에 추가 빈슬롯없으면 퀵슬롯 빈슬롯에 추가
+        // 기존 스택을 먼저 채운 뒤, 새 스택은 퀵슬롯 빈 칸부터 만든다.
         remaining = AddToExistingStacks(quickSlots, item, remaining);
         remaining = AddToExistingStacks(inventory, item, remaining);
-        remaining = AddToEmptySlots(inventory, item, remaining);
         remaining = AddToEmptySlots(quickSlots, item, remaining);
+        remaining = AddToEmptySlots(inventory, item, remaining);
 
         int addedAmount = amount - remaining;
 
@@ -207,6 +274,8 @@ public class PlayerInventory : MonoBehaviour
     // 퀵슬롯 아이템 선택. 사용중이면 마지막 입력 기록
     public void SelectQuickSlot(int index)
     {
+        OnQuickSlotSelectionRequested?.Invoke(index);
+
         if (!quickSlots.IsValidIndex(index)) return;
 
         if (quickSlotUseReservation != null)

@@ -23,6 +23,7 @@ namespace KMS.InventoryDuped
         [SerializeField] private KMS.PlayerInput playerInput;
         [SerializeField] private KMS.PlayerMovement playerMovement;
         [SerializeField] private KMS.PlayerCameraController cameraController;
+        [SerializeField] private KMS.PlayerHUD playerHud;
 
         // [HDY 요청] Item_ID만으로 테스트 지급을 할 수 있는 디버그 UI 훅.
         [Header("디버그 - Item_ID로 아이템 지급 (테스트용)")]
@@ -37,8 +38,6 @@ namespace KMS.InventoryDuped
         private bool isInventoryOpen;
         private bool previousMovementEnabled = true;
         private bool previousGameplayInputBlocked;
-        private bool previousCursorVisible;
-        private CursorLockMode previousCursorLockState;
 
         private void Reset()
         {
@@ -66,6 +65,7 @@ namespace KMS.InventoryDuped
 
             isInventoryOpen = false;
             if (inventoryPanel != null) inventoryPanel.SetActive(false);
+            if (playerHud != null) playerHud.SetSurvivalStatusVisible(true);
             HideItemTooltip();
             RefreshAll();
         }
@@ -113,14 +113,14 @@ namespace KMS.InventoryDuped
 
         public void ShowItemTooltip(ItemStack stack, Vector2 position)
         {
-            if (!isInventoryOpen || dragSource != null || itemTooltipUI == null) return;
+            if (dragSource != null || itemTooltipUI == null) return;
 
             itemTooltipUI.Show(stack, position);
         }
 
         public void MoveItemTooltip(Vector2 position)
         {
-            if (!isInventoryOpen || dragSource != null || itemTooltipUI == null) return;
+            if (dragSource != null || itemTooltipUI == null) return;
 
             itemTooltipUI.Move(position);
         }
@@ -147,12 +147,18 @@ namespace KMS.InventoryDuped
             SetInventoryOpen(false);
         }
 
+        public void Toggle()
+        {
+            SetInventoryOpen(!isInventoryOpen);
+        }
+
         private void ResolveReferences()
         {
             if (playerInventory == null) playerInventory = FindFirstObjectByType<PlayerInventory>();
             if (playerInput == null) playerInput = FindFirstObjectByType<KMS.PlayerInput>();
             if (playerMovement == null) playerMovement = FindFirstObjectByType<KMS.PlayerMovement>();
             if (cameraController == null) cameraController = FindFirstObjectByType<KMS.PlayerCameraController>();
+            if (playerHud == null) playerHud = FindFirstObjectByType<KMS.PlayerHUD>();
         }
 
         private void SelectQuickSlot(int index)
@@ -192,11 +198,6 @@ namespace KMS.InventoryDuped
             // else: Storage가 섞인 조합 - 이 컨트롤러 범위 밖이므로 무시(WarehouseUI에서만 발생해야 함)
         }
 
-        private void ToggleInventory()
-        {
-            SetInventoryOpen(!isInventoryOpen);
-        }
-
         private void SetInventoryOpen(bool open)
         {
             if (isInventoryOpen == open) return;
@@ -205,24 +206,27 @@ namespace KMS.InventoryDuped
             {
                 previousMovementEnabled = playerMovement == null || playerMovement.IsMovementEnabled;
                 previousGameplayInputBlocked = playerInput != null && playerInput.IsGameplayInputBlocked;
-                previousCursorVisible = Cursor.visible;
-                previousCursorLockState = Cursor.lockState;
             }
 
             isInventoryOpen = open;
 
             if (inventoryPanel != null) inventoryPanel.SetActive(open);
-            if (playerInput != null) playerInput.SetGameplayInputBlocked(open ? true : previousGameplayInputBlocked);
+            if (playerHud != null) playerHud.SetSurvivalStatusVisible(!open);
+            if (playerInput != null)
+            {
+                playerInput.SetCursorReleased(open);
+                playerInput.SetGameplayInputBlocked(open ? true : previousGameplayInputBlocked);
+            }
             if (playerMovement != null) playerMovement.IsMovementEnabled = open ? false : previousMovementEnabled;
 
             if (cameraController != null)
             {
-                cameraController.SetCursorLocked(!open && previousCursorLockState == CursorLockMode.Locked);
+                cameraController.SetCursorLocked(!open);
             }
             else
             {
-                Cursor.visible = open ? true : previousCursorVisible;
-                Cursor.lockState = open ? CursorLockMode.None : previousCursorLockState;
+                Cursor.visible = open;
+                Cursor.lockState = open ? CursorLockMode.None : CursorLockMode.Locked;
             }
 
             if (!open)
@@ -276,7 +280,7 @@ namespace KMS.InventoryDuped
         {
             if (playerInput == null) return;
 
-            playerInput.InventoryPressed += ToggleInventory;
+            playerInput.InventoryPressed += Toggle;
             playerInput.QuickSlotPressed += SelectQuickSlot;
             playerInput.QuickSlotScrolled += SelectQuickSlotOffset;
         }
@@ -285,7 +289,7 @@ namespace KMS.InventoryDuped
         {
             if (playerInput == null) return;
 
-            playerInput.InventoryPressed -= ToggleInventory;
+            playerInput.InventoryPressed -= Toggle;
             playerInput.QuickSlotPressed -= SelectQuickSlot;
             playerInput.QuickSlotScrolled -= SelectQuickSlotOffset;
         }
