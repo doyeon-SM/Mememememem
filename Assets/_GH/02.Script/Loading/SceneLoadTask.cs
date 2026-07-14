@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.Serialization;
 
 namespace GH.Loading
 {
@@ -10,13 +11,14 @@ namespace GH.Loading
     /// 웨이포인트 이동에서는 실제 로딩이 90%에 도달한 뒤 씬 활성화를 보류하고,
     /// <see cref="LoadingManager"/>의 연출 구간이 끝나면 활성화합니다.
     /// </summary>
-    public class SceneLoadTask : MonoBehaviour, ILoadingTask
+    public class SceneLoadTask : MonoBehaviour, ISceneLoadingTask, IDeferredCompletionTask
     {
-        [SerializeField] private string sceneName = "Main_World";
+        [FormerlySerializedAs("sceneName")]
+        [Tooltip("LoadingManager.StartLoading()을 직접 호출할 때만 사용하는 기본 씬입니다. LoadScene() 요청은 이 값을 사용하지 않습니다.")]
+        [SerializeField] private string fallbackSceneName = "Main_World";
         [SerializeField] private LoadSceneMode loadSceneMode = LoadSceneMode.Single;
         [SerializeField] private float weight = 0.7f;
         [SerializeField] private string description = "월드 씬 불러오는 중";
-        [SerializeField] private bool activateSceneWhenLoaded = true;
 
         /// <inheritdoc />
         public string Description => description;
@@ -24,53 +26,42 @@ namespace GH.Loading
         /// <inheritdoc />
         public float Weight => weight;
 
-        /// <summary>현재 설정된 대상 씬 이름입니다.</summary>
-        public string SceneName => sceneName;
-
-        /// <summary>로딩 완료 후 활성화를 기다리는 씬 작업이 있는지 나타냅니다.</summary>
-        public bool HasPendingActivation => pendingOperation != null && !pendingOperation.isDone;
-
-        private AsyncOperation pendingOperation;
-        private bool holdActivationForPresentation;
-
-        /// <summary>
-        /// 다음 실행에서 로드할 씬과 활성화 보류 여부를 설정합니다.
-        /// </summary>
-        /// <param name="targetSceneName">Build Settings에 등록된 대상 씬 이름입니다.</param>
-        /// <param name="holdActivation">참이면 실제 로딩 후 별도 호출 전까지 씬 활성화를 보류합니다.</param>
-        public void Configure(string targetSceneName, bool holdActivation)
-        {
-            sceneName = targetSceneName;
-            holdActivationForPresentation = holdActivation;
-        }
+        /// <summary>현재 실행 중이거나 마지막으로 실행한 대상 씬 이름입니다.</summary>
+        public string SceneName { get; private set; }
 
         /// <inheritdoc />
-        public IEnumerator Run(Action<float> reportProgress)
+        public bool HasDeferredCompletion => pendingOperation != null && !pendingOperation.isDone;
+
+        private AsyncOperation pendingOperation;
+
+        /// <inheritdoc />
+        public IEnumerator Run(LoadingContext context, Action<float> reportProgress)
         {
-            if (string.IsNullOrWhiteSpace(sceneName))
+            SceneName = context.HasSceneRequest ? context.SceneName : fallbackSceneName;
+
+            if (string.IsNullOrWhiteSpace(SceneName))
             {
                 Debug.LogError("[SceneLoadTask] 로드할 씬 이름이 비어 있습니다.", this);
                 reportProgress?.Invoke(1f);
                 yield break;
             }
 
-            pendingOperation = SceneManager.LoadSceneAsync(sceneName, loadSceneMode);
+            pendingOperation = SceneManager.LoadSceneAsync(SceneName, loadSceneMode);
             if (pendingOperation == null)
             {
-                Debug.LogError($"[SceneLoadTask] 씬 로드를 시작하지 못했습니다: {sceneName}", this);
+                Debug.LogError($"[SceneLoadTask] 씬 로드를 시작하지 못했습니다: {SceneName}", this);
                 reportProgress?.Invoke(1f);
                 yield break;
             }
 
-            bool holdActivation = holdActivationForPresentation || !activateSceneWhenLoaded;
-            pendingOperation.allowSceneActivation = !holdActivation;
+            pendingOperation.allowSceneActivation = false;
 
             while (!pendingOperation.isDone)
             {
                 float normalizedProgress = Mathf.Clamp01(pendingOperation.progress / 0.9f);
                 reportProgress?.Invoke(normalizedProgress);
 
-                if (holdActivation && pendingOperation.progress >= 0.9f)
+                if (pendingOperation.progress >= 0.9f)
                 {
                     reportProgress?.Invoke(1f);
                     yield break;
@@ -86,7 +77,7 @@ namespace GH.Loading
         /// <summary>
         /// 실제 로딩을 마치고 대기 중인 씬을 활성화한 뒤 완료될 때까지 기다립니다.
         /// </summary>
-        public IEnumerator ActivatePendingScene()
+        public IEnumerator CompleteDeferredWork()
         {
             if (pendingOperation == null)
             {
@@ -100,7 +91,6 @@ namespace GH.Loading
             }
 
             pendingOperation = null;
-            holdActivationForPresentation = false;
         }
     }
 }

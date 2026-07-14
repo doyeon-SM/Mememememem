@@ -60,7 +60,6 @@ namespace GH.Loading
         public string CurrentDescription { get; private set; }
 
         private Coroutine loadingRoutine;
-        private string destinationWayPointId;
         private bool showTipInDescription;
 
         private void Awake()
@@ -113,17 +112,12 @@ namespace GH.Loading
         /// </summary>
         public void StartLoading()
         {
-            if (IsLoading)
-            {
-                return;
-            }
-
-            loadingRoutine = StartCoroutine(RunLoading());
+            TryStartLoading(LoadingContext.Empty, false);
         }
 
         /// <summary>
-        /// 웨이포인트용 씬 이동을 요청합니다. 등록된 <see cref="SceneLoadTask"/>의 대상 씬을
-        /// 동적으로 교체하고, 씬 활성화 후 목적지 웨이포인트 ID로 플레이어를 이동시킵니다.
+        /// 씬 이동을 요청합니다. 등록된 <see cref="ISceneLoadingTask"/>가 요청을 처리하며,
+        /// 씬 활성화 후 목적지 ID가 있으면 해당 웨이포인트로 플레이어를 이동시킵니다.
         /// </summary>
         /// <param name="sceneName">Build Settings에 등록된 대상 씬 이름입니다.</param>
         /// <param name="targetWayPointId">새 씬에서 도착 위치로 사용할 웨이포인트 ID입니다.</param>
@@ -141,17 +135,8 @@ namespace GH.Loading
                 return false;
             }
 
-            SceneLoadTask sceneLoadTask = FindSceneLoadTask();
-            if (sceneLoadTask == null)
-            {
-                Debug.LogError("[LoadingManager] taskBehaviours에 SceneLoadTask가 등록되지 않았습니다.", this);
-                return false;
-            }
-
-            destinationWayPointId = targetWayPointId;
-            sceneLoadTask.Configure(sceneName, true);
-            StartLoading();
-            return true;
+            LoadingContext context = new LoadingContext(sceneName, targetWayPointId);
+            return TryStartLoading(context, true);
         }
 
         /// <summary>
@@ -170,14 +155,33 @@ namespace GH.Loading
             SetLoadingUIVisible(false);
         }
 
-        private IEnumerator RunLoading()
+        private bool TryStartLoading(LoadingContext context, bool requireSceneLoadingTask)
         {
+            if (IsLoading)
+            {
+                return false;
+            }
+
+            List<ILoadingTask> tasks = BuildTaskList();
+            if (requireSceneLoadingTask && !ContainsSceneLoadingTask(tasks))
+            {
+                Debug.LogError(
+                    "[LoadingManager] taskBehaviours에 ISceneLoadingTask가 등록되지 않았습니다.",
+                    this);
+                return false;
+            }
+
             IsLoading = true;
+            loadingRoutine = StartCoroutine(RunLoading(context, tasks));
+            return true;
+        }
+
+        private IEnumerator RunLoading(LoadingContext context, List<ILoadingTask> tasks)
+        {
             SetLoadingUIVisible(true);
             ShowRandomTip();
             onLoadingStarted?.Invoke();
 
-            List<ILoadingTask> tasks = BuildTaskList();
             float totalWeight = GetTotalWeight(tasks);
             float completedWeight = 0f;
 
@@ -190,7 +194,7 @@ namespace GH.Loading
                     ? "로딩 중"
                     : task.Description;
 
-                yield return task.Run(localProgress =>
+                yield return task.Run(context, localProgress =>
                 {
                     float weightedProgress = completedWeight + Mathf.Clamp01(localProgress) * taskWeight;
                     float normalizedProgress = totalWeight > 0f ? weightedProgress / totalWeight : 1f;
@@ -204,14 +208,13 @@ namespace GH.Loading
             }
 
             yield return RunPresentationProgress();
-            yield return ActivatePendingScenes(tasks);
+            yield return CompleteDeferredTasks(tasks);
             yield return null;
 
-            MovePlayerToDestinationWayPoint();
+            MovePlayerToDestinationWayPoint(context.DestinationId);
             Report("로딩 완료", 1f);
             IsLoading = false;
             loadingRoutine = null;
-            destinationWayPointId = string.Empty;
             SetLoadingUIVisible(false);
 
             onLoadingCompleted?.Invoke();
@@ -243,28 +246,28 @@ namespace GH.Loading
             }
         }
 
-        private static IEnumerator ActivatePendingScenes(IReadOnlyList<ILoadingTask> tasks)
+        private static IEnumerator CompleteDeferredTasks(IReadOnlyList<ILoadingTask> tasks)
         {
             foreach (ILoadingTask task in tasks)
             {
-                if (task is SceneLoadTask sceneLoadTask && sceneLoadTask.HasPendingActivation)
+                if (task is IDeferredCompletionTask deferredTask && deferredTask.HasDeferredCompletion)
                 {
-                    yield return sceneLoadTask.ActivatePendingScene();
+                    yield return deferredTask.CompleteDeferredWork();
                 }
             }
         }
 
-        private SceneLoadTask FindSceneLoadTask()
+        private static bool ContainsSceneLoadingTask(IReadOnlyList<ILoadingTask> tasks)
         {
-            foreach (MonoBehaviour taskBehaviour in taskBehaviours)
+            foreach (ILoadingTask task in tasks)
             {
-                if (taskBehaviour is SceneLoadTask sceneLoadTask)
+                if (task is ISceneLoadingTask)
                 {
-                    return sceneLoadTask;
+                    return true;
                 }
             }
 
-            return null;
+            return false;
         }
 
         private List<ILoadingTask> BuildTaskList()
@@ -303,7 +306,7 @@ namespace GH.Loading
             return totalWeight;
         }
 
-        private void MovePlayerToDestinationWayPoint()
+        private void MovePlayerToDestinationWayPoint(string destinationWayPointId)
         {
             if (string.IsNullOrWhiteSpace(destinationWayPointId))
             {

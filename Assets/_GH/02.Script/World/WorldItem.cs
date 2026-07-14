@@ -20,14 +20,14 @@ public class WorldItem : MonoBehaviour
         amount = initialAmount;
     }
 
-    private void OnCollisionEnter(Collision collision)
+    private void OnTriggerEnter(Collider collision)
     {
         if (itemdata == null || amount <= 0)
         {
             return;
         }
 
-        PlayerInventory inventory = collision.collider.GetComponentInParent<PlayerInventory>();
+        PlayerInventory inventory = collision.GetComponentInParent<PlayerInventory>();
         if (inventory == null)
         {
             return;
