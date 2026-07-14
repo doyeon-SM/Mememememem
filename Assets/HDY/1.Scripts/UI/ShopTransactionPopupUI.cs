@@ -22,6 +22,10 @@ namespace HDY.UI
     ///
     /// [슬라이더 최대치] Open()으로 받는 maxQuantity는 이미 ShopUI가 "재고"와 "결제 가능한 재화" 둘 다
     /// 고려해서 계산한 값이다 - 즉 슬라이더를 끝까지 밀어도 정상적으로는 항상 결제가 가능해야 한다.
+    ///
+    /// [기본 수량 = 최대치부터 시작해서 내려감] 팝업을 열면 수량이 1부터 시작해서 올라가는 게 아니라
+    /// maxQuantity(구매 가능/판매 가능한 최대치)부터 채워진 채로 시작한다 - "가진 만큼 전부 팔기/살 수
+    /// 있는 만큼 전부 사기"가 기본값이고, 덜 사고 싶으면 -를 눌러 내리는 방식이다.
     /// </summary>
     public class ShopTransactionPopupUI : MonoBehaviour
     {
@@ -101,7 +105,8 @@ namespace HDY.UI
 
             if (confirmButtonLabel != null) confirmButtonLabel.text = mode == ShopSlotUI.Mode.Buy ? "구매" : "판매";
 
-            int initialQuantity = this.maxQuantity > 0 ? 1 : 0;
+            // 최대치부터 시작해서 내려가는 방식 - "가진/살 수 있는 만큼 전부"가 기본값이다.
+            int initialQuantity = this.maxQuantity;
 
             if (quantitySlider != null)
             {
@@ -147,7 +152,7 @@ namespace HDY.UI
         /// <summary>입력창에서 수량을 직접 타이핑했을 때. 범위를 벗어나면 clamp하고, 슬라이더 쪽으로 값을 밀어넣어 나머지 표시를 동기화한다.</summary>
         private void HandleInputFieldEndEdit(string text)
         {
-            if (!int.TryParse(text, out int parsed)) parsed = 1;
+            if (!int.TryParse(text, out int parsed)) parsed = maxQuantity;
 
             int minQuantity = maxQuantity > 0 ? 1 : 0;
             parsed = Mathf.Clamp(parsed, minQuantity, maxQuantity);

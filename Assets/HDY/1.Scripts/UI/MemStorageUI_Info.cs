@@ -15,6 +15,13 @@ namespace HDY.UI
     ///   반영하지 못하므로, MemTierTable에서 해당 등급의 explorationMin~explorationMax 범위를 찾아 "20~100"
     ///   형식으로 보여준다(테이블/스펙이 없으면 MemData의 단일 값으로 대체).
     /// 두 오버로드 모두 내부적으로 RenderInfo로 렌더링을 위임한다.
+    ///
+    /// [스탯 표시 = "이름: 숫자"] 제작/벌목/채광/이동/생산 5개 생산 스탯은 각각 "제작: 3"처럼 라벨과
+    /// 숫자를 함께 표시한다. 예전에는 "라벨 : " + data != null ? ... : "0" 형태로 쓰여있었는데, 문자열
+    /// 이어붙이기(+)가 !=보다 먼저 계산되는 C# 연산자 우선순위 때문에 실제로는
+    /// ("라벨 : " + data) != null이 되어(문자열 이어붙이기 결과는 항상 null이 아니므로) 조건이 항상
+    /// 참으로 평가되고, 그 결과 라벨 문구는 버려진 채 숫자만 표시되고 있었다(생산 줄은 추가로 farming이
+    /// 아니라 transport를 잘못 참조하는 복사-붙여넣기 실수도 있었음). 이번에 두 문제 모두 고쳤다.
     /// </summary>
     public class MemStorageUI_Info : MonoBehaviour
     {
@@ -90,26 +97,31 @@ namespace HDY.UI
                 infoTierText.text = data != null ? data.tier.ToString() : "-";
             }
 
-            if(infoCraftingText != null)
+            if (infoCraftingText != null)
             {
-                infoCraftingText.text = "제작 : " + data != null ? data.productionStats.crafting.ToString() : "0";
+                infoCraftingText.text = data != null ? $"제작: {data.productionStats.crafting}" : "제작: 0";
             }
-            if(infoLoggingText !=null)
+
+            if (infoLoggingText != null)
             {
-                infoLoggingText.text = "벌목 : " + data != null ? data.productionStats.logging.ToString() : "0";
+                infoLoggingText.text = data != null ? $"벌목: {data.productionStats.logging}" : "벌목: 0";
             }
-            if(infoMiningText != null)
+
+            if (infoMiningText != null)
             {
-                infoMiningText.text = "채광 : " + data != null ? data.productionStats.mining.ToString() : "0";
+                infoMiningText.text = data != null ? $"채광: {data.productionStats.mining}" : "채광: 0";
             }
-            if(infoTransportText != null)
+
+            if (infoTransportText != null)
             {
-                infoTransportText.text = "운반 : " + data != null ? data.productionStats.transport.ToString() : "0";
+                infoTransportText.text = data != null ? $"이동: {data.productionStats.transport}" : "이동: 0";
             }
-            if(infoFarmingText != null)
+
+            if (infoFarmingText != null)
             {
-                infoFarmingText.text = "생산 : " + data != null ? data.productionStats.transport.ToString() : "0";
+                infoFarmingText.text = data != null ? $"생산: {data.productionStats.farming}" : "생산: 0";
             }
+
             if (infoExplorationText != null)
             {
                 infoExplorationText.text = "탐험 : " + explorationDisplayText;

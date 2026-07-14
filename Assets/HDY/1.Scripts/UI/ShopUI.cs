@@ -47,6 +47,17 @@ namespace HDY.UI
     /// 판매 가능한 품목만(<see cref="IsSellable"/>) 표시한다. 조건을 만족하지 못하는 아이템은 비활성화된
     /// 채로 보이는 게 아니라 목록 자체에서 빠진다.
     ///
+    /// [슬롯에 표시하는 수량 = 상점 재고 그 자체] 슬롯(ShopSlotUI)에 넘겨주는 수량은 "지금 결제할 수
+    /// 있는 수량"이 아니라 ShopStockManager가 관리하는 순수 재고(구매는 GetPurchaseStock, 판매는
+    /// GetSellStock - 둘 다 ShopItemData의 Purchase_MaxAmount/Selling_MaxAmount에서 그동안 소모된
+    /// 만큼을 뺀 값)다. 예전에는 판매 탭에 "플레이어가 지금 보유한 수량"을 보여줬는데, 그러면 그
+    /// 아이템을 하나도 안 갖고 있을 때 상점 재고가 아무리 남아있어도 항상 0으로 보이는 문제가 있었다 -
+    /// 이제는 상점 재고를 그대로 보여주므로 그런 문제가 없다. 골드/재료가 부족해서 실제로는 그만큼
+    /// 못 사거나(구매) 그 아이템을 갖고 있지 않아서 못 파는(판매) 경우는, 슬롯을 클릭해서 거래 팝업을
+    /// 열 때 GetBuyMaxQuantity/GetSellMaxQuantity(재고 + 결제 가능 여부/보유량을 모두 고려한 진짜 최대
+    /// 거래 가능 수량)로 다시 계산해서 팝업 쪽에서 걸러진다(팝업의 수량 슬라이더가 그 값을 최대치로
+    /// 쓰고, 0이면 확인 버튼이 비활성화됨).
+    ///
     /// [슬롯 클릭 -> 팝업] 슬롯에는 수량 스테퍼나 구매/판매 버튼이 없다. 슬롯 전체가 버튼이라 클릭하면
     /// <see cref="ShopTransactionPopupUI"/>가 열려서 실제 수량 선택과 결제를 진행한다. 실제 트랜잭션
     /// 로직(재고/골드/재료 확인 및 차감, 인벤토리 지급)은 여전히 이 클래스가 담당하고, 팝업에는
@@ -311,7 +322,11 @@ namespace HDY.UI
             return HasMaterialCost(itemData) ? itemData.Purchase_Price_Material.Amount : itemData.Purchase_Price_Golds;
         }
 
-        /// <summary>구매 재고와 "지금 가진 재화로 실제 결제 가능한 수량" 중 작은 값을 구매 최대 수량으로 계산한다.</summary>
+        /// <summary>
+        /// 구매 재고와 "지금 가진 재화로 실제 결제 가능한 수량" 중 작은 값을 구매 최대 수량으로 계산한다.
+        /// 슬롯 표시용이 아니라(슬롯은 재고 그 자체를 보여줌) 거래 팝업을 열 때 진짜 최대 거래 가능
+        /// 수량을 넘겨주기 위해 쓰인다.
+        /// </summary>
         private int GetBuyMaxQuantity(ShopItemData itemData)
         {
             int stock = stockManager != null ? stockManager.GetPurchaseStock(itemData) : 0;
@@ -338,7 +353,11 @@ namespace HDY.UI
             }
         }
 
-        /// <summary>판매 재고(상점이 사들일 수 있는 양)와 "지금 보유한 수량" 중 작은 값을 판매 최대 수량으로 계산한다.</summary>
+        /// <summary>
+        /// 판매 재고(상점이 사들일 수 있는 양)와 "지금 보유한 수량" 중 작은 값을 판매 최대 수량으로 계산한다.
+        /// 슬롯 표시용이 아니라(슬롯은 재고 그 자체를 보여줌) 거래 팝업을 열 때 진짜 최대 거래 가능
+        /// 수량을 넘겨주기 위해 쓰인다.
+        /// </summary>
         private int GetSellMaxQuantity(ShopItemData itemData)
         {
             var materialInventory = MaterialInventory;
@@ -380,7 +399,7 @@ namespace HDY.UI
             }
         }
 
-        /// <summary>구매 가능한(IsPurchasable) 품목만 걸러서 공용 슬롯 컨테이너를 채운다.</summary>
+        /// <summary>구매 가능한(IsPurchasable) 품목만 걸러서 공용 슬롯 컨테이너를 채운다. 슬롯에는 구매 재고 자체(GetPurchaseStock)를 표시한다.</summary>
         private void RefreshBuyList()
         {
             if (currentShop == null || slotPrefab == null || slotContainer == null) return;
@@ -397,16 +416,16 @@ namespace HDY.UI
                 var catalogItem = itemCatalogManager != null ? itemCatalogManager.FindItemData(itemData.Item_ID) : null;
                 var costIcon = GetBuyCostIcon(itemData);
                 int unitPrice = GetBuyUnitPrice(itemData);
-                int maxQuantity = GetBuyMaxQuantity(itemData);
+                int stock = stockManager != null ? stockManager.GetPurchaseStock(itemData) : 0;
 
-                slot.SetBuyData(itemData, catalogItem, costIcon, unitPrice, maxQuantity);
+                slot.SetBuyData(itemData, catalogItem, costIcon, unitPrice, stock);
                 slot.SetClickHandler(HandleBuySlotClicked);
             }
 
             HideExtraSlots(items.Count);
         }
 
-        /// <summary>판매 가능한(IsSellable) 품목만 걸러서 공용 슬롯 컨테이너를 채운다.</summary>
+        /// <summary>판매 가능한(IsSellable) 품목만 걸러서 공용 슬롯 컨테이너를 채운다. 슬롯에는 판매 재고 자체(GetSellStock)를 표시한다.</summary>
         private void RefreshSellList()
         {
             if (currentShop == null || slotPrefab == null || slotContainer == null) return;
@@ -421,16 +440,16 @@ namespace HDY.UI
                 slot.gameObject.SetActive(true);
 
                 var catalogItem = itemCatalogManager != null ? itemCatalogManager.FindItemData(itemData.Item_ID) : null;
-                int maxQuantity = GetSellMaxQuantity(itemData);
+                int stock = stockManager != null ? stockManager.GetSellStock(itemData) : 0;
 
-                slot.SetSellData(itemData, catalogItem, goldIcon, itemData.Selling_Price, maxQuantity);
+                slot.SetSellData(itemData, catalogItem, goldIcon, itemData.Selling_Price, stock);
                 slot.SetClickHandler(HandleSellSlotClicked);
             }
 
             HideExtraSlots(items.Count);
         }
 
-        /// <summary>구매 탭 슬롯 클릭 -> 팝업을 구매 모드로 연다.</summary>
+        /// <summary>구매 탭 슬롯 클릭 -> 팝업을 구매 모드로 연다(여기서는 진짜 거래 가능 수량인 GetBuyMaxQuantity를 다시 계산해서 넘긴다).</summary>
         private void HandleBuySlotClicked(ShopItemData itemData)
         {
             if (transactionPopup == null) return;
@@ -444,7 +463,7 @@ namespace HDY.UI
                 quantity => ExecuteBuy(itemData, quantity));
         }
 
-        /// <summary>판매 탭 슬롯 클릭 -> 팝업을 판매 모드로 연다.</summary>
+        /// <summary>판매 탭 슬롯 클릭 -> 팝업을 판매 모드로 연다(여기서는 진짜 거래 가능 수량인 GetSellMaxQuantity를 다시 계산해서 넘긴다).</summary>
         private void HandleSellSlotClicked(ShopItemData itemData)
         {
             if (transactionPopup == null) return;
