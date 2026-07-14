@@ -242,4 +242,12 @@ public class ProductionPanelUI : MonoBehaviour
     {
         targetFacility = null;
     }
+
+    public void RefreshUI()
+    {
+        if (targetFacility == null) return;
+        RefreshStaticUI();    
+        DisplayProduction();  
+        UpdateStorageText();  
+    }
 }

@@ -322,7 +322,7 @@ namespace HDY.Capture
             capturedMems[emptyIndex] = new CapturedMemEntry
             {
                 KeyId = Guid.NewGuid().ToString(),
-                MemId = "Mem_Normal_01",
+                MemId = "Mem_Rare_01",
                 ExplorationStat = UnityEngine.Random.Range(20, 101),
                 IsActive = false
             };
