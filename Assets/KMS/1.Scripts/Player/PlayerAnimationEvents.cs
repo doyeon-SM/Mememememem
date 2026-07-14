@@ -4,19 +4,46 @@ namespace KMS
 {
     public class PlayerAnimationEvents : MonoBehaviour
     {
+        private PlayerCapsuleThrowController capsuleThrowController;
+
+        private void Awake()
+        {
+            capsuleThrowController = GetComponentInParent<PlayerCapsuleThrowController>();
+        }
+
+        public void OnCapsuleRelease()
+        {
+            if (capsuleThrowController == null)
+            {
+                capsuleThrowController = GetComponentInParent<PlayerCapsuleThrowController>();
+            }
+
+            capsuleThrowController?.ReleaseCapsuleFromAnimationEvent();
+        }
+
+        public void OnCapsuleThrowFinished()
+        {
+            if (capsuleThrowController == null)
+            {
+                capsuleThrowController = GetComponentInParent<PlayerCapsuleThrowController>();
+            }
+
+            capsuleThrowController?.FinishThrowFromAnimationEvent();
+        }
+
         public void OnFootstepWalk(AnimationEvent animationEvent)
         {
-            // TODO: ¹ß¼Ò¸® ºÙÀÏ ¶§ ¿©±â¼­ Ã³¸®
+            // TODO: ï¿½ß¼Ò¸ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½â¼­ Ã³ï¿½ï¿½
         }
 
         public void OnFootstepRun(AnimationEvent animationEvent)
         {
-            // TODO: ´Þ¸®±â ¹ß¼Ò¸® ºÙÀÏ ¶§ ¿©±â¼­ Ã³¸®
+            // TODO: ï¿½Þ¸ï¿½ï¿½ï¿½ ï¿½ß¼Ò¸ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½â¼­ Ã³ï¿½ï¿½
         }
 
         public void OnLand(AnimationEvent animationEvent)
         {
-            // TODO: ÂøÁö ¼Ò¸® ºÙÀÏ ¶§ ¿©±â¼­ Ã³¸®
+            // TODO: ï¿½ï¿½ï¿½ï¿½ ï¿½Ò¸ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½â¼­ Ã³ï¿½ï¿½
         }
     }
 }

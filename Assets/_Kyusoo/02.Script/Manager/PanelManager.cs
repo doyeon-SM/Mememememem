@@ -1,20 +1,22 @@
+ï»¿using HDY.UI;
 using UnityEngine;
+using HDY.Upgrade;
 
 public class PanelManager : MonoBehaviour
 {
     public static PanelManager Instance { get; private set; }
 
-    [Header("½Ã¼³º° Panel GameObject")]
+    [Header("ì‹œì„¤ë³„ Panel GameObject")]
     [SerializeField] private GameObject craftingPanel;
     [SerializeField] private GameObject productionPanel;
-    [SerializeField] private GameObject inventoryPanel;
+    [SerializeField] private GameObject foodWarehousePanel;
     [SerializeField] private GameObject UIPanel;
 
-    [Header("½Ã¼³º° UI ÆĞ³Î ÄÄÆ÷³ÍÆ®")]
+    [Header("ì‹œì„¤ë³„ UI íŒ¨ë„ ì»´í¬ë„ŒíŠ¸")]
     [SerializeField] private CraftingPanelUI craftingPanelUI;
     [SerializeField] private ProductionPanelUI productionPanelUI;
 
-    [Header("¿µÁö UI °øÅë Á¦¾î ¿ÀºêÁ§Æ®: ´İ±â ¹öÆ°, ¹èÄ¡¸ğµå ¹öÆ°")]
+    [Header("ì˜ì§€ UI ê³µí†µ ì œì–´ ì˜¤ë¸Œì íŠ¸: ë‹«ê¸° ë²„íŠ¼, ë°°ì¹˜ëª¨ë“œ ë²„íŠ¼")]
     [SerializeField] private GameObject closeButtonGroup;
     [SerializeField] private GameObject placeButtonGroup;
 
@@ -35,31 +37,17 @@ public class PanelManager : MonoBehaviour
                 CloseAllPanels();
             }
         }
-
-        if (UnityEngine.InputSystem.Keyboard.current.iKey.wasPressedThisFrame)
-        {
-            if (inventoryPanel != null)
-            {
-                if (inventoryPanel.activeSelf)
-                {
-                    CloseAllPanels();
-                }
-                else
-                {
-                    OpenInventoryPanel();
-                }
-            }
-        }
     }
 
     /// <summary>
-    /// Á¦ÀÛ ÆĞ³Î È°¼ºÈ­
+    /// ì œì‘ íŒ¨ë„ í™œì„±í™”
     /// </summary>
     public void OpenCraftingPanel(ProductionCraftRuntime facility)
     {
         if (facility == null) return;
 
-        CloseAllPanels(); // ´Ù¸¥ ÆĞ³ÎÀº Á¤¸®
+        if (UIManager.Instance != null) UIManager.Instance.CloseCurrent();
+        CloseAllPanels();
 
         if (craftingPanel != null && craftingPanelUI != null)
         {
@@ -68,18 +56,24 @@ public class PanelManager : MonoBehaviour
 
             UIPanel.SetActive(true);
             craftingPanel.SetActive(true); 
-            craftingPanelUI.OpenPanel(facility); 
+            craftingPanelUI.OpenPanel(facility);
+
+            if (SortButtonManagement.Instance != null)
+            {
+                SortButtonManagement.Instance.UpdateSortFiltersByFacility(facility.gameObject);
+            }
         }
     }
 
     /// <summary>
-    /// »ı»ê ÆĞ³Î È°¼ºÈ­
+    /// ìƒì‚° íŒ¨ë„ í™œì„±í™”
     /// </summary>
     public void OpenProductionPanel(ProductionFacilityRuntime facility)
     {
         if (facility == null) return;
 
-        CloseAllPanels(); // ´Ù¸¥ ÆĞ³ÎÀº Á¤¸®
+        if (UIManager.Instance != null) UIManager.Instance.CloseCurrent();
+        CloseAllPanels();
 
         if (productionPanel != null && productionPanelUI != null)
         {
@@ -89,30 +83,61 @@ public class PanelManager : MonoBehaviour
             UIPanel.SetActive(true);
             productionPanel.SetActive(true); 
             productionPanelUI.OpenPanel(facility); 
+
+            if (SortButtonManagement.Instance != null)
+            {
+                SortButtonManagement.Instance.UpdateSortFiltersByFacility(facility.gameObject);
+            }
         }
     }
 
-    public void OpenInventoryPanel()
+
+    public void OpenFoodWareHousePanel()
     {
-        CloseAllPanels(); 
+        if (UIManager.Instance != null) UIManager.Instance.CloseCurrent();
+        CloseAllPanels();
 
-        if (inventoryPanel != null)
+        if (foodWarehousePanel != null)
         {
-            SetCommonGroupActive(true);      
-            SetCameraControllersEnabled(false); 
+            SetCommonGroupActive(true);
+            SetCameraControllersEnabled(false);
 
-            inventoryPanel.SetActive(true);
+            foodWarehousePanel.SetActive(true);
         }
+    }
+
+
+    /// <summary>
+    /// UIManagerë¥¼ í†µí•´ íŒ¨ë„ í™œì„±í™”ì‹œ ê¸°ì¡´ ì‹œì„¤ë¬¼ ì°½ë“¤ì„ ì„¸ì´ë¸Œ í›„ í´ë¦¬ì–´ ì²˜ë¦¬, ê³µí†µ UI ë‹«ê¸° ë²„íŠ¼ On ë° ì¹´ë©”ë¼ ì°¨ë‹¨
+    /// </summary>
+    public void NotifyHUDPanelOpened()
+    {
+        //SaveActivePanelData();
+
+        if (craftingPanelUI != null) craftingPanelUI.ClosePanel();
+        if (productionPanelUI != null) productionPanelUI.ClosePanel();
+        if (foodWarehousePanel != null) foodWarehousePanel.SetActive(false);
+        if (UIPanel != null) UIPanel.SetActive(false);
+
+        if (craftingPanel != null) craftingPanel.SetActive(false);
+        if (productionPanel != null) productionPanel.SetActive(false);
+
+        SetCommonGroupActive(true);
+        SetCameraControllersEnabled(false);
     }
 
     /// <summary>
-    /// ¿µÁö°ü·Ã ÆĞ³Î°ú Close¹öÆ° ´İ±â ¹× Place¹öÆ° È°¼ºÈ­
+    /// ì˜ì§€ê´€ë ¨ íŒ¨ë„ê³¼ Closeë²„íŠ¼ ë‹«ê¸° ë° Placeë²„íŠ¼ í™œì„±í™”
     /// </summary>
     public void CloseAllPanels()
     {
+        //SaveActivePanelData();
+
+        if (UIManager.Instance != null) UIManager.Instance.CloseCurrent();
+
         if (craftingPanelUI != null) craftingPanelUI.ClosePanel();
         if (productionPanelUI != null) productionPanelUI.ClosePanel();
-        if (inventoryPanel != null) inventoryPanel.SetActive(false);
+        if (foodWarehousePanel != null) foodWarehousePanel.SetActive(false);
         if (UIPanel != null) UIPanel.SetActive(false);
 
         if (craftingPanel != null) craftingPanel.SetActive(false);
@@ -127,7 +152,8 @@ public class PanelManager : MonoBehaviour
     {
         bool isCraftActive = craftingPanel != null && craftingPanel.activeSelf;
         bool isProductActive = productionPanel != null && productionPanel.activeSelf;
-        bool isInventoryActive = inventoryPanel != null && inventoryPanel.activeSelf;
+        bool isInventoryActive = foodWarehousePanel != null && foodWarehousePanel.activeSelf;
+        bool isHUDActive = UIManager.Instance != null && UIManager.Instance.HasActivePanel();
         return isCraftActive || isProductActive || isInventoryActive;
     }
 
@@ -145,4 +171,48 @@ public class PanelManager : MonoBehaviour
         CameraZoomController zoomController = Object.FindFirstObjectByType<CameraZoomController>();
         if (zoomController != null) zoomController.enabled = isEnable;
     }
+
+    ///// <summary>
+    ///// í˜„ì¬ ì¼œì ¸ ìˆëŠ” ìƒì‚°/ì œì‘ íŒ¨ë„ì˜ ì‹¤ì‹œê°„ ë°ì´í„°ë¥¼ íŒ¨ë„ì„ ë‹«ê¸° ì „ì— ì €ì¥.
+    ///// </summary>
+    //private void SaveActivePanelData()
+    //{
+    //    if (productionPanel != null && productionPanel.activeSelf && productionPanelUI != null)
+    //    {
+    //        var facility = productionPanelUI.TargetFacility;
+    //        if (facility != null && facility.buildingData != null && PlantSystem.Instance != null)
+    //        {
+    //            var br = facility.GetComponent<BuildingRuntime>();
+    //            string uniqueId = br != null ? $"{facility.buildingData.buildingName}_{br.gridX}_{br.gridZ}" : facility.buildingData.buildingId;
+
+    //            var data = PlantSystem.Instance.GetFacilityData(uniqueId);
+    //            data.isActive = facility.isProducing;
+    //            data.currentCraftingItemId = facility.craftingItem != null ? facility.craftingItem.Item_ID : "";
+    //            data.currentProgressTime = facility.currentProgressTime;
+    //            data.currentStorageCount = facility.currentStorageCount;
+
+    //            PlantSystem.Instance.UpdateFacilityData(uniqueId, data);
+    //        }
+    //    }
+
+    //    if (craftingPanel != null && craftingPanel.activeSelf && craftingPanelUI != null)
+    //    {
+    //        var craft = craftingPanelUI.TargetFacility;
+    //        if (craft != null && craft.buildingData != null && PlantSystem.Instance != null)
+    //        {
+    //            var br = craft.GetComponent<BuildingRuntime>();
+    //            string uniqueId = br != null ? $"{craft.buildingData.buildingName}_{br.gridX}_{br.gridZ}" : craft.buildingData.buildingId;
+
+    //            var data = PlantSystem.Instance.GetFacilityData(uniqueId);
+    //            data.isActive = craft.isProducing;
+    //            data.currentCraftingItemId = craft.currentCraftingItem != null ? craft.currentCraftingItem.Item_ID : "";
+    //            data.targetQuantity = craft.targetQuantity;
+    //            data.remainingQuantity = craft.remainingQuantity;
+    //            data.currentProgressTime = craft.currentProgressTime;
+    //            data.currentStorageCount = craft.currentStorageCount;
+
+    //            PlantSystem.Instance.UpdateFacilityData(uniqueId, data);
+    //        }
+    //    }
+    //}
 }

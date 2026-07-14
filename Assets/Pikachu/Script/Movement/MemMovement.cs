@@ -25,10 +25,10 @@ namespace MemSystem.Movement
 
         [Header("이동 속도 설정")]
         [Tooltip("배회 시 이동 속도")]
-        [SerializeField] private float walkSpeed = 2.0f;
+        [SerializeField] private float walkSpeed = 1.0f;
 
         [Tooltip("추적/도주 시 이동 속도 (배회보다 빠름)")]
-        [SerializeField] private float runSpeed = 4.5f;
+        [SerializeField] private float runSpeed = 2.5f;
 
         [Header("배회 설정")]
         [Tooltip("배회 시 현재 위치를 기준으로 목적지를 찾을 반경")]
@@ -57,6 +57,9 @@ namespace MemSystem.Movement
         private MovementMode currentMode = MovementMode.None;
 
         public float FleeDistance => fleeDistance;
+
+        /// <summary>NavMeshAgent의 현재 실제 이동 속도 (m/s). 애니메이션 동기화에 사용합니다.</summary>
+        public float CurrentSpeed => agent != null && agent.isOnNavMesh ? agent.velocity.magnitude : 0f;
 
         // =================================================================
         // Unity Lifecycle
@@ -99,11 +102,25 @@ namespace MemSystem.Movement
         /// </summary>
         public void Stop()
         {
+            if (agent == null || !agent.isOnNavMesh) return;
+
             currentMode = MovementMode.None;
-            if (agent.isOnNavMesh)
+            agent.isStopped = true;
+            agent.ResetPath(); // 진행 중인 경로 초기화
+        }
+
+        /// <summary>
+        /// 지정된 위치로 NavMeshAgent를 즉시 이동시킵니다. (스폰/풀링 재사용 시 안전)
+        /// </summary>
+        public void Warp(Vector3 position)
+        {
+            if (agent != null && agent.isActiveAndEnabled)
             {
-                agent.isStopped = true;
-                agent.ResetPath();
+                agent.Warp(position);
+            }
+            else
+            {
+                transform.position = position;
             }
         }
 
@@ -112,6 +129,8 @@ namespace MemSystem.Movement
         /// </summary>
         public void Wander()
         {
+            if (agent == null || !agent.isOnNavMesh) return;
+
             currentMode = MovementMode.Wander;
             agent.speed = walkSpeed;
             agent.isStopped = false;
@@ -137,7 +156,15 @@ namespace MemSystem.Movement
         /// <param name="target">추적할 대상 (주로 플레이어)</param>
         public void ChaseTo(Transform target)
         {
-            if (target == null) return;
+            if (target == null || agent == null || !agent.isOnNavMesh) return;
+
+            if (currentMode == MovementMode.Chase && chaseTarget == target)
+            {
+                // 이미 추적 중이라면 상태만 확인하고 리턴
+                if (agent.isStopped) agent.isStopped = false;
+                if (agent.speed != runSpeed) agent.speed = runSpeed;
+                return;
+            }
 
             currentMode = MovementMode.Chase;
             chaseTarget = target;
@@ -154,6 +181,11 @@ namespace MemSystem.Movement
         /// <param name="sourcePos">위협의 위치 (주로 플레이어 위치)</param>
         public void FleeFrom(Vector3 sourcePos)
         {
+            if (agent == null || !agent.isOnNavMesh) return;
+
+            // 이미 같은 위치를 기준으로 도주 중이면 무시
+            if (currentMode == MovementMode.Flee && fleeSourcePosition == sourcePos) return;
+
             currentMode = MovementMode.Flee;
             fleeSourcePosition = sourcePos;
             agent.speed = runSpeed;
@@ -181,6 +213,8 @@ namespace MemSystem.Movement
         /// </summary>
         public bool HasReachedDestination()
         {
+            if (agent == null || !agent.isOnNavMesh) return false;
+
             if (!agent.pathPending)
             {
                 if (agent.remainingDistance <= agent.stoppingDistance)
@@ -205,7 +239,16 @@ namespace MemSystem.Movement
             pathUpdateTimer -= Time.deltaTime;
             if (pathUpdateTimer <= 0f || forceUpdate)
             {
-                agent.SetDestination(chaseTarget.position);
+                // 플레이어의 좌표가 내비메쉬와 정확히 일치하지 않을 수 있으므로(Pivot 위치 등) 유효한 좌표를 탐색하여 이동
+                if (NavMesh.SamplePosition(chaseTarget.position, out NavMeshHit hit, 10f, NavMesh.AllAreas))
+                {
+                    agent.SetDestination(hit.position);
+                }
+                else
+                {
+                    // 탐색 실패 시 일단 원래 좌표 쑤셔넣기 시도
+                    agent.SetDestination(chaseTarget.position);
+                }
                 ResetPathUpdateTimer();
             }
         }

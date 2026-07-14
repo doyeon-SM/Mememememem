@@ -293,31 +293,26 @@ namespace HDY.UI
 
             Debug.Log($"[MemStorageUI] 배치 해제 요청 수신: MemId={entry.MemId}");
 
-            ProductionFacilityRuntime ownerFacility = null;
-            var facilities = UnityEngine.Object.FindObjectsByType<ProductionFacilityRuntime>(FindObjectsSortMode.None);
+            // 바꾼 코드: 시설이늘어나도 BuildingRuntime에서 각각의 Runtime으로 보내 배치제거처리를 시도
+            // 성공하면 isClearedFromFacility = true처리하는데 만약 시설에 문제가있어 배치제거처리가 안되어도 IsActive는 안전하게 false처리하기
+            bool isClearedFromFacility = false;
+            var allBuildings = FindObjectsByType<BuildingRuntime>(FindObjectsSortMode.None);
 
-            foreach (var facility in facilities)
+            foreach (var building in allBuildings)
             {
-                if (facility.DeployedMemEntries.Contains(entry))
+                if (building == null) continue;
+
+                if (building.TryReleaseDeployedMem(entry, data))
                 {
-                    ownerFacility = facility;
+                    isClearedFromFacility = true;
                     break;
                 }
             }
 
-            if (ownerFacility != null)
+            // 방어 코드: 어느 시설에도 등록되어 있지 않은데 IsActive만 true인 비정상 상태라면,
+            // 창고 UI가 계속 활성 표시로 막혀있지 않도록 여기서라도 직접 되돌린다.
+            if (!isClearedFromFacility)
             {
-                int index = ownerFacility.DeployedMemEntries.IndexOf(entry);
-                MemData matchedMemData = (index >= 0 && index < ownerFacility.DeployedMems.Count) ? ownerFacility.DeployedMems[index] : data;
-
-                ownerFacility.RemoveMem(matchedMemData);
-                Debug.Log($"[MemStorageUI] 배치 해제 완료: MemId={entry.MemId}, 시설={ownerFacility.name}");
-            }
-            else
-            {
-                // 방어 코드: 어느 시설에도 등록되어 있지 않은데 IsActive만 true인 비정상 상태라면,
-                // 창고 UI가 계속 활성 표시로 막혀있지 않도록 여기서라도 직접 되돌린다.
-                Debug.LogWarning($"[MemStorageUI] 배치 해제 대상을 가진 시설을 찾지 못했습니다. IsActive만 직접 되돌립니다: MemId={entry.MemId}", this);
                 entry.IsActive = false;
             }
 
@@ -326,6 +321,7 @@ namespace HDY.UI
                 grid.NotifyDataChanged(captureManager.CapturedMems, FindMemData, BuildStatDisplayProvider(), captureManager.UnlockedPageCount);
             }
         }
+
 
         /// <summary>
         /// 정렬 버튼 클릭 요청을 받아 실제 정렬(카탈로그 조회 + 비교, MemSortHelper 재사용)을 수행하고,

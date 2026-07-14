@@ -40,6 +40,7 @@ public class ProductionPanelUI : MonoBehaviour
     //[SerializeField] private Sprite farmingStatIcon;
 
     // 현재 UI 창이 조준하고 있는 타겟 시설 스크립트 캐싱
+    public ProductionFacilityRuntime TargetFacility => targetFacility;
     private ProductionFacilityRuntime targetFacility;
 
     private void Awake()
@@ -62,25 +63,26 @@ public class ProductionPanelUI : MonoBehaviour
     {
         if (targetFacility == null) return;
 
-        if (targetFacility.isProducing && targetFacility.totalRequiredTime > 0f)
+        if (targetFacility.craftingItem != null && targetFacility.totalRequiredTime > 0f)
         {
             float progressNormalized = targetFacility.currentProgressTime / targetFacility.totalRequiredTime;
             if (progressBar != null) progressBar.value = progressNormalized;
-
             if (durationText != null) durationText.text = $"{Mathf.Clamp(progressNormalized * 100f, 0f, 100f):F0}%";
-            if (productionSpeed != null) productionSpeed.text = $"생산속도: {targetFacility.totalRequiredTime:F1}초(개당)";
+
+            if (targetFacility.isProducing)
+            {
+                if (productionSpeed != null) productionSpeed.text = $"생산속도: {targetFacility.totalRequiredTime:F1}초(개당)";
+            }
+            else
+            {
+                if (productionSpeed != null) productionSpeed.text = "<color=red>생산 중지 (식량 부족)</color>";
+            }
         }
         else
         {
             if (progressBar != null) progressBar.value = 0f;
             if (durationText != null) durationText.text = "0%";
-
-            if (productionSpeed != null)
-            {
-                productionSpeed.text = (targetFacility.craftingItem != null)
-                    ? $"생산속도: {targetFacility.baseProductionTime:F1}초(개당)"
-                    : "생산속도: - 초(개당)";
-            }
+            if (productionSpeed != null) productionSpeed.text = "생산속도: - 초(개당)";
         }
 
         UpdateStorageText();

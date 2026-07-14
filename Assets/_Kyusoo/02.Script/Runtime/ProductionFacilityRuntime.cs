@@ -70,23 +70,31 @@ public class ProductionFacilityRuntime : MonoBehaviour
             return;
         }
 
-        if (isProducing && totalRequiredTime > 0f)
+        if (currentProgressTime > 0f && totalRequiredTime > 0f)
         {
             float currentProgressPercent = currentProgressTime / totalRequiredTime;
-
             totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseProductionTime, addMems);
-
             currentProgressTime = totalRequiredTime * currentProgressPercent;
 
-            Debug.Log($"멤 배치 변동. 새 소요시간: {totalRequiredTime}초");
+            if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
+            {
+                isProducing = true;
+            }
         }
         else
         {
-            currentProgressTime = 0f;
             totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseProductionTime, addMems);
-            isProducing = true;
 
-            Debug.Log($"{craftingItem.ItemName} 제작 시작. 최종 소요시간: {totalRequiredTime}초");
+            if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
+            {
+                isProducing = true;
+                currentProgressTime = 0f;
+            }
+            else
+            {
+                isProducing = false;
+                currentProgressTime = 0f;
+            }
         }
     }
 
@@ -125,6 +133,9 @@ public class ProductionFacilityRuntime : MonoBehaviour
         Debug.Log($"[생산] {targetMem.memName} 배치 성공!");
 
         CheckProductionCondition();
+
+        if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
+
         return true;
     }
 
@@ -146,6 +157,8 @@ public class ProductionFacilityRuntime : MonoBehaviour
             Debug.Log($"[생산 해제] {targetMem.memName} 시설에서 제외 완료.");
 
             CheckProductionCondition();
+
+            if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
         }
     }
 

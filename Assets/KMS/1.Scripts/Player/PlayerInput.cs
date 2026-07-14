@@ -15,12 +15,12 @@ namespace KMS
 
         [Header("Interaction")]
         [SerializeField] private Key interactKey = Key.F;
-        [SerializeField] private bool primaryActionTriggersInteraction = true;
 
         public Vector2 Move { get; private set; }
         public Vector2 Look { get; private set; }
         public bool IsSprinting { get; private set; }
         public bool IsAiming { get; private set; }
+        public bool IsCursorReleased { get; private set; }
 
         public event Action<Vector2> MoveChanged;
         public event Action<Vector2> LookChanged;
@@ -53,6 +53,7 @@ namespace KMS
             SetLook(Vector2.zero);
             SetSprint(false);
             IsAiming = false;
+            IsCursorReleased = false;
             quickSlotScrollAmount = 0f;
         }
 
@@ -69,7 +70,7 @@ namespace KMS
 
         private void UpdateMove(Keyboard keyboard, Gamepad gamepad)
         {
-            if (isGameplayInputBlocked)
+            if (isGameplayInputBlocked || IsCursorReleased)
             {
                 SetMove(Vector2.zero);
                 return;
@@ -99,7 +100,7 @@ namespace KMS
 
         private void UpdateLook(Mouse mouse, Gamepad gamepad)
         {
-            if (isGameplayInputBlocked)
+            if (isGameplayInputBlocked || IsCursorReleased)
             {
                 SetLook(Vector2.zero);
                 return;
@@ -122,9 +123,14 @@ namespace KMS
 
         private void UpdateButtons(Keyboard keyboard, Mouse mouse, Gamepad gamepad)
         {
+            if (!isGameplayInputBlocked && keyboard != null && keyboard.leftAltKey.wasPressedThisFrame)
+            {
+                IsCursorReleased = !IsCursorReleased;
+            }
+
             UpdateInventoryButtons(keyboard, mouse);
 
-            if (isGameplayInputBlocked)
+            if (isGameplayInputBlocked || IsCursorReleased)
             {
                 SetSprint(false);
                 IsAiming = false;
@@ -141,10 +147,6 @@ namespace KMS
             if (WasPressed(mouse?.leftButton, gamepad?.rightTrigger))
             {
                 PrimaryActionPressed?.Invoke();
-                if (primaryActionTriggersInteraction)
-                {
-                    InteractPressed?.Invoke();
-                }
             }
 
             if (WasReleased(mouse?.leftButton, gamepad?.rightTrigger))
@@ -202,6 +204,11 @@ namespace KMS
             quickSlotScrollAmount = 0f;
         }
 
+        public void SetCursorReleased(bool isReleased)
+        {
+            IsCursorReleased = isReleased;
+        }
+
         private void SetMove(Vector2 move)
         {
             if (Move == move) return;
@@ -226,7 +233,7 @@ namespace KMS
         {
             if (keyboard != null)
             {
-                if (keyboard.iKey.wasPressedThisFrame || keyboard.tabKey.wasPressedThisFrame)
+                if (keyboard.iKey.wasPressedThisFrame || keyboard.eKey.wasPressedThisFrame)
                 {
                     InventoryPressed?.Invoke();
                 }

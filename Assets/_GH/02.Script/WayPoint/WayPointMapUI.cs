@@ -2,10 +2,16 @@
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
+using UnityEngine.Serialization;
 using UnityEngine.UI;
 
+/// <summary>
+/// 지도 선택 버튼, 웨이포인트 아이콘, 툴팁과 이동 요청을 관리하는 지도 UI입니다.
+/// 실제 해금 및 이동 가능 여부는 <see cref="WayPointManager"/>에 위임합니다.
+/// </summary>
 public class WayPointMapUI : MonoBehaviour
 {
+    /// <summary>현재 씬의 지도 UI 인스턴스입니다.</summary>
     public static WayPointMapUI Instance { get; private set; }
 
     [Header("Map")]
@@ -34,19 +40,27 @@ public class WayPointMapUI : MonoBehaviour
 
     [Header("Tooltip")]
     [SerializeField] private RectTransform tooltipRoot;
-    [SerializeField] private TMP_Text tooltipText;
+    [FormerlySerializedAs("tooltipText")]
+    [SerializeField] private TMP_Text tooltipTitleText;
+    [SerializeField] private TMP_Text tooltipDescriptionText;
     [SerializeField] private TMP_FontAsset tooltipFont;
-    [SerializeField] private Vector2 tooltipOffset = new Vector2(18f, -18f);
+    [SerializeField] private float tooltipHorizontalGap = 18f;
+    [SerializeField] private float tooltipViewportPadding = 8f;
     [SerializeField] private Vector2 tooltipSize = new Vector2(240f, 90f);
     [SerializeField] private Color tooltipBackgroundColor = new Color(0f, 0f, 0f, 0.82f);
     [SerializeField] private Color canTravelColor = new Color(0.45f, 1f, 0.55f, 1f);
     [SerializeField] private Color cannotTravelColor = new Color(1f, 0.45f, 0.45f, 1f);
 
     [Header("Tooltip Text")]
+    [TextArea]
     [SerializeField] private string previewOnlyStatusText = "보기 모드: 웨이포인트 스톤에서만 이동 가능";
+    [TextArea]
     [SerializeField] private string lockedWayPointStatusText = "이동 불가: 미해금 웨이포인트";
+    [TextArea]
     [SerializeField] private string missingStoneStatusText = "이동 불가: 목적지 Stone 없음";
+    [TextArea]
     [SerializeField] private string lockedMapStatusText = "이동 불가: 잠긴 맵";
+    [TextArea]
     [SerializeField] private string canTravelStatusText = "이동 가능";
 
     private readonly Dictionary<string, WayPointMapIconUI> iconsById = new Dictionary<string, WayPointMapIconUI>();
@@ -60,8 +74,13 @@ public class WayPointMapUI : MonoBehaviour
     private bool cachedCanvasOriginalOverrideSorting;
     private int cachedCanvasOriginalSortingOrder;
 
+    /// <summary>현재 지도를 열 때 적용된 보기 전용 또는 이동 모드입니다.</summary>
     public WayPointMapOpenMode CurrentOpenMode => currentOpenMode;
+
+    /// <summary>현재 화면에 표시 중인 지도 정의입니다.</summary>
     public WayPointMapDefinition CurrentMap => currentMap;
+
+    /// <summary>지도 UI가 현재 계층에서 실제로 표시되는지 나타냅니다.</summary>
     public bool IsVisible => mapImage != null ? mapImage.gameObject.activeInHierarchy : gameObject.activeInHierarchy;
 
     private void Awake()
@@ -121,6 +140,9 @@ public class WayPointMapUI : MonoBehaviour
     }
 
     // UI가 열릴 때 보기 전용인지 이동 가능 모드인지 설정한다.
+    /// <summary>다음 UI 열기에 사용할 모드와 초기 지도를 준비하고 화면을 갱신합니다.</summary>
+    /// <param name="openMode">보기 전용 또는 웨이포인트 이동 모드입니다.</param>
+    /// <param name="mapOverride">null이 아니면 처음 표시할 지도입니다.</param>
     public void PrepareOpen(WayPointMapOpenMode openMode, WayPointMapDefinition mapOverride = null)
     {
         BringCanvasToFront();
@@ -131,6 +153,8 @@ public class WayPointMapUI : MonoBehaviour
     }
 
     // Stone에서 직접 지도 이동 모드를 열고 싶을 때 호출한다.
+    /// <summary>상호작용한 스톤의 지도를 이동 모드로 엽니다.</summary>
+    /// <param name="sourceWayPoint">지도를 연 출발 웨이포인트입니다.</param>
     public void OpenFromStone(WayPointDefinition sourceWayPoint)
     {
         WayPointMapDefinition targetMap = sourceWayPoint != null ? sourceWayPoint.mapDefinition : null;
@@ -149,17 +173,17 @@ public class WayPointMapUI : MonoBehaviour
     }
 
     // 현재 모드에서 이 웨이포인트를 클릭 이동할 수 있는지 확인한다.
+    /// <summary>현재 UI 모드와 웨이포인트 상태를 기준으로 아이콘 클릭 이동 가능 여부를 확인합니다.</summary>
     public bool CanTravelByClick(WayPointRunTime state)
     {
         return currentOpenMode == WayPointMapOpenMode.Travel
             && state != null
-            && state.IsActive
-            && state.Stone != null
             && WayPointManager.Instance != null
-            && WayPointManager.Instance.IsMapAvailable(state.Definition.mapDefinition);
+            && WayPointManager.Instance.CanTravel(state.Id);
     }
 
     // 스테이지 버튼을 눌렀을 때 해당 맵으로 지도 배경과 아이콘을 바꾼다.
+    /// <summary>사용 가능한 지도라면 지도 배경과 아이콘을 해당 스테이지로 전환합니다.</summary>
     public void SelectMap(WayPointMapDefinition mapDefinition)
     {
         if (mapDefinition == null || WayPointManager.Instance == null)
@@ -178,6 +202,7 @@ public class WayPointMapUI : MonoBehaviour
     }
 
     // 아이콘 클릭 시 이동 모드일 때만 순간이동을 시도한다.
+    /// <summary>아이콘에서 전달받은 웨이포인트 ID로 이동을 요청하고 성공 시 지도를 닫습니다.</summary>
     public void TravelTo(string id)
     {
         if (currentOpenMode != WayPointMapOpenMode.Travel || WayPointManager.Instance == null)
@@ -204,7 +229,8 @@ public class WayPointMapUI : MonoBehaviour
     }
 
     // 아이콘 위에 마우스를 올렸을 때 툴팁을 표시한다.
-    public void ShowTooltip(WayPointRunTime state, Vector2 screenPosition)
+    /// <summary>지정 웨이포인트 아이콘 옆에 상태 툴팁을 표시합니다.</summary>
+    public void ShowTooltip(WayPointRunTime state, RectTransform iconRectTransform)
     {
         if (state == null || state.Definition == null)
         {
@@ -212,7 +238,7 @@ public class WayPointMapUI : MonoBehaviour
         }
 
         EnsureTooltip();
-        if (tooltipRoot == null || tooltipText == null)
+        if (tooltipRoot == null || tooltipTitleText == null || tooltipDescriptionText == null)
         {
             return;
         }
@@ -221,13 +247,14 @@ public class WayPointMapUI : MonoBehaviour
         tooltipRoot.gameObject.SetActive(true);
         tooltipRoot.SetAsLastSibling();
         RefreshTooltipText(state);
-        MoveTooltip(screenPosition);
+        MoveTooltip(iconRectTransform);
     }
 
-    // 마우스 위치를 따라 툴팁 위치를 갱신한다.
-    public void MoveTooltip(Vector2 screenPosition)
+    // 아이콘 위치를 기준으로 좌/우 중 더 여유 있는 쪽에 툴팁을 고정한다.
+    /// <summary>현재 툴팁을 지정 아이콘 위치에 맞춰 재배치합니다.</summary>
+    public void MoveTooltip(RectTransform iconRectTransform)
     {
-        if (tooltipRoot == null || !tooltipRoot.gameObject.activeSelf)
+        if (tooltipRoot == null || !tooltipRoot.gameObject.activeSelf || iconRectTransform == null)
         {
             return;
         }
@@ -238,20 +265,76 @@ public class WayPointMapUI : MonoBehaviour
             return;
         }
 
-        Camera eventCamera = null;
+        Camera eventCamera = GetCanvasEventCamera();
+        Vector2 iconScreenPosition = RectTransformUtility.WorldToScreenPoint(eventCamera, iconRectTransform.position);
+
+        if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(parent, iconScreenPosition, eventCamera, out Vector2 iconLocalPosition))
+        {
+            return;
+        }
+
+        tooltipRoot.SetAsLastSibling();
+
+        Rect parentRect = parent.rect;
+        Vector2 tooltipHalfSize = GetTooltipSize() * 0.5f;
+        float iconHalfWidth = GetWidthInParentSpace(iconRectTransform, parent) * 0.5f;
+        float parentCenterX = parentRect.center.x;
+        float side = iconLocalPosition.x >= parentCenterX ? -1f : 1f;
+
+        Vector2 anchoredPosition = iconLocalPosition;
+        anchoredPosition.x += side * (iconHalfWidth + tooltipHorizontalGap + tooltipHalfSize.x);
+        anchoredPosition.x = Mathf.Clamp(
+            anchoredPosition.x,
+            parentRect.xMin + tooltipViewportPadding + tooltipHalfSize.x,
+            parentRect.xMax - tooltipViewportPadding - tooltipHalfSize.x);
+        anchoredPosition.y = Mathf.Clamp(
+            anchoredPosition.y,
+            parentRect.yMin + tooltipViewportPadding + tooltipHalfSize.y,
+            parentRect.yMax - tooltipViewportPadding - tooltipHalfSize.y);
+
+        tooltipRoot.anchoredPosition = anchoredPosition;
+    }
+
+    private Camera GetCanvasEventCamera()
+    {
         Canvas canvas = GetComponentInParent<Canvas>();
         if (canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay)
         {
-            eventCamera = canvas.worldCamera;
+            return canvas.worldCamera;
         }
 
-        if (RectTransformUtility.ScreenPointToLocalPointInRectangle(parent, screenPosition, eventCamera, out Vector2 localPoint))
+        return null;
+    }
+
+    private Vector2 GetTooltipSize()
+    {
+        if (tooltipRoot == null)
         {
-            tooltipRoot.anchoredPosition = localPoint + tooltipOffset;
+            return tooltipSize;
         }
+
+        Vector2 size = tooltipRoot.rect.size;
+        if (size.x <= 0f || size.y <= 0f)
+        {
+            return tooltipSize;
+        }
+
+        return size;
+    }
+
+    private float GetWidthInParentSpace(RectTransform source, RectTransform parent)
+    {
+        if (source == null || parent == null)
+        {
+            return generatedIconSize.x;
+        }
+
+        float parentScale = Mathf.Max(0.0001f, parent.lossyScale.x);
+        return source.rect.width * source.lossyScale.x / parentScale;
     }
 
     // 마우스가 아이콘에서 벗어나면 툴팁을 숨긴다.
+    /// <summary>현재 표시 중인 웨이포인트 툴팁을 숨깁니다.</summary>
     public void HideTooltip()
     {
         currentTooltipState = null;
@@ -632,8 +715,9 @@ public class WayPointMapUI : MonoBehaviour
     // 툴팁 오브젝트가 없으면 기본 툴팁 UI를 자동 생성한다.
     private void EnsureTooltip()
     {
-        if (tooltipRoot != null && tooltipText != null)
+        if (tooltipRoot != null && tooltipTitleText != null && tooltipDescriptionText != null)
         {
+            ConfigureTooltipRect();
             ApplyTooltipFont();
             tooltipRoot.gameObject.SetActive(false);
             return;
@@ -651,10 +735,7 @@ public class WayPointMapUI : MonoBehaviour
             tooltipObject.transform.SetParent(parent, false);
 
             tooltipRoot = tooltipObject.transform as RectTransform;
-            tooltipRoot.sizeDelta = tooltipSize;
-            tooltipRoot.anchorMin = new Vector2(0.5f, 0.5f);
-            tooltipRoot.anchorMax = new Vector2(0.5f, 0.5f);
-            tooltipRoot.pivot = new Vector2(0f, 1f);
+            ConfigureTooltipRect();
 
             Image background = tooltipObject.GetComponent<Image>();
             background.color = tooltipBackgroundColor;
@@ -665,55 +746,90 @@ public class WayPointMapUI : MonoBehaviour
             canvasGroup.interactable = false;
         }
 
-        if (tooltipText == null)
+        if (tooltipTitleText == null)
         {
-            GameObject textObject = new GameObject("Text", typeof(RectTransform), typeof(TextMeshProUGUI));
-            textObject.transform.SetParent(tooltipRoot, false);
+            tooltipTitleText = CreateTooltipText("TitleText", new Vector2(12f, Mathf.Max(8f, tooltipSize.y - 34f)), new Vector2(-12f, -8f), 20f, FontStyles.Bold);
+        }
 
-            RectTransform textRect = textObject.transform as RectTransform;
-            textRect.anchorMin = Vector2.zero;
-            textRect.anchorMax = Vector2.one;
-            textRect.offsetMin = new Vector2(12f, 8f);
-            textRect.offsetMax = new Vector2(-12f, -8f);
-
-            tooltipText = textObject.GetComponent<TMP_Text>();
-            tooltipText.fontSize = 18f;
-            tooltipText.enableAutoSizing = true;
-            tooltipText.fontSizeMin = 12f;
-            tooltipText.fontSizeMax = 18f;
-            tooltipText.alignment = TextAlignmentOptions.MidlineLeft;
-            tooltipText.raycastTarget = false;
+        if (tooltipDescriptionText == null)
+        {
+            tooltipDescriptionText = CreateTooltipText("DescriptionText", new Vector2(12f, 8f), new Vector2(-12f, -36f), 16f, FontStyles.Normal);
         }
 
         ApplyTooltipFont();
         tooltipRoot.gameObject.SetActive(false);
     }
 
-    // 인스펙터에 지정한 TMP 폰트를 툴팁 텍스트에 적용한다.
-    private void ApplyTooltipFont()
+    private void ConfigureTooltipRect()
     {
-        if (tooltipText == null || tooltipFont == null)
+        if (tooltipRoot == null)
         {
             return;
         }
 
-        tooltipText.font = tooltipFont;
+        tooltipRoot.sizeDelta = tooltipSize;
+        tooltipRoot.anchorMin = new Vector2(0.5f, 0.5f);
+        tooltipRoot.anchorMax = new Vector2(0.5f, 0.5f);
+        tooltipRoot.pivot = new Vector2(0.5f, 0.5f);
+    }
+
+    private TMP_Text CreateTooltipText(string objectName, Vector2 offsetMin, Vector2 offsetMax, float fontSize, FontStyles fontStyle)
+    {
+        GameObject textObject = new GameObject(objectName, typeof(RectTransform), typeof(TextMeshProUGUI));
+        textObject.transform.SetParent(tooltipRoot, false);
+
+        RectTransform textRect = textObject.transform as RectTransform;
+        textRect.anchorMin = Vector2.zero;
+        textRect.anchorMax = Vector2.one;
+        textRect.offsetMin = offsetMin;
+        textRect.offsetMax = offsetMax;
+
+        TMP_Text text = textObject.GetComponent<TMP_Text>();
+        text.fontSize = fontSize;
+        text.enableAutoSizing = true;
+        text.fontSizeMin = 10f;
+        text.fontSizeMax = fontSize;
+        text.fontStyle = fontStyle;
+        text.alignment = TextAlignmentOptions.MidlineLeft;
+        text.raycastTarget = false;
+
+        return text;
+    }
+
+    // 인스펙터에 지정한 TMP 폰트를 툴팁 텍스트에 적용한다.
+    private void ApplyTooltipFont()
+    {
+        if (tooltipFont == null)
+        {
+            return;
+        }
+
+        if (tooltipTitleText != null)
+        {
+            tooltipTitleText.font = tooltipFont;
+        }
+
+        if (tooltipDescriptionText != null)
+        {
+            tooltipDescriptionText.font = tooltipFont;
+        }
     }
 
     // 웨이포인트 이름, 설명, 현재 이동 가능 여부를 툴팁 텍스트에 반영한다.
     private void RefreshTooltipText(WayPointRunTime state)
     {
-        if (tooltipText == null || state == null || state.Definition == null)
+        if (tooltipTitleText == null || tooltipDescriptionText == null || state == null || state.Definition == null)
         {
             return;
         }
 
         string displayName = string.IsNullOrWhiteSpace(state.DisplayName) ? state.Id : state.DisplayName;
-        string description = string.IsNullOrWhiteSpace(state.Definition.tooltipDescription) ? string.Empty : $"\n{state.Definition.tooltipDescription}";
+        string description = string.IsNullOrWhiteSpace(state.Definition.tooltipDescription) ? string.Empty : $"{state.Definition.tooltipDescription}\n";
         string statusText = GetTravelStatusText(state, out Color statusColor);
         string statusHex = ColorUtility.ToHtmlStringRGBA(statusColor);
 
-        tooltipText.text = $"{displayName}{description}\n<color=#{statusHex}>{statusText}</color>";
+        tooltipTitleText.text = displayName;
+        tooltipDescriptionText.text = $"{description}<color=#{statusHex}>{statusText}</color>";
     }
 
     // 현재 모드와 해금 상태를 기준으로 툴팁 상태 문구를 만든다.
@@ -731,7 +847,9 @@ public class WayPointMapUI : MonoBehaviour
             return lockedWayPointStatusText;
         }
 
-        if (state.Stone == null)
+        if (WayPointManager.Instance != null
+            && WayPointManager.Instance.IsWayPointInCurrentScene(state.Definition)
+            && state.Stone == null)
         {
             statusColor = cannotTravelColor;
             return missingStoneStatusText;

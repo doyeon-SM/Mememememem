@@ -76,15 +76,18 @@ namespace MemSystem.Core
         /// <param name="position">스폰 위치 (월드 좌표)</param>
         public void InitializeMem(Mem mem, MemData data, Vector3 position)
         {
-            // 위치 설정 + 랜덤 회전 (자연스러운 스폰)
+            // 1. 활성화 전 임시 위치 세팅 (초기 바인딩용)
             mem.transform.position = position;
             mem.transform.rotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
 
-            // 데이터 주입 + 초기화
-            mem.Initialize(data, tierTable);
-
-            // 활성화
+            // 2. 오브젝트 활성화 (비활성 상태에서 Animator 제어 불가)
             mem.gameObject.SetActive(true);
+
+            // 3. 활성화된 상태에서 안전하게 NavMeshAgent Warp 호출 (이전 경로/보간 찌꺼기 제거)
+            if (mem.Movement != null) mem.Movement.Warp(position);
+
+            // 데이터 주입 + 초기화 (AI 초기화 → PlayIdle 등 Animator 제어 포함)
+            mem.Initialize(data, tierTable);
 
             Debug.Log($"[MemFactory] {data.memName} 초기화 완료 — 위치: {position}");
         }

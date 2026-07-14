@@ -2,6 +2,9 @@
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
+/// <summary>
+/// 하나의 웨이포인트 런타임 상태를 지도 아이콘으로 표시하고 클릭 이동 및 툴팁 입력을 전달합니다.
+/// </summary>
 public class WayPointMapIconUI : MonoBehaviour, IPointerEnterHandler, IPointerMoveHandler, IPointerExitHandler
 {
     [SerializeField] private Image iconImage;
@@ -13,6 +16,7 @@ public class WayPointMapIconUI : MonoBehaviour, IPointerEnterHandler, IPointerMo
 
     public string Id => state != null ? state.Id : string.Empty;
     // 지도 UI가 아이콘을 만들 때 웨이포인트 상태와 소유 UI를 연결한다.
+    /// <summary>소유 지도 UI와 표시할 웨이포인트 상태를 연결합니다.</summary>
     public void Initialize(WayPointMapUI newOwner, WayPointRunTime newState)
     {
         owner = newOwner;
@@ -50,6 +54,7 @@ public class WayPointMapIconUI : MonoBehaviour, IPointerEnterHandler, IPointerMo
     }
 
     // ScriptableObject에 설정한 Map Position을 지도 이미지 기준 UI 좌표로 적용한다.
+    /// <summary>지도 정의에 저장된 좌표를 아이콘의 Anchored Position으로 적용합니다.</summary>
     public void SetMapPosition(Vector2 anchoredPosition)
     {
         RectTransform rectTransform = transform as RectTransform;
@@ -60,6 +65,7 @@ public class WayPointMapIconUI : MonoBehaviour, IPointerEnterHandler, IPointerMo
     }
 
     // 해금 상태에 따라 Unlock Map Icon 또는 Active Map Icon으로 이미지를 교체한다.
+    /// <summary>현재 해금 및 이동 상태에 맞춰 이미지와 버튼 상호작용 상태를 갱신합니다.</summary>
     public void Refresh()
     {
         if (state == null || state.Definition == null || iconImage == null)
@@ -129,7 +135,7 @@ public class WayPointMapIconUI : MonoBehaviour, IPointerEnterHandler, IPointerMo
             return;
         }
 
-        owner.ShowTooltip(state, eventData.position);
+        owner.ShowTooltip(state, transform as RectTransform);
     }
 
     // 마우스 이동에 맞춰 툴팁 위치를 갱신한다.
@@ -140,7 +146,7 @@ public class WayPointMapIconUI : MonoBehaviour, IPointerEnterHandler, IPointerMo
             return;
         }
 
-        owner.MoveTooltip(eventData.position);
+        owner.MoveTooltip(transform as RectTransform);
     }
 
     // 마우스가 아이콘에서 벗어나면 툴팁을 숨긴다.

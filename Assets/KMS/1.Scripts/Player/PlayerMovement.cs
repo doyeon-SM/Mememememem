@@ -59,6 +59,7 @@ namespace KMS
         [SerializeField] private float ladderInputThreshold = 0.1f;
 
         public bool IsMovementEnabled { get; set; } = true;
+        public Animator Animator => animator;
         public bool IsGrounded { get; private set; }
         public bool IsSprinting { get; private set; }
         public bool IsOnLadder => activeLadder != null;
@@ -287,7 +288,8 @@ namespace KMS
             if (activeLadder == null) return;
             if (!IsMovementEnabled)
             {
-                activeLadder = null;
+                // Keep the current ladder while UI such as the inventory temporarily blocks movement.
+                // activeLadder = null;
                 return;
             }
 

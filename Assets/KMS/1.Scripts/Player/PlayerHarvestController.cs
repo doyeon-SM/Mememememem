@@ -12,8 +12,10 @@ namespace KMS.Harvesting
     {
         [Header("References")]
         [SerializeField] private KMS.PlayerInput input;
+        [SerializeField] private KMS.PlayerMovement movement;
         [SerializeField] private KmsPlayerInventory inventory;
         [SerializeField] private Transform cameraTransform;
+        [SerializeField] private Animator animator;
 
         // [HDY 요청] 선택된 퀵슬롯(ItemStack)에는 itemId만 있으므로, 실제 ItemData(Category/Value/ObjectType 등)를
         // 조회하기 위한 참조.
@@ -24,6 +26,7 @@ namespace KMS.Harvesting
         [SerializeField] private LayerMask harvestLayer = ~0;
         [SerializeField] private float harvestDistance = 3f;
         [SerializeField] private float harvestCooldown = 0.35f;
+        [SerializeField] private float toolUseCooldown = 0.5f;
         [SerializeField] private int fallbackToolDamage = 1;
 
         [Header("Debug")]
@@ -33,10 +36,12 @@ namespace KMS.Harvesting
         [SerializeField] private bool logHitTarget = true;
 
         private float cooldownTimer;
+        private static readonly int SlashHash = Animator.StringToHash("Slash");
 
         private void Reset()
         {
             input = GetComponent<KMS.PlayerInput>();
+            movement = GetComponent<KMS.PlayerMovement>();
             inventory = GetComponent<KmsPlayerInventory>();
 
             if (Camera.main != null)
@@ -48,8 +53,10 @@ namespace KMS.Harvesting
         private void Awake()
         {
             if (input == null) input = GetComponent<KMS.PlayerInput>();
+            if (movement == null) movement = GetComponent<KMS.PlayerMovement>();
             if (inventory == null) inventory = GetComponent<KmsPlayerInventory>();
             if (cameraTransform == null && Camera.main != null) cameraTransform = Camera.main.transform;
+            if (movement != null && movement.Animator != null) animator = movement.Animator;
 
             catalogManager = ItemCatalogManager.Resolve(catalogManager);
         }
@@ -90,6 +97,12 @@ namespace KMS.Harvesting
             ItemData selectedItem = catalogManager != null ? catalogManager.FindItemData(selectedSlot.itemId) : null;
             if (selectedItem == null || selectedItem.Category != HdyItemCategory.Tool) return;
 
+            cooldownTimer = Mathf.Max(harvestCooldown, toolUseCooldown);
+            if (animator != null)
+            {
+                animator.SetTrigger(SlashHash);
+            }
+
             Ray ray = new Ray(cameraTransform.position, cameraTransform.forward);
 
             bool hasHit = Physics.Raycast(
@@ -128,8 +141,6 @@ namespace KMS.Harvesting
             if (damage <= 0) damage = fallbackToolDamage;
 
             damageable.TakeDamage(damage);
-            cooldownTimer = harvestCooldown;
-
             if (!damageable.IsDead) return;
 
             HarvestableResource resource = hit.collider.GetComponentInParent<HarvestableResource>();
@@ -144,8 +155,7 @@ namespace KMS.Harvesting
             if (hitObj.collider == null) return false;
             WorldObject harvestable = hitObj.collider.GetComponent<WorldObject>();
             if (harvestable == null) return false;
-            int damage = Mathf.Max(1, selectedItem.Value);
-            harvestable.ObjectInteract(selectedItem.ObjectType, inventory, damage);
+            harvestable.ObjectInteract(inventory, selectedItem);
             return true;
         }
     }

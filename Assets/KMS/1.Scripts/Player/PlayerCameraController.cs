@@ -8,6 +8,7 @@ namespace KMS
         [SerializeField] private PlayerInput input;
         [SerializeField] private Transform followTarget;
         [SerializeField] private Transform cameraTransform;
+        [SerializeField] private Camera targetCamera;
 
         [Header("Orbit")]
         [SerializeField] private Vector3 targetOffset;
@@ -19,6 +20,10 @@ namespace KMS
         [SerializeField] private float maxPitch = 70f;
         [SerializeField] private float positionSmoothTime = 0.04f;
 
+        [Header("Aim Zoom")]
+        [SerializeField, Min(0f)] private float aimFovReduction = 5f;
+        [SerializeField, Min(0.01f)] private float zoomSmoothTime = 0.2f;
+
         [Header("Collision")]
         [SerializeField] private bool avoidClipping = true;
         [SerializeField] private float collisionRadius = 0.2f;
@@ -27,7 +32,6 @@ namespace KMS
 
         [Header("Cursor")]
         [SerializeField] private bool lockCursorOnStart = true;
-        [SerializeField] private bool toggleCursorWithMenu = true;
 
         public float Yaw => yaw;
         public float Pitch => pitch;
@@ -36,6 +40,9 @@ namespace KMS
         private float pitch = 20f;
         private Vector3 cameraVelocity;
         private bool cursorLocked;
+        private float defaultFieldOfView;
+        private float targetFieldOfView;
+        private float fieldOfViewVelocity;
 
         private void Reset()
         {
@@ -49,6 +56,13 @@ namespace KMS
             if (input == null) input = GetComponent<PlayerInput>();
             if (followTarget == null) followTarget = transform;
             if (cameraTransform == null && Camera.main != null) cameraTransform = Camera.main.transform;
+            if (targetCamera == null && cameraTransform != null) targetCamera = cameraTransform.GetComponent<Camera>();
+
+            if (targetCamera != null)
+            {
+                defaultFieldOfView = targetCamera.fieldOfView;
+                targetFieldOfView = defaultFieldOfView;
+            }
 
             yaw = followTarget.eulerAngles.y;
         }
@@ -61,24 +75,26 @@ namespace KMS
             }
         }
 
-        private void OnEnable()
-        {
-            if (input != null)
-            {
-                input.MenuPressed += ToggleCursor;
-            }
-        }
-
-        private void OnDisable()
-        {
-            if (input != null)
-            {
-                input.MenuPressed -= ToggleCursor;
-            }
-        }
-
         private void LateUpdate()
         {
+            UpdateAimZoom();
+
+            if (input != null && !input.IsGameplayInputBlocked)
+            {
+                bool shouldLockCursor = !input.IsCursorReleased;
+                CursorLockMode expectedLockMode = shouldLockCursor
+                    ? CursorLockMode.Locked
+                    : CursorLockMode.None;
+                bool expectedVisible = !shouldLockCursor;
+
+                if (cursorLocked != shouldLockCursor ||
+                    Cursor.lockState != expectedLockMode ||
+                    Cursor.visible != expectedVisible)
+                {
+                    SetCursorLocked(shouldLockCursor);
+                }
+            }
+
             if (cameraTransform == null || followTarget == null) return;
 
             Vector2 look = input != null && cursorLocked ? input.Look : Vector2.zero;
@@ -107,10 +123,28 @@ namespace KMS
             Cursor.visible = !locked;
         }
 
-        private void ToggleCursor()
+        public void SetAimZoom(bool isAiming)
         {
-            if (!toggleCursorWithMenu) return;
-            SetCursorLocked(!cursorLocked);
+            if (targetCamera == null) return;
+            targetFieldOfView = isAiming
+                ? Mathf.Max(1f, defaultFieldOfView - aimFovReduction)
+                : defaultFieldOfView;
+        }
+
+        private void UpdateAimZoom()
+        {
+            if (targetCamera == null) return;
+            targetCamera.fieldOfView = Mathf.SmoothDamp(
+                targetCamera.fieldOfView,
+                targetFieldOfView,
+                ref fieldOfViewVelocity,
+                zoomSmoothTime);
+        }
+
+        private void OnDisable()
+        {
+            if (targetCamera != null) targetCamera.fieldOfView = defaultFieldOfView;
+            fieldOfViewVelocity = 0f;
         }
 
         private float GetCameraDistance(Vector3 pivot, Quaternion rotation)

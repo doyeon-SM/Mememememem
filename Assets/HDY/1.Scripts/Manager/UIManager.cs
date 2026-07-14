@@ -92,7 +92,14 @@ namespace HDY.UI
         {
             if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
             {
-                CloseCurrent();
+                if (PanelManager.Instance != null)
+                {
+                    PanelManager.Instance.CloseAllPanels();
+                }
+                else
+                {
+                    CloseCurrent();
+                }
             }
         }
 
@@ -103,8 +110,12 @@ namespace HDY.UI
             // 이미 열려있는 UI와 같은 버튼이면 아무 동작도 하지 않는다(기획 확정 사항).
             if (currentPrefabKey == prefab) return;
 
-            // 다른 UI가 열려있었다면(및 그 위에 업그레이드 팝업이 떠 있었다면) 먼저 닫는다.
             CloseCurrent();
+
+            if (PanelManager.Instance != null)
+            {
+                PanelManager.Instance.NotifyHUDPanelOpened();
+            }
 
             var instance = Instantiate(prefab, uiRoot);
             var instanceTransform = instance.transform;
@@ -135,6 +146,14 @@ namespace HDY.UI
             if (top != null) Destroy(top);
 
             currentPrefabKey = null;
+        }
+
+        /// <summary>
+        /// 현재 UIManager에 가동중이 프리팹 패널이 존재하는지 파악
+        /// </summary>
+        public bool HasActivePanel()
+        {
+            return openStack.Count > 0 && currentPrefabKey != null;
         }
     }
 }

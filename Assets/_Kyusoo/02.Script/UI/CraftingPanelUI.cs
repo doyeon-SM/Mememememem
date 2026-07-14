@@ -67,6 +67,7 @@ public class CraftingPanelUI : MonoBehaviour
     [SerializeField] private Button getBtn;
 
     private ProductionCraftRuntime targetFacility;
+    public ProductionCraftRuntime TargetFacility => targetFacility;
 
     private ItemData activeSelectedRecipe;
     private HDY.Recipe.RecipeData activeSelectedRecipeData;
@@ -103,11 +104,19 @@ public class CraftingPanelUI : MonoBehaviour
     {
         if (targetFacility == null) return;
 
-        if (currentUIState == CraftingUIState.Crafting && targetFacility.isProducing && targetFacility.totalRequiredTime > 0f)
+        if (currentUIState == CraftingUIState.Crafting && targetFacility.currentCraftingItem != null && targetFacility.totalRequiredTime > 0f)
         {
             float progressNormalized = targetFacility.currentProgressTime / targetFacility.totalRequiredTime;
             if (progressBar != null) progressBar.value = progressNormalized;
-            if (durationText != null) durationText.text = $"{Mathf.Clamp(progressNormalized * 100f, 0f, 100f):F0}%";
+
+            if (targetFacility.isProducing)
+            {
+                if (durationText != null) durationText.text = $"{Mathf.Clamp(progressNormalized * 100f, 0f, 100f):F0}%";
+            }
+            else
+            {
+                if (durationText != null) durationText.text = $"<color=red>중지 ({Mathf.Clamp(progressNormalized * 100f, 0f, 100f):F0}%)</color>";
+            }
         }
 
         bool canGet = (targetFacility.currentStorageCount > 0);
