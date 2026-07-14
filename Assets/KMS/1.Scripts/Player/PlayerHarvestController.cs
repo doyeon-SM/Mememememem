@@ -155,8 +155,7 @@ namespace KMS.Harvesting
             if (hitObj.collider == null) return false;
             WorldObject harvestable = hitObj.collider.GetComponent<WorldObject>();
             if (harvestable == null) return false;
-            int damage = Mathf.Max(1, selectedItem.Value);
-            harvestable.ObjectInteract(selectedItem.ObjectType, inventory, damage);
+            harvestable.ObjectInteract(inventory, selectedItem);
             return true;
         }
     }

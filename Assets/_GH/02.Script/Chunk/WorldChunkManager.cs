@@ -6,6 +6,10 @@ using UnityEditor;
 #endif
 
 [DisallowMultipleComponent]
+/// <summary>
+/// 플레이어의 현재 청크 좌표를 기준으로 주변 <see cref="WorldChunk"/> 루트의 활성 상태를 관리합니다.
+/// 청크 비활성화 중 자식 MonoBehaviour의 Update는 실행되지 않으므로 시간 기반 상태는 절대시간으로 복구해야 합니다.
+/// </summary>
 public class WorldChunkManager : MonoBehaviour
 {
     [Header("Ref")]
@@ -29,6 +33,7 @@ public class WorldChunkManager : MonoBehaviour
     private readonly List<WorldChunk> chunks = new List<WorldChunk>();
     private Vector2Int lastPlayerChunkCoord = new Vector2Int(int.MinValue, int.MinValue);
 
+    /// <summary>현재 플레이어 위치를 기준으로 계산한 청크 좌표입니다.</summary>
     public Vector2Int CurrentPlayerChunkCoord => GetChunkCoord(player != null ? player.position : Vector3.zero);
 
     private void Awake()
@@ -51,6 +56,7 @@ public class WorldChunkManager : MonoBehaviour
         RefreshActiveChunks(false);
     }
 
+    /// <summary>설정된 루트 아래의 모든 청크를 다시 수집하고 좌표별 조회 테이블을 구성합니다.</summary>
     public void CollectChunks()
     {
         chunks.Clear();
@@ -78,6 +84,8 @@ public class WorldChunkManager : MonoBehaviour
         }
     }
 
+    /// <summary>플레이어 주변 활성 범위를 즉시 다시 계산합니다.</summary>
+    /// <param name="force">참이면 플레이어 청크가 바뀌지 않았어도 모든 청크 상태를 다시 적용합니다.</param>
     public void RefreshActiveChunks(bool force)
     {
         if (player == null)
@@ -113,6 +121,7 @@ public class WorldChunkManager : MonoBehaviour
         }
     }
 
+    /// <summary>월드 좌표를 청크 좌표로 변환합니다.</summary>
     public Vector2Int GetChunkCoord(Vector3 worldPosition)
     {
         float size = Mathf.Max(0.01f, chunkSize);
@@ -122,6 +131,7 @@ public class WorldChunkManager : MonoBehaviour
         return new Vector2Int(x, z);
     }
 
+    /// <summary>대상 청크가 중심 청크의 설정된 활성 반경 안에 있는지 확인합니다.</summary>
     public bool IsWithinActiveRange(Vector2Int centerCoord, Vector2Int targetCoord)
     {
         int distanceX = Mathf.Abs(targetCoord.x - centerCoord.x);

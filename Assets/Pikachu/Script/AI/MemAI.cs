@@ -3,7 +3,7 @@
 // FSM(유한 상태 머신) 메인 컨트롤러
 //
 // [담당자 안내]
-// - 멤의 AI 행동을 5개 상태(Idle/Wander/Combat/Flee/Captured)로 관리합니다.
+// - 멘의 AI 행동을 7개 상태(Idle/Wander/Combat/Flee/Captured/Hungry/Happy)로 관리합니다.
 // - 성격(Personality)에 따라 피격 시 반응이 다릅니다:
 //   · 온순(Docile): 피격 → 무조건 Flee
 //   · 평범(Normal): 피격 → Combat, HP 30% 이하 → Flee
@@ -82,6 +82,12 @@ namespace MemSystem.AI
         /// <summary>포획 상태</summary>
         public CapturedState CapturedState { get; private set; }
 
+        /// <summary>허기 고갈 상태</summary>
+        public HungryState HungryState { get; private set; }
+
+        /// <summary>행복 상태</summary>
+        public HappyState HappyState { get; private set; }
+
         // =================================================================
         // 현재 상태
         // =================================================================
@@ -147,11 +153,13 @@ namespace MemSystem.AI
             // 상태 인스턴스 생성 (최초 1회만, 이후 재사용)
             if (IdleState == null)
             {
-                IdleState = new IdleState();
-                WanderState = new WanderState();
-                FleeState = new FleeState();
-                CombatState = new CombatState();
+                IdleState     = new IdleState();
+                WanderState   = new WanderState();
+                FleeState     = new FleeState();
+                CombatState   = new CombatState();
                 CapturedState = new CapturedState();
+                HungryState   = new HungryState();
+                HappyState    = new HappyState();
             }
 
             // 초기 상태: Idle
@@ -181,6 +189,12 @@ namespace MemSystem.AI
             // 난폭(Aggressive) 멤: Idle/Wander 중 플레이어 감지 시 선제 공격
             CheckAggressiveDetection();
 
+            // 허기 고갈 감지 — 포획/도주 중에는 적용 안 함
+            CheckHungerState();
+
+            // 실제 이동 속도 → Animator Speed 파라미터 동기화 (애니메이션-이동 싱크)
+            Visual?.UpdateMovementSpeed(Movement?.CurrentSpeed ?? 0f);
+
             // 현재 상태 업데이트
             CurrentState?.Update(this);
         }
@@ -206,6 +220,32 @@ namespace MemSystem.AI
         }
 
         // =================================================================
+        // 외부 트리거 API
+        // =================================================================
+
+        /// <summary>
+        /// 행복 모션을 외부에서 직접 트리거합니다.
+        /// (예: 먹이 제공, 상호작용 완료, 양육 보상 등)
+        /// </summary>
+        public void TriggerHappy()
+        {
+            // Captured/Hungry 시에는 행복 모션 안 재생
+            if (CurrentState == CapturedState || CurrentState == HungryState) return;
+            TransitionTo(HappyState);
+        }
+
+        /// <summary>
+        /// 상호작용 모션을 외부에서 직접 트리거합니다.
+        /// 멘이 Idle/Wander 상태일 때만 유효합니다.
+        /// </summary>
+        public void TriggerInteract()
+        {
+            if (CurrentState != IdleState && CurrentState != WanderState) return;
+            if (Visual != null)
+                Visual.PlayInteract();
+        }
+
+        // =================================================================
         // 이벤트 수신 (Mem.TakeDamage에서 호출)
         // =================================================================
 
@@ -223,18 +263,22 @@ namespace MemSystem.AI
             switch (personality)
             {
                 case MemPersonality.Docile:
-                    // 온순: 무조건 도망
-                    if (CurrentState != FleeState && CurrentState != CapturedState)
+                    // 온순: 체력이 0이 되어야만 도망감. 그 전에는 하던 행동(배회 등) 계속 유지
+                    if (Owner.Stats.ShouldFlee)
                     {
-                        TransitionTo(FleeState);
+                        if (CurrentState != FleeState && CurrentState != CapturedState)
+                        {
+                            TransitionTo(FleeState);
+                        }
                     }
                     break;
 
                 case MemPersonality.Normal:
-                    // 평범: 피격 시 반격, HP 낮으면 도주
+                    // 평범: 피격 시 반격, HP 0이면 도주
                     if (Owner.Stats.ShouldFlee)
                     {
-                        TransitionTo(FleeState);
+                        if (CurrentState != FleeState && CurrentState != CapturedState)
+                            TransitionTo(FleeState);
                     }
                     else if (CurrentState != CombatState && CurrentState != CapturedState)
                     {
@@ -243,10 +287,11 @@ namespace MemSystem.AI
                     break;
 
                 case MemPersonality.Aggressive:
-                    // 난폭: HP 낮으면 도주, 아니면 계속 전투
+                    // 난폭: HP 0이면 도주, 아니면 계속 전투
                     if (Owner.Stats.ShouldFlee)
                     {
-                        TransitionTo(FleeState);
+                        if (CurrentState != FleeState && CurrentState != CapturedState)
+                            TransitionTo(FleeState);
                     }
                     else if (CurrentState != CombatState && CurrentState != CapturedState)
                     {
@@ -261,7 +306,27 @@ namespace MemSystem.AI
         // =================================================================
 
         /// <summary>
-        /// 난폭 멤의 선제 공격 감지.
+        /// 허기 고갈 감지.
+        /// Idle/Wander/Happy 상태에서 IsStarving이 true이면 HungryState로 전환합니다.
+        /// 전투/도주 중에는 적용하지 않습니다.
+        /// </summary>
+        private void CheckHungerState()
+        {
+            if (Owner?.Stats == null) return;
+            if (!Owner.Stats.IsStarving) return;
+
+            // 허기 감지가 의미 있는 상태: Idle, Wander, Happy
+            if (CurrentState == IdleState ||
+                CurrentState == WanderState ||
+                CurrentState == HappyState)
+            {
+                Debug.Log($"[MemAI] {Owner.Stats.MemName} 허기 고갈 감지 — HungryState 전환");
+                TransitionTo(HungryState);
+            }
+        }
+
+        /// <summary>
+        /// 난폭 멘의 선제 공격 감지.
         /// Idle/Wander 상태에서만 작동하며,
         /// 인식 범위(DetectionRange) 내에 플레이어가 진입하면 Combat으로 전환합니다.
         /// </summary>
@@ -270,7 +335,12 @@ namespace MemSystem.AI
             if (Owner?.Stats == null) return;
             if (Owner.Stats.Personality != MemPersonality.Aggressive) return;
             if (CurrentState == CombatState || CurrentState == FleeState || CurrentState == CapturedState) return;
-            if (playerTransform == null) return;
+            if (playerTransform == null)
+            {
+                var player = GameObject.FindGameObjectWithTag("Player");
+                if (player != null) playerTransform = player.transform;
+                else return;
+            }
 
             float distance = DistanceToPlayer;
             if (distance <= Owner.Stats.DetectionRange)
@@ -279,5 +349,26 @@ namespace MemSystem.AI
                 TransitionTo(CombatState);
             }
         }
+
+        // =================================================================
+        // 에디터 시각화 (Gizmos)
+        // =================================================================
+#if UNITY_EDITOR
+        private void OnDrawGizmosSelected()
+        {
+            if (Owner == null || Owner.Stats == null) return;
+
+            // 난폭 멤일 경우 감지 범위 표시 (빨간색 반투명)
+            if (Owner.Stats.Personality == MemPersonality.Aggressive)
+            {
+                Gizmos.color = new Color(1f, 0f, 0f, 0.3f);
+                Gizmos.DrawWireSphere(transform.position, Owner.Stats.DetectionRange);
+            }
+
+            // 공격 사거리 표시 (노란색)
+            Gizmos.color = Color.yellow;
+            Gizmos.DrawWireSphere(transform.position, Owner.Stats.AttackRange);
+        }
+#endif
     }
 }

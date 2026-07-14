@@ -23,13 +23,14 @@ namespace MemSystem.Spawn
     /// 특정 구역의 멤 스폰 로직을 담당하는 컴포넌트.
     /// 구역(Zone)마다 하나씩 배치되어 해당 구역의 멤 개체수를 관리합니다.
     /// </summary>
+    [RequireComponent(typeof(MemPool), typeof(MemFactory))]
     public class MemSpawner : MonoBehaviour
     {
         // =================================================================
         // 설정값
         // =================================================================
 
-        [Header("필수 참조")]
+        [Header("필수 참조 (자동 할당됨)")]
         [SerializeField] private MemPool memPool;
         [SerializeField] private MemFactory memFactory;
 
@@ -99,6 +100,12 @@ namespace MemSystem.Spawn
         // =================================================================
         // Unity Lifecycle
         // =================================================================
+
+        private void Awake()
+        {
+            memPool = GetComponent<MemPool>();
+            memFactory = GetComponent<MemFactory>();
+        }
 
         private void Start()
         {
@@ -185,7 +192,7 @@ namespace MemSystem.Spawn
 
             // 프로토타입용 Fallback: 가장 가까운 웨이포인트 기준으로 반경 체크
             float minDistance = float.MaxValue;
-            if (waypoints != null)
+            if (waypoints != null && waypoints.Length > 0)
             {
                 for (int i = 0; i < waypoints.Length; i++)
                 {
@@ -193,6 +200,11 @@ namespace MemSystem.Spawn
                     float dist = Vector3.Distance(playerTransform.position, waypoints[i].position);
                     if (dist < minDistance) minDistance = dist;
                 }
+            }
+            else
+            {
+                // 웨이포인트가 없으면 스포너 자체 위치 기준
+                minDistance = Vector3.Distance(playerTransform.position, transform.position);
             }
 
             bool prevInZone = isPlayerInZone;
@@ -380,18 +392,30 @@ namespace MemSystem.Spawn
             }
 
             // 중심점(basePos) 근방 반경 내에서 NavMesh 위 유효 위치 탐색
-            for (int i = 0; i < 10; i++)
+            // Edge-snapping 방지를 위해 시도 횟수를 늘립니다.
+            for (int i = 0; i < 30; i++)
             {
-                Vector2 randCircle = Random.insideUnitCircle * (spawnRadius * 0.5f);
+                Vector2 randCircle = Random.insideUnitCircle * spawnRadius;
                 Vector3 candidate = basePos + new Vector3(randCircle.x, 0, randCircle.y);
 
-                if (NavMesh.SamplePosition(candidate, out NavMeshHit hit, 10f, NavMesh.AllAreas))
+                // 지형의 높낮이 변화를 고려하여 maxDistance를 충분히 크게 줍니다 (100f)
+                if (NavMesh.SamplePosition(candidate, out NavMeshHit hit, 100f, NavMesh.AllAreas))
                 {
-                    return hit.position;
+                    // [핵심 로직] 모서리 쏠림(Edge-snapping) 방지
+                    // SamplePosition은 반경(100f) 내에서 가장 가까운 NavMesh를 찾습니다.
+                    // 만약 candidate가 NavMesh 완전 바깥쪽(허공)에 생성되었다면, 가장 가까운 NavMesh의 '가장자리(모서리)'로 위치를 강제로 끌어당깁니다.
+                    // 이를 방지하기 위해 원래 목표했던 좌표(candidate)와 찾아낸 좌표(hit.position)의 '수평 이동 거리'를 계산합니다.
+                    // 수평 거리가 짧다(5m 미만)는 것은, 가로로 끌려간 게 아니라 위아래(Y축 높낮이)로만 정상적으로 스냅되었다는 뜻입니다.
+                    float horizontalDist = Vector2.Distance(new Vector2(candidate.x, candidate.z), new Vector2(hit.position.x, hit.position.z));
+                    if (horizontalDist < 5f)
+                    {
+                        return hit.position;
+                    }
                 }
             }
 
-            return basePos; // 10번 실패 시 걍 베이스 위치 반환
+            // 30번 실패 시 베이스 위치 근처라도 퍼지게 하기 위해 약간의 오프셋을 줍니다
+            return basePos + new Vector3(Random.Range(-2f, 2f), 0, Random.Range(-2f, 2f));
         }
 
         // =================================================================
