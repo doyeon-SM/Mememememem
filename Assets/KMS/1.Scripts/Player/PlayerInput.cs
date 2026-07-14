@@ -20,7 +20,7 @@ namespace KMS
         public Vector2 Look { get; private set; }
         public bool IsSprinting { get; private set; }
         public bool IsAiming { get; private set; }
-        public bool IsCursorReleaseHeld { get; private set; }
+        public bool IsCursorReleased { get; private set; }
 
         public event Action<Vector2> MoveChanged;
         public event Action<Vector2> LookChanged;
@@ -53,7 +53,7 @@ namespace KMS
             SetLook(Vector2.zero);
             SetSprint(false);
             IsAiming = false;
-            IsCursorReleaseHeld = false;
+            IsCursorReleased = false;
             quickSlotScrollAmount = 0f;
         }
 
@@ -70,7 +70,7 @@ namespace KMS
 
         private void UpdateMove(Keyboard keyboard, Gamepad gamepad)
         {
-            if (isGameplayInputBlocked)
+            if (isGameplayInputBlocked || IsCursorReleased)
             {
                 SetMove(Vector2.zero);
                 return;
@@ -100,7 +100,7 @@ namespace KMS
 
         private void UpdateLook(Mouse mouse, Gamepad gamepad)
         {
-            if (isGameplayInputBlocked)
+            if (isGameplayInputBlocked || IsCursorReleased)
             {
                 SetLook(Vector2.zero);
                 return;
@@ -123,10 +123,14 @@ namespace KMS
 
         private void UpdateButtons(Keyboard keyboard, Mouse mouse, Gamepad gamepad)
         {
-            IsCursorReleaseHeld = keyboard != null && keyboard.leftAltKey.isPressed;
+            if (!isGameplayInputBlocked && keyboard != null && keyboard.leftAltKey.wasPressedThisFrame)
+            {
+                IsCursorReleased = !IsCursorReleased;
+            }
+
             UpdateInventoryButtons(keyboard, mouse);
 
-            if (isGameplayInputBlocked)
+            if (isGameplayInputBlocked || IsCursorReleased)
             {
                 SetSprint(false);
                 IsAiming = false;
@@ -198,6 +202,11 @@ namespace KMS
             SetSprint(false);
             IsAiming = false;
             quickSlotScrollAmount = 0f;
+        }
+
+        public void SetCursorReleased(bool isReleased)
+        {
+            IsCursorReleased = isReleased;
         }
 
         private void SetMove(Vector2 move)

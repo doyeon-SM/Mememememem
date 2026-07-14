@@ -40,6 +40,15 @@ namespace HDY.UI
     /// 페이지 이동이나 다른 슬롯 좌클릭 시, 또는 해제 버튼 자체를 누른 뒤에는 버튼을 다시 숨긴다.
     /// releaseButton 프리팹의 pivot은 좌상단(0, 1)으로 설정해야 "멤 아이콘 중앙 = 버튼의 왼쪽 위 모서리"로
     /// 배치된다(에디터에서 설정 필요, 코드에서는 위치만 아이콘 중앙으로 맞춘다).
+    ///
+    /// [Populate 진입점마다 슬롯 재수집 방어] 이 컴포넌트가 프리팹으로 매번 새로 Instantiate되면서(UIManager),
+    /// 같은 Instantiate 호출 안에서 부모(MemStorageUI)의 OnEnable이 이 컴포넌트의 Awake(CollectSlots)보다
+    /// 먼저 실행될 수 있는 순서 문제가 있었다 - 그러면 Populate가 "슬롯 0개"로 조기 종료되어 화면을
+    /// 전혀 갱신하지 못하고, 프리팹에 저장되어 있던 편집 시점의 잔상이 그대로 보이는 버그가 생겼다(마우스
+    /// 휠로 페이지를 넘기면 그 시점엔 이미 Awake가 끝나 있어서 정상 갱신되는 것도 같은 이유). 그래서
+    /// Populate 맨 앞에서 CollectSlots/CollectPageDots를 다시 호출한다 - 두 메서드 다 이미 수집된 경우
+    /// 그냥 반환하므로(slots.Count > 0 이면 바로 리턴) 여러 번 호출해도 안전하고, Awake가 아직 실행되지
+    /// 않은 경우에도 여기서 대신 수집을 완료시켜 항상 최신 상태로 그려지게 한다.
     /// </summary>
     public class MemStorageUI_Grid : MonoBehaviour, IScrollHandler
     {
@@ -117,7 +126,7 @@ namespace HDY.UI
             }
         }
 
-        /// <summary>씬에 미리 배치된 슬롯들을 gridParent 하위에서 찾아 수집한다(더 이상 런타임 Instantiate하지 않음).</summary>
+        /// <summary>씬(프리팹)에 미리 배치된 슬롯들을 gridParent 하위에서 찾아 수집한다(더 이상 런타임 Instantiate하지 않음). 이미 수집되어 있으면 바로 반환한다(여러 진입점에서 방어적으로 호출해도 안전).</summary>
         private void CollectSlots()
         {
             if (gridParent == null) return;
@@ -142,7 +151,7 @@ namespace HDY.UI
             Debug.Log($"[MemStorageUI_Grid] 슬롯 {slots.Count}개 수집 완료 (부모: {gridParent.name})");
         }
 
-        /// <summary>씬에 미리 배치된 페이지 점(dot)들을 pageDotsParent 하위에서 찾아 수집한다.</summary>
+        /// <summary>씬(프리팹)에 미리 배치된 페이지 점(dot)들을 pageDotsParent 하위에서 찾아 수집한다. 이미 수집되어 있으면 바로 반환한다.</summary>
         private void CollectPageDots()
         {
             if (pageDotsParent == null) return;
@@ -329,9 +338,19 @@ namespace HDY.UI
             return 0;
         }
 
-        /// <summary>데이터를 캐싱하고 현재 페이지 기준으로 그리드를 다시 채운다. 목록에 저장된 순서(빈 칸 포함) 그대로 표시.</summary>
+        /// <summary>
+        /// 데이터를 캐싱하고 현재 페이지 기준으로 그리드를 다시 채운다. 목록에 저장된 순서(빈 칸 포함) 그대로 표시.
+        /// 맨 앞에서 CollectSlots/CollectPageDots를 다시 호출한다 - 이 컴포넌트가 프리팹으로 매번 새로
+        /// Instantiate되면서(UIManager) 부모(MemStorageUI)의 OnEnable이 이 컴포넌트의 Awake보다 먼저
+        /// 실행되는 경우가 있어, Awake에서의 최초 수집을 여기서도 보장해야 "슬롯 0개"로 조기 종료되어
+        /// 화면이 갱신되지 않는 문제를 막을 수 있다(이미 수집되어 있으면 두 메서드 다 즉시 반환하므로
+        /// 매번 호출해도 비용이 거의 없다).
+        /// </summary>
         private void Populate(IReadOnlyList<CapturedMemEntry> capturedMems, Func<string, MemData> findMemData, Func<CapturedMemEntry, MemStatDisplayInfo> statDisplayProvider)
         {
+            CollectSlots();
+            CollectPageDots();
+
             // 페이지/데이터가 다시 그려지면 이전에 우클릭해서 띄워둔 해제하기 버튼은 엉뚱한 슬롯을 가리키게 되므로 감춘다.
             HideReleaseButton();
 

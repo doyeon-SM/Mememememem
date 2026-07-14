@@ -1,10 +1,13 @@
 ﻿using HDY.Capture;
+using HDY.Inventory;
+using HDY.Item; 
 using HDY.Recipe;
 using HDY.UI;
-using HDY.Item; 
+using KMS.InventoryDuped;
 using MemSystem.Data;
 using System.Collections;
 using TMPro;
+using Unity.Services.Authentication;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -15,18 +18,11 @@ public class CraftingPanelUI : MonoBehaviour
     private enum CraftingUIState { Default, SelectProduct, Crafting }
     private CraftingUIState currentUIState = CraftingUIState.Default;
 
-    [Header("최상위 패널 오브젝트: 패널, 닫기버튼")]
-    [SerializeField] private GameObject craftingPanelRoot;
-    [SerializeField] private GameObject centerCraftingPanel;
-    [SerializeField] private GameObject CloseButtonGroup;
-    [SerializeField] private Button closeBtn;
-    [SerializeField] private GameObject PlaceButtonGroup;
-
     [Header("중앙 패널 - Top 빌딩 이름")]
     [SerializeField] private TextMeshProUGUI buildingName;
 
     [Header("중앙 패널 - Center 멤슬롯")]
-    [SerializeField] private CraftingMemSlotUI singleMemSlot;
+    [SerializeField] private MemSlotUI singleMemSlot;
 
     [Header("중앙 패널 - Center: Default_Mode 오브젝트, 레시피 생성될 영역, 레시피 프리팹 ")]
     [SerializeField] private GameObject defaultModeObject;
@@ -71,6 +67,7 @@ public class CraftingPanelUI : MonoBehaviour
     [SerializeField] private Button getBtn;
 
     private ProductionCraftRuntime targetFacility;
+    public ProductionCraftRuntime TargetFacility => targetFacility;
 
     private ItemData activeSelectedRecipe;
     private HDY.Recipe.RecipeData activeSelectedRecipeData;
@@ -87,11 +84,6 @@ public class CraftingPanelUI : MonoBehaviour
     {
         if (Instance == null) Instance = this;
         else Destroy(gameObject);
-
-        if (craftingPanelRoot != null) craftingPanelRoot.SetActive(false);
-        if (centerCraftingPanel != null) centerCraftingPanel.SetActive(false);
-
-        if (closeBtn != null) closeBtn.onClick.AddListener(ClosePanel);
 
         if (btnMin != null) btnMin.onClick.AddListener(SetMinQuantity);
         if (btnMax != null) btnMax.onClick.AddListener(SetMaxQuantity);
@@ -110,23 +102,21 @@ public class CraftingPanelUI : MonoBehaviour
 
     private void Update()
     {
-        if (!craftingPanelRoot.activeSelf) CloseButtonGroup.SetActive(false);
-        if (craftingPanelRoot != null && craftingPanelRoot.activeSelf)
-        {
-            if (UnityEngine.InputSystem.Keyboard.current != null && UnityEngine.InputSystem.Keyboard.current.escapeKey.wasPressedThisFrame)
-            {
-                ClosePanel();
-                return;
-            }
-        }
-
         if (targetFacility == null) return;
 
-        if (currentUIState == CraftingUIState.Crafting && targetFacility.isProducing && targetFacility.totalRequiredTime > 0f)
+        if (currentUIState == CraftingUIState.Crafting && targetFacility.currentCraftingItem != null && targetFacility.totalRequiredTime > 0f)
         {
             float progressNormalized = targetFacility.currentProgressTime / targetFacility.totalRequiredTime;
             if (progressBar != null) progressBar.value = progressNormalized;
-            if (durationText != null) durationText.text = $"{Mathf.Clamp(progressNormalized * 100f, 0f, 100f):F0}%";
+
+            if (targetFacility.isProducing)
+            {
+                if (durationText != null) durationText.text = $"{Mathf.Clamp(progressNormalized * 100f, 0f, 100f):F0}%";
+            }
+            else
+            {
+                if (durationText != null) durationText.text = $"<color=red>중지 ({Mathf.Clamp(progressNormalized * 100f, 0f, 100f):F0}%)</color>";
+            }
         }
 
         bool canGet = (targetFacility.currentStorageCount > 0);
@@ -141,12 +131,6 @@ public class CraftingPanelUI : MonoBehaviour
         if (facility == null) return;
 
         targetFacility = facility;
-
-        CloseButtonGroup.SetActive(true);
-        centerCraftingPanel.SetActive(true);
-        PlaceButtonGroup.SetActive(false);
-        craftingPanelRoot.SetActive(true);
-        SetCameraControllersEnabled(false);
 
         RefreshStaticUI();
 
@@ -165,7 +149,7 @@ public class CraftingPanelUI : MonoBehaviour
         GenerateAvailableRecipeList();
     }
 
-    private void RefreshStaticUI()
+    public void RefreshStaticUI()
     {
         if (targetFacility == null) return;
 
@@ -223,11 +207,29 @@ public class CraftingPanelUI : MonoBehaviour
         if (quantitySlider != null) quantitySlider.value = selectedQuantity;
         isUpdatingQuantitySystem = false;
 
+        if (btnMin != null) btnMin.interactable = (selectedQuantity > 1);
+        if (btnMinus != null) btnMinus.interactable = (selectedQuantity > 1);
+
+        if (btnPlus != null) btnPlus.interactable = (maxCraftableQuantity > 0 && selectedQuantity < maxCraftableQuantity);
+        if (btnMax != null) btnMax.interactable = (maxCraftableQuantity > 0 && selectedQuantity < maxCraftableQuantity);
+
+        if (craftBtn != null)
+        {
+            craftBtn.interactable = (maxCraftableQuantity > 0 && selectedQuantity > 0);
+        }
+
         if (errorFeedbackCoroutine == null && craftingDurationText != null)
         {
-            float singleTime = ProductionCalculator.CalculateFinalProductionTime(VIRTUAL_BASE_CRAFT_TIME, targetFacility.DeployedMems);
-            float totalEstimatedTime = singleTime * selectedQuantity;
-            craftingDurationText.text = $"제작 예상시간: {totalEstimatedTime:F1}초 (개당 {singleTime:F1}초 × {selectedQuantity}개)";
+            if (maxCraftableQuantity == 0)
+            {
+                craftingDurationText.text = "<color=red>제작에 필요한 원자재 수량이 부족합니다.</color>";
+            }
+            else
+            {
+                float singleTime = ProductionCalculator.CalculateFinalProductionTime(VIRTUAL_BASE_CRAFT_TIME, targetFacility.DeployedMems);
+                float totalEstimatedTime = singleTime * selectedQuantity;
+                craftingDurationText.text = $"제작 예상시간: {totalEstimatedTime:F1}초 (개당 {singleTime:F1}초)";
+            }
         }
     }
 
@@ -235,6 +237,7 @@ public class CraftingPanelUI : MonoBehaviour
     {
         if (isUpdatingQuantitySystem) return;
 
+        selectedQuantity = Mathf.Clamp(Mathf.RoundToInt(value), 1, maxCraftableQuantity);
         selectedQuantity = Mathf.RoundToInt(value);
         UpdateSelectProductCalculatedUI();
         GenerateRequiredMaterialListUI(); 
@@ -263,31 +266,41 @@ public class CraftingPanelUI : MonoBehaviour
 
     /// <summary>
     /// 인벤토리 or 창고 내 원자재 한계치를 기반으로 최대 제작 가능 수량 계산
+    /// 최소 제작에 필요한 재료도 부족한 경우 0을 반환
     /// </summary>
     private int CalculateMaxCraftableLimitAmount(ItemData recipe)
     {
         if (recipe == null || activeSelectedRecipeData == null) return 1;
 
         int finalCalculatedMax = int.MaxValue;
+        bool hasMateria = false;
+
+        PlayerInventory inventory = FindFirstObjectByType<PlayerInventory>();
+        WarehouseInventory warehouse = FindFirstObjectByType<WarehouseInventory>();
 
         foreach (Recipe_Requset_Item_Data reqItem in activeSelectedRecipeData.Requset_Items_ID)
         {
             if (reqItem == null || string.IsNullOrEmpty(reqItem.Item_ID)) continue;
 
-            int inventoryOwned = 100;
-            if (reqItem.Item_ID == "item_irongemstone") inventoryOwned = 62;
-            if (reqItem.Item_ID == "item_wood") inventoryOwned = 39;
+            hasMateria = true;
+
+            // Mock데이터
+            int totalOwnedAmount = 0;
+            if (inventory != null) totalOwnedAmount += inventory.GetItemAmount(reqItem.Item_ID);
+            if (warehouse != null) totalOwnedAmount += warehouse.GetItemAmount(reqItem.Item_ID);
 
             if (reqItem.Amount <= 0) continue;
 
-            int possibleMaxByThisMaterial = inventoryOwned / reqItem.Amount;
+            int possibleMaxByThisMaterial = totalOwnedAmount / reqItem.Amount;
             if (possibleMaxByThisMaterial < finalCalculatedMax)
             {
                 finalCalculatedMax = possibleMaxByThisMaterial;
             }
         }
 
-        return Mathf.Max(1, finalCalculatedMax);
+        if (!hasMateria) return 0;
+
+        return Mathf.Max(0, finalCalculatedMax);
     }
 
     /// <summary>
@@ -371,11 +384,10 @@ public class CraftingPanelUI : MonoBehaviour
         if (targetFacility == null || selectedItem == null) return;
 
         activeSelectedRecipe = selectedItem;
-        selectedQuantity = 1;
         activeSelectedRecipeData = null;
 
-        HDY.Recipe.RecipeData[] allRecipesInProject = Resources.FindObjectsOfTypeAll<HDY.Recipe.RecipeData>();
-        foreach (HDY.Recipe.RecipeData recipe in allRecipesInProject)
+        RecipeData[] allRecipesInProject = Resources.FindObjectsOfTypeAll<RecipeData>();
+        foreach (RecipeData recipe in allRecipesInProject)
         {
             if (recipe != null && recipe.Recipe_Item_ID == selectedItem.Item_ID)
             {
@@ -386,13 +398,16 @@ public class CraftingPanelUI : MonoBehaviour
 
         if (activeSelectedRecipeData == null)
         {
-            Debug.LogWarning($"[공방] 가공품 {selectedItem.ItemName}(ID: {selectedItem.Item_ID})와 1:1로 매칭되는 RecipeData SO 제작법을 프로젝트 내부에서 탐색해내지 못했습니다.");
+            Debug.LogWarning($"RecipeData SO 제작법을 프로젝트 내부에서 탐색해내지 못했습니다.");
         }
 
         maxCraftableQuantity = CalculateMaxCraftableLimitAmount(selectedItem);
+
+        selectedQuantity = (maxCraftableQuantity == 0) ? 0 : 1;
+
         if (quantitySlider != null)
         {
-            quantitySlider.minValue = 1;
+            quantitySlider.minValue = (maxCraftableQuantity == 0) ? 0 : 1;
             quantitySlider.maxValue = maxCraftableQuantity;
             quantitySlider.wholeNumbers = true;
         }
@@ -432,6 +447,8 @@ public class CraftingPanelUI : MonoBehaviour
         }
 
         bool isMaterialEnough = true;
+        PlayerInventory inventory = FindFirstObjectByType<PlayerInventory>();
+        WarehouseInventory warehouse = FindFirstObjectByType<WarehouseInventory>();
 
         if (activeSelectedRecipeData != null && activeSelectedRecipeData.Requset_Items_ID != null)
         {
@@ -439,14 +456,14 @@ public class CraftingPanelUI : MonoBehaviour
             {
                 if (req == null || string.IsNullOrEmpty(req.Item_ID)) continue;
 
-                int ownedCount = 50;
-                if (req.Item_ID == "Item_Wood") ownedCount = 62;
-                if (req.Item_ID == "Item_Irongemstone") ownedCount = 39;
+                int totalOwnedAmount = 0;
+                if (inventory != null) totalOwnedAmount += inventory.GetItemAmount(req.Item_ID);
+                if (warehouse != null) totalOwnedAmount += warehouse.GetItemAmount(req.Item_ID);
 
                 int totalRequired = req.Amount * selectedQuantity;
-                if (ownedCount < totalRequired)
+                if (totalOwnedAmount < totalRequired)
                 {
-                    isMaterialEnough = false; 
+                    isMaterialEnough = false;
                     break;
                 }
             }
@@ -458,8 +475,37 @@ public class CraftingPanelUI : MonoBehaviour
             return;
         }
 
-        targetFacility.SelectAndStartCrafting(activeSelectedRecipe, selectedQuantity);
+        // 1차적으로 인벤토리에서 차감 후 부족하면 창고에서 차감되도록 처리
+        if (activeSelectedRecipeData != null && activeSelectedRecipeData.Requset_Items_ID != null)
+        {
+            foreach (Recipe_Requset_Item_Data req in activeSelectedRecipeData.Requset_Items_ID)
+            {
+                if (req == null || string.IsNullOrEmpty(req.Item_ID)) continue;
 
+                int totalRequired = req.Amount * selectedQuantity;
+                int inventoryHas = inventory != null ? inventory.GetItemAmount(req.Item_ID) : 0;
+
+                if (inventoryHas >= totalRequired)
+                {
+                    inventory.RemoveItem(req.Item_ID, totalRequired);
+                }
+                else
+                {
+                    if (inventoryHas > 0)
+                    {
+                        inventory.RemoveItem(req.Item_ID, inventoryHas);
+                    }
+
+                    int remainingNeed = totalRequired - inventoryHas;
+                    if (warehouse != null)
+                    {
+                        warehouse.RemoveItem(req.Item_ID, remainingNeed);
+                    }
+                }
+            }
+        }
+
+        targetFacility.SelectAndStartCrafting(activeSelectedRecipe, selectedQuantity);
         currentUIState = CraftingUIState.Crafting;
         RefreshCraftingModeUI();
     }
@@ -551,7 +597,6 @@ public class CraftingPanelUI : MonoBehaviour
 
         RefreshStaticUI();
 
-        // 👥 일꾼이 빠짐에 따라 화면 모드가 유기적으로 영향받을 수 있으므로 UI 리프레시 동시 호출
         RefreshCraftingModeUI();
     }
 
@@ -561,20 +606,6 @@ public class CraftingPanelUI : MonoBehaviour
         errorFeedbackCoroutine = null;
 
         targetFacility = null;
-
-        CloseButtonGroup.SetActive(true);
-        PlaceButtonGroup.SetActive(true);
-        SetCameraControllersEnabled(true);
-        craftingPanelRoot.SetActive(false);
-        centerCraftingPanel.SetActive(false);
-    }
-
-    private void SetCameraControllersEnabled(bool isEnable)
-    {
-        CameraMoveController moveController = Object.FindFirstObjectByType<CameraMoveController>();
-        if (moveController != null) moveController.enabled = isEnable;
-
-        CameraZoomController zoomController = Object.FindFirstObjectByType<CameraZoomController>();
-        if (zoomController != null) zoomController.enabled = isEnable;
+        
     }
 }

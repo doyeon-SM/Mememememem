@@ -2,6 +2,8 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using HDY.Item;
+using KMS.InventoryDuped;
+using HDY.Inventory;
 
 namespace HDY.Recipe
 {
@@ -24,7 +26,7 @@ namespace HDY.Recipe
 
             int totalRequiredAmount = requiredUnitAmount * craftQuantity;
 
-            int currentInventoryOwned = GetInventoryItemCountMock(data.Item_ID);
+            int currentInventoryOwned = GetRealTotalItemCount(data.Item_ID);
 
             if (amountText != null)
             {
@@ -42,13 +44,19 @@ namespace HDY.Recipe
         }
 
         /// <summary>
-        /// 인벤토리 아이템 보유 개수 탐색용 임시코드 추후 수정필요.
+        /// PlayerInventory와 WarehouseInventory의 존재하는 아이템을 itemId로 찾아 실제 보유량 갱신
         /// </summary>
-        private int GetInventoryItemCountMock(string itemId)
+        private int GetRealTotalItemCount(string itemId)
         {
-            if (itemId == "item_wood") return 62;
-            if (itemId == "item_irongemstone") return 39;
-            return 50; 
+            int totalOwned = 0;
+
+            var inventory = FindFirstObjectByType<PlayerInventory>();
+            var warehouse = FindFirstObjectByType<WarehouseInventory>();
+
+            if (inventory != null) totalOwned += inventory.GetItemAmount(itemId);
+            if (warehouse != null) totalOwned += warehouse.GetItemAmount(itemId);
+
+            return totalOwned;
         }
     }
 }

@@ -133,7 +133,8 @@ public class GridManager : MonoBehaviour
         {
             if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame)
             {
-                if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject()) return;
+                if (EventSystem.current != null && IsPointerOverBlockingUI()) return;
+                //if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject()) return;
 
                 if (occupiedCells[MouseGridX, MouseGridZ] && buildingObjectsGrid[MouseGridX, MouseGridZ] != null)
                 {
@@ -141,12 +142,12 @@ public class GridManager : MonoBehaviour
 
                     if (targetObj.TryGetComponent<ProductionFacilityRuntime>(out ProductionFacilityRuntime facility))
                     {
-                        ProductionPanelUI.Instance.OpenPanel(facility);
+                        PanelManager.Instance.OpenProductionPanel(facility);
                     }
 
                     if(targetObj.TryGetComponent<ProductionCraftRuntime>(out ProductionCraftRuntime craft))
                     {
-                        CraftingPanelUI.Instance.OpenPanel(craft);
+                        PanelManager.Instance.OpenCraftingPanel(craft);
                     }
 
                 }
@@ -674,6 +675,42 @@ public class GridManager : MonoBehaviour
                 }
             }
         }
+    }
+
+    private bool IsPointerOverBlockingUI()
+    {
+        if (EventSystem.current == null) return false;
+        if (!EventSystem.current.IsPointerOverGameObject()) return false;
+
+        PointerEventData eventData = new PointerEventData(EventSystem.current);
+        if (UnityEngine.InputSystem.Mouse.current != null)
+        {
+            eventData.position = UnityEngine.InputSystem.Mouse.current.position.ReadValue();
+        }
+        else
+        {
+            return false;
+        }
+
+        System.Collections.Generic.List<RaycastResult> results = new System.Collections.Generic.List<RaycastResult>();
+        EventSystem.current.RaycastAll(eventData, results);
+
+        foreach (var result in results)
+        {
+            if (result.gameObject != null)
+            {
+                string uiName = result.gameObject.name.ToLower();
+
+                if (uiName.Contains("root") || uiName.Contains("hud") || uiName.Equals("panel") || uiName.Contains("bg") || uiName.Contains("background"))
+                {
+                    continue; 
+                }
+
+                return true;
+            }
+        }
+
+        return false;
     }
 
 

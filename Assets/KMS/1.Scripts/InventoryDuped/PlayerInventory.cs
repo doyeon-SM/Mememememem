@@ -613,6 +613,47 @@ public class PlayerInventory : MonoBehaviour
             }
         }
     }
+
+    [ContextMenu("테스트: 사과 10개 추가")]
+    public void TestAddAppleTenUnits()
+    {
+        // 1. 런타임/에디터 상에서 테스트용 item_apple 데이터(ScriptableObject)를 동적 생성
+        HDY.Item.ItemData appleItem = ScriptableObject.CreateInstance<HDY.Item.ItemData>();
+        appleItem.Item_ID = "item_apple";
+        appleItem.ItemName = "사과";
+        appleItem.MaxStack = 99;                 // 최대 스택 제한 설정
+        appleItem.Category = HDY.Item.ItemCategory.Food; // 카테고리를 Food로 설정
+
+        int amountToAdd = 10;
+        Debug.Log($"<color=yellow>[인벤토리 테스트]</color> '{appleItem.ItemName}({appleItem.Item_ID})'을 {amountToAdd}개 추가 시도합니다.");
+
+        // 2. 본체 클래스의 AddItem 함수를 직접 호출하여 연산 분기 가동
+        int remaining = AddItem(appleItem, amountToAdd);
+
+        // 3. 결과 판정 및 콘솔 로그 출력
+        int addedAmount = amountToAdd - remaining;
+        Debug.Log($"<color=yellow>[인벤토리 테스트]</color> 결과 정산 -> 입고 성공: {addedAmount}개 / 들어가지 못하고 남은 수량: {remaining}개");
+
+        if (remaining == 0)
+        {
+            Debug.Log("<color=green><b>[테스트 성공]</b></color> 사과 10개가 지정된 우선순위 규칙에 따라 슬롯에 남김없이 완벽히 적재되었습니다!");
+        }
+        else
+        {
+            Debug.LogWarning($"<color=orange><b>[공간 부족]</b></color> 가방이나 퀵슬롯에 자리가 부족하여 사과 {remaining}개가 튕겨 나갔습니다.");
+        }
+
+        // 4. 에디터 멈춤 및 메모리 누수(Leak) 방지를 위한 동적 에셋 삭제 처리
+        // (Play 모드와 Edit 모드 상황을 모두 안전하게 대응합니다)
+        if (Application.isPlaying)
+        {
+            Destroy(appleItem);
+        }
+        else
+        {
+            DestroyImmediate(appleItem);
+        }
+    }
 }
 
 }

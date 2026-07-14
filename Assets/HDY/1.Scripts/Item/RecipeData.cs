@@ -15,5 +15,8 @@ namespace HDY.Recipe
 
         [Header("재료 ID")]
         public List<Recipe_Requset_Item_Data> Requset_Items_ID = new List<Recipe_Requset_Item_Data>();
+
+        [Header("제작 소요 시간")]
+        public float time;
     }
 }

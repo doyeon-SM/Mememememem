@@ -1,4 +1,6 @@
 using UnityEngine;
+using MemSystem.Data;
+using HDY.Capture;
 
 public class BuildingRuntime : MonoBehaviour
 {
@@ -11,11 +13,75 @@ public class BuildingRuntime : MonoBehaviour
     public int gridX;
     public int gridZ;
 
-
     public void Initialize(BuildingData buildingData, int x, int z)
     {
         this.buildingData = buildingData;
         gridX = x;
         gridZ = z;
+    }
+
+    public bool TryReleaseDeployedMem(CapturedMemEntry entry, MemData data)
+    {
+        if (entry == null) return false;
+
+        // 1. 일반 생산 시설 스캔
+        if (TryGetComponent<ProductionFacilityRuntime>(out var facilityRuntime))
+        {
+            Debug.Log($"<color=cyan>[BuildingRuntime]</color> 'ProductionFacilityRuntime 컴포넌트 발견.");
+
+            if (facilityRuntime.DeployedMemEntries.Contains(entry))
+            {
+                Debug.Log($"<color=cyan>[BuildingRuntime]</color> 'ProductionFacilityRuntime 컴포넌트 발견.");
+
+                facilityRuntime.RemoveMem(data);
+                entry.IsActive = false;
+
+                if (ProductionPanelUI.Instance != null && ProductionPanelUI.Instance.gameObject.activeSelf)
+                {
+                    Debug.Log("<color=lime>[BuildingRuntime -> UI]</color> ProductionPanelUI가 활성화되어 있어 RefreshStaticUI()를 요청합니다.");
+                    ProductionPanelUI.Instance.RefreshStaticUI();
+                }
+                else
+                {
+                    Debug.LogWarning("<color=orange>[BuildingRuntime -> UI]</color> ProductionPanelUI가 꺼져있거나 인스턴스가 존재하지 않아 UI 리프레시를 건너뜁니다.");
+                }
+                return true;
+            }
+            else
+            {
+                Debug.Log($"<color=cyan>[BuildingRuntime]</color> 'ProductionFacilityRuntime 컴포넌트 발견.");
+            }
+        }
+
+        // 2. 공방 제작 시설 스캔
+        if (TryGetComponent<ProductionCraftRuntime>(out var craftRuntime))
+        {
+            Debug.Log($"<color=cyan>[BuildingRuntime]</color> 'ProductionFacilityRuntime 컴포넌트 발견.");
+
+            if (craftRuntime.DeployedMemEntries.Contains(entry))
+            {
+                Debug.Log($"<color=cyan>[BuildingRuntime]</color> 'ProductionFacilityRuntime 컴포넌트 발견.");
+
+                craftRuntime.RemoveMem(data);
+                entry.IsActive = false;
+
+                if (CraftingPanelUI.Instance != null && CraftingPanelUI.Instance.gameObject.activeSelf)
+                {
+                    Debug.Log("<color=lime>[BuildingRuntime -> UI]</color> CraftingPanelUI가 활성화되어 있어 RefreshStaticUI()를 요청합니다.");
+                    CraftingPanelUI.Instance.RefreshStaticUI();
+                }
+                else
+                {
+                    Debug.LogWarning("<color=orange>[BuildingRuntime -> UI]</color> CraftingPanelUI가 꺼져있거나 인스턴스가 존재하지 않아 UI 리프레시를 건너뜁니다.");
+                }
+                return true;
+            }
+            else
+            {
+                Debug.Log($"<color=cyan>[BuildingRuntime]</color> 'ProductionFacilityRuntime 컴포넌트 발견.");
+            }
+        }
+
+        return false;
     }
 }

@@ -18,6 +18,11 @@ namespace HDY.UI
     /// [설명 문구] UpgradePopupUI에는 별도 설명 영역이 없고, GetUpgradeDescription()의 결과가 그대로 확인
     /// 버튼의 라벨로 쓰인다. 그래서 "멤창고를 2페이지에서 3페이지로 확장합니다" 같은 긴 문장 대신
     /// "2 → 3"처럼 버튼 한 줄에 들어가는 짧은 형식으로 반환한다.
+    ///
+    /// [territoryData 자동 탐색] 이 컴포넌트는 씬에 상시 배치된 오브젝트가 아니라 멤창고 UI 프리팹의
+    /// 일부라, HUD 버튼으로 열릴 때마다 UIManager가 새로 Instantiate한다. territoryData는 다른 씬
+    /// 오브젝트(TerritoryData)를 가리키는 참조라 프리팹 에셋 자체에 저장될 수 없으므로(ShopUI.territoryData와
+    /// 동일한 이유), Awake에서 씬을 훑어 자동으로 채운다.
     /// </summary>
     public class MemStorageUpgrade : MonoBehaviour, IUpgradable
     {
@@ -31,6 +36,7 @@ namespace HDY.UI
         private void Awake()
         {
             if (captureManager == null) captureManager = MemCaptureManager.Instance;
+            if (territoryData == null) territoryData = FindFirstObjectByType<TerritoryData>();
 
             if (captureManager == null) Debug.LogWarning("[MemStorageUpgrade] captureManager가 비어있습니다.", this);
             if (territoryData == null) Debug.LogWarning("[MemStorageUpgrade] territoryData가 비어있습니다. 골드 확인은 UpgradePopupUI가 별도로 처리합니다.", this);

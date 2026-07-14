@@ -81,7 +81,7 @@ namespace KMS
 
             if (input != null && !input.IsGameplayInputBlocked)
             {
-                bool shouldLockCursor = !input.IsCursorReleaseHeld;
+                bool shouldLockCursor = !input.IsCursorReleased;
                 CursorLockMode expectedLockMode = shouldLockCursor
                     ? CursorLockMode.Locked
                     : CursorLockMode.None;

@@ -33,6 +33,66 @@
     justify-content: space-between;
 }
 
+/* Top-right menu */
+#top-right-menu {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 300px;
+    padding: 8px;
+    background-color: rgba(12, 12, 12, 0.88);
+    flex-direction: column;
+}
+
+#real-time-label,
+#gold-label {
+    color: white;
+    font-size: 14px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-right;
+}
+
+#real-time-label {
+    margin-bottom: 6px;
+}
+
+#gold-label {
+    margin-top: 6px;
+}
+
+#top-right-button-row {
+    flex-direction: row;
+    justify-content: space-between;
+}
+
+.top-right-menu-button {
+    width: 90px;
+    height: 50px;
+    margin: 0;
+    padding: 0;
+    background-color: rgb(245, 245, 245);
+    border-left-width: 2px;
+    border-right-width: 2px;
+    border-top-width: 2px;
+    border-bottom-width: 2px;
+    border-left-color: rgb(25, 25, 25);
+    border-right-color: rgb(25, 25, 25);
+    border-top-color: rgb(25, 25, 25);
+    border-bottom-color: rgb(25, 25, 25);
+    border-radius: 0;
+    color: rgb(20, 20, 20);
+    font-size: 15px;
+    -unity-font-style: bold;
+}
+
+.top-right-menu-button:hover {
+    background-color: rgb(220, 220, 220);
+}
+
+.top-right-menu-button:active {
+    background-color: rgb(185, 185, 185);
+}
+
 /* Progress Bars */
 #player-health-bar {
     width: 42%;
@@ -55,7 +115,7 @@
 /* Notification Styles */
 .notification-container {
     position: absolute;
-    top: 20px;
+    top: 150px;
     right: 20px;
     flex-direction: column;
     min-width: 200px;
