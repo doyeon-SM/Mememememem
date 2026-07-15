@@ -26,6 +26,7 @@ namespace KMS
             RefreshClock();
         }
 
+        //todo: 타이머 terrtorydata에서 분리필요
         private void EnsureGameTimeManager()
         {
             if (gameTimeManager != null) return;
@@ -33,10 +34,10 @@ namespace KMS
             gameTimeManager = FindFirstObjectByType<GameTimeManager>();
             if (gameTimeManager != null || !createTimeSystemIfMissing) return;
 
-            TerritoryData territoryData = FindFirstObjectByType<TerritoryData>();
+            //TerritoryData territoryData = FindFirstObjectByType<TerritoryData>();
             GameObject timeSystemObject;
 
-            if (territoryData != null)
+            /*if (territoryData != null)
             {
                 timeSystemObject = territoryData.gameObject;
             }
@@ -44,7 +45,8 @@ namespace KMS
             {
                 timeSystemObject = new GameObject("KMS Time System");
                 territoryData = timeSystemObject.AddComponent<TerritoryData>();
-            }
+            }*/
+            timeSystemObject = new GameObject("KMS Time System");
 
             gameTimeManager = timeSystemObject.GetComponent<GameTimeManager>();
             if (gameTimeManager == null)
