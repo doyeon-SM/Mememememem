@@ -1,20 +1,19 @@
 using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
-using UnityEngine.InputSystem.Controls;
 
 namespace KMS
 {
     public class PlayerInput : MonoBehaviour
     {
+        [Header("Actions")]
+        [SerializeField] private InputActionAsset inputActions;
+
         [Header("Mouse")]
         [SerializeField] private float mouseLookScale = 1f;
 
         [Header("Gamepad")]
         [SerializeField] private float gamepadLookScale = 12f;
-
-        [Header("Interaction")]
-        [SerializeField] private Key interactKey = Key.F;
 
         public Vector2 Move { get; private set; }
         public Vector2 Look { get; private set; }
@@ -38,6 +37,7 @@ namespace KMS
         public event Action MenuPressed;
         public event Action InventoryPressed;
         public event Action CollectionPressed;
+        public event Action MapPressed;
         public event Action<int> QuickSlotPressed;
         public event Action<int> QuickSlotScrolled;
 
@@ -45,149 +45,80 @@ namespace KMS
 
         private const float QuickSlotScrollStepValue = 1f;
 
+        private InputActionAsset runtimeInputActions;
+        private InputActionMap gameplayActions;
+        private InputActionMap globalActions;
+        private InputAction moveAction;
+        private InputAction mouseLookAction;
+        private InputAction gamepadLookAction;
+        private InputAction sprintAction;
         private bool isGameplayInputBlocked;
         private float quickSlotScrollAmount;
 
+        private bool CanProcessGameplayInput =>
+            isActiveAndEnabled && !isGameplayInputBlocked && !IsCursorReleased;
+
+        private void Awake()
+        {
+            if (inputActions == null)
+            {
+                Debug.LogError("[PlayerInput] KMSPlayerControls InputActionAsset is not assigned.", this);
+                enabled = false;
+                return;
+            }
+
+            runtimeInputActions = Instantiate(inputActions);
+            gameplayActions = runtimeInputActions.FindActionMap("Gameplay", true);
+            globalActions = runtimeInputActions.FindActionMap("Global", true);
+            moveAction = gameplayActions.FindAction("Move", true);
+            mouseLookAction = gameplayActions.FindAction("MouseLook", true);
+            gamepadLookAction = gameplayActions.FindAction("GamepadLook", true);
+            sprintAction = gameplayActions.FindAction("Sprint", true);
+            BindActions();
+        }
+
+        private void OnEnable()
+        {
+            if (globalActions == null) return;
+
+            globalActions.Enable();
+            RefreshGameplayActionMap();
+        }
+
         private void OnDisable()
         {
-            SetMove(Vector2.zero);
-            SetLook(Vector2.zero);
-            SetSprint(false);
-            IsAiming = false;
+            gameplayActions?.Disable();
+            globalActions?.Disable();
+            ClearGameplayState();
             IsCursorReleased = false;
-            quickSlotScrollAmount = 0f;
+        }
+
+        private void OnDestroy()
+        {
+            if (runtimeInputActions == null) return;
+
+            UnbindActions();
+            Destroy(runtimeInputActions);
+            runtimeInputActions = null;
         }
 
         private void Update()
         {
-            Keyboard keyboard = Keyboard.current;
-            Mouse mouse = Mouse.current;
-            Gamepad gamepad = Gamepad.current;
-
-            UpdateMove(keyboard, gamepad);
-            UpdateLook(mouse, gamepad);
-            UpdateButtons(keyboard, mouse, gamepad);
-        }
-
-        private void UpdateMove(Keyboard keyboard, Gamepad gamepad)
-        {
-            if (isGameplayInputBlocked || IsCursorReleased)
+            if (!CanProcessGameplayInput)
             {
                 SetMove(Vector2.zero);
+                SetLook(Vector2.zero);
+                SetSprint(false);
                 return;
             }
 
-            Vector2 move = Vector2.zero;
-
-            if (keyboard != null)
-            {
-                if (keyboard.wKey.isPressed || keyboard.upArrowKey.isPressed) move.y += 1f;
-                if (keyboard.sKey.isPressed || keyboard.downArrowKey.isPressed) move.y -= 1f;
-                if (keyboard.dKey.isPressed || keyboard.rightArrowKey.isPressed) move.x += 1f;
-                if (keyboard.aKey.isPressed || keyboard.leftArrowKey.isPressed) move.x -= 1f;
-            }
-
-            if (gamepad != null)
-            {
-                Vector2 stick = gamepad.leftStick.ReadValue();
-                if (stick.sqrMagnitude > move.sqrMagnitude)
-                {
-                    move = stick;
-                }
-            }
+            Vector2 move = moveAction.ReadValue<Vector2>();
+            Vector2 look = mouseLookAction.ReadValue<Vector2>() * mouseLookScale;
+            look += gamepadLookAction.ReadValue<Vector2>() * gamepadLookScale;
 
             SetMove(Vector2.ClampMagnitude(move, 1f));
-        }
-
-        private void UpdateLook(Mouse mouse, Gamepad gamepad)
-        {
-            if (isGameplayInputBlocked || IsCursorReleased)
-            {
-                SetLook(Vector2.zero);
-                return;
-            }
-
-            Vector2 look = Vector2.zero;
-
-            if (mouse != null)
-            {
-                look += mouse.delta.ReadValue() * mouseLookScale;
-            }
-
-            if (gamepad != null)
-            {
-                look += gamepad.rightStick.ReadValue() * gamepadLookScale;
-            }
-
             SetLook(look);
-        }
-
-        private void UpdateButtons(Keyboard keyboard, Mouse mouse, Gamepad gamepad)
-        {
-            if (!isGameplayInputBlocked && keyboard != null && keyboard.leftAltKey.wasPressedThisFrame)
-            {
-                IsCursorReleased = !IsCursorReleased;
-            }
-
-            UpdateInventoryButtons(keyboard, mouse);
-
-            if (isGameplayInputBlocked || IsCursorReleased)
-            {
-                SetSprint(false);
-                IsAiming = false;
-                return;
-            }
-
-            bool sprint = (keyboard != null && keyboard.leftShiftKey.isPressed) ||
-                          (gamepad != null && gamepad.leftStickButton.isPressed);
-            SetSprint(sprint);
-
-            if (WasPressed(keyboard?.spaceKey, gamepad?.buttonSouth)) JumpPressed?.Invoke();
-            if (WasReleased(keyboard?.spaceKey, gamepad?.buttonSouth)) JumpReleased?.Invoke();
-
-            if (WasPressed(mouse?.leftButton, gamepad?.rightTrigger))
-            {
-                PrimaryActionPressed?.Invoke();
-            }
-
-            if (WasReleased(mouse?.leftButton, gamepad?.rightTrigger))
-            {
-                PrimaryActionReleased?.Invoke();
-            }
-
-            if (WasPressed(mouse?.rightButton, gamepad?.leftTrigger))
-            {
-                IsAiming = true;
-                SecondaryActionPressed?.Invoke();
-            }
-
-            if (WasReleased(mouse?.rightButton, gamepad?.leftTrigger))
-            {
-                IsAiming = false;
-                SecondaryActionReleased?.Invoke();
-            }
-
-            if (keyboard != null)
-            {
-                if (keyboard.rKey.wasPressedThisFrame) ReloadPressed?.Invoke();
-                if (keyboard.digit2Key.wasPressedThisFrame) NextPressed?.Invoke();
-                if (keyboard.digit1Key.wasPressedThisFrame) PreviousPressed?.Invoke();
-                if (keyboard.escapeKey.wasPressedThisFrame) MenuPressed?.Invoke();
-
-                KeyControl interactControl = keyboard[interactKey];
-                if (interactControl != null && interactControl.wasPressedThisFrame)
-                {
-                    InteractPressed?.Invoke();
-                }
-            }
-
-            if (gamepad != null)
-            {
-                if (gamepad.buttonWest.wasPressedThisFrame) ReloadPressed?.Invoke();
-                if (gamepad.rightShoulder.wasPressedThisFrame) NextPressed?.Invoke();
-                if (gamepad.leftShoulder.wasPressedThisFrame) PreviousPressed?.Invoke();
-                if (gamepad.startButton.wasPressedThisFrame) MenuPressed?.Invoke();
-            }
+            SetSprint(sprintAction.IsPressed());
         }
 
         public void SetGameplayInputBlocked(bool isBlocked)
@@ -195,9 +126,105 @@ namespace KMS
             if (isGameplayInputBlocked == isBlocked) return;
 
             isGameplayInputBlocked = isBlocked;
+            RefreshGameplayActionMap();
 
-            if (!isGameplayInputBlocked) return;
+            if (isGameplayInputBlocked)
+            {
+                ClearGameplayState();
+            }
+        }
 
+        public void SetCursorReleased(bool isReleased)
+        {
+            if (IsCursorReleased == isReleased) return;
+
+            IsCursorReleased = isReleased;
+            RefreshGameplayActionMap();
+
+            if (IsCursorReleased)
+            {
+                ClearGameplayState();
+            }
+        }
+
+        private void BindActions()
+        {
+            gameplayActions["Jump"].performed += HandleJumpPerformed;
+            gameplayActions["Jump"].canceled += HandleJumpCanceled;
+            gameplayActions["PrimaryAction"].performed += HandlePrimaryActionPerformed;
+            gameplayActions["PrimaryAction"].canceled += HandlePrimaryActionCanceled;
+            gameplayActions["SecondaryAction"].performed += HandleSecondaryActionPerformed;
+            gameplayActions["SecondaryAction"].canceled += HandleSecondaryActionCanceled;
+            gameplayActions["Reload"].performed += HandleReloadPerformed;
+            gameplayActions["Interact"].performed += HandleInteractPerformed;
+            gameplayActions["Next"].performed += HandleNextPerformed;
+            gameplayActions["Previous"].performed += HandlePreviousPerformed;
+            gameplayActions["QuickSlot1"].performed += HandleQuickSlot1Performed;
+            gameplayActions["QuickSlot2"].performed += HandleQuickSlot2Performed;
+            gameplayActions["QuickSlot3"].performed += HandleQuickSlot3Performed;
+            gameplayActions["QuickSlot4"].performed += HandleQuickSlot4Performed;
+            gameplayActions["QuickSlot5"].performed += HandleQuickSlot5Performed;
+            gameplayActions["QuickSlot6"].performed += HandleQuickSlot6Performed;
+            gameplayActions["QuickSlot7"].performed += HandleQuickSlot7Performed;
+            gameplayActions["QuickSlot8"].performed += HandleQuickSlot8Performed;
+            gameplayActions["QuickSlot9"].performed += HandleQuickSlot9Performed;
+            gameplayActions["QuickSlot10"].performed += HandleQuickSlot10Performed;
+            gameplayActions["QuickSlotScroll"].performed += HandleQuickSlotScrollPerformed;
+
+            globalActions["ToggleCursor"].performed += HandleToggleCursorPerformed;
+            globalActions["Menu"].performed += HandleMenuPerformed;
+            globalActions["Inventory"].performed += HandleInventoryPerformed;
+            globalActions["Collection"].performed += HandleCollectionPerformed;
+            globalActions["Map"].performed += HandleMapPerformed;
+        }
+
+        private void UnbindActions()
+        {
+            gameplayActions["Jump"].performed -= HandleJumpPerformed;
+            gameplayActions["Jump"].canceled -= HandleJumpCanceled;
+            gameplayActions["PrimaryAction"].performed -= HandlePrimaryActionPerformed;
+            gameplayActions["PrimaryAction"].canceled -= HandlePrimaryActionCanceled;
+            gameplayActions["SecondaryAction"].performed -= HandleSecondaryActionPerformed;
+            gameplayActions["SecondaryAction"].canceled -= HandleSecondaryActionCanceled;
+            gameplayActions["Reload"].performed -= HandleReloadPerformed;
+            gameplayActions["Interact"].performed -= HandleInteractPerformed;
+            gameplayActions["Next"].performed -= HandleNextPerformed;
+            gameplayActions["Previous"].performed -= HandlePreviousPerformed;
+            gameplayActions["QuickSlot1"].performed -= HandleQuickSlot1Performed;
+            gameplayActions["QuickSlot2"].performed -= HandleQuickSlot2Performed;
+            gameplayActions["QuickSlot3"].performed -= HandleQuickSlot3Performed;
+            gameplayActions["QuickSlot4"].performed -= HandleQuickSlot4Performed;
+            gameplayActions["QuickSlot5"].performed -= HandleQuickSlot5Performed;
+            gameplayActions["QuickSlot6"].performed -= HandleQuickSlot6Performed;
+            gameplayActions["QuickSlot7"].performed -= HandleQuickSlot7Performed;
+            gameplayActions["QuickSlot8"].performed -= HandleQuickSlot8Performed;
+            gameplayActions["QuickSlot9"].performed -= HandleQuickSlot9Performed;
+            gameplayActions["QuickSlot10"].performed -= HandleQuickSlot10Performed;
+            gameplayActions["QuickSlotScroll"].performed -= HandleQuickSlotScrollPerformed;
+
+            globalActions["ToggleCursor"].performed -= HandleToggleCursorPerformed;
+            globalActions["Menu"].performed -= HandleMenuPerformed;
+            globalActions["Inventory"].performed -= HandleInventoryPerformed;
+            globalActions["Collection"].performed -= HandleCollectionPerformed;
+            globalActions["Map"].performed -= HandleMapPerformed;
+        }
+
+        private void RefreshGameplayActionMap()
+        {
+            if (gameplayActions == null || !isActiveAndEnabled) return;
+
+            if (isGameplayInputBlocked || IsCursorReleased)
+            {
+                gameplayActions.Disable();
+            }
+            else
+            {
+                gameplayActions.Enable();
+            }
+        }
+
+        private void ClearGameplayState()
+        {
             SetMove(Vector2.zero);
             SetLook(Vector2.zero);
             SetSprint(false);
@@ -205,9 +232,121 @@ namespace KMS
             quickSlotScrollAmount = 0f;
         }
 
-        public void SetCursorReleased(bool isReleased)
+        private void HandleJumpPerformed(InputAction.CallbackContext _)
         {
-            IsCursorReleased = isReleased;
+            if (CanProcessGameplayInput) JumpPressed?.Invoke();
+        }
+
+        private void HandleJumpCanceled(InputAction.CallbackContext _)
+        {
+            if (CanProcessGameplayInput) JumpReleased?.Invoke();
+        }
+
+        private void HandlePrimaryActionPerformed(InputAction.CallbackContext _)
+        {
+            if (CanProcessGameplayInput) PrimaryActionPressed?.Invoke();
+        }
+
+        private void HandlePrimaryActionCanceled(InputAction.CallbackContext _)
+        {
+            if (CanProcessGameplayInput) PrimaryActionReleased?.Invoke();
+        }
+
+        private void HandleSecondaryActionPerformed(InputAction.CallbackContext _)
+        {
+            if (!CanProcessGameplayInput) return;
+
+            IsAiming = true;
+            SecondaryActionPressed?.Invoke();
+        }
+
+        private void HandleSecondaryActionCanceled(InputAction.CallbackContext _)
+        {
+            if (!CanProcessGameplayInput) return;
+
+            IsAiming = false;
+            SecondaryActionReleased?.Invoke();
+        }
+
+        private void HandleReloadPerformed(InputAction.CallbackContext _)
+        {
+            if (CanProcessGameplayInput) ReloadPressed?.Invoke();
+        }
+
+        private void HandleInteractPerformed(InputAction.CallbackContext _)
+        {
+            if (CanProcessGameplayInput) InteractPressed?.Invoke();
+        }
+
+        private void HandleNextPerformed(InputAction.CallbackContext _)
+        {
+            if (CanProcessGameplayInput) NextPressed?.Invoke();
+        }
+
+        private void HandlePreviousPerformed(InputAction.CallbackContext _)
+        {
+            if (CanProcessGameplayInput) PreviousPressed?.Invoke();
+        }
+
+        private void HandleQuickSlot1Performed(InputAction.CallbackContext _) => InvokeQuickSlot(0);
+        private void HandleQuickSlot2Performed(InputAction.CallbackContext _) => InvokeQuickSlot(1);
+        private void HandleQuickSlot3Performed(InputAction.CallbackContext _) => InvokeQuickSlot(2);
+        private void HandleQuickSlot4Performed(InputAction.CallbackContext _) => InvokeQuickSlot(3);
+        private void HandleQuickSlot5Performed(InputAction.CallbackContext _) => InvokeQuickSlot(4);
+        private void HandleQuickSlot6Performed(InputAction.CallbackContext _) => InvokeQuickSlot(5);
+        private void HandleQuickSlot7Performed(InputAction.CallbackContext _) => InvokeQuickSlot(6);
+        private void HandleQuickSlot8Performed(InputAction.CallbackContext _) => InvokeQuickSlot(7);
+        private void HandleQuickSlot9Performed(InputAction.CallbackContext _) => InvokeQuickSlot(8);
+        private void HandleQuickSlot10Performed(InputAction.CallbackContext _) => InvokeQuickSlot(9);
+
+        private void HandleQuickSlotScrollPerformed(InputAction.CallbackContext context)
+        {
+            if (!CanProcessGameplayInput) return;
+            ApplyQuickSlotScroll(context.ReadValue<Vector2>().y);
+        }
+
+        private void HandleToggleCursorPerformed(InputAction.CallbackContext _)
+        {
+            if (isGameplayInputBlocked) return;
+            SetCursorReleased(!IsCursorReleased);
+        }
+
+        private void HandleMenuPerformed(InputAction.CallbackContext _)
+        {
+            if (isGameplayInputBlocked || IsCursorReleased) return;
+            MenuPressed?.Invoke();
+        }
+
+        private void HandleInventoryPerformed(InputAction.CallbackContext _)
+        {
+            InventoryPressed?.Invoke();
+        }
+
+        private void HandleCollectionPerformed(InputAction.CallbackContext _)
+        {
+            CollectionPressed?.Invoke();
+        }
+
+        private void HandleMapPerformed(InputAction.CallbackContext _)
+        {
+            MapPressed?.Invoke();
+        }
+
+        private void InvokeQuickSlot(int index)
+        {
+            if (CanProcessGameplayInput) QuickSlotPressed?.Invoke(index);
+        }
+
+        private void ApplyQuickSlotScroll(float scrollY)
+        {
+            if (Mathf.Approximately(scrollY, 0f)) return;
+
+            quickSlotScrollAmount += scrollY;
+            if (Mathf.Abs(quickSlotScrollAmount) < QuickSlotScrollStepValue) return;
+
+            int direction = quickSlotScrollAmount > 0f ? -1 : 1;
+            quickSlotScrollAmount = 0f;
+            QuickSlotScrolled?.Invoke(direction);
         }
 
         private void SetMove(Vector2 move)
@@ -228,69 +367,6 @@ namespace KMS
             if (IsSprinting == isSprinting) return;
             IsSprinting = isSprinting;
             SprintChanged?.Invoke(IsSprinting);
-        }
-
-        private void UpdateInventoryButtons(Keyboard keyboard, Mouse mouse)
-        {
-            if (keyboard != null)
-            {
-                if (keyboard.iKey.wasPressedThisFrame || keyboard.eKey.wasPressedThisFrame)
-                {
-                    InventoryPressed?.Invoke();
-                }
-
-                if (keyboard.oKey.wasPressedThisFrame)
-                {
-                    CollectionPressed?.Invoke();
-                }
-
-                if (keyboard.digit1Key.wasPressedThisFrame) InvokeQuickSlot(0);
-                if (keyboard.digit2Key.wasPressedThisFrame) InvokeQuickSlot(1);
-                if (keyboard.digit3Key.wasPressedThisFrame) InvokeQuickSlot(2);
-                if (keyboard.digit4Key.wasPressedThisFrame) InvokeQuickSlot(3);
-                if (keyboard.digit5Key.wasPressedThisFrame) InvokeQuickSlot(4);
-                if (keyboard.digit6Key.wasPressedThisFrame) InvokeQuickSlot(5);
-                if (keyboard.digit7Key.wasPressedThisFrame) InvokeQuickSlot(6);
-                if (keyboard.digit8Key.wasPressedThisFrame) InvokeQuickSlot(7);
-                if (keyboard.digit9Key.wasPressedThisFrame) InvokeQuickSlot(8);
-                if (keyboard.digit0Key.wasPressedThisFrame) InvokeQuickSlot(9);
-            }
-
-            if (mouse != null)
-            {
-                ApplyQuickSlotScroll(mouse.scroll.ReadValue().y);
-            }
-        }
-
-        private void InvokeQuickSlot(int index)
-        {
-            QuickSlotPressed?.Invoke(index);
-        }
-
-        private void ApplyQuickSlotScroll(float scrollY)
-        {
-            if (Mathf.Approximately(scrollY, 0f)) return;
-
-            quickSlotScrollAmount += scrollY;
-
-            if (Mathf.Abs(quickSlotScrollAmount) < QuickSlotScrollStepValue) return;
-
-            int direction = quickSlotScrollAmount > 0f ? -1 : 1;
-            quickSlotScrollAmount = 0f;
-
-            QuickSlotScrolled?.Invoke(direction);
-        }
-
-        private static bool WasPressed(ButtonControl first, ButtonControl second)
-        {
-            return (first != null && first.wasPressedThisFrame) ||
-                   (second != null && second.wasPressedThisFrame);
-        }
-
-        private static bool WasReleased(ButtonControl first, ButtonControl second)
-        {
-            return (first != null && first.wasReleasedThisFrame) ||
-                   (second != null && second.wasReleasedThisFrame);
         }
     }
 }
