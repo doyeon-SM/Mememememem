@@ -41,6 +41,8 @@ public class ProductionCraftRuntime : MonoBehaviour
 
     public static event Action OnMemDeploymentChanged;
 
+    public static event Action<BuildingType, bool> MemAdded;
+
     private void Start()
     {
         maxStorageCount = 10;
@@ -153,6 +155,7 @@ public class ProductionCraftRuntime : MonoBehaviour
         if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
 
         OnMemDeploymentChanged?.Invoke();
+        MemAdded?.Invoke(buildingData.buildingType, true);
 
         return true;
     }
@@ -177,6 +180,7 @@ public class ProductionCraftRuntime : MonoBehaviour
             if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
 
             OnMemDeploymentChanged?.Invoke();
+            MemAdded?.Invoke(buildingData.buildingType, false);
         }
     }
 
@@ -186,7 +190,7 @@ public class ProductionCraftRuntime : MonoBehaviour
     private void CompleteCraftingUnit()
     {
         currentStorageCount++;
-        remainingQuantity--;
+        remainingQuantity--; 
 
         currentProgressTime = 0f;
 
@@ -205,11 +209,11 @@ public class ProductionCraftRuntime : MonoBehaviour
     /// </summary>
     public void CancelCrafting()
     {
-        if (!isProducing && currentCraftingItem == null) return;
+        if(!isProducing && currentCraftingItem == null) return;
 
         var inventory = FindFirstObjectByType<PlayerInventory>();
         var warehouse = FindFirstObjectByType<WarehouseInventory>();
-
+        
         if (currentStorageCount > 0)
         {
             if (inventory != null)
@@ -272,7 +276,7 @@ public class ProductionCraftRuntime : MonoBehaviour
 
         //
         PlayerInventory inventory = FindFirstObjectByType<PlayerInventory>();
-        if (inventory != null)
+        if(inventory != null)
         {
             int remaining = inventory.AddItem(currentCraftingItem, currentStorageCount);
             currentStorageCount = remaining;
@@ -287,6 +291,6 @@ public class ProductionCraftRuntime : MonoBehaviour
             return true;
         }
 
-        return false;
+        return false; 
     }
 }

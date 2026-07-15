@@ -1,13 +1,16 @@
 ﻿using DG.Tweening;
+using HDY.Capture;
+using HDY.Item;
+using HDY.Mem;
+using KMS.InventoryDuped;
+using MemSystem.Data;
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
-using UnityEngine.InputSystem;
 using UnityEngine.EventSystems;
-using KMS.InventoryDuped;
-using HDY.Item;
+using UnityEngine.InputSystem;
 
 public class GridManager : MonoBehaviour
 {
@@ -92,7 +95,6 @@ public class GridManager : MonoBehaviour
         defaultModeMaterial = CreateGridMaterial(false);
         placeModeMaterial = CreateGridMaterial(true);
         InitializeGrid(5, 5);
-
     }
 
     private void OnEnable()
@@ -460,8 +462,6 @@ public class GridManager : MonoBehaviour
         OnPlacementModeChanged?.Invoke(isPlacementMode, currentAvailableBuildings);
 
         OnGridDataChanged?.Invoke();
-
-
     }
 
     private void TryPickUpBuilding(int x, int z)
@@ -641,6 +641,10 @@ public class GridManager : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// 🌟 [요구사항 반영 완동]: 복원 롤백 분기 가동 시, RecordManager의 실시간 캐시데이터 데이터베이스를 매칭 수색하여
+    /// 이관되어있던 일꾼 멤 정보(DeployedMemEntries)를 원본 손실 없이 거울 구조로 재조립 역주입합니다.
+    /// </summary>
     private void RestoreRollbackData(List<BuildingSnapshot> rollbackData)
     {
         if (rollbackData == null) return;
@@ -666,6 +670,78 @@ public class GridManager : MonoBehaviour
                 buildingRuntime.Initialize(snap.data, snap.startX, snap.startZ);
             }
 
+            // 🌟 RecordManager의 facilityDatabase에서 기존 상태 복원 연쇄 가동
+            string uniqueId = $"{snap.data.buildingName}_{snap.startX}_{snap.startZ}";
+            if (RecordManager.Instance != null)
+            {
+                PlantJSONSaveData entry = RecordManager.Instance.GetFacilityData(uniqueId);
+                if (entry != null)
+                {
+                    List<CapturedMemEntry> matchedEntries = new List<CapturedMemEntry>();
+                    List<MemData> restoredMems = new List<MemData>();
+
+                    var memManager = FindFirstObjectByType<MemCaptureManager>();
+                    if (memManager != null && entry.DeployedMemIDs != null)
+                    {
+                        var warehouseList = memManager.CapturedMems;
+                        foreach (var savedKeyId in entry.DeployedMemIDs)
+                        {
+                            var warehouseMatch = warehouseList.FirstOrDefault(m => m != null && m.KeyId == savedKeyId);
+                            if (warehouseMatch != null)
+                            {
+                                warehouseMatch.IsActive = true;
+                                matchedEntries.Add(warehouseMatch);
+
+                                MemData mData = new MemData();
+                                mData.memName = warehouseMatch.MemId;
+
+                                var template = MemCatalogManager.Instance != null ? MemCatalogManager.Instance.FindMemData(warehouseMatch.MemId) : null;
+                                mData.maxHunger = (template != null) ? template.maxHunger : 10;
+
+                                restoredMems.Add(mData);
+                            }
+                        }
+                    }
+
+                    if (restoredBuilding.TryGetComponent<ProductionFacilityRuntime>(out var facility))
+                    {
+                        facility.buildingData = snap.data;
+                        facility.isProducing = entry.isActive;
+                        facility.currentProgressTime = entry.currentProgressTime;
+                        facility.currentStorageCount = entry.currentStorageCount;
+                        facility.craftingItem = FindItemDataInProject(entry.currentCraftingItemId);
+                        facility.UpdateMaxStorage();
+
+                        if (facility.DeployedMems != null && facility.DeployedMemEntries != null)
+                        {
+                            facility.DeployedMems.Clear();
+                            facility.DeployedMemEntries.Clear();
+                            facility.DeployedMems.AddRange(restoredMems);
+                            facility.DeployedMemEntries.AddRange(matchedEntries);
+                        }
+                        facility.CheckProductionCondition();
+                    }
+                    else if (restoredBuilding.TryGetComponent<ProductionCraftRuntime>(out var craft))
+                    {
+                        craft.buildingData = snap.data;
+                        craft.isProducing = entry.isActive;
+                        craft.targetQuantity = entry.targetQuantity;
+                        craft.remainingQuantity = entry.remainingQuantity;
+                        craft.currentProgressTime = entry.currentProgressTime;
+                        craft.currentStorageCount = entry.currentStorageCount;
+                        craft.currentCraftingItem = FindItemDataInProject(entry.currentCraftingItemId);
+
+                        if (craft.DeployedMems != null && craft.DeployedMemEntries != null)
+                        {
+                            craft.DeployedMems.Clear();
+                            craft.DeployedMemEntries.Clear();
+                            craft.DeployedMems.AddRange(restoredMems);
+                            craft.DeployedMemEntries.AddRange(matchedEntries);
+                        }
+                    }
+                }
+            }
+
             for (int x = snap.startX; x < snap.startX + bWidth; x++)
             {
                 for (int z = snap.startZ; z < snap.startZ + bHeight; z++)
@@ -676,6 +752,13 @@ public class GridManager : MonoBehaviour
                 }
             }
         }
+    }
+
+    private ItemData FindItemDataInProject(string itemId)
+    {
+        if (string.IsNullOrEmpty(itemId)) return null;
+        ItemData[] allItems = Resources.FindObjectsOfTypeAll<ItemData>();
+        return allItems.FirstOrDefault(item => item != null && item.Item_ID == itemId);
     }
 
     private bool IsPointerOverBlockingUI()

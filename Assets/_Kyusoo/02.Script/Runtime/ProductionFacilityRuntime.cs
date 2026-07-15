@@ -33,6 +33,8 @@ public class ProductionFacilityRuntime : MonoBehaviour
 
     public static event Action OnMemDeploymentChanged;
 
+    public static event Action<BuildingType, bool> MemAdded;
+
     private void Start()
     {
         UpdateMaxStorage();
@@ -147,6 +149,17 @@ public class ProductionFacilityRuntime : MonoBehaviour
         if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
         OnMemDeploymentChanged?.Invoke();
 
+        BuildingType type = buildingData.buildingType;
+        switch (type)
+        {
+            case BuildingType.LoggingCamp: MemAdded?.Invoke(BuildingType.LoggingCamp, true); break;
+            case BuildingType.MiningCamp: MemAdded?.Invoke(BuildingType.MiningCamp, true); break;
+            case BuildingType.Farm: MemAdded?.Invoke(BuildingType.Farm, true); break;
+                //case BuildingType.Ranch: MemAdded?.Invoke(BuildingType.Ranch, true); break;
+                //case BuildingType.TransportFacility: MemAdded?.Invoke(BuildingType.TransportFacility, true); break;
+                //case BuildingType.Generator: MemAdded?.Invoke(BuildingType.Generator, true); break;
+        }
+
         return true;
     }
 
@@ -171,6 +184,17 @@ public class ProductionFacilityRuntime : MonoBehaviour
 
             if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
             OnMemDeploymentChanged?.Invoke();
+
+            BuildingType type = buildingData.buildingType;
+            switch (type)
+            {
+                case BuildingType.LoggingCamp: MemAdded?.Invoke(BuildingType.LoggingCamp, false); break;
+                case BuildingType.MiningCamp: MemAdded?.Invoke(BuildingType.MiningCamp, false); break;
+                case BuildingType.Farm: MemAdded?.Invoke(BuildingType.Farm, false); break;
+                    //case BuildingType.Ranch: MemAdded?.Invoke(BuildingType.Ranch, true); break;
+                    //case BuildingType.TransportFacility: MemAdded?.Invoke(BuildingType.TransportFacility, true); break;
+                    //case BuildingType.Generator: MemAdded?.Invoke(BuildingType.Generator, true); break;
+            }
         }
     }
 
