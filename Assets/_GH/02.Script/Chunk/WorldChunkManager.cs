@@ -38,6 +38,7 @@ public class WorldChunkManager : MonoBehaviour
 
     private void Awake()
     {
+        ResolvePlayerReference();
         CollectChunks();
     }
 
@@ -88,7 +89,7 @@ public class WorldChunkManager : MonoBehaviour
     /// <param name="force">참이면 플레이어 청크가 바뀌지 않았어도 모든 청크 상태를 다시 적용합니다.</param>
     public void RefreshActiveChunks(bool force)
     {
-        if (player == null)
+        if (!ResolvePlayerReference())
         {
             return;
         }
@@ -119,6 +120,24 @@ public class WorldChunkManager : MonoBehaviour
                 chunk.gameObject.SetActive(shouldBeActive);
             }
         }
+    }
+
+    /// <summary>런타임에 교체된 플레이어를 명시적으로 연결하고 청크를 즉시 갱신합니다.</summary>
+    public void SetPlayer(Transform newPlayer, bool refreshImmediately = true)
+    {
+        player = newPlayer;
+        lastPlayerChunkCoord = new Vector2Int(int.MinValue, int.MinValue);
+
+        if (refreshImmediately && player != null)
+        {
+            RefreshActiveChunks(true);
+        }
+    }
+
+    private bool ResolvePlayerReference()
+    {
+        player = PlayerReferenceResolver.ResolveTransform(player);
+        return player != null;
     }
 
     /// <summary>월드 좌표를 청크 좌표로 변환합니다.</summary>

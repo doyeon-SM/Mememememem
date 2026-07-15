@@ -5,6 +5,7 @@ using GH.Loading;
 using KMS.InventoryDuped;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.Serialization;
 
 /// <summary>
 /// 모든 웨이포인트의 런타임 해금 상태, 지도 개방 조건, 스톤 등록과 이동 요청을 관리합니다.
@@ -21,8 +22,6 @@ public class WayPointManager : MonoBehaviour
     [SerializeField] private List<WayPointDefinition> definitions = new List<WayPointDefinition>();
 
     [Header("Scene Map UI")]
-    [Tooltip("활성 씬에서 자동으로 찾습니다. 런타임 확인 또는 명시적 재정의가 필요할 때만 지정하세요.")]
-    [SerializeField] private GameObject targetUI;
     [Tooltip("활성 씬에서 비활성 오브젝트까지 포함해 자동으로 찾습니다.")]
     [SerializeField] private WayPointMapUI mapUI;
     [SerializeField] private bool hideMapOnSceneLoad = true;
@@ -43,8 +42,10 @@ public class WayPointManager : MonoBehaviour
 
     [Header("Runtime")]
     [SerializeField] private Transform player;
-    [SerializeField] private bool autoFindPlayerByTag = true;
+    [FormerlySerializedAs("autoFindPlayerByTag")]
+    [SerializeField] private bool autoFindPlayer = true;
     [SerializeField] private string playerTag = "Player";
+    [SerializeField] private string playerLayerName = "Player";
     [SerializeField] private bool dontDestroyOnLoad = true;
 
     [Header("Debug")]
@@ -54,6 +55,7 @@ public class WayPointManager : MonoBehaviour
     private readonly Dictionary<string, WayPointRunTime> statesById = new Dictionary<string, WayPointRunTime>();
     private readonly Dictionary<string, WayPointStone> stonesById = new Dictionary<string, WayPointStone>();
     private WayPointRunTime pendingTravelState;
+    private GameObject targetUI;
     private bool isMapOpen;
     private bool manageCursorForOpenMap;
     private int lastShortcutToggleFrame = -1;
@@ -186,6 +188,18 @@ public class WayPointManager : MonoBehaviour
         }
     }
 
+    /// <summary>보기 전용 지도가 닫혀 있으면 열고, 지도가 열려 있으면 닫습니다.</summary>
+    public void TogglePreviewMap()
+    {
+        if (isMapOpen)
+        {
+            CloseMap();
+            return;
+        }
+
+        OpenPreviewMap();
+    }
+
     /// <summary>지정한 모드와 초기 지도로 현재 씬의 지도 UI를 엽니다.</summary>
     public bool OpenMap(WayPointMapOpenMode openMode, WayPointMapDefinition mapOverride = null)
     {
@@ -195,10 +209,10 @@ public class WayPointManager : MonoBehaviour
             return false;
         }
 
-        mapUI.PrepareOpen(openMode, mapOverride);
         manageCursorForOpenMap = !IsAlwaysVisibleCursorScene();
         isMapOpen = true;
         SetSceneMapVisible(true);
+        mapUI.PrepareOpen(openMode, mapOverride);
         ApplyMapInputState(true, manageCursorForOpenMap);
         return true;
     }
@@ -234,6 +248,10 @@ public class WayPointManager : MonoBehaviour
         {
             ApplyMapInputState(false, shouldManageCursor);
         }
+
+        // 상시 커서 씬은 표시 상태를 유지하고, 그 외 씬은 닫기 요청과 함께
+        // PlayerInput/카메라 내부 상태까지 잠금 상태로 다시 맞춘다.
+        RefreshSceneCursorPolicy(SceneManager.GetActiveScene().name);
     }
 
     private WayPointMapOpenMode ResolveShortcutOpenMode()
@@ -282,11 +300,7 @@ public class WayPointManager : MonoBehaviour
         Scene activeScene = SceneManager.GetActiveScene();
         if (mapUI != null && mapUI.gameObject.scene == activeScene)
         {
-            if (targetUI == null || targetUI.scene != activeScene)
-            {
-                targetUI = mapUI.VisibilityTarget;
-            }
-
+            targetUI = mapUI.VisibilityTarget;
             return;
         }
 
@@ -376,9 +390,9 @@ public class WayPointManager : MonoBehaviour
         bool showCursorForOpenMap = isMapOpen && unlockCursorWhileOpen && manageCursorForOpenMap;
         bool releaseCursor = keepCursorVisible || showCursorForOpenMap;
 
-        KMS.PlayerInput[] playerInputs = FindObjectsByType<KMS.PlayerInput>(
-            FindObjectsInactive.Include,
-            FindObjectsSortMode.None);
+        KMS.PlayerInput[] playerInputs = PlayerReferenceResolver.FindPlayerComponents<KMS.PlayerInput>(
+            playerTag,
+            playerLayerName);
 
         foreach (KMS.PlayerInput playerInputComponent in playerInputs)
         {
@@ -388,9 +402,10 @@ public class WayPointManager : MonoBehaviour
             }
         }
 
-        KMS.PlayerCameraController[] cameraControllers = FindObjectsByType<KMS.PlayerCameraController>(
-            FindObjectsInactive.Include,
-            FindObjectsSortMode.None);
+        KMS.PlayerCameraController[] cameraControllers =
+            PlayerReferenceResolver.FindPlayerComponents<KMS.PlayerCameraController>(
+                playerTag,
+                playerLayerName);
 
         foreach (KMS.PlayerCameraController cameraController in cameraControllers)
         {
@@ -411,9 +426,9 @@ public class WayPointManager : MonoBehaviour
             return;
         }
 
-        KMS.PlayerInput[] playerInputs = FindObjectsByType<KMS.PlayerInput>(
-            FindObjectsInactive.Exclude,
-            FindObjectsSortMode.None);
+        KMS.PlayerInput[] playerInputs = PlayerReferenceResolver.FindPlayerComponents<KMS.PlayerInput>(
+            playerTag,
+            playerLayerName);
 
         foreach (KMS.PlayerInput playerInputComponent in playerInputs)
         {
@@ -917,7 +932,7 @@ public class WayPointManager : MonoBehaviour
         RefreshSceneCursorPolicy(SceneManager.GetActiveScene().name);
     }
 
-    // 인스펙터에 Player가 비어 있으면 Player 태그로 이동 대상을 자동 탐색한다.
+    // 인스펙터에 Player가 비어 있으면 Player 태그를 우선하고, 없으면 Player 레이어로 찾는다.
     private Transform ResolvePlayer()
     {
         if (player != null)
@@ -925,27 +940,12 @@ public class WayPointManager : MonoBehaviour
             return player;
         }
 
-        if (!autoFindPlayerByTag || string.IsNullOrWhiteSpace(playerTag))
+        if (!autoFindPlayer)
         {
             return null;
         }
 
-        GameObject playerObject = null;
-        try
-        {
-            playerObject = GameObject.FindGameObjectWithTag(playerTag);
-        }
-        catch (UnityException)
-        {
-            Debug.LogWarning($"[WayPointManager] Player tag is not defined: {playerTag}");
-        }
-
-        if (playerObject == null)
-        {
-            return null;
-        }
-
-        player = playerObject.transform;
+        player = PlayerReferenceResolver.ResolveTransform(player, playerTag, playerLayerName);
         return player;
     }
 
@@ -964,7 +964,11 @@ public class WayPointManager : MonoBehaviour
     // CharacterController가 있으면 잠시 꺼서 순간이동 위치가 밀리지 않도록 한다.
     private void MovePlayer(Transform targetPlayer, Vector3 destination)
     {
-        CharacterController controller = targetPlayer.GetComponent<CharacterController>();
+        CharacterController controller = PlayerReferenceResolver
+            .FindComponentInPlayerHierarchy<CharacterController>(
+                targetPlayer.gameObject,
+                playerTag,
+                playerLayerName);
 
         if (controller != null)
         {
@@ -983,7 +987,7 @@ public class WayPointManager : MonoBehaviour
         WorldChunkManager chunkManager = FindFirstObjectByType<WorldChunkManager>(FindObjectsInactive.Include);
         if (chunkManager != null)
         {
-            chunkManager.RefreshActiveChunks(true);
+            chunkManager.SetPlayer(ResolvePlayer());
         }
     }
 

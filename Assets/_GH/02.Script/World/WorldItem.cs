@@ -231,7 +231,18 @@ public class WorldItem : MonoBehaviour
             return;
         }
 
-        PlayerInventory inventory = collision.GetComponentInParent<PlayerInventory>();
+        if (!PlayerReferenceResolver.IsInPlayerHierarchy(collision.gameObject))
+        {
+            return;
+        }
+
+        PlayerInventory inventory = PlayerReferenceResolver.FindComponentInPlayerHierarchy<PlayerInventory>(
+            collision.gameObject);
+        if (inventory == null)
+        {
+            inventory = PlayerReferenceResolver.FindPlayerComponent<PlayerInventory>();
+        }
+
         if (inventory == null)
         {
             return;

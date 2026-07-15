@@ -1,32 +1,12 @@
 using UnityEngine;
-#if ENABLE_INPUT_SYSTEM
-using UnityEngine.InputSystem;
-#endif
 
 /// <summary>
-/// 지도 단축키와 UI 버튼 요청을 현재 <see cref="WayPointManager"/>에 전달합니다.
+/// PlayerHUD와 UI 버튼의 지도 요청을 현재 <see cref="WayPointManager"/>에 전달합니다.
+/// 키 입력은 PlayerHUD가 담당하므로 이 컴포넌트에서는 입력을 직접 구독하거나 폴링하지 않습니다.
 /// </summary>
 public class WayPointUIToggle : MonoBehaviour
 {
-    [Header("Input")]
-    [SerializeField] private KeyCode legacyToggleKey = KeyCode.M;
-
-    private void Update()
-    {
-        if (!WasTogglePressed())
-        {
-            return;
-        }
-
-        if (!TryGetManager(out WayPointManager manager))
-        {
-            return;
-        }
-
-        manager.ToggleShortcutMap();
-    }
-
-    /// <summary>탐험 출발 Button의 OnClick에서 호출해 웨이포인트 이동 지도를 엽니다.</summary>
+    /// <summary>탐험 출발 버튼에서 호출해 이동 가능한 지도를 엽니다.</summary>
     public void OpenTravelMap()
     {
         if (!TryGetManager(out WayPointManager manager))
@@ -37,7 +17,7 @@ public class WayPointUIToggle : MonoBehaviour
         manager.OpenTravelMap();
     }
 
-    /// <summary>지도 보기 Button의 OnClick에서 호출해 보기 전용 지도를 엽니다.</summary>
+    /// <summary>지도 보기 버튼에서 호출해 보기 전용 지도를 엽니다.</summary>
     public void OpenPreviewMap()
     {
         if (!TryGetManager(out WayPointManager manager))
@@ -48,15 +28,15 @@ public class WayPointUIToggle : MonoBehaviour
         manager.OpenPreviewMap();
     }
 
-    private bool WasTogglePressed()
+    /// <summary>PlayerHUD 또는 버튼에서 호출해 보기 전용 지도를 열거나 닫습니다.</summary>
+    public void TogglePreviewMap()
     {
-#if ENABLE_INPUT_SYSTEM
-        if (Keyboard.current != null)
+        if (!TryGetManager(out WayPointManager manager))
         {
-            return Keyboard.current.mKey.wasPressedThisFrame;
+            return;
         }
-#endif
-        return Input.GetKeyDown(legacyToggleKey);
+
+        manager.TogglePreviewMap();
     }
 
     private bool TryGetManager(out WayPointManager manager)
