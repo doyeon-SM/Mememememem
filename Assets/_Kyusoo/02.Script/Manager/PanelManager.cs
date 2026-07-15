@@ -10,6 +10,7 @@ public class PanelManager : MonoBehaviour
     [SerializeField] private GameObject craftingPanel;
     [SerializeField] private GameObject productionPanel;
     [SerializeField] private GameObject foodWarehousePanel;
+    [SerializeField] private GameObject exploreMapPanel;
     [SerializeField] private GameObject UIPanel;
 
     [Header("시설별 UI 패널 컴포넌트")]
@@ -19,6 +20,8 @@ public class PanelManager : MonoBehaviour
     [Header("영지 UI 공통 제어 오브젝트: 닫기 버튼, 배치모드 버튼")]
     [SerializeField] private GameObject closeButtonGroup;
     [SerializeField] private GameObject placeButtonGroup;
+
+    [SerializeField] public WayPointUIToggle waypointui;
 
     private void Awake()
     {
@@ -106,6 +109,21 @@ public class PanelManager : MonoBehaviour
         }
     }
 
+    public void OpenExploreMapPanel()
+    {
+        if (UIManager.Instance != null) UIManager.Instance.CloseCurrent();
+        CloseAllPanels();
+
+        if (exploreMapPanel != null)
+        {
+            SetCommonGroupActive(true);
+            SetCameraControllersEnabled(false);
+
+            exploreMapPanel.SetActive(true);
+            waypointui.Open();
+        }
+    }
+
 
     /// <summary>
     /// UIManager를 통해 패널 활성화시 기존 시설물 창들을 세이브 후 클리어 처리, 공통 UI 닫기 버튼 On 및 카메라 차단
@@ -117,6 +135,7 @@ public class PanelManager : MonoBehaviour
         if (craftingPanelUI != null) craftingPanelUI.ClosePanel();
         if (productionPanelUI != null) productionPanelUI.ClosePanel();
         if (foodWarehousePanel != null) foodWarehousePanel.SetActive(false);
+        if (exploreMapPanel != null) exploreMapPanel.SetActive(false);
         if (UIPanel != null) UIPanel.SetActive(false);
 
         if (craftingPanel != null) craftingPanel.SetActive(false);
@@ -138,6 +157,7 @@ public class PanelManager : MonoBehaviour
         if (craftingPanelUI != null) craftingPanelUI.ClosePanel();
         if (productionPanelUI != null) productionPanelUI.ClosePanel();
         if (foodWarehousePanel != null) foodWarehousePanel.SetActive(false);
+        if (exploreMapPanel != null) exploreMapPanel.SetActive(false);
         if (UIPanel != null) UIPanel.SetActive(false);
 
         if (craftingPanel != null) craftingPanel.SetActive(false);

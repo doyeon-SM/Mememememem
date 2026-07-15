@@ -44,6 +44,8 @@ public class TotalHungerManager : MonoBehaviour
         int newTotalHunger = 0;
 
         var productionFacilities = FindObjectsByType<ProductionFacilityRuntime>(FindObjectsSortMode.None);
+        Debug.Log($"<color=cyan>[TotalHunger] 스캔 시작: 생산 시설 {productionFacilities.Length}개 발견</color>");
+
         foreach (var facility in productionFacilities)
         {
             if (facility == null || facility.DeployedMems == null) continue;
@@ -53,10 +55,13 @@ public class TotalHungerManager : MonoBehaviour
                 if (mem == null) continue;
 
                 newTotalHunger += mem.maxHunger;
+                Debug.Log($" - 시설: {facility.name} | 멤: {mem.memName} | 허기값: {mem.maxHunger} | 누적합: {newTotalHunger}");
             }
         }
 
         var craftingFacilities = FindObjectsByType<ProductionCraftRuntime>(FindObjectsSortMode.None);
+        Debug.Log($"<color=yellow>[TotalHunger] 스캔 시작: 제작 시설 {craftingFacilities.Length}개 발견</color>");
+
         foreach (var craft in craftingFacilities)
         {
             if (craft == null || craft.DeployedMems == null) continue;
@@ -66,12 +71,12 @@ public class TotalHungerManager : MonoBehaviour
                 if (mem == null) continue;
 
                 newTotalHunger += mem.maxHunger;
+                Debug.Log($" - 시설: {craft.name} | 멤: {mem.memName} | 허기값: {mem.maxHunger} | 누적합: {newTotalHunger}");
             }
         }
 
         totalHungerPerMinute = newTotalHunger;
-        Debug.Log($"허기량 업데이트: {totalHungerPerMinute}");
+        Debug.Log($"<color=green>[TotalHunger] 최종 합산 완료: {totalHungerPerMinute}</color>");
         OnTotalHungerChanged?.Invoke(totalHungerPerMinute);
-
     }
 }

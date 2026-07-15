@@ -24,6 +24,7 @@ namespace KMS.InventoryDuped
         [SerializeField] private KMS.PlayerMovement playerMovement;
         [SerializeField] private KMS.PlayerCameraController cameraController;
         [SerializeField] private KMS.PlayerHUD playerHud;
+        [SerializeField] private KMS.KMSMemDexLauncher memDexLauncher;
 
         // [HDY 요청] Item_ID만으로 테스트 지급을 할 수 있는 디버그 UI 훅.
         [Header("디버그 - Item_ID로 아이템 지급 (테스트용)")]
@@ -159,6 +160,7 @@ namespace KMS.InventoryDuped
             if (playerMovement == null) playerMovement = FindFirstObjectByType<KMS.PlayerMovement>();
             if (cameraController == null) cameraController = FindFirstObjectByType<KMS.PlayerCameraController>();
             if (playerHud == null) playerHud = FindFirstObjectByType<KMS.PlayerHUD>();
+            if (memDexLauncher == null) memDexLauncher = FindFirstObjectByType<KMS.KMSMemDexLauncher>();
         }
 
         private void SelectQuickSlot(int index)
@@ -200,6 +202,16 @@ namespace KMS.InventoryDuped
 
         private void SetInventoryOpen(bool open)
         {
+            if (open)
+            {
+                if (memDexLauncher == null)
+                {
+                    memDexLauncher = FindFirstObjectByType<KMS.KMSMemDexLauncher>();
+                }
+
+                if (memDexLauncher != null && memDexLauncher.IsOpen) return;
+            }
+
             if (isInventoryOpen == open) return;
 
             if (open)
