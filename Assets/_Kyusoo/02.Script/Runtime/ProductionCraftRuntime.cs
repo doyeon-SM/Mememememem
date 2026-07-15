@@ -1,9 +1,10 @@
 ﻿using HDY.Capture;
+using HDY.Inventory;
 using HDY.Item;
 using HDY.Recipe;
 using KMS.InventoryDuped;
-using HDY.Inventory;
 using MemSystem.Data;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -37,6 +38,8 @@ public class ProductionCraftRuntime : MonoBehaviour
 
     // 임시. 생산 소요 시간
     private float craftingDuration = 20f;
+
+    public static event Action OnMemDeploymentChanged;
 
     private void Start()
     {
@@ -143,6 +146,8 @@ public class ProductionCraftRuntime : MonoBehaviour
 
         if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
 
+        OnMemDeploymentChanged?.Invoke();
+
         return true;
     }
 
@@ -164,6 +169,8 @@ public class ProductionCraftRuntime : MonoBehaviour
             RecalculateCraftingTimer();
 
             if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
+
+            OnMemDeploymentChanged?.Invoke();
         }
     }
 

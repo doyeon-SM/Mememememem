@@ -1,9 +1,10 @@
 using HDY.Capture;
+using HDY.Inventory;
+using HDY.Item;
 using MemSystem.Data;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
-using HDY.Item;
-using HDY.Inventory;
 
 public class ProductionFacilityRuntime : MonoBehaviour
 {
@@ -29,6 +30,8 @@ public class ProductionFacilityRuntime : MonoBehaviour
 
     public List<MemData> DeployedMems => addMems;
     public List<CapturedMemEntry> DeployedMemEntries => addMemEntries;
+
+    public static event Action OnMemDeploymentChanged;
 
     private void Start()
     {
@@ -135,6 +138,7 @@ public class ProductionFacilityRuntime : MonoBehaviour
         CheckProductionCondition();
 
         if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
+        OnMemDeploymentChanged?.Invoke();
 
         return true;
     }
@@ -159,6 +163,7 @@ public class ProductionFacilityRuntime : MonoBehaviour
             CheckProductionCondition();
 
             if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
+            OnMemDeploymentChanged?.Invoke();
         }
     }
 

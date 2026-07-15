@@ -51,6 +51,7 @@ public class TerritorySaveData
     public int gold = 0;
     public int satisfaction = 0;
     public float elapsedTime = 0f;
+    public bool isBlueprintGiven = false;
 
     [Header("영지 타일 확장 데이터")]
     public int currentGridSize = 5;
@@ -86,8 +87,13 @@ public class RecordManager : MonoBehaviour
     private string saveFilePath;
     private Dictionary<string, PlantJSONSaveData> facilityDatabase = new Dictionary<string, PlantJSONSaveData>();
     private bool isApplicationQuitting = false;
+    public bool IsBlueprintGiven { get; private set; }
 
     private const string LastPlayTimeKey = "OfflineLastPlayTime";
+
+    // 🌟 [추가]: 영지 씬 내부의 가방 실시간 이벤트를 안전하게 구독 추적하기 위한 참조 필드
+    private PlayerInventory territoryInventory;
+    private WarehouseInventory territoryWarehouse;
 
     private void Awake()
     {
@@ -111,12 +117,26 @@ public class RecordManager : MonoBehaviour
 
     private void OnEnable()
     {
+        // 🌟 [보완]: 유기적인 영지 라이프사이클 관리를 위해 sceneLoaded 감시선 추가 결속
+        SceneManager.sceneLoaded += OnSceneLoadedTrigger;
         SceneManager.sceneUnloaded += OnSceneUnloadedTrigger;
+        GridManager.OnGridDataChanged += OnGridDataChangedHandler;
+        FoodWarehouseUI.OnFoodDataChanged += OnTerritoryInventoryChangedHandler;
+        ProductionFacilityRuntime.OnMemDeploymentChanged += OnDataChangedHandler;
+        ProductionCraftRuntime.OnMemDeploymentChanged += OnDataChangedHandler;
+        WarehouseUI.ItemSlotChanged += OnDataChangedHandler;
     }
 
     private void OnDisable()
     {
+        SceneManager.sceneLoaded -= OnSceneLoadedTrigger;
         SceneManager.sceneUnloaded -= OnSceneUnloadedTrigger;
+        GridManager.OnGridDataChanged -= OnGridDataChangedHandler;
+        FoodWarehouseUI.OnFoodDataChanged -= OnTerritoryInventoryChangedHandler;
+        ProductionFacilityRuntime.OnMemDeploymentChanged -= OnDataChangedHandler;
+        ProductionCraftRuntime.OnMemDeploymentChanged -= OnDataChangedHandler;
+        WarehouseUI.ItemSlotChanged -= OnDataChangedHandler;
+        UnsubscribeTerritoryInventoryEvent();
     }
 
     private void Update()
@@ -124,13 +144,76 @@ public class RecordManager : MonoBehaviour
         MaintainHealthyFacilityCache();
     }
 
+    private void OnDataChangedHandler() => ExecuteBulkSaveProcess(false);
+
+    private void OnGridDataChangedHandler()
+    {
+        ExecuteBulkSaveProcess(false);
+    }
+
     private IEnumerator DelayedLoadRoutine()
     {
         yield return null;
         if (SceneManager.GetActiveScene().name.ToLower().Contains("territory"))
         {
+            // 🌟 최초 시작 장소가 영지라면 즉시 실시간 이벤트 추적 및 로드를 개시합니다.
+            RefreshAndSubscribeTerritoryInventory();
             LoadTerritoryRecordData();
         }
+    }
+
+    /// <summary>
+    /// 🌟 [신규 추가 핸들러]: 씬 전환 마감 순간을 포착하여 영지 씬 전용 실시간 감시 자석을 온오프 통제합니다.
+    /// </summary>
+    private void OnSceneLoadedTrigger(Scene scene, LoadSceneMode mode)
+    {
+        if (scene.name.ToLower().Contains("territory"))
+        {
+            Debug.Log("<color=lime>[RecordManager]</color> 영지 Scene 로드 감지 ➡️ 실시간 변경 이벤트 바인딩 체계 전개");
+            RefreshAndSubscribeTerritoryInventory();
+            LoadTerritoryRecordData();
+        }
+        else
+        {
+            // 영지 장소를 벗어났다면 메모리 누수 방지를 위해 이벤트 구독을 확실하게 끊어줍니다.
+            UnsubscribeTerritoryInventoryEvent();
+        }
+    }
+
+    private void RefreshAndSubscribeTerritoryInventory()
+    {
+        UnsubscribeTerritoryInventoryEvent();
+        territoryInventory = FindFirstObjectByType<PlayerInventory>();
+        if (territoryInventory != null)
+        {
+            territoryInventory.OnInventoryChanged += OnTerritoryInventoryChangedHandler;
+        }
+
+        territoryWarehouse = FindFirstObjectByType<WarehouseInventory>();
+        if (territoryWarehouse != null)
+        {
+            territoryWarehouse.OnStorageChanged += OnTerritoryInventoryChangedHandler;
+        }
+    }
+
+    private void UnsubscribeTerritoryInventoryEvent()
+    {
+        if (territoryInventory != null)
+            territoryInventory.OnInventoryChanged -= OnTerritoryInventoryChangedHandler;
+        territoryInventory = null;
+
+        if (territoryWarehouse != null)
+            territoryWarehouse.OnStorageChanged -= OnTerritoryInventoryChangedHandler;
+        territoryWarehouse = null;
+    }
+
+    /// <summary>
+    /// 🌟 [요구사항 반영]: 영지 내에서 제작, 설치, 철거, 슬롯 이동 등으로 가방 수량이 변하는 즉시 실시간 디스크 백업을 가동합니다.
+    /// </summary>
+    private void OnTerritoryInventoryChangedHandler()
+    {
+        Debug.Log("<color=lime>[RecordManager]</color> 🟢 <b>[영지 실시간 가방 변화 감지]</b> 즉시 하드디스크 JSON 세이브 대장을 최신화합니다.");
+        ExecuteBulkSaveProcess(false);
     }
 
     public bool IsSaveFileExists()
@@ -259,85 +342,9 @@ public class RecordManager : MonoBehaviour
 
     public void ExecutePartialSaveForAdventure()
     {
-        try
-        {
-            TerritorySaveData currentData = null;
-
-            if (IsSaveFileExists())
-            {
-                currentData = ReadRawSaveFileOnly();
-            }
-
-            if (currentData == null)
-            {
-                currentData = new TerritorySaveData
-                {
-                    territoryLevel = 1,
-                    currentGridSize = 5,
-                    requiredExp = 100,
-                    gold = 0,
-                    satisfaction = 0,
-                    elapsedTime = 0f,
-                    expansionExpandedStates = new List<bool> { false, false, false, false, false },
-                    playerInventoryData = new SerializableContainerData { width = 10, height = 6 },
-                    warehouseStorageData = new SerializableContainerData { width = 10, height = 6 },
-                    foodWarehouseStorageData = new SerializableContainerData { width = 10, height = 6 },
-                    foodBagStorageData = new SerializableContainerData { width = 10, height = 6 },
-                    playerQuickSlotsData = new SerializableContainerData { width = 10, height = 1 },
-                    selectedQuickSlotIndex = 0,
-                    maxSatiety = 100,
-                    currentSatiety = 100,
-                    isWorkStoppedDueToStarvation = false,
-                    unlockedPageCount = 2,
-                    serializedCapturedMems = new List<CapturedMemEntry>(),
-                    placedBuildings = new List<PlacedBuildingSaveData>()
-                };
-            }
-
-            currentData.lastSaveTime = DateTime.UtcNow.ToString("o");
-
-            var pInventory = FindObjectsByType<PlayerInventory>(FindObjectsInactive.Include, FindObjectsSortMode.None).FirstOrDefault();
-            if (pInventory != null)
-            {
-                if (pInventory.inventory != null)
-                    currentData.playerInventoryData = PackContainerData(pInventory.inventory);
-
-                if (pInventory.quickSlots != null)
-                    currentData.playerQuickSlotsData = PackContainerData(pInventory.quickSlots);
-
-                currentData.selectedQuickSlotIndex = pInventory.selectedQuickSlotIndex;
-            }
-
-            var memCaptureManager = FindObjectsByType<MemCaptureManager>(FindObjectsInactive.Include, FindObjectsSortMode.None).FirstOrDefault();
-            if (memCaptureManager != null && memCaptureManager.CapturedMems != null)
-            {
-                currentData.unlockedPageCount = memCaptureManager.UnlockedPageCount;
-                if (currentData.serializedCapturedMems == null)
-                    currentData.serializedCapturedMems = new List<CapturedMemEntry>();
-                else
-                    currentData.serializedCapturedMems.Clear();
-
-                foreach (var entry in memCaptureManager.CapturedMems)
-                {
-                    if (entry != null) currentData.serializedCapturedMems.Add(entry);
-                }
-            }
-
-            if (currentData.placedBuildings == null)
-                currentData.placedBuildings = new List<PlacedBuildingSaveData>();
-
-            string jsonString = JsonUtility.ToJson(currentData, true);
-            File.WriteAllText(saveFilePath, jsonString);
-
-            PlayerPrefs.SetString(LastPlayTimeKey, currentData.lastSaveTime);
-            PlayerPrefs.Save();
-
-            Debug.Log("<color=cyan>[RecordManager]</color> 탐험/영지 씬이동 전 인벤토리 및 포획 데이터 부분 무결성 백업 세이브 완수!");
-        }
-        catch (Exception e)
-        {
-            Debug.LogError($"[RecordManager] 부분 백업 세이브 실패: {e.Message}");
-        }
+        // 탐험 씬 내부 라이프사이클에 따른 실시간 데이터 수집 저장은 
+        // DataRetentionManager가 캐싱 인스턴스를 통해 100% 전담 처리하므로, 여기서는 무작위 공백 저장을 생략합니다.
+        Debug.Log("[RecordManager] 탐험 데이터 파일 쓰기는 DataRetentionManager 세션에서 전담 처리되었습니다.");
     }
 
     public void ExecuteBulkSaveProcess(bool isTeardown = false)
@@ -350,19 +357,24 @@ public class RecordManager : MonoBehaviour
                 return;
             }
 
-            if (SceneManager.GetActiveScene().name.ToLower().Contains("adventure") || !SceneManager.GetActiveScene().name.ToLower().Contains("territory"))
+            // 🌟 [치명적 타이밍 버그 수정 완동]: 씬 전환 중 이미 탐험 씬 이름으로 바뀌어 연산이 return 탈출해버리던 결함을
+            // 'isTeardown(씬 해제 통지 시점)' 플래그 필터 통과 기법으로 완벽히 보정 정사했습니다.
+            string curSceneName = SceneManager.GetActiveScene().name.ToLower();
+            if ((curSceneName.Contains("Main_World") || !curSceneName.Contains("territory")) && !isTeardown)
             {
-                ExecutePartialSaveForAdventure();
                 return;
             }
 
             var activeBuildings = FindObjectsByType<BuildingRuntime>(FindObjectsSortMode.None);
 
-            // 🌟 [요구사항 2번 반영 부위]: 시설물이 0개인 최초 클린 영지 상태에서도 
-            // 유보 탈출(return;) 없이 무조건 마감 세이브가 가동되도록 유보 이프 필터링 블록을 과감하게 소멸시켰습니다.
+            TerritorySaveData saveData = IsSaveFileExists() ? ReadRawSaveFileOnly() : new TerritorySaveData();
 
-            TerritorySaveData saveData = new TerritorySaveData();
-            saveData.lastSaveTime = DateTime.UtcNow.ToString("o");
+            saveData.placedBuildings = new List<PlacedBuildingSaveData>();
+            saveData.serializedCapturedMems = new List<CapturedMemEntry>();
+
+
+            if (string.IsNullOrEmpty(saveData.lastSaveTime))
+                saveData.lastSaveTime = DateTime.UtcNow.ToString("o");
 
             var territoryData = FindFirstObjectByType<TerritoryData>();
             if (territoryData != null)
@@ -454,12 +466,13 @@ public class RecordManager : MonoBehaviour
                 saveData.placedBuildings.Add(bSave);
             }
 
-            var pInventory = FindFirstObjectByType<PlayerInventory>();
-            if (pInventory != null)
+            // 🌟 [안전 패킹 강화]: 씬 전환 중 오브젝트 소실을 대비해 실시간 필드 또는 씬 수색을 유연하게 매칭합니다.
+            var targetInvComp = (territoryInventory != null) ? territoryInventory : FindFirstObjectByType<PlayerInventory>();
+            if (targetInvComp != null)
             {
-                if (pInventory.inventory != null) saveData.playerInventoryData = PackContainerData(pInventory.inventory);
-                if (pInventory.quickSlots != null) saveData.playerQuickSlotsData = PackContainerData(pInventory.quickSlots);
-                saveData.selectedQuickSlotIndex = pInventory.selectedQuickSlotIndex;
+                if (targetInvComp.inventory != null) saveData.playerInventoryData = PackContainerData(targetInvComp.inventory);
+                if (targetInvComp.quickSlots != null) saveData.playerQuickSlotsData = PackContainerData(targetInvComp.quickSlots);
+                saveData.selectedQuickSlotIndex = targetInvComp.selectedQuickSlotIndex;
             }
 
             var wInventory = FindFirstObjectByType<WarehouseInventory>();
@@ -494,6 +507,9 @@ public class RecordManager : MonoBehaviour
 
     public void LoadTerritoryRecordData()
     {
+        var oldBuildings = FindObjectsByType<BuildingRuntime>(FindObjectsSortMode.None);
+        foreach (var oldB in oldBuildings) DestroyImmediate(oldB.gameObject);
+
         facilityDatabase.Clear();
 
         if (!File.Exists(saveFilePath))
@@ -509,6 +525,8 @@ public class RecordManager : MonoBehaviour
             string jsonString = File.ReadAllText(saveFilePath);
             TerritorySaveData saveData = JsonUtility.FromJson<TerritorySaveData>(jsonString);
             if (saveData == null) return;
+
+            IsBlueprintGiven = saveData.isBlueprintGiven;
 
             var territoryData = FindFirstObjectByType<TerritoryData>();
             if (territoryData != null)
@@ -528,8 +546,6 @@ public class RecordManager : MonoBehaviour
             if (gridManager != null)
             {
                 gridManager.ExpandGrid(saveData.currentGridSize, saveData.currentGridSize);
-                var oldBuildings = FindObjectsByType<BuildingRuntime>(FindObjectsSortMode.None);
-                foreach (var oldB in oldBuildings) Destroy(oldB.gameObject);
             }
 
             if (MemCaptureManager.Instance != null && saveData.serializedCapturedMems != null && saveData.serializedCapturedMems.Count > 0)
@@ -720,8 +736,21 @@ public class RecordManager : MonoBehaviour
                         : 0;
                 }
 
+                if (!IsBlueprintGiven)
+                {
+                    pInventory.AddItem("blueprint_production_stand", 1);
+
+                    IsBlueprintGiven = true;
+                    saveData.isBlueprintGiven = true;
+
+                    string updatedJson = JsonUtility.ToJson(saveData, true);
+                    File.WriteAllText(saveFilePath, updatedJson);
+
+                    Debug.Log("<color=lime>[RecordManager]</color> 👑 최초 1회 설계도 지급 완료 및 저장!");
+                }
+
                 var onInventoryChangedField = typeof(PlayerInventory).GetField("OnInventoryChanged",
-                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
                 if (onInventoryChangedField != null)
                 {
                     System.Action onInventoryChanged = onInventoryChangedField.GetValue(pInventory) as System.Action;
@@ -737,8 +766,13 @@ public class RecordManager : MonoBehaviour
             }
 
             var wInventory = FindFirstObjectByType<WarehouseInventory>();
-            if (wInventory != null && saveData.warehouseStorageData != null) UnpackContainerData(saveData.warehouseStorageData, wInventory.storage);
+            if (wInventory != null)
+            {
+                if (saveData.warehouseStorageData != null)
+                    UnpackContainerData(saveData.warehouseStorageData, wInventory.storage);
 
+                ExecuteBulkSaveProcess(false);
+            }
             if (ConsumeFoodSystem.Instance != null)
             {
                 if (saveData.foodWarehouseStorageData != null)
@@ -752,13 +786,11 @@ public class RecordManager : MonoBehaviour
             }
 
             if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
-
-            ProcessOfflineRewards();
-
             var warehouseUI = FindFirstObjectByType<FoodWarehouseUI>();
             if (warehouseUI != null) warehouseUI.RefreshAllPanelsAndSlots();
 
             RefreshActivePanelMemSlotsRealtime();
+
 
             SatisFactoryUI satisfactionUI = FindFirstObjectByType<SatisFactoryUI>();
             if (satisfactionUI != null)
@@ -889,7 +921,12 @@ public class RecordManager : MonoBehaviour
     private void OnSceneUnloadedTrigger(Scene currentScene)
     {
         if (isApplicationQuitting) return;
-        ExecuteBulkProcess();
+
+        // 🌟 [교정]: 영지 씬에서 이탈하는 찰나(Teardown)에 필터를 무시하고 무조건 마감 세이브를 가동시킵니다.
+        if (currentScene.name.ToLower().Contains("territory"))
+        {
+            ExecuteBulkSaveProcess(true);
+        }
     }
 
     private void ExecuteBulkProcess()

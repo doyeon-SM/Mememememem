@@ -3,6 +3,7 @@ using UnityEngine.UI;
 using KMS.InventoryDuped;
 using HDY.Item;
 using HDY.Upgrade;
+using System;
 
 namespace HDY.Inventory
 {
@@ -67,6 +68,8 @@ namespace HDY.Inventory
         private InventorySlotUI[] quickSlots;
 
         private InventorySlotUI dragSource;
+
+        public static event Action ItemSlotChanged;
 
         private void Awake()
         {
@@ -432,6 +435,7 @@ namespace HDY.Inventory
                         storageSlots[index]?.SetStack(warehouseInventory.storage.slots[index]);
                     break;
             }
+            ItemSlotChanged?.Invoke();
         }
     }
 }

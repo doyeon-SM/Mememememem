@@ -1,5 +1,6 @@
 ﻿using DG.Tweening;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
@@ -76,6 +77,8 @@ public class GridManager : MonoBehaviour
     // 이벤트 발행(UI 연결용)
     public static event Action<bool, List<BuildingData>> OnPlacementModeChanged;
 
+    public static event Action OnGridDataChanged;
+
     // Test전역변수
     private int count = 5;
 
@@ -83,11 +86,13 @@ public class GridManager : MonoBehaviour
     {
         if (buildRecordManager == null) buildRecordManager = FindFirstObjectByType<BuildRecordManager>();
     }
+
     private void Start()
     {
         defaultModeMaterial = CreateGridMaterial(false);
         placeModeMaterial = CreateGridMaterial(true);
         InitializeGrid(5, 5);
+
     }
 
     private void OnEnable()
@@ -329,8 +334,7 @@ public class GridManager : MonoBehaviour
 
         canPlaceCurrent = CheckPlacement(currentStartGridX, currentStartGridZ, currentTargetWidth, currentTargetHeight);
 
-        // 예외 처리 적용: 제작대가 아닌 일반 건물일 때만 마우스 조준 이동 중 청사진 소진 여부를 실시간 검사합니다.
-        if (canPlaceCurrent && selectedBuildingData.requireBlueprint != null && !IsCraftingTable(selectedBuildingData))
+        if (canPlaceCurrent && selectedBuildingData.requireBlueprint != null)
         {
             var inventory = FindFirstObjectByType<PlayerInventory>();
             if (inventory == null || inventory.GetItemAmount(selectedBuildingData.requireBlueprint.Item_ID) <= 0)
@@ -438,8 +442,7 @@ public class GridManager : MonoBehaviour
             }
         }
 
-        // 🌟 예외 처리: '제작대'가 아닌 일반 설계도 기반 건축물일 때만 인벤토리 청사진 차감 진행
-        if (selectedBuildingData.requireBlueprint != null && !IsCraftingTable(selectedBuildingData))
+        if (selectedBuildingData.requireBlueprint != null)
         {
             var inventory = FindFirstObjectByType<PlayerInventory>();
             if (inventory != null)
@@ -455,6 +458,10 @@ public class GridManager : MonoBehaviour
 
         currentAvailableBuildings = GetAvailableBuildingsFromInventory();
         OnPlacementModeChanged?.Invoke(isPlacementMode, currentAvailableBuildings);
+
+        OnGridDataChanged?.Invoke();
+
+
     }
 
     private void TryPickUpBuilding(int x, int z)
@@ -481,8 +488,7 @@ public class GridManager : MonoBehaviour
 
         Destroy(targetBuilding);
 
-        // 🌟 예외 처리: 철거/회수 시에도 '제작대'가 아닐 때만 청사진 아이템을 인벤토리에 돌려줍니다.
-        if (retrievedData != null && retrievedData.requireBlueprint != null && !IsCraftingTable(retrievedData))
+        if (retrievedData != null && retrievedData.requireBlueprint != null)
         {
             var inventory = FindFirstObjectByType<PlayerInventory>();
             if (inventory != null)
@@ -494,6 +500,8 @@ public class GridManager : MonoBehaviour
 
         currentAvailableBuildings = GetAvailableBuildingsFromInventory();
         OnPlacementModeChanged?.Invoke(isPlacementMode, currentAvailableBuildings);
+
+        OnGridDataChanged?.Invoke();
 
         int availableIndex = currentAvailableBuildings.IndexOf(retrievedData);
         if (availableIndex >= 0)
@@ -746,9 +754,6 @@ public class GridManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// 인벤토리에 실물 청사진 아이템을 들고 있는 건물 데이터만 정교하게 걸러내어 수집합니다.
-    /// </summary>
     private List<BuildingData> GetAvailableBuildingsFromInventory()
     {
         List<BuildingData> filteredList = new List<BuildingData>();
@@ -758,13 +763,6 @@ public class GridManager : MonoBehaviour
         {
             if (bData == null) continue;
 
-            // 🌟 [임시 - 제작대 생성]: 제작대는 청사진 보유 여부와 상관없이 무조건 노출 리스트에 포함시킵니다.
-            if (IsCraftingTable(bData))
-            {
-                filteredList.Add(bData);
-                continue;
-            }
-
             // 요구하는 설계도가 없는 기본 건축물이거나, 인벤토리에 해당 설계도 아이템을 1개 이상 들고 있는 경우에만 진입 허용
             if (bData.requireBlueprint == null || (inventory != null && inventory.GetItemAmount(bData.requireBlueprint.Item_ID) > 0))
             {
@@ -773,15 +771,6 @@ public class GridManager : MonoBehaviour
         }
 
         return filteredList;
-    }
-
-    /// <summary>
-    /// 건물 데이터가 '제작대'를 의미하는지 여부를 판별합니다.
-    /// </summary>
-    private bool IsCraftingTable(BuildingData data)
-    {
-        if (data == null) return false;
-        return data.buildingName.Contains("제작대") || data.buildingId.ToLower().Contains("crafting");
     }
 
     [ContextMenu("Function: Expand to Test")]
