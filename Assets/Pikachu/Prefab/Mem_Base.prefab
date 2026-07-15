@@ -66,6 +66,7 @@ GameObject:
   - component: {fileID: 4879616886824840684}
   - component: {fileID: 9213568772956656771}
   - component: {fileID: 4463198348554036063}
+  - component: {fileID: 8097715938167601234}
   m_Layer: 10
   m_Name: Mem_Base
   m_TagString: Untagged
@@ -114,6 +115,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: dde75d2bd4e1dd7418b5570ceb211e5f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MemSystem.Core.Mem
+--- !u!114 &8097715938167601234
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3233825511572421704}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1e25f34d50fa4d4a9cc0406e9a8bb585, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::KMS.Combat.KMSMemDamageableAdapter
 --- !u!114 &7774338300222526950
 MonoBehaviour:
   m_ObjectHideFlags: 0

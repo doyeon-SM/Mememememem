@@ -3103,6 +3103,7 @@ MonoBehaviour:
   input: {fileID: 2825149733357899923}
   movement: {fileID: 757377502652196312}
   inventory: {fileID: 9124669202358280069}
+  playerStats: {fileID: 4191295553828768883}
   cameraTransform: {fileID: 0}
   animator: {fileID: 1914156871709254916}
   catalogManager: {fileID: 0}
@@ -3113,6 +3114,9 @@ MonoBehaviour:
   harvestCooldown: 0.35
   toolUseCooldown: 0.5
   fallbackToolDamage: 1
+  memMeleeItemId: tool_shabby_club
+  memMeleeDistance: 5
+  memMeleeHungerCost: 1
   drawDebugRay: 1
   debugMissColor: {r: 1, g: 0, b: 0, a: 1}
   debugHitColor: {r: 0, g: 1, b: 0, a: 1}

@@ -14,6 +14,7 @@ namespace KMS.Harvesting
         [SerializeField] private KMS.PlayerInput input;
         [SerializeField] private KMS.PlayerMovement movement;
         [SerializeField] private KmsPlayerInventory inventory;
+        [SerializeField] private KMS.PlayerStats playerStats;
         [SerializeField] private Transform cameraTransform;
         [SerializeField] private Animator animator;
 
@@ -29,6 +30,11 @@ namespace KMS.Harvesting
         [SerializeField] private float toolUseCooldown = 0.5f;
         [SerializeField] private int fallbackToolDamage = 1;
 
+        [Header("Mem Melee")]
+        [SerializeField] private string memMeleeItemId = "tool_shabby_club";
+        [SerializeField, Min(0.1f)] private float memMeleeDistance = 5f;
+        [SerializeField, Min(0f)] private float memMeleeHungerCost = 1f;
+
         [Header("Debug")]
         [SerializeField] private bool drawDebugRay = true;
         [SerializeField] private Color debugMissColor = Color.red;
@@ -43,6 +49,7 @@ namespace KMS.Harvesting
             input = GetComponent<KMS.PlayerInput>();
             movement = GetComponent<KMS.PlayerMovement>();
             inventory = GetComponent<KmsPlayerInventory>();
+            playerStats = GetComponent<KMS.PlayerStats>();
 
             if (Camera.main != null)
             {
@@ -55,6 +62,7 @@ namespace KMS.Harvesting
             if (input == null) input = GetComponent<KMS.PlayerInput>();
             if (movement == null) movement = GetComponent<KMS.PlayerMovement>();
             if (inventory == null) inventory = GetComponent<KmsPlayerInventory>();
+            if (playerStats == null) playerStats = GetComponent<KMS.PlayerStats>();
             if (cameraTransform == null && Camera.main != null) cameraTransform = Camera.main.transform;
             if (movement != null && movement.Animator != null) animator = movement.Animator;
 
@@ -97,6 +105,12 @@ namespace KMS.Harvesting
             ItemData selectedItem = catalogManager != null ? catalogManager.FindItemData(selectedSlot.itemId) : null;
             if (selectedItem == null || selectedItem.Category != HdyItemCategory.Tool) return;
 
+            bool isMemMeleeAttempt = selectedItem.Item_ID == memMeleeItemId;
+            if (isMemMeleeAttempt && playerStats != null)
+            {
+                playerStats.ConsumeHunger(memMeleeHungerCost);
+            }
+
             cooldownTimer = Mathf.Max(harvestCooldown, toolUseCooldown);
             if (animator != null)
             {
@@ -130,6 +144,19 @@ namespace KMS.Harvesting
             {
                 Debug.Log($"[Harvest] Hit: {hit.collider.name}", hit.collider);
             }
+
+            KMS.Combat.KMSMemDamageableAdapter memTarget =
+                hit.collider.GetComponentInParent<KMS.Combat.KMSMemDamageableAdapter>();
+
+            if (memTarget != null)
+            {
+                if (!isMemMeleeAttempt) return;
+                if (hit.distance > memMeleeDistance || memTarget.IsDead) return;
+
+                memTarget.TakeDamage(Mathf.Max(1, selectedItem.Value));
+                return;
+            }
+
             if(WorldObjectHarvest(hit, selectedItem))
             {
                 return;
