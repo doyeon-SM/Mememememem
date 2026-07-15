@@ -17,13 +17,48 @@ namespace HDY.Territory
 
     /// <summary>
     /// 영지에 필요한 기초 데이터를 보관하는 컴포넌트.
-    /// [저장/불러오기 대응] 저장 및 불러오기 시스템이 이 데이터의 생명주기(씬 로드 시 재생성/파일에서 값 복원)를
-    /// 직접 관리할 예정이라, 더 이상 DontDestroyOnLoad 파괴불가 싱글톤을 쓰지 않는다(일반 컴포넌트).
-    /// 다른 스크립트는 인스펙터에서 이 컴포넌트를 직접 참조해서 사용한다.
+    /// [임시 조치 - 싱글톤 + DontDestroyOnLoad] 저장/불러오기 시스템이 아직 없어서, 그 시스템이 붙기 전까지
+    /// GameTimeManager와 동일한 패턴(Instance 싱글톤 + DontDestroyOnLoad + Resolve(existing) 폴백)을 임시로
+    /// 사용한다. TODO: 추후 저장/불러오기 시스템이 추가되면 이 생명주기 관리 방식(싱글톤 유지 여부, 씬 로드
+    /// 시 값 복원 시점 등)을 다시 검토해야 한다.
+    /// 다른 스크립트는 인스펙터 참조가 비어있으면 Resolve(existing)로 이 컴포넌트를 찾아 쓸 수 있다.
     /// [교통정리] HDY 폴더 소속. Pikachu 코드와 겹치는 기능 없음.
     /// </summary>
     public class TerritoryData : MonoBehaviour
     {
+        public static TerritoryData Instance { get; private set; }
+
+        private void Awake()
+        {
+            if (Instance != null && Instance != this)
+            {
+                Debug.LogWarning("[TerritoryData] 씬에 TerritoryData가 이미 있어 중복 오브젝트를 파괴합니다.", this);
+                Destroy(gameObject);
+                return;
+            }
+
+            Instance = this;
+            DontDestroyOnLoad(gameObject);
+        }
+
+        /// <summary>
+        /// 다른 스크립트가 들고 있는 TerritoryData 참조가 비어있을 때 쓰는 공용 폴백 탐색.
+        /// 1) 이미 참조가 있으면 그대로 반환, 2) 없으면 싱글톤(Instance), 3) 그래도 없으면 씬 전체에서 검색.
+        /// </summary>
+        public static TerritoryData Resolve(TerritoryData existing)
+        {
+            if (existing != null) return existing;
+            if (Instance != null) return Instance;
+
+            var found = FindFirstObjectByType<TerritoryData>();
+            if (found == null)
+            {
+                Debug.LogWarning("[TerritoryData] 씬에서 TerritoryData를 찾을 수 없습니다.");
+            }
+
+            return found;
+        }
+
         // =================================================================
         // 만족도 (= 영지 포인트)
         // =================================================================
