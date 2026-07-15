@@ -135,7 +135,13 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
             return;
         }
 
-        PlayerInventory inventory = interactor.GetComponentInParent<PlayerInventory>();
+        PlayerInventory inventory = PlayerReferenceResolver.FindComponentInPlayerHierarchy<PlayerInventory>(
+            interactor.gameObject);
+        if (inventory == null)
+        {
+            inventory = PlayerReferenceResolver.FindPlayerComponent<PlayerInventory>();
+        }
+
         ItemData selectedTool = ResolveSelectedTool(inventory);
         ObjectInteract(inventory, selectedTool);
     }

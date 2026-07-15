@@ -1,16 +1,22 @@
+using KMS;
 using UnityEngine;
-#if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
-#endif
 
 /// <summary>
 /// 지도 단축키와 UI 버튼 요청을 현재 <see cref="WayPointManager"/>에 전달합니다.
 /// </summary>
 public class WayPointUIToggle : MonoBehaviour
 {
-    [Header("Input")]
-    [SerializeField] private KeyCode legacyToggleKey = KeyCode.M;
+        [Header("Input")]
+        [SerializeField] private KeyCode legacyToggleKey = KeyCode.M;
+/*    [Header("Ref")]
+    [SerializeField] private PlayerInput playerInput;*/
 
+    private void OnEnable()
+    {
+        //if (playerInput == null) return;
+        
+    }
     private void Update()
     {
         if (!WasTogglePressed())
@@ -35,6 +41,7 @@ public class WayPointUIToggle : MonoBehaviour
         }
 
         manager.OpenTravelMap();
+        
     }
 
     /// <summary>지도 보기 Button의 OnClick에서 호출해 보기 전용 지도를 엽니다.</summary>

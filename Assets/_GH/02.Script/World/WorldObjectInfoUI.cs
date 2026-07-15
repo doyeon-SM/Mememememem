@@ -46,20 +46,23 @@ public class WorldObjectInfoUI : MonoBehaviour
     private Chest currentChest;
     private ItemData currentTool;
     private PlayerInteraction subscribedPlayerInteraction;
+    private float nextPlayerReferenceResolveTime;
+
+    private const float PlayerReferenceRetryInterval = 0.5f;
 
     /// <summary>현재 UI에 표시 중인 월드 오브젝트입니다.</summary>
     public WorldObject CurrentTarget => currentTarget;
 
     private void Awake()
     {
-        ResolveRuntimeReferences();
+        ResolveRuntimeReferences(true);
         BindPlayerInteraction();
         SetPanelVisible(false);
     }
 
     private void OnEnable()
     {
-        ResolveRuntimeReferences();
+        ResolveRuntimeReferences(true);
         BindPlayerInteraction();
         RefreshUI();
     }
@@ -174,18 +177,19 @@ public class WorldObjectInfoUI : MonoBehaviour
         return itemCatalogManager.FindItemData(selectedSlot.itemId);
     }
 
-    private void ResolveRuntimeReferences()
+    private void ResolveRuntimeReferences(bool forcePlayerSearch = false)
     {
-        if (playerInteraction == null)
+        bool needsPlayerReference = playerInteraction == null || playerInventory == null;
+        if (needsPlayerReference
+            && (forcePlayerSearch || Time.unscaledTime >= nextPlayerReferenceResolveTime))
         {
-            playerInteraction = FindFirstObjectByType<PlayerInteraction>();
-        }
+            nextPlayerReferenceResolveTime = Time.unscaledTime + PlayerReferenceRetryInterval;
+            GameObject playerObject = playerInteraction != null
+                ? playerInteraction.gameObject
+                : PlayerReferenceResolver.FindPlayerObject();
 
-        if (playerInventory == null)
-        {
-            playerInventory = playerInteraction != null
-                ? playerInteraction.GetComponentInParent<PlayerInventory>()
-                : FindFirstObjectByType<PlayerInventory>();
+            playerInteraction = PlayerReferenceResolver.ResolveComponent(playerInteraction, playerObject);
+            playerInventory = PlayerReferenceResolver.ResolveComponent(playerInventory, playerObject);
         }
 
         if (itemCatalogManager == null)

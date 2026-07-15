@@ -79,11 +79,11 @@ public class WayPointMapUI : MonoBehaviour
     /// <summary>현재 화면에 표시 중인 지도 정의입니다.</summary>
     public WayPointMapDefinition CurrentMap => currentMap;
 
-    /// <summary>지도 UI가 현재 계층에서 실제로 표시되는지 나타냅니다.</summary>
-    public bool IsVisible => mapImage != null ? mapImage.gameObject.activeInHierarchy : gameObject.activeInHierarchy;
+    /// <summary>지도 Panel 전체가 현재 계층에서 실제로 표시되는지 나타냅니다.</summary>
+    public bool IsVisible => gameObject.activeInHierarchy;
 
-    /// <summary>매니저가 열고 닫을 실제 지도 표시 오브젝트입니다.</summary>
-    public GameObject VisibilityTarget => mapImage != null ? mapImage.gameObject : null;
+    /// <summary>매니저가 열고 닫을 WayPointMapUI가 부착된 Panel 오브젝트입니다.</summary>
+    public GameObject VisibilityTarget => gameObject;
 
     private void Awake()
     {

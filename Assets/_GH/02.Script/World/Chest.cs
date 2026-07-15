@@ -27,16 +27,30 @@ public class Chest : MonoBehaviour, KMS.IInteractable
             return false;
         }
 
-        PlayerInventory inventory = interactor.GetComponentInParent<PlayerInventory>();
+        PlayerInventory inventory = ResolvePlayerInventory(interactor);
         if (inventory == null) return false;
         else return true;
     }
 
     public void Interact(PlayerInteraction interactor)
     {
-        PlayerInventory inventory = interactor.GetComponentInParent<PlayerInventory>();
+        PlayerInventory inventory = ResolvePlayerInventory(interactor);
         if (inventory == null) return;
         ChestItem(inventory);
+    }
+
+    private static PlayerInventory ResolvePlayerInventory(PlayerInteraction interactor)
+    {
+        if (interactor == null)
+        {
+            return null;
+        }
+
+        PlayerInventory inventory = PlayerReferenceResolver.FindComponentInPlayerHierarchy<PlayerInventory>(
+            interactor.gameObject);
+        return inventory != null
+            ? inventory
+            : PlayerReferenceResolver.FindPlayerComponent<PlayerInventory>();
     }
 
     private void ChestItem(PlayerInventory inventory)
