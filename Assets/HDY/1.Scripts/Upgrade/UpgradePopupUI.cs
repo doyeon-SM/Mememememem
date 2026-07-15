@@ -49,6 +49,10 @@ namespace HDY.Upgrade
     /// 자동 탐색은 건너뛴다). 그래도 못 찾으면(구현체 자체가 없으면) 재료 조건 검사를 건너뛰고 통과시킨다
     /// (경고 로그만 남김) - 재료가 필요 없는 업그레이드(예: 멤창고 페이지 확장)는 이 상태로도 문제없이 동작한다.
     ///
+    /// [TerritoryData 자동 연결] territoryData는 인스펙터가 비어있거나(혹은 씬 전환으로 끊겼거나) 하면
+    /// Awake에서 TerritoryData.Resolve(existing)로 자동으로 다시 찾는다. TerritoryData는 싱글톤
+    /// (DontDestroyOnLoad)이라 이 팝업이 어느 씬에서 새로 만들어지든 항상 같은 인스턴스를 찾아 연결된다.
+    ///
     /// [씬 싱글톤] TerritoryData처럼 DontDestroyOnLoad는 아니고, 이 씬에 하나만 배치되어 있다고
     /// 가정한다. 다른 UI가 Instance로 쉽게 접근할 수 있도록 static 참조만 제공한다.
     /// </summary>
@@ -102,7 +106,10 @@ namespace HDY.Upgrade
 
             Instance = this;
 
-            if (territoryData == null) Debug.LogWarning("[UpgradePopupUI] territoryData가 비어있습니다. 골드 확인/차감이 불가능합니다.", this);
+            // TerritoryData는 싱글톤(DontDestroyOnLoad)이라, 이 팝업이 어느 씬에서 새로 만들어지든
+            // Resolve로 항상 같은 인스턴스를 찾아 연결할 수 있다(씬 전환으로 인스펙터 참조가 끊긴 경우 포함).
+            territoryData = TerritoryData.Resolve(territoryData);
+            if (territoryData == null) Debug.LogWarning("[UpgradePopupUI] TerritoryData를 찾을 수 없습니다. 골드 확인/차감이 불가능합니다.", this);
 
             if (materialInventorySource == null)
             {
