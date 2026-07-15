@@ -180,19 +180,28 @@ namespace HDY.Territory
         }
 
         // =================================================================
-        // 시간 (인게임 시간, 누적 초 단위로 관리)
+        // 시간 (인게임 시간, 누적 초 단위 - 저장 호환용 다리)
+        // [타이머 이주] 실제 시간 누적(타이머) 로직은 GameTimeManager로 이주했다. 이 필드는 스스로
+        // 누적하지 않으며, GameTimeManager가 매 프레임 SyncElapsedTimeFromGameTimeManager로 최신 값을
+        // 밀어넣어주는 "저장 호환용 거울"일 뿐이다. Kyusoo팀 RecordManager.cs가 저장 시
+        // TerritoryData.ElapsedTime을 읽고, 불러오기 시 reflection으로 이 필드("elapsedTime")에 직접
+        // 대입하기 때문에(Kyusoo 파일은 건드리지 않기로 함) 필드/프로퍼티 이름과 타입을 그대로 유지한다.
         // =================================================================
-        [Header("인게임 시간")]
-        [Tooltip("게임 시작 이후 누적된 인게임 시간(초)")]
+        [Header("인게임 시간 (저장 호환용 - 실제 누적은 GameTimeManager가 전담)")]
+        [Tooltip("GameTimeManager가 매 프레임 동기화해주는 값. 이 컴포넌트 스스로는 더 이상 누적하지 않는다.")]
         [SerializeField] private float elapsedTime = 0f;
 
         public float ElapsedTime => elapsedTime;
 
-        /// <summary>인게임 시간을 seconds만큼 누적시킨다.</summary>
-        public void AddTime(float seconds)
+        /// <summary>
+        /// [저장 호환용 다리] GameTimeManager가 매 프레임 자신이 누적한 값을 이 필드에 동기화하기 위해
+        /// 호출한다. Kyusoo팀 RecordManager가 저장 시 여전히 TerritoryData.ElapsedTime을 읽으므로,
+        /// 실제 누적 주체는 GameTimeManager이지만 이 값도 항상 최신 상태로 맞춰둔다.
+        /// 이 메서드 외에는 elapsedTime을 수정하는 경로가 없다(GameTimeManager.Update에서만 호출됨).
+        /// </summary>
+        public void SyncElapsedTimeFromGameTimeManager(float elapsedSeconds)
         {
-            if (seconds <= 0) return;
-            elapsedTime += seconds;
+            elapsedTime = elapsedSeconds;
         }
     }
 }
