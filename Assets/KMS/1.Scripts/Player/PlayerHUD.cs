@@ -23,6 +23,7 @@ namespace KMS
 
         [Header("References")]
         [SerializeField] private PlayerStats stats;
+        [SerializeField] private PlayerInput playerInput;
         [SerializeField] private UIDocument uiDocument;
 
         [Header("UI Element Names")]
@@ -34,6 +35,7 @@ namespace KMS
         [SerializeField] private string throwGuideName = "throw-guide";
         [SerializeField] private string survivalStatusContainerName = "health-info-container";
         [SerializeField] private string inventoryButtonName = "inventory-button";
+        [SerializeField] private string mapButtonName = "map-button";
 
         [Header("Day/Night Clock")]
         [SerializeField] private string clockHandName = "clock-hand";
@@ -45,6 +47,7 @@ namespace KMS
 
         [Header("Status Text")]
         [SerializeField] private TerritoryData territoryData;
+        [SerializeField] private GameTimeManager gameTimeManager;
         [SerializeField] private string realTimeLabelName = "real-time-label";
         [SerializeField] private string goldLabelName = "gold-label";
         [SerializeField, Min(0.1f)] private float statusRefreshInterval = 0.25f;
@@ -60,12 +63,15 @@ namespace KMS
         private VisualElement throwGuide;
         private VisualElement survivalStatusContainer;
         private Button inventoryButton;
+        private Button mapButton;
         private VisualElement clockHand;
         private VisualElement clockMarker;
         private Label clockPeriodLabel;
         private Label realTimeLabel;
         private Label goldLabel;
         private KMS.InventoryDuped.InventoryUI inventoryUi;
+        private WayPointUIToggle mapUiToggle;
+        private bool disabledLegacyMapToggleInput;
         private bool isSurvivalStatusVisible = true;
         private bool hasStarted;
         private Coroutine statusTextCoroutine;
@@ -75,6 +81,15 @@ namespace KMS
 
         private void Update()
         {
+            EnsureGameTimeManager();
+
+            if (gameTimeManager != null && clockHand != null)
+            {
+                float dayLength = Mathf.Max(0.0001f, gameTimeManager.DayLengthSeconds);
+                ApplyDayCycleProgress(gameTimeManager.InGameTimeOfDaySeconds / dayLength);
+                return;
+            }
+
             if (!playClockPreview || clockHand == null) return;
 
             previewCycleProgress = Mathf.Repeat(
@@ -86,14 +101,17 @@ namespace KMS
         private void Reset()
         {
             stats = GetComponent<PlayerStats>();
+            playerInput = GetComponent<PlayerInput>();
             uiDocument = GetComponent<UIDocument>();
         }
 
         private void Awake()
         {
             if (stats == null) stats = GetComponent<PlayerStats>();
+            if (playerInput == null) playerInput = GetComponent<PlayerInput>();
             if (uiDocument == null) uiDocument = GetComponent<UIDocument>();
             if (inventoryUi == null) inventoryUi = FindFirstObjectByType<KMS.InventoryDuped.InventoryUI>();
+            EnsureGameTimeManager();
         }
 
         private void OnEnable()
@@ -106,6 +124,11 @@ namespace KMS
                 stats.HungerChanged += HandleHungerChanged;
                 stats.Died += HandleDied;
                 stats.Revived += HandleRevived;
+            }
+
+            if (playerInput != null)
+            {
+                playerInput.MapPressed += HandleMapPressed;
             }
 
             if (hasStarted)
@@ -141,6 +164,18 @@ namespace KMS
             {
                 inventoryButton.clicked -= HandleInventoryButtonClicked;
             }
+
+            if (mapButton != null)
+            {
+                mapButton.clicked -= HandleMapButtonClicked;
+            }
+
+            if (playerInput != null)
+            {
+                playerInput.MapPressed -= HandleMapPressed;
+            }
+
+            RestoreLegacyMapToggleInput();
 
             if (stats != null)
             {
@@ -205,6 +240,10 @@ namespace KMS
             {
                 inventoryButton.clicked -= HandleInventoryButtonClicked;
             }
+            if (mapButton != null)
+            {
+                mapButton.clicked -= HandleMapButtonClicked;
+            }
 
             healthBar = root.Q<ProgressBar>(healthBarName);
             hungerBar = root.Q<ProgressBar>(hungerBarName)
@@ -215,6 +254,7 @@ namespace KMS
             throwGuide = root.Q<VisualElement>(throwGuideName);
             survivalStatusContainer = root.Q<VisualElement>(survivalStatusContainerName);
             inventoryButton = root.Q<Button>(inventoryButtonName);
+            mapButton = root.Q<Button>(mapButtonName);
             clockHand = root.Q<VisualElement>(clockHandName);
             clockMarker = root.Q<VisualElement>(clockMarkerName);
             clockPeriodLabel = root.Q<Label>(clockPeriodLabelName);
@@ -224,6 +264,10 @@ namespace KMS
             if (inventoryButton != null)
             {
                 inventoryButton.clicked += HandleInventoryButtonClicked;
+            }
+            if (mapButton != null)
+            {
+                mapButton.clicked += HandleMapButtonClicked;
             }
 
             if (survivalStatusContainer != null)
@@ -268,6 +312,79 @@ namespace KMS
             inventoryUi?.Toggle();
         }
 
+        private void HandleMapPressed()
+        {
+            TogglePreviewMap();
+        }
+
+        private void HandleMapButtonClicked()
+        {
+            OpenPreviewMap();
+        }
+
+        private void OpenPreviewMap()
+        {
+            if (!TryResolveMapUiToggle()) return;
+
+            //mapUiToggle.Open(WayPointMapOpenMode.PreviewOnly);
+
+            mapUiToggle.TogglePreviewMap();
+        }
+
+        private void TogglePreviewMap()
+        {
+            if (!TryResolveMapUiToggle()) return;
+
+            mapUiToggle.TogglePreviewMap();
+/*            if (WayPointManager.Instance != null)
+            {
+                WayPointManager.Instance.TogglePreviewMap();
+            }*/
+        }
+
+        private bool TryResolveMapUiToggle()
+        {
+            if (WayPointManager.Instance == null)
+            {
+                Debug.LogWarning("[PlayerHUD] WayPointManager.Instance가 없어 지도를 열 수 없습니다.", this);
+                return false;
+            }
+
+            if (mapUiToggle == null)
+            {
+                mapUiToggle = WayPointManager.Instance.GetComponent<WayPointUIToggle>();
+            }
+
+            if (mapUiToggle == null)
+            {
+                mapUiToggle = FindFirstObjectByType<WayPointUIToggle>(FindObjectsInactive.Include);
+            }
+
+            if (mapUiToggle == null)
+            {
+                Debug.LogWarning("[PlayerHUD] WayPointUIToggle을 찾지 못해 지도를 열 수 없습니다.", this);
+                return false;
+            }
+
+            // KMS의 MapPressed가 M 입력을 담당하는 동안 기존 컴포넌트의 M 폴링을 꺼서
+            // 같은 프레임에 Open 직후 Toggle로 다시 닫히는 중복 입력을 막는다.
+            if (mapUiToggle.enabled)
+            {
+                mapUiToggle.enabled = false;
+                disabledLegacyMapToggleInput = true;
+            }
+
+            return true;
+        }
+
+        private void RestoreLegacyMapToggleInput()
+        {
+            if (!disabledLegacyMapToggleInput || mapUiToggle == null) return;
+
+            mapUiToggle.enabled = true;
+            disabledLegacyMapToggleInput = false;
+        }
+
         private void Refresh()
         {
             if (stats == null) return;
@@ -300,7 +417,12 @@ namespace KMS
 
         private void RefreshStatusTexts()
         {
-            string currentTime = DateTime.Now.ToString("HH:mm:ss");
+            EnsureGameTimeManager();
+
+            DateTime currentRealTime = gameTimeManager != null
+                ? gameTimeManager.CurrentRealTimeKst
+                : DateTime.Now;
+            string currentTime = currentRealTime.ToString("HH:mm:ss");
             if (realTimeLabel != null && currentTime != lastDisplayedTime)
             {
                 lastDisplayedTime = currentTime;
@@ -349,10 +471,42 @@ namespace KMS
         private void HandleActiveSceneChanged(Scene previousScene, Scene nextScene)
         {
             territoryData = null;
+            gameTimeManager = null;
+            EnsureGameTimeManager();
 
             if (hasStarted)
             {
                 RefreshStatusTexts();
+            }
+        }
+
+        private void EnsureGameTimeManager()
+        {
+            if (gameTimeManager != null) return;
+
+            gameTimeManager = FindFirstObjectByType<GameTimeManager>();
+            if (gameTimeManager != null) return;
+
+            if (territoryData == null)
+            {
+                territoryData = FindFirstObjectByType<TerritoryData>();
+            }
+
+            GameObject timeSystemObject;
+            if (territoryData != null)
+            {
+                timeSystemObject = territoryData.gameObject;
+            }
+            else
+            {
+                timeSystemObject = new GameObject("KMS Time System");
+                territoryData = timeSystemObject.AddComponent<TerritoryData>();
+            }
+
+            gameTimeManager = timeSystemObject.GetComponent<GameTimeManager>();
+            if (gameTimeManager == null)
+            {
+                gameTimeManager = timeSystemObject.AddComponent<GameTimeManager>();
             }
         }
 

@@ -46,6 +46,11 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
     [SerializeField] private float dropSpawnHeight = 0.02f;
     [SerializeField] private float dropSpreadRadius = 1.1f;
 
+    [Header("Drop Spawn Gizmo")]
+    [Tooltip("오브젝트를 선택했을 때 드롭 중심과 확산 반경을 Scene 뷰에 표시합니다.")]
+    [SerializeField] private bool showDropSpawnGizmo = true;
+    [SerializeField] private Color dropSpawnGizmoColor = new Color(1f, 0.72f, 0.1f, 0.9f);
+
     [Header("Drop Pool")]
     [SerializeField] private int poolPrewarmCount;
     [SerializeField] private float autoReturnToPoolSeconds = 10f;
@@ -135,7 +140,13 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
             return;
         }
 
-        PlayerInventory inventory = interactor.GetComponentInParent<PlayerInventory>();
+        PlayerInventory inventory = PlayerReferenceResolver.FindComponentInPlayerHierarchy<PlayerInventory>(
+            interactor.gameObject);
+        if (inventory == null)
+        {
+            inventory = PlayerReferenceResolver.FindPlayerComponent<PlayerInventory>();
+        }
+
         ItemData selectedTool = ResolveSelectedTool(inventory);
         ObjectInteract(inventory, selectedTool);
     }
@@ -145,18 +156,21 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
     /// <returns>이번 상호작용이 유효하게 적용되었으면 참입니다.</returns>
     public bool ObjectInteract(PlayerInventory inventory, ItemData data)
     {
-        WorldObjectInteractionState interactionState = EvaluateInteraction(data);
+        // 호출자가 미리 조회한 ItemData와 UI가 따로 조회한 ItemData가 엇갈리지 않도록
+        // 실제 상호작용 시점의 선택 퀵슬롯을 이 오브젝트에서 다시 한 번만 해석한다.
+        ItemData activeTool = inventory != null ? ResolveSelectedTool(inventory) : data;
+        WorldObjectInteractionState interactionState = EvaluateInteraction(activeTool);
         if (interactionState != WorldObjectInteractionState.Available)
         {
             Debug.Log($"{name} 상호작용 불가: {interactionState}", this);
             return false;
         }
 
-        currentObjectHp = Mathf.Max(0, currentObjectHp - data.Value);
+        currentObjectHp = Mathf.Max(0, currentObjectHp - activeTool.Value);
         Debug.Log($"감지 성공 : 현재 체력 {currentObjectHp}");
         if (currentObjectHp <= 0)
         {
-            ItemDrops(data);
+            ItemDrops(activeTool);
             BeginRespawnCooldown();
 
             if (IsDead)
@@ -198,6 +212,15 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
         }
 
         return WorldObjectInteractionState.Available;
+    }
+
+    /// <summary>
+    /// 현재 플레이어 인벤토리의 선택 퀵슬롯을 실제 채집과 동일한 경로로 해석해 판정합니다.
+    /// 정보 UI가 별도의 ItemData 캐시를 사용하지 않도록 제공하는 공용 진입점입니다.
+    /// </summary>
+    public WorldObjectInteractionState EvaluateInteraction(PlayerInventory inventory)
+    {
+        return EvaluateInteraction(ResolveSelectedTool(inventory));
     }
 
     private static ItemData ResolveSelectedTool(PlayerInventory inventory)
@@ -371,5 +394,26 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
             }
         }
     }
+
+#if UNITY_EDITOR
+    private void OnDrawGizmosSelected()
+    {
+        if (!showDropSpawnGizmo)
+        {
+            return;
+        }
+
+        Vector3 origin = dropSpawnPoint != null ? dropSpawnPoint.position : transform.position;
+        Vector3 center = origin + Vector3.up * dropSpawnHeight;
+        float radius = Mathf.Max(0f, dropSpreadRadius);
+
+        UnityEditor.Handles.color = dropSpawnGizmoColor;
+        UnityEditor.Handles.DrawWireDisc(center, Vector3.up, radius);
+        UnityEditor.Handles.DrawLine(origin, center);
+
+        Gizmos.color = dropSpawnGizmoColor;
+        Gizmos.DrawSphere(center, Mathf.Max(0.04f, radius * 0.025f));
+    }
+#endif
 
 }

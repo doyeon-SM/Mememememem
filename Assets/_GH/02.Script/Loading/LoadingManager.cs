@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.SceneManagement;
+using UnityEngine.Serialization;
 using UnityEngine.UI;
 
 namespace GH.Loading
@@ -19,12 +21,16 @@ namespace GH.Loading
         /// <summary>현재 유지되고 있는 로딩 매니저 인스턴스입니다.</summary>
         public static LoadingManager Instance { get; private set; }
 
-        [Header("UI")]
-        [SerializeField] private GameObject loadingRoot;
-        [SerializeField] private Slider progressSlider;
-        [SerializeField] private TMP_Text descriptionText;
-        [SerializeField] private TMP_Text percentText;
-        [SerializeField] private TMP_Text tipText;
+        [Header("Dynamic UI")]
+        [FormerlySerializedAs("loadingRoot")]
+        [Tooltip("Canvas가 없는 로딩 Panel 프리팹입니다. 현재 활성 씬의 루트 Canvas 아래에 런타임 생성됩니다.")]
+        [SerializeField] private GameObject loadingPanelPrefab;
+
+        [Header("Legacy UI Migration")]
+        [HideInInspector, SerializeField] private Slider progressSlider;
+        [HideInInspector, SerializeField] private TMP_Text descriptionText;
+        [HideInInspector, SerializeField] private TMP_Text percentText;
+        [HideInInspector, SerializeField] private TMP_Text tipText;
 
         [Header("Presentation")]
         [Range(0.5f, 0.99f)]
@@ -60,34 +66,24 @@ namespace GH.Loading
         public string CurrentDescription { get; private set; }
 
         private Coroutine loadingRoutine;
+        private LoadingPanelView loadingPanelInstance;
         private bool showTipInDescription;
 
         private void Awake()
         {
             if (Instance != null && Instance != this)
             {
-                if (loadingRoot != null)
-                {
-                    Destroy(loadingRoot);
-                }
-
                 Destroy(gameObject);
                 return;
             }
 
             Instance = this;
+            PrepareLegacyLoadingPanelTemplate();
 
             if (dontDestroyOnLoad)
             {
-                if (loadingRoot != null && loadingRoot.transform.parent != transform)
-                {
-                    loadingRoot.transform.SetParent(transform, true);
-                }
-
                 DontDestroyOnLoad(gameObject);
             }
-
-            SetLoadingUIVisible(false);
         }
 
         private void Start()
@@ -100,6 +96,8 @@ namespace GH.Loading
 
         private void OnDestroy()
         {
+            DestroyLoadingPanelInstance();
+
             if (Instance == this)
             {
                 Instance = null;
@@ -152,7 +150,7 @@ namespace GH.Loading
             }
 
             IsLoading = false;
-            SetLoadingUIVisible(false);
+            DestroyLoadingPanelInstance();
         }
 
         private bool TryStartLoading(LoadingContext context, bool requireSceneLoadingTask)
@@ -171,6 +169,11 @@ namespace GH.Loading
                 return false;
             }
 
+            if (!TryCreateLoadingPanelInstance())
+            {
+                return false;
+            }
+
             IsLoading = true;
             loadingRoutine = StartCoroutine(RunLoading(context, tasks));
             return true;
@@ -178,7 +181,6 @@ namespace GH.Loading
 
         private IEnumerator RunLoading(LoadingContext context, List<ILoadingTask> tasks)
         {
-            SetLoadingUIVisible(true);
             ShowRandomTip();
             onLoadingStarted?.Invoke();
 
@@ -215,7 +217,7 @@ namespace GH.Loading
             Report("로딩 완료", 1f);
             IsLoading = false;
             loadingRoutine = null;
-            SetLoadingUIVisible(false);
+            DestroyLoadingPanelInstance();
 
             onLoadingCompleted?.Invoke();
             LoadingCompleted?.Invoke();
@@ -327,15 +329,7 @@ namespace GH.Loading
                 }
             }
 
-            GameObject playerObject = null;
-            try
-            {
-                playerObject = GameObject.FindGameObjectWithTag("Player");
-            }
-            catch (UnityException)
-            {
-                Debug.LogWarning("[LoadingManager] Player 태그가 정의되어 있지 않습니다.", this);
-            }
+            GameObject playerObject = PlayerReferenceResolver.FindPlayerObject();
 
             if (destinationStone == null || playerObject == null)
             {
@@ -345,7 +339,8 @@ namespace GH.Loading
                 return;
             }
 
-            CharacterController controller = playerObject.GetComponent<CharacterController>();
+            CharacterController controller = PlayerReferenceResolver
+                .FindComponentInPlayerHierarchy<CharacterController>(playerObject);
             if (controller != null)
             {
                 controller.enabled = false;
@@ -361,7 +356,7 @@ namespace GH.Loading
             WorldChunkManager chunkManager = FindFirstObjectByType<WorldChunkManager>(FindObjectsInactive.Include);
             if (chunkManager != null)
             {
-                chunkManager.RefreshActiveChunks(true);
+                chunkManager.SetPlayer(playerObject.transform);
             }
 
             if (WayPointManager.Instance != null)
@@ -370,19 +365,205 @@ namespace GH.Loading
             }
         }
 
+        // 이전 프리팹에 내장된 Canvas_Loading은 런타임에 Panel 부분만 분리해
+        // 새 동적 패널 구조의 템플릿으로 사용한다. 씬/프리팹 파일 자체는 변경하지 않는다.
+        private void PrepareLegacyLoadingPanelTemplate()
+        {
+            if (loadingPanelPrefab == null && progressSlider != null)
+            {
+                loadingPanelPrefab = FindLegacyPanelTemplate(progressSlider.transform);
+            }
+
+            if (loadingPanelPrefab == null || !loadingPanelPrefab.scene.IsValid())
+            {
+                return;
+            }
+
+            Canvas embeddedCanvas = loadingPanelPrefab.GetComponent<Canvas>();
+            GameObject panelTemplate = loadingPanelPrefab;
+
+            if (embeddedCanvas != null)
+            {
+                Transform panelTransform = FindLegacyPanelRoot(embeddedCanvas.transform);
+                if (panelTransform == null)
+                {
+                    Debug.LogError(
+                        "[LoadingManager] 기존 Canvas_Loading 안에서 로딩 Panel 루트를 찾지 못했습니다.",
+                        this);
+                    return;
+                }
+
+                panelTemplate = panelTransform.gameObject;
+                panelTemplate.SetActive(false);
+                panelTransform.SetParent(transform, false);
+                Destroy(embeddedCanvas.gameObject);
+            }
+            else if (!panelTemplate.transform.IsChildOf(transform))
+            {
+                panelTemplate.transform.SetParent(transform, false);
+            }
+
+            LoadingPanelView panelView = panelTemplate.GetComponent<LoadingPanelView>();
+            if (panelView == null)
+            {
+                panelView = panelTemplate.AddComponent<LoadingPanelView>();
+            }
+
+            panelView.Configure(progressSlider, descriptionText, percentText, tipText);
+            panelTemplate.SetActive(false);
+            loadingPanelPrefab = panelTemplate;
+        }
+
+        private GameObject FindLegacyPanelTemplate(Transform source)
+        {
+            Transform current = source;
+            while (current != null && current.parent != null)
+            {
+                Transform parent = current.parent;
+                if (parent == transform || parent.GetComponent<Canvas>() != null)
+                {
+                    return current.gameObject;
+                }
+
+                current = parent;
+            }
+
+            return null;
+        }
+
+        private Transform FindLegacyPanelRoot(Transform canvasTransform)
+        {
+            if (canvasTransform == null)
+            {
+                return null;
+            }
+
+            for (int i = 0; i < canvasTransform.childCount; i++)
+            {
+                Transform child = canvasTransform.GetChild(i);
+                if (progressSlider == null || progressSlider.transform.IsChildOf(child))
+                {
+                    return child;
+                }
+            }
+
+            return canvasTransform.childCount > 0 ? canvasTransform.GetChild(0) : null;
+        }
+
+        private bool TryCreateLoadingPanelInstance()
+        {
+            DestroyLoadingPanelInstance();
+
+            if (loadingPanelPrefab == null)
+            {
+                Debug.LogError("[LoadingManager] Loading Panel Prefab이 지정되지 않았습니다.", this);
+                return false;
+            }
+
+            Canvas sceneCanvas = FindActiveSceneCanvas();
+            if (sceneCanvas == null)
+            {
+                Debug.LogError(
+                    $"[LoadingManager] 활성 씬 '{SceneManager.GetActiveScene().name}'에서 사용할 루트 Canvas를 찾지 못했습니다.",
+                    this);
+                return false;
+            }
+
+            GameObject panelObject = Instantiate(loadingPanelPrefab, sceneCanvas.transform, false);
+            panelObject.name = loadingPanelPrefab.name;
+
+            if (panelObject.GetComponent<Canvas>() != null)
+            {
+                Debug.LogError(
+                    "[LoadingManager] Loading Panel Prefab에는 Canvas를 넣지 마세요. 씬 Canvas의 자식 Panel이어야 합니다.",
+                    panelObject);
+                Destroy(panelObject);
+                return false;
+            }
+
+            loadingPanelInstance = panelObject.GetComponent<LoadingPanelView>();
+            if (loadingPanelInstance == null)
+            {
+                Debug.LogError(
+                    "[LoadingManager] Loading Panel Prefab에 LoadingPanelView가 없습니다.",
+                    panelObject);
+                Destroy(panelObject);
+                return false;
+            }
+
+            if (panelObject.transform is RectTransform panelRect)
+            {
+                panelRect.anchorMin = Vector2.zero;
+                panelRect.anchorMax = Vector2.one;
+                panelRect.offsetMin = Vector2.zero;
+                panelRect.offsetMax = Vector2.zero;
+                panelRect.localRotation = Quaternion.identity;
+                panelRect.localScale = Vector3.one;
+            }
+
+            panelObject.transform.SetAsLastSibling();
+            panelObject.SetActive(true);
+            return true;
+        }
+
+        private Canvas FindActiveSceneCanvas()
+        {
+            Scene activeScene = SceneManager.GetActiveScene();
+            Canvas[] canvases = FindObjectsByType<Canvas>(
+                FindObjectsInactive.Include,
+                FindObjectsSortMode.None);
+
+            Canvas selectedCanvas = null;
+            int candidateCount = 0;
+
+            foreach (Canvas canvas in canvases)
+            {
+                if (canvas == null
+                    || canvas.gameObject.scene != activeScene
+                    || !canvas.gameObject.activeInHierarchy
+                    || !canvas.isRootCanvas
+                    || canvas.renderMode == RenderMode.WorldSpace)
+                {
+                    continue;
+                }
+
+                candidateCount++;
+                if (selectedCanvas == null || canvas.sortingOrder > selectedCanvas.sortingOrder)
+                {
+                    selectedCanvas = canvas;
+                }
+            }
+
+            if (candidateCount > 1)
+            {
+                Debug.LogWarning(
+                    $"[LoadingManager] 활성 씬에 루트 Canvas가 {candidateCount}개 있습니다. " +
+                    $"Sorting Order가 가장 높은 '{selectedCanvas.name}'을 사용합니다.",
+                    selectedCanvas);
+            }
+
+            return selectedCanvas;
+        }
+
+        private void DestroyLoadingPanelInstance()
+        {
+            if (loadingPanelInstance != null)
+            {
+                Destroy(loadingPanelInstance.gameObject);
+            }
+
+            loadingPanelInstance = null;
+            showTipInDescription = false;
+        }
+
         private void ShowRandomTip()
         {
             string tip = GetRandomTip();
-            showTipInDescription = tipText == null && !string.IsNullOrWhiteSpace(tip);
+            showTipInDescription = loadingPanelInstance != null
+                && !loadingPanelInstance.HasTipText
+                && !string.IsNullOrWhiteSpace(tip);
 
-            if (tipText != null)
-            {
-                tipText.text = tip;
-            }
-            else if (showTipInDescription && descriptionText != null)
-            {
-                descriptionText.text = tip;
-            }
+            loadingPanelInstance?.SetTip(tip, showTipInDescription);
         }
 
         private string GetRandomTip()
@@ -405,33 +586,15 @@ namespace GH.Loading
             return string.Empty;
         }
 
-        private void SetLoadingUIVisible(bool visible)
-        {
-            if (loadingRoot != null)
-            {
-                loadingRoot.SetActive(visible);
-            }
-        }
-
         private void Report(string description, float progress)
         {
             CurrentDescription = description;
             CurrentProgress = Mathf.Clamp01(progress);
 
-            if (progressSlider != null)
-            {
-                progressSlider.value = CurrentProgress;
-            }
-
-            if (descriptionText != null && !showTipInDescription)
-            {
-                descriptionText.text = CurrentDescription;
-            }
-
-            if (percentText != null)
-            {
-                percentText.text = $"{Mathf.RoundToInt(CurrentProgress * 100f)}%";
-            }
+            loadingPanelInstance?.SetProgress(
+                CurrentDescription,
+                CurrentProgress,
+                !showTipInDescription);
 
             ProgressChanged?.Invoke(new LoadingProgress(CurrentDescription, CurrentProgress));
         }

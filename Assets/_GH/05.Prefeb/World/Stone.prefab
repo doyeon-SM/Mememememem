@@ -131,8 +131,7 @@ MonoBehaviour:
   harvestWithInteractInput: 0
   myType: 2
   dropItems:
-  - dropPrefab: {fileID: 763885917023585386, guid: b4912c5615ad3054dbcfc2f3532a4926, type: 3}
-  - dropPrefab: {fileID: 763885917023585386, guid: b44705ab614dde8468beea699691fc41, type: 3}
+  - dropPrefab: {fileID: 763885917023585386, guid: 12deb220460fd444987c105c27aa0608, type: 3}
   maxObjectHp: 10
   currentObjectHp: 0
   respawnTime: 15
@@ -144,7 +143,9 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 4294967295
   dropSpawnHeight: 0.6
-  dropSpreadRadius: 5.73
+  dropSpreadRadius: 4
+  showDropSpawnGizmo: 1
+  dropSpawnGizmoColor: {r: 1, g: 0.72, b: 0.1, a: 0.9}
   poolPrewarmCount: 0
   autoReturnToPoolSeconds: 10
   enableDebugAutoDrop: 0

@@ -1,3 +1,4 @@
+using HDY.Item;
 using UnityEngine;
 
 [CreateAssetMenu(fileName = "New_Building_Data", menuName = "Territory/BuildingData")]
@@ -10,6 +11,7 @@ public class BuildingData : ScriptableObject
     public Sprite buildingImage;
     public BuildingType buildingType;
     public int satisfaction;
+    public ItemData requireBlueprint;
 
     [Header("건물 사이즈")]
     public int width;

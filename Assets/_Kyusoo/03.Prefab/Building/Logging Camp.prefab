@@ -27,13 +27,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 465674821357938899}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalRotation: {x: -0.7071068, y: 0, z: 0, w: 0.7071068}
   m_LocalPosition: {x: 0, y: 0.5, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 1.6, y: 1.7, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 8413867593421061679}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: -90, y: 0, z: 0}
 --- !u!33 &2618715321443388252
 MeshFilter:
   m_ObjectHideFlags: 0
@@ -41,7 +41,7 @@ MeshFilter:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 465674821357938899}
-  m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+  m_Mesh: {fileID: 1400579642181572543, guid: cf408f629b28d054fbf7dc088181c15a, type: 3}
 --- !u!23 &762526136059635759
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -67,7 +67,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
+  - {fileID: 1939503371209658107, guid: cf408f629b28d054fbf7dc088181c15a, type: 3}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -122,9 +122,9 @@ GameObject:
   m_Component:
   - component: {fileID: 8413867593421061679}
   - component: {fileID: 3937221372743820164}
-  - component: {fileID: -6784730455377022565}
+  - component: {fileID: 4895742578971187360}
   m_Layer: 0
-  m_Name: Crafting Table
+  m_Name: Logging Camp
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -163,7 +163,7 @@ MonoBehaviour:
   maxStorageCount: 0
   gridX: 0
   gridZ: 0
---- !u!114 &-6784730455377022565
+--- !u!114 &4895742578971187360
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -172,17 +172,17 @@ MonoBehaviour:
   m_GameObject: {fileID: 9215367321915130356}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: bec474647e610fb42bcd000676358615, type: 3}
+  m_Script: {fileID: 11500000, guid: 4802d210105a9b741b396f96c05244a1, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::ProductionCraftRuntime
-  buildingData: {fileID: 11400000, guid: 3495c48f7130d0345a7a91b2a1e10ca3, type: 2}
+  m_EditorClassIdentifier: Assembly-CSharp::ProductionFacilityRuntime
+  buildingData: {fileID: 11400000, guid: 77b52e4d931bc084e8dc47ea580b885c, type: 2}
+  currentLevel: 1
   isProducing: 0
-  currentCraftingItem: {fileID: 0}
+  craftingItem: {fileID: 11400000, guid: 5503da901c4edc748acb64023df2918c, type: 2}
   totalRequiredTime: 0
   currentProgressTime: 0
-  targetQuantity: 1
-  remainingQuantity: 0
+  baseProductionTime: 30
   currentStorageCount: 0
-  maxStorageCount: 0
+  maxStorageCount: 100
   addMems: []
   addMemEntries: []
