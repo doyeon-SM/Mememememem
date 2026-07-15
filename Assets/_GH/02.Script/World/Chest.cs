@@ -1,22 +1,32 @@
-using HDY.Item;
+ï»¿using HDY.Item;
 using KGH.Data;
 using KMS;
 using KMS.InventoryDuped;
-using System;
 using UnityEngine;
 
 
 public class Chest : MonoBehaviour, KMS.IInteractable
 {
     [Header("Setting")]
+    [Tooltip("ì •ë³´ UIì— í‘œì‹œí•  ì´ë¦„ì…ë‹ˆë‹¤. ë¹„ì›Œ ë‘ë©´ GameObject ì´ë¦„ì„ ì‚¬ìš©í•©ë‹ˆë‹¤.")]
+    [SerializeField] private string displayName;
+    [SerializeField] private string interactionPrompt = "ìƒì ì—´ê¸°";
     [SerializeField] private string chestId;
-    [Tooltip("ÇöÀç´Â ´ÙÁß µå¶øÀ¸·Î ±¸Á¶ ÀÛ¼º")][SerializeField] private ChestItem[] dropItem;
-    [Tooltip("FalseÀÏ °æ¿ì 0¹ø ÀÎµ¦½º¸¸ µå¶ø")][SerializeField] private bool isOverlap;
+    [Tooltip("í˜„ì¬ëŠ” ë‹¤ì¤‘ ë“œëìœ¼ë¡œ êµ¬ì¡° ì‘ì„±")][SerializeField] private ChestItem[] dropItem;
+    [Tooltip("Falseì¼ ê²½ìš° 0ë²ˆ ì¸ë±ìŠ¤ë§Œ ë“œë")][SerializeField] private bool isOverlap;
 
-    public string InteractionPrompt => throw new NotImplementedException();
+    /// <summary>ì •ë³´ UIì— í‘œì‹œí•  ìƒì ì´ë¦„ì…ë‹ˆë‹¤.</summary>
+    public string DisplayName => string.IsNullOrWhiteSpace(displayName) ? gameObject.name : displayName;
+
+    public string InteractionPrompt => interactionPrompt;
 
     public bool CanInteract(PlayerInteraction interactor)
     {
+        if (interactor == null)
+        {
+            return false;
+        }
+
         PlayerInventory inventory = interactor.GetComponentInParent<PlayerInventory>();
         if (inventory == null) return false;
         else return true;

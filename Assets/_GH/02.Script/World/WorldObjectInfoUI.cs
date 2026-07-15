@@ -34,11 +34,16 @@ public class WorldObjectInfoUI : MonoBehaviour
     [SerializeField] private string insufficientGradeFormat = "상호작용 불가: {0} 등급 이상의 도구가 필요합니다.";
     [SerializeField] private string depletedText = "상호작용 불가: 현재 고갈된 오브젝트입니다.";
 
+    [Header("Chest Text")]
+    [Tooltip("모든 Chest에 공통으로 표시할 한 줄 설명입니다.")]
+    [SerializeField] private string chestTooltipText = "상자를 열어 아이템을 획득할 수 있습니다.";
+
     [Header("Status Color")]
     [SerializeField] private Color availableColor = new Color(0.35f, 1f, 0.45f, 1f);
     [SerializeField] private Color unavailableColor = new Color(1f, 0.35f, 0.35f, 1f);
 
     private WorldObject currentTarget;
+    private Chest currentChest;
     private ItemData currentTool;
     private PlayerInteraction subscribedPlayerInteraction;
 
@@ -81,13 +86,21 @@ public class WorldObjectInfoUI : MonoBehaviour
     /// <summary>현재 대상과 장착 도구를 다시 읽어 UI를 즉시 갱신합니다.</summary>
     public void RefreshUI()
     {
-        if (currentTarget == null)
+        if (currentTarget == null && currentChest == null)
         {
             SetPanelVisible(false);
             return;
         }
 
         SetPanelVisible(true);
+
+        if (currentChest != null)
+        {
+            RefreshChestUI();
+            return;
+        }
+
+        SetHealthUIVisible(true);
 
         if (objectNameText != null)
         {
@@ -113,9 +126,9 @@ public class WorldObjectInfoUI : MonoBehaviour
         RefreshInteractionStatus();
     }
 
-    private void ChangeTarget(WorldObject newTarget)
+    private void ChangeTarget(WorldObject newTarget, Chest newChest = null)
     {
-        if (ReferenceEquals(currentTarget, newTarget))
+        if (ReferenceEquals(currentTarget, newTarget) && ReferenceEquals(currentChest, newChest))
         {
             return;
         }
@@ -126,6 +139,7 @@ public class WorldObjectInfoUI : MonoBehaviour
         }
 
         currentTarget = newTarget;
+        currentChest = newChest;
 
         if (currentTarget != null)
         {
@@ -217,7 +231,36 @@ public class WorldObjectInfoUI : MonoBehaviour
 
     private void HandleFocusChanged(IInteractable interactable)
     {
-        ChangeTarget(interactable as WorldObject);
+        ChangeTarget(interactable as WorldObject, interactable as Chest);
+    }
+
+    private void RefreshChestUI()
+    {
+        SetHealthUIVisible(false);
+
+        if (objectNameText != null)
+        {
+            objectNameText.text = currentChest.DisplayName;
+        }
+
+        if (interactionStatusText != null)
+        {
+            interactionStatusText.text = chestTooltipText;
+            interactionStatusText.color = availableColor;
+        }
+    }
+
+    private void SetHealthUIVisible(bool visible)
+    {
+        if (healthSlider != null)
+        {
+            healthSlider.gameObject.SetActive(visible);
+        }
+
+        if (healthValueText != null)
+        {
+            healthValueText.gameObject.SetActive(visible);
+        }
     }
 
     private void RefreshInteractionStatus()
