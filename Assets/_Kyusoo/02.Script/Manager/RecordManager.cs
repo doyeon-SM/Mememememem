@@ -62,6 +62,10 @@ public class TerritorySaveData
     public SerializableContainerData foodWarehouseStorageData;
     public SerializableContainerData foodBagStorageData;
 
+    // 퀵슬롯 영구 보존 규격 바인딩
+    public SerializableContainerData playerQuickSlotsData;
+    public int selectedQuickSlotIndex;
+
     [Header("음식 소모 시뮬레이션 데이터")]
     public int maxSatiety;
     public int currentSatiety;
@@ -123,7 +127,6 @@ public class RecordManager : MonoBehaviour
     private IEnumerator DelayedLoadRoutine()
     {
         yield return null;
-        // 오직 영지 씬 계열일 때만 최초 자동 복구 로드를 가동해 격자 레이아웃을 형성합니다.
         if (SceneManager.GetActiveScene().name.ToLower().Contains("territory"))
         {
             LoadTerritoryRecordData();
@@ -133,6 +136,11 @@ public class RecordManager : MonoBehaviour
     public bool IsSaveFileExists()
     {
         return File.Exists(saveFilePath);
+    }
+
+    public string GetSaveFilePath()
+    {
+        return saveFilePath;
     }
 
     public PlantJSONSaveData GetFacilityData(string buildingId)
@@ -210,9 +218,6 @@ public class RecordManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// 최초 실행 시 영지 기본 뼈대 구조 데이터 오브젝트를 디스크에 강제 형성 개설합니다.
-    /// </summary>
     public void CreateDefaultTerritoryRecord()
     {
         try
@@ -232,6 +237,8 @@ public class RecordManager : MonoBehaviour
                 warehouseStorageData = new SerializableContainerData { width = 10, height = 6 },
                 foodWarehouseStorageData = new SerializableContainerData { width = 10, height = 6 },
                 foodBagStorageData = new SerializableContainerData { width = 10, height = 6 },
+                playerQuickSlotsData = new SerializableContainerData { width = 10, height = 1 },
+                selectedQuickSlotIndex = 0,
                 maxSatiety = 100,
                 currentSatiety = 100,
                 isWorkStoppedDueToStarvation = false,
@@ -250,17 +257,12 @@ public class RecordManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// 🌟 [전면 교정]: 하드디스크 입출력 지연 버그를 완벽하게 배제하고, 메모리 상에서 구조를 완전 융합한 뒤
-    /// 단 한 번에 파일 스트림을 마감하는 완벽한 2차 동기화 업데이트 연산식입니다.
-    /// </summary>
     public void ExecutePartialSaveForAdventure()
     {
         try
         {
             TerritorySaveData currentData = null;
 
-            // 파일이 존재한다면 원본 데이터를 파싱해오고, 없다면 메모리 상에서 기본 구조를 즉시 완전히 동적 생성합니다.
             if (IsSaveFileExists())
             {
                 currentData = ReadRawSaveFileOnly();
@@ -281,6 +283,8 @@ public class RecordManager : MonoBehaviour
                     warehouseStorageData = new SerializableContainerData { width = 10, height = 6 },
                     foodWarehouseStorageData = new SerializableContainerData { width = 10, height = 6 },
                     foodBagStorageData = new SerializableContainerData { width = 10, height = 6 },
+                    playerQuickSlotsData = new SerializableContainerData { width = 10, height = 1 },
+                    selectedQuickSlotIndex = 0,
                     maxSatiety = 100,
                     currentSatiety = 100,
                     isWorkStoppedDueToStarvation = false,
@@ -292,18 +296,18 @@ public class RecordManager : MonoBehaviour
 
             currentData.lastSaveTime = DateTime.UtcNow.ToString("o");
 
-            // 🌟 [안전 예방선]: 비활성화되거나 숨겨진 컴포넌트 장부까지 완벽히 긁어오기 위해 Include 옵션을 바인딩합니다.
             var pInventory = FindObjectsByType<PlayerInventory>(FindObjectsInactive.Include, FindObjectsSortMode.None).FirstOrDefault();
-            if (pInventory != null && pInventory.inventory != null)
+            if (pInventory != null)
             {
-                currentData.playerInventoryData = PackContainerData(pInventory.inventory);
-            }
-            else
-            {
-                Debug.LogWarning("[RecordManager] 탐험 씬 내부에서 가방(PlayerInventory) 컴포넌트를 탐색하지 못해 업데이트를 유보했습니다.");
+                if (pInventory.inventory != null)
+                    currentData.playerInventoryData = PackContainerData(pInventory.inventory);
+
+                if (pInventory.quickSlots != null)
+                    currentData.playerQuickSlotsData = PackContainerData(pInventory.quickSlots);
+
+                currentData.selectedQuickSlotIndex = pInventory.selectedQuickSlotIndex;
             }
 
-            // 포획 멤 대장 추출 이식
             var memCaptureManager = FindObjectsByType<MemCaptureManager>(FindObjectsInactive.Include, FindObjectsSortMode.None).FirstOrDefault();
             if (memCaptureManager != null && memCaptureManager.CapturedMems != null)
             {
@@ -319,22 +323,20 @@ public class RecordManager : MonoBehaviour
                 }
             }
 
-            // 영지 시설 청사진 안전 가드
             if (currentData.placedBuildings == null)
                 currentData.placedBuildings = new List<PlacedBuildingSaveData>();
 
-            // 메모리 상에서 동기화가 완벽하게 끝난 최종 장부 객체를 단 한 번에 파일로 작성하여 I/O 병목을 소멸시킵니다.
             string jsonString = JsonUtility.ToJson(currentData, true);
             File.WriteAllText(saveFilePath, jsonString);
 
             PlayerPrefs.SetString(LastPlayTimeKey, currentData.lastSaveTime);
             PlayerPrefs.Save();
 
-            Debug.Log("<color=lime><b>[RecordManager]</b></color> 탐험 씬 인벤토리 및 포획 데이터 융합 세이브 파일 최종 쓰기 완수!");
+            Debug.Log("<color=cyan>[RecordManager]</color> 탐험/영지 씬이동 전 인벤토리 및 포획 데이터 부분 무결성 백업 세이브 완수!");
         }
         catch (Exception e)
         {
-            Debug.LogError($"[RecordManager] 부분 백업 세이브 도중 치명적 예외: {e.Message}");
+            Debug.LogError($"[RecordManager] 부분 백업 세이브 실패: {e.Message}");
         }
     }
 
@@ -356,11 +358,8 @@ public class RecordManager : MonoBehaviour
 
             var activeBuildings = FindObjectsByType<BuildingRuntime>(FindObjectsSortMode.None);
 
-            if (isTeardown && activeBuildings.Length == 0 && File.Exists(saveFilePath))
-            {
-                Debug.LogWarning("<color=red>[RecordManager]</color> 씬 해제 또는 종료 중 오브젝트 소실을 감지하여 데이터 오염 방지를 위해 세이브를 유보합니다.");
-                return;
-            }
+            // 🌟 [요구사항 2번 반영 부위]: 시설물이 0개인 최초 클린 영지 상태에서도 
+            // 유보 탈출(return;) 없이 무조건 마감 세이브가 가동되도록 유보 이프 필터링 블록을 과감하게 소멸시켰습니다.
 
             TerritorySaveData saveData = new TerritorySaveData();
             saveData.lastSaveTime = DateTime.UtcNow.ToString("o");
@@ -456,7 +455,12 @@ public class RecordManager : MonoBehaviour
             }
 
             var pInventory = FindFirstObjectByType<PlayerInventory>();
-            if (pInventory != null && pInventory.inventory != null) saveData.playerInventoryData = PackContainerData(pInventory.inventory);
+            if (pInventory != null)
+            {
+                if (pInventory.inventory != null) saveData.playerInventoryData = PackContainerData(pInventory.inventory);
+                if (pInventory.quickSlots != null) saveData.playerQuickSlotsData = PackContainerData(pInventory.quickSlots);
+                saveData.selectedQuickSlotIndex = pInventory.selectedQuickSlotIndex;
+            }
 
             var wInventory = FindFirstObjectByType<WarehouseInventory>();
             if (wInventory != null && wInventory.storage != null) saveData.warehouseStorageData = PackContainerData(wInventory.storage);
@@ -495,8 +499,8 @@ public class RecordManager : MonoBehaviour
         if (!File.Exists(saveFilePath))
         {
             Debug.Log("<color=cyan>[RecordManager]</color> 최초 파일이 없어 디폴트 뼈대를 자동 개설합니다.");
-            CreateDefaultTerritoryRecord(); // 기본 파일 즉시 생성
-            LoadTerritoryRecordData();       // 재귀 호출하여 데이터 복구 진행
+            CreateDefaultTerritoryRecord();
+            LoadTerritoryRecordData();
             return;
         }
 
@@ -544,8 +548,12 @@ public class RecordManager : MonoBehaviour
                     }
                 }
 
-                var changeEvent = typeof(MemCaptureManager).GetField("OnCapturedMemsChanged", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public)?.GetValue(MemCaptureManager.Instance) as Action;
-                changeEvent?.Invoke();
+                var changeEventField = typeof(MemCaptureManager).GetField("OnCapturedMemsChanged", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+                if (changeEventField != null)
+                {
+                    System.Action changeEvent = changeEventField.GetValue(MemCaptureManager.Instance) as System.Action;
+                    changeEvent?.Invoke();
+                }
             }
 
             var bTemplateField = typeof(GridManager).GetField("buildings", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
@@ -697,7 +705,36 @@ public class RecordManager : MonoBehaviour
             SetPrivateFieldSafely(gridManager, "buildingDataGrid", buildingDataGrid);
 
             var pInventory = FindFirstObjectByType<PlayerInventory>();
-            if (pInventory != null && saveData.playerInventoryData != null) UnpackContainerData(saveData.playerInventoryData, pInventory.inventory);
+            if (pInventory != null)
+            {
+                if (saveData.playerInventoryData != null)
+                    UnpackContainerData(saveData.playerInventoryData, pInventory.inventory);
+
+                if (saveData.playerQuickSlotsData != null)
+                    UnpackContainerData(saveData.playerQuickSlotsData, pInventory.quickSlots);
+
+                if (pInventory.quickSlots != null)
+                {
+                    pInventory.selectedQuickSlotIndex = pInventory.quickSlots.IsValidIndex(saveData.selectedQuickSlotIndex)
+                        ? saveData.selectedQuickSlotIndex
+                        : 0;
+                }
+
+                var onInventoryChangedField = typeof(PlayerInventory).GetField("OnInventoryChanged",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+                if (onInventoryChangedField != null)
+                {
+                    System.Action onInventoryChanged = onInventoryChangedField.GetValue(pInventory) as System.Action;
+                    onInventoryChanged?.Invoke();
+                }
+
+                var notifyAllQuickSlotsMethod = typeof(PlayerInventory).GetMethod("NotifyAllQuickSlotsChanged",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+                if (notifyAllQuickSlotsMethod != null)
+                {
+                    notifyAllQuickSlotsMethod.Invoke(pInventory, null);
+                }
+            }
 
             var wInventory = FindFirstObjectByType<WarehouseInventory>();
             if (wInventory != null && saveData.warehouseStorageData != null) UnpackContainerData(saveData.warehouseStorageData, wInventory.storage);
@@ -804,7 +841,7 @@ public class RecordManager : MonoBehaviour
         return allItems.FirstOrDefault(item => item != null && item.Item_ID == itemId);
     }
 
-    private SerializableContainerData PackContainerData(InventoryContainer container)
+    public SerializableContainerData PackContainerData(InventoryContainer container)
     {
         var data = new SerializableContainerData { width = container.width, height = container.height };
         if (container.slots != null)
