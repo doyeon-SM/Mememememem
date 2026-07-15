@@ -45,6 +45,7 @@ namespace KMS
 
         [Header("Status Text")]
         [SerializeField] private TerritoryData territoryData;
+        [SerializeField] private GameTimeManager gameTimeManager;
         [SerializeField] private string realTimeLabelName = "real-time-label";
         [SerializeField] private string goldLabelName = "gold-label";
         [SerializeField, Min(0.1f)] private float statusRefreshInterval = 0.25f;
@@ -75,6 +76,15 @@ namespace KMS
 
         private void Update()
         {
+            EnsureGameTimeManager();
+
+            if (gameTimeManager != null && clockHand != null)
+            {
+                float dayLength = Mathf.Max(0.0001f, gameTimeManager.DayLengthSeconds);
+                ApplyDayCycleProgress(gameTimeManager.InGameTimeOfDaySeconds / dayLength);
+                return;
+            }
+
             if (!playClockPreview || clockHand == null) return;
 
             previewCycleProgress = Mathf.Repeat(
@@ -94,6 +104,7 @@ namespace KMS
             if (stats == null) stats = GetComponent<PlayerStats>();
             if (uiDocument == null) uiDocument = GetComponent<UIDocument>();
             if (inventoryUi == null) inventoryUi = FindFirstObjectByType<KMS.InventoryDuped.InventoryUI>();
+            EnsureGameTimeManager();
         }
 
         private void OnEnable()
@@ -300,7 +311,12 @@ namespace KMS
 
         private void RefreshStatusTexts()
         {
-            string currentTime = DateTime.Now.ToString("HH:mm:ss");
+            EnsureGameTimeManager();
+
+            DateTime currentRealTime = gameTimeManager != null
+                ? gameTimeManager.CurrentRealTimeKst
+                : DateTime.Now;
+            string currentTime = currentRealTime.ToString("HH:mm:ss");
             if (realTimeLabel != null && currentTime != lastDisplayedTime)
             {
                 lastDisplayedTime = currentTime;
@@ -349,10 +365,42 @@ namespace KMS
         private void HandleActiveSceneChanged(Scene previousScene, Scene nextScene)
         {
             territoryData = null;
+            gameTimeManager = null;
+            EnsureGameTimeManager();
 
             if (hasStarted)
             {
                 RefreshStatusTexts();
+            }
+        }
+
+        private void EnsureGameTimeManager()
+        {
+            if (gameTimeManager != null) return;
+
+            gameTimeManager = FindFirstObjectByType<GameTimeManager>();
+            if (gameTimeManager != null) return;
+
+            if (territoryData == null)
+            {
+                territoryData = FindFirstObjectByType<TerritoryData>();
+            }
+
+            GameObject timeSystemObject;
+            if (territoryData != null)
+            {
+                timeSystemObject = territoryData.gameObject;
+            }
+            else
+            {
+                timeSystemObject = new GameObject("KMS Time System");
+                territoryData = timeSystemObject.AddComponent<TerritoryData>();
+            }
+
+            gameTimeManager = timeSystemObject.GetComponent<GameTimeManager>();
+            if (gameTimeManager == null)
+            {
+                gameTimeManager = timeSystemObject.AddComponent<GameTimeManager>();
             }
         }
 
