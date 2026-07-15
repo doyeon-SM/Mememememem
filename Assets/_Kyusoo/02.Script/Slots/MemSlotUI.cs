@@ -3,7 +3,8 @@ using UnityEngine.UI;
 using UnityEngine.EventSystems;
 using MemSystem.Data;
 using HDY.Capture;
-using HDY.UI; 
+using HDY.UI;
+using HDY.Mem;
 
 public class MemSlotUI : MonoBehaviour, IDropHandler, IPointerClickHandler
 {
@@ -95,17 +96,19 @@ public class MemSlotUI : MonoBehaviour, IDropHandler, IPointerClickHandler
             {
                 if (currentPlacedMem != null)
                 {
-                    iconImage.color = Color.red;
-
+                    Sprite sprite = (isUnlocked && currentPlacedMem != null && MemIconRenderer.Instance != null)
+                            ? MemIconRenderer.Instance.GetIcon(currentPlacedMem.memId)
+                            : null;
                     if (currentPlacedMem.modelPrefab != null)
                     {
-                        // 추후 모델이든 이미지든 추가되도록 처리
+                        iconImage.sprite = sprite;
+                        iconImage.gameObject.SetActive(sprite != null);
                     }
                 }
                 else
                 {
                     iconImage.sprite = null;
-                    iconImage.color = Color.blue;
+                    iconImage.color = Color.white;
                 }
             }
         }

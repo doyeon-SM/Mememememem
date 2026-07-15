@@ -370,7 +370,7 @@ public class RecordManager : MonoBehaviour
             TerritorySaveData saveData = IsSaveFileExists() ? ReadRawSaveFileOnly() : new TerritorySaveData();
 
             saveData.placedBuildings = new List<PlacedBuildingSaveData>();
-            saveData.serializedCapturedMems = new List<CapturedMemEntry>();
+            //saveData.serializedCapturedMems = new List<CapturedMemEntry>();
 
 
             if (string.IsNullOrEmpty(saveData.lastSaveTime))
@@ -396,17 +396,17 @@ public class RecordManager : MonoBehaviour
                 foreach (var step in expansion.ExpansionSteps) saveData.expansionExpandedStates.Add(step.IsExpanded);
             }
 
-            if (MemCaptureManager.Instance != null)
-            {
-                saveData.unlockedPageCount = MemCaptureManager.Instance.UnlockedPageCount;
-                if (MemCaptureManager.Instance.CapturedMems != null)
-                {
-                    foreach (var entry in MemCaptureManager.Instance.CapturedMems)
-                    {
-                        saveData.serializedCapturedMems.Add(entry);
-                    }
-                }
-            }
+            //if (MemCaptureManager.Instance != null)
+            //{
+            //    saveData.unlockedPageCount = MemCaptureManager.Instance.UnlockedPageCount;
+            //    if (MemCaptureManager.Instance.CapturedMems != null)
+            //    {
+            //        foreach (var entry in MemCaptureManager.Instance.CapturedMems)
+            //        {
+            //            saveData.serializedCapturedMems.Add(entry);
+            //        }
+            //    }
+            //}
 
             foreach (var br in activeBuildings)
             {
@@ -548,29 +548,29 @@ public class RecordManager : MonoBehaviour
                 gridManager.ExpandGrid(saveData.currentGridSize, saveData.currentGridSize);
             }
 
-            if (MemCaptureManager.Instance != null && saveData.serializedCapturedMems != null && saveData.serializedCapturedMems.Count > 0)
-            {
-                SetPrivateFieldSafely(MemCaptureManager.Instance, "unlockedPageCount", saveData.unlockedPageCount);
+            //if (MemCaptureManager.Instance != null && saveData.serializedCapturedMems != null && saveData.serializedCapturedMems.Count > 0)
+            //{
+            //    SetPrivateFieldSafely(MemCaptureManager.Instance, "unlockedPageCount", saveData.unlockedPageCount);
 
-                var capMemsField = typeof(MemCaptureManager).GetField("capturedMems", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
-                List<CapturedMemEntry> runtimeMemsList = capMemsField?.GetValue(MemCaptureManager.Instance) as List<CapturedMemEntry>;
+            //    var capMemsField = typeof(MemCaptureManager).GetField("capturedMems", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+            //    List<CapturedMemEntry> runtimeMemsList = capMemsField?.GetValue(MemCaptureManager.Instance) as List<CapturedMemEntry>;
 
-                if (runtimeMemsList != null)
-                {
-                    runtimeMemsList.Clear();
-                    foreach (var savedMem in saveData.serializedCapturedMems)
-                    {
-                        runtimeMemsList.Add(savedMem);
-                    }
-                }
+            //    if (runtimeMemsList != null)
+            //    {
+            //        runtimeMemsList.Clear();
+            //        foreach (var savedMem in saveData.serializedCapturedMems)
+            //        {
+            //            runtimeMemsList.Add(savedMem);
+            //        }
+            //    }
 
-                var changeEventField = typeof(MemCaptureManager).GetField("OnCapturedMemsChanged", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
-                if (changeEventField != null)
-                {
-                    System.Action changeEvent = changeEventField.GetValue(MemCaptureManager.Instance) as System.Action;
-                    changeEvent?.Invoke();
-                }
-            }
+            //    var changeEventField = typeof(MemCaptureManager).GetField("OnCapturedMemsChanged", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+            //    if (changeEventField != null)
+            //    {
+            //        System.Action changeEvent = changeEventField.GetValue(MemCaptureManager.Instance) as System.Action;
+            //        changeEvent?.Invoke();
+            //    }
+            //}
 
             var bTemplateField = typeof(GridManager).GetField("buildings", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
             var floorContainerField = typeof(GridManager).GetField("floorContainer", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);

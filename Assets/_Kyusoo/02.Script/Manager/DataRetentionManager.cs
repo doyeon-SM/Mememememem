@@ -54,8 +54,8 @@ public class DataRetentionManager : MonoBehaviour
         SceneManager.sceneUnloaded += OnSceneUnloadedTrigger;
 
         // 멤 포획 성공 시 발행되는 전역 이벤트를 수신하도록 정밀 구독합니다.
-        MemSystem.Events.MemEvents.OnMemCaptured += OnMemCapturedHandler;
-        Debug.Log("<color=orange><b>[DataRetentionManager]</b></color> 🟠 [OnEnable] OnMemCaptured 포획 최종 이벤트 전역 감시선 작동 개시!");
+        //MemSystem.Events.MemEvents.OnMemCaptured += OnMemCapturedHandler;
+        //Debug.Log("<color=orange><b>[DataRetentionManager]</b></color> 🟠 [OnEnable] OnMemCaptured 포획 최종 이벤트 전역 감시선 작동 개시!");
     }
 
     private void OnDisable()
@@ -64,7 +64,7 @@ public class DataRetentionManager : MonoBehaviour
         SceneManager.sceneUnloaded -= OnSceneUnloadedTrigger;
 
         // 이벤트 해제 안전장치
-        MemSystem.Events.MemEvents.OnMemCaptured -= OnMemCapturedHandler;
+        //MemSystem.Events.MemEvents.OnMemCaptured -= OnMemCapturedHandler;
         UnsubscribeInventoryEvent();
     }
 
@@ -116,103 +116,103 @@ public class DataRetentionManager : MonoBehaviour
     /// <summary>
     /// 🎯 탐험 씬에서 일꾼 포획 성공 신호가 떨어지는 그 즉시 장부를 강제로 열어 실시간 가산 백업을 완료합니다.
     /// </summary>
-    private void OnMemCapturedHandler(MemSystem.Core.Mem mem, MemSnapshot snapshot)
-    {
-        if (mem == null || snapshot == null) return;
+    //private void OnMemCapturedHandler(MemSystem.Core.Mem mem, MemSnapshot snapshot)
+    //{
+    //    if (mem == null || snapshot == null) return;
 
-        Debug.Log($"<color=yellow><b>[DataRetentionManager]</b></color> 🎯 <b>[포획 성공 이벤트 실시간 수신]</b> 이름: {snapshot.memName} | 장부 가산 정산을 개시합니다.");
+    //    Debug.Log($"<color=yellow><b>[DataRetentionManager]</b></color> 🎯 <b>[포획 성공 이벤트 실시간 수신]</b> 이름: {snapshot.memName} | 장부 가산 정산을 개시합니다.");
 
-        try
-        {
-            TerritorySaveData currentData = null;
+    //    try
+    //    {
+    //        TerritorySaveData currentData = null;
 
-            if (File.Exists(saveFilePath))
-            {
-                string jsonString = File.ReadAllText(saveFilePath);
-                currentData = JsonUtility.FromJson<TerritorySaveData>(jsonString);
-            }
+    //        if (File.Exists(saveFilePath))
+    //        {
+    //            string jsonString = File.ReadAllText(saveFilePath);
+    //            currentData = JsonUtility.FromJson<TerritorySaveData>(jsonString);
+    //        }
 
-            // 파일이 없는 최초 런타임 환경 상태라면 뼈대 구조를 먼저 형성합니다.
-            if (currentData == null)
-            {
-                currentData = new TerritorySaveData
-                {
-                    lastSaveTime = DateTime.UtcNow.ToString("o"),
-                    territoryLevel = 1,
-                    currentExp = 0,
-                    requiredExp = 100,
-                    gold = 0,
-                    satisfaction = 0,
-                    elapsedTime = 0f,
-                    currentGridSize = 5,
-                    expansionExpandedStates = new List<bool> { false, false, false, false, false },
-                    warehouseStorageData = new SerializableContainerData { width = 10, height = 2 },
-                    foodWarehouseStorageData = new SerializableContainerData { width = 10, height = 6 },
-                    foodBagStorageData = new SerializableContainerData { width = 10, height = 6 },
-                    playerQuickSlotsData = new SerializableContainerData { width = 10, height = 1 },
-                    selectedQuickSlotIndex = 0,
-                    maxSatiety = 100,
-                    currentSatiety = 100,
-                    isWorkStoppedDueToStarvation = false,
-                    unlockedPageCount = 2,
-                    placedBuildings = new List<PlacedBuildingSaveData>(),
-                    serializedCapturedMems = new List<CapturedMemEntry>()
-                };
+    //        // 파일이 없는 최초 런타임 환경 상태라면 뼈대 구조를 먼저 형성합니다.
+    //        if (currentData == null)
+    //        {
+    //            currentData = new TerritorySaveData
+    //            {
+    //                lastSaveTime = DateTime.UtcNow.ToString("o"),
+    //                territoryLevel = 1,
+    //                currentExp = 0,
+    //                requiredExp = 100,
+    //                gold = 0,
+    //                satisfaction = 0,
+    //                elapsedTime = 0f,
+    //                currentGridSize = 5,
+    //                expansionExpandedStates = new List<bool> { false, false, false, false, false },
+    //                warehouseStorageData = new SerializableContainerData { width = 10, height = 2 },
+    //                foodWarehouseStorageData = new SerializableContainerData { width = 10, height = 6 },
+    //                foodBagStorageData = new SerializableContainerData { width = 10, height = 6 },
+    //                playerQuickSlotsData = new SerializableContainerData { width = 10, height = 1 },
+    //                selectedQuickSlotIndex = 0,
+    //                maxSatiety = 100,
+    //                currentSatiety = 100,
+    //                isWorkStoppedDueToStarvation = false,
+    //                unlockedPageCount = 2,
+    //                placedBuildings = new List<PlacedBuildingSaveData>(),
+    //                serializedCapturedMems = new List<CapturedMemEntry>()
+    //            };
 
-                for (int i = 0; i < 60; i++)
-                {
-                    currentData.warehouseStorageData.slots.Add(new SerializableItemStack { itemId = "", amount = 0 });
-                    currentData.foodWarehouseStorageData.slots.Add(new SerializableItemStack { itemId = "", amount = 0 });
-                    currentData.foodBagStorageData.slots.Add(new SerializableItemStack { itemId = "", amount = 0 });
-                }
+    //            for (int i = 0; i < 60; i++)
+    //            {
+    //                currentData.warehouseStorageData.slots.Add(new SerializableItemStack { itemId = "", amount = 0 });
+    //                currentData.foodWarehouseStorageData.slots.Add(new SerializableItemStack { itemId = "", amount = 0 });
+    //                currentData.foodBagStorageData.slots.Add(new SerializableItemStack { itemId = "", amount = 0 });
+    //            }
 
-                for (int i = 0; i < 10; i++)
-                {
-                    currentData.playerQuickSlotsData.slots.Add(new SerializableItemStack { itemId = "", amount = 0 });
-                }
-            }
+    //            for (int i = 0; i < 10; i++)
+    //            {
+    //                currentData.playerQuickSlotsData.slots.Add(new SerializableItemStack { itemId = "", amount = 0 });
+    //            }
+    //        }
 
-            if (currentData.serializedCapturedMems == null)
-            {
-                currentData.serializedCapturedMems = new List<CapturedMemEntry>();
-            }
+    //        if (currentData.serializedCapturedMems == null)
+    //        {
+    //            currentData.serializedCapturedMems = new List<CapturedMemEntry>();
+    //        }
 
-            CapturedMemEntry newEntry = new CapturedMemEntry();
-            newEntry.KeyId = Guid.NewGuid().ToString();
-            newEntry.MemId = snapshot.memId;
-            newEntry.IsActive = false;
+    //        CapturedMemEntry newEntry = new CapturedMemEntry();
+    //        newEntry.KeyId = Guid.NewGuid().ToString();
+    //        newEntry.MemId = snapshot.memId;
+    //        newEntry.IsActive = false;
 
-            currentData.serializedCapturedMems.Add(newEntry);
-            Debug.Log($"<color=lime><b>[DataRetentionManager]</b></color> ✅ [실시간 이식 성공] serializedCapturedMems 대장에 신규 일꾼 추가 완료! (총 창고 일꾼 수: {currentData.serializedCapturedMems.Count}마리)");
+    //        currentData.serializedCapturedMems.Add(newEntry);
+    //        Debug.Log($"<color=lime><b>[DataRetentionManager]</b></color> ✅ [실시간 이식 성공] serializedCapturedMems 대장에 신규 일꾼 추가 완료! (총 창고 일꾼 수: {currentData.serializedCapturedMems.Count}마리)");
 
-            // 포획된 순간 가방 및 퀵슬롯의 최신 상태도 함께 동기화 연동하여 장부에 합치 저장해 둡니다.
-            if (cachedInventory != null)
-            {
-                if (cachedInventory.inventory != null)
-                    currentData.playerInventoryData = PackContainerData(cachedInventory.inventory);
+    //        // 포획된 순간 가방 및 퀵슬롯의 최신 상태도 함께 동기화 연동하여 장부에 합치 저장해 둡니다.
+    //        if (cachedInventory != null)
+    //        {
+    //            if (cachedInventory.inventory != null)
+    //                currentData.playerInventoryData = PackContainerData(cachedInventory.inventory);
 
-                if (cachedInventory.quickSlots != null)
-                    currentData.playerQuickSlotsData = PackContainerData(cachedInventory.quickSlots);
+    //            if (cachedInventory.quickSlots != null)
+    //                currentData.playerQuickSlotsData = PackContainerData(cachedInventory.quickSlots);
 
-                currentData.selectedQuickSlotIndex = cachedInventory.selectedQuickSlotIndex;
-            }
+    //            currentData.selectedQuickSlotIndex = cachedInventory.selectedQuickSlotIndex;
+    //        }
 
-            currentData.lastSaveTime = DateTime.UtcNow.ToString("o");
+    //        currentData.lastSaveTime = DateTime.UtcNow.ToString("o");
 
-            // 하드디스크 최종 강제 물리 라이팅 쓰기 실행
-            string outputJson = JsonUtility.ToJson(currentData, true);
-            File.WriteAllText(saveFilePath, outputJson);
+    //        // 하드디스크 최종 강제 물리 라이팅 쓰기 실행
+    //        string outputJson = JsonUtility.ToJson(currentData, true);
+    //        File.WriteAllText(saveFilePath, outputJson);
 
-            PlayerPrefs.SetString("OfflineLastPlayTime", currentData.lastSaveTime);
-            PlayerPrefs.Save();
+    //        PlayerPrefs.SetString("OfflineLastPlayTime", currentData.lastSaveTime);
+    //        PlayerPrefs.Save();
 
-            Debug.Log("<color=lime><b>[DataRetentionManager]</b></color> 👑 포획 즉시 물리 파일 동기화 덮어쓰기 최종 대성공!");
-        }
-        catch (Exception e)
-        {
-            Debug.LogError($"<color=red><b>[DataRetentionManager] 포획 성공 이벤트 처리 도중 예외 발생:</b></color> {e.Message}");
-        }
-    }
+    //        Debug.Log("<color=lime><b>[DataRetentionManager]</b></color> 👑 포획 즉시 물리 파일 동기화 덮어쓰기 최종 대성공!");
+    //    }
+    //    catch (Exception e)
+    //    {
+    //        Debug.LogError($"<color=red><b>[DataRetentionManager] 포획 성공 이벤트 처리 도중 예외 발생:</b></color> {e.Message}");
+    //    }
+    //}
 
     // =================================================================
     // 👑 [라이프사이클 트리거 기반 가방 및 퀵슬롯 전담 세이브 부위]

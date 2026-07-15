@@ -80,6 +80,7 @@ public class ProductionCraftRuntime : MonoBehaviour
 
         totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(craftingDuration, addMems);
 
+        /* 🌟 [임시 주석 처리]: 허기 및 굶주림 정지 조건 체크 무력화
         if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
         {
             isProducing = true;
@@ -88,6 +89,8 @@ public class ProductionCraftRuntime : MonoBehaviour
         {
             isProducing = false;
         }
+        */
+        isProducing = true; // 식량 고갈 상태 유무를 묻지 않고 제작 강제 개시
     }
 
     /// <summary>
@@ -112,6 +115,7 @@ public class ProductionCraftRuntime : MonoBehaviour
             totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(craftingDuration, addMems);
             currentProgressTime = totalRequiredTime * currentProgressPercent;
 
+            /* 🌟 [임시 주석 처리]: 멤 교체 연산 시 굶주림 작동 중지 감지 무력화
             if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
             {
                 isProducing = true;
@@ -120,6 +124,8 @@ public class ProductionCraftRuntime : MonoBehaviour
             {
                 isProducing = false;
             }
+            */
+            isProducing = true; // 식량 상태에 관계없이 무조건 제작 상태 상시 유지
         }
     }
 
@@ -180,7 +186,7 @@ public class ProductionCraftRuntime : MonoBehaviour
     private void CompleteCraftingUnit()
     {
         currentStorageCount++;
-        remainingQuantity--; 
+        remainingQuantity--;
 
         currentProgressTime = 0f;
 
@@ -199,11 +205,11 @@ public class ProductionCraftRuntime : MonoBehaviour
     /// </summary>
     public void CancelCrafting()
     {
-        if(!isProducing && currentCraftingItem == null) return;
+        if (!isProducing && currentCraftingItem == null) return;
 
         var inventory = FindFirstObjectByType<PlayerInventory>();
         var warehouse = FindFirstObjectByType<WarehouseInventory>();
-        
+
         if (currentStorageCount > 0)
         {
             if (inventory != null)
@@ -266,7 +272,7 @@ public class ProductionCraftRuntime : MonoBehaviour
 
         //
         PlayerInventory inventory = FindFirstObjectByType<PlayerInventory>();
-        if(inventory != null)
+        if (inventory != null)
         {
             int remaining = inventory.AddItem(currentCraftingItem, currentStorageCount);
             currentStorageCount = remaining;
@@ -281,6 +287,6 @@ public class ProductionCraftRuntime : MonoBehaviour
             return true;
         }
 
-        return false; 
+        return false;
     }
 }
