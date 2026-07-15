@@ -149,6 +149,7 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 299383277}
+  - {fileID: 751865485}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &82584154
@@ -736,6 +737,50 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 2f098d92a61021446b93d54d6382a9c5, type: 3}
+--- !u!1 &751865484
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 751865485}
+  - component: {fileID: 751865486}
+  m_Layer: 0
+  m_Name: DataRetentionManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &751865485
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 751865484}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 81733160}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &751865486
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 751865484}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6f7ec813ed16f054abdb554877d23e8c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::DataRetentionManager
 --- !u!4 &787016686 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 1653969796523974902, guid: 8fcade1fb3df56a49a6dbca9040ecd74, type: 3}
@@ -11992,6 +12037,7 @@ MonoBehaviour:
   playerMovement: {fileID: 0}
   cameraController: {fileID: 0}
   playerHud: {fileID: 0}
+  memDexLauncher: {fileID: 0}
   debugItemIdInput: {fileID: 0}
   debugAmountInput: {fileID: 0}
   debugGiveItemButton: {fileID: 0}

@@ -115,10 +115,24 @@ public class RecordManager : MonoBehaviour
         SceneManager.sceneUnloaded -= OnSceneUnloadedTrigger;
     }
 
+    private void Update()
+    {
+        MaintainHealthyFacilityCache();
+    }
+
     private IEnumerator DelayedLoadRoutine()
     {
         yield return null;
-        LoadTerritoryRecordData();
+        // 오직 영지 씬 계열일 때만 최초 자동 복구 로드를 가동해 격자 레이아웃을 형성합니다.
+        if (SceneManager.GetActiveScene().name.ToLower().Contains("territory"))
+        {
+            LoadTerritoryRecordData();
+        }
+    }
+
+    public bool IsSaveFileExists()
+    {
+        return File.Exists(saveFilePath);
     }
 
     public PlantJSONSaveData GetFacilityData(string buildingId)
@@ -181,7 +195,150 @@ public class RecordManager : MonoBehaviour
         }
     }
 
-    public void ExecuteBulkSaveProcess()
+    public TerritorySaveData ReadRawSaveFileOnly()
+    {
+        if (!File.Exists(saveFilePath)) return null;
+        try
+        {
+            string jsonString = File.ReadAllText(saveFilePath);
+            return JsonUtility.FromJson<TerritorySaveData>(jsonString);
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"[RecordManager] 순수 장부 파일 로드 실패: {e.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// 최초 실행 시 영지 기본 뼈대 구조 데이터 오브젝트를 디스크에 강제 형성 개설합니다.
+    /// </summary>
+    public void CreateDefaultTerritoryRecord()
+    {
+        try
+        {
+            TerritorySaveData defaultData = new TerritorySaveData
+            {
+                lastSaveTime = DateTime.UtcNow.ToString("o"),
+                territoryLevel = 1,
+                currentExp = 0,
+                requiredExp = 100,
+                gold = 0,
+                satisfaction = 0,
+                elapsedTime = 0f,
+                currentGridSize = 5,
+                expansionExpandedStates = new List<bool> { false, false, false, false, false },
+                playerInventoryData = new SerializableContainerData { width = 10, height = 6 },
+                warehouseStorageData = new SerializableContainerData { width = 10, height = 6 },
+                foodWarehouseStorageData = new SerializableContainerData { width = 10, height = 6 },
+                foodBagStorageData = new SerializableContainerData { width = 10, height = 6 },
+                maxSatiety = 100,
+                currentSatiety = 100,
+                isWorkStoppedDueToStarvation = false,
+                unlockedPageCount = 2,
+                serializedCapturedMems = new List<CapturedMemEntry>(),
+                placedBuildings = new List<PlacedBuildingSaveData>()
+            };
+
+            string jsonString = JsonUtility.ToJson(defaultData, true);
+            File.WriteAllText(saveFilePath, jsonString);
+            Debug.Log("<color=lime>[RecordManager]</color> 최초 세이브 무결성 기본 구조 파일 생성 완료!");
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"[RecordManager] 기본 구조 파일 생성 도중 예외: {e.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 🌟 [전면 교정]: 하드디스크 입출력 지연 버그를 완벽하게 배제하고, 메모리 상에서 구조를 완전 융합한 뒤
+    /// 단 한 번에 파일 스트림을 마감하는 완벽한 2차 동기화 업데이트 연산식입니다.
+    /// </summary>
+    public void ExecutePartialSaveForAdventure()
+    {
+        try
+        {
+            TerritorySaveData currentData = null;
+
+            // 파일이 존재한다면 원본 데이터를 파싱해오고, 없다면 메모리 상에서 기본 구조를 즉시 완전히 동적 생성합니다.
+            if (IsSaveFileExists())
+            {
+                currentData = ReadRawSaveFileOnly();
+            }
+
+            if (currentData == null)
+            {
+                currentData = new TerritorySaveData
+                {
+                    territoryLevel = 1,
+                    currentGridSize = 5,
+                    requiredExp = 100,
+                    gold = 0,
+                    satisfaction = 0,
+                    elapsedTime = 0f,
+                    expansionExpandedStates = new List<bool> { false, false, false, false, false },
+                    playerInventoryData = new SerializableContainerData { width = 10, height = 6 },
+                    warehouseStorageData = new SerializableContainerData { width = 10, height = 6 },
+                    foodWarehouseStorageData = new SerializableContainerData { width = 10, height = 6 },
+                    foodBagStorageData = new SerializableContainerData { width = 10, height = 6 },
+                    maxSatiety = 100,
+                    currentSatiety = 100,
+                    isWorkStoppedDueToStarvation = false,
+                    unlockedPageCount = 2,
+                    serializedCapturedMems = new List<CapturedMemEntry>(),
+                    placedBuildings = new List<PlacedBuildingSaveData>()
+                };
+            }
+
+            currentData.lastSaveTime = DateTime.UtcNow.ToString("o");
+
+            // 🌟 [안전 예방선]: 비활성화되거나 숨겨진 컴포넌트 장부까지 완벽히 긁어오기 위해 Include 옵션을 바인딩합니다.
+            var pInventory = FindObjectsByType<PlayerInventory>(FindObjectsInactive.Include, FindObjectsSortMode.None).FirstOrDefault();
+            if (pInventory != null && pInventory.inventory != null)
+            {
+                currentData.playerInventoryData = PackContainerData(pInventory.inventory);
+            }
+            else
+            {
+                Debug.LogWarning("[RecordManager] 탐험 씬 내부에서 가방(PlayerInventory) 컴포넌트를 탐색하지 못해 업데이트를 유보했습니다.");
+            }
+
+            // 포획 멤 대장 추출 이식
+            var memCaptureManager = FindObjectsByType<MemCaptureManager>(FindObjectsInactive.Include, FindObjectsSortMode.None).FirstOrDefault();
+            if (memCaptureManager != null && memCaptureManager.CapturedMems != null)
+            {
+                currentData.unlockedPageCount = memCaptureManager.UnlockedPageCount;
+                if (currentData.serializedCapturedMems == null)
+                    currentData.serializedCapturedMems = new List<CapturedMemEntry>();
+                else
+                    currentData.serializedCapturedMems.Clear();
+
+                foreach (var entry in memCaptureManager.CapturedMems)
+                {
+                    if (entry != null) currentData.serializedCapturedMems.Add(entry);
+                }
+            }
+
+            // 영지 시설 청사진 안전 가드
+            if (currentData.placedBuildings == null)
+                currentData.placedBuildings = new List<PlacedBuildingSaveData>();
+
+            // 메모리 상에서 동기화가 완벽하게 끝난 최종 장부 객체를 단 한 번에 파일로 작성하여 I/O 병목을 소멸시킵니다.
+            string jsonString = JsonUtility.ToJson(currentData, true);
+            File.WriteAllText(saveFilePath, jsonString);
+
+            PlayerPrefs.SetString(LastPlayTimeKey, currentData.lastSaveTime);
+            PlayerPrefs.Save();
+
+            Debug.Log("<color=lime><b>[RecordManager]</b></color> 탐험 씬 인벤토리 및 포획 데이터 융합 세이브 파일 최종 쓰기 완수!");
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"[RecordManager] 부분 백업 세이브 도중 치명적 예외: {e.Message}");
+        }
+    }
+
+    public void ExecuteBulkSaveProcess(bool isTeardown = false)
     {
         try
         {
@@ -191,11 +348,17 @@ public class RecordManager : MonoBehaviour
                 return;
             }
 
+            if (SceneManager.GetActiveScene().name.ToLower().Contains("adventure") || !SceneManager.GetActiveScene().name.ToLower().Contains("territory"))
+            {
+                ExecutePartialSaveForAdventure();
+                return;
+            }
+
             var activeBuildings = FindObjectsByType<BuildingRuntime>(FindObjectsSortMode.None);
 
-            if (isApplicationQuitting && activeBuildings.Length == 0 && File.Exists(saveFilePath))
+            if (isTeardown && activeBuildings.Length == 0 && File.Exists(saveFilePath))
             {
-                Debug.LogWarning("<color=red>[RecordManager]</color> 종료 과정 중 시설 오브젝트가 먼저 파괴된 상태로 탐지되어 데이터 오염 방지를 위해 세이브를 건너뜁니다.");
+                Debug.LogWarning("<color=red>[RecordManager]</color> 씬 해제 또는 종료 중 오브젝트 소실을 감지하여 데이터 오염 방지를 위해 세이브를 유보합니다.");
                 return;
             }
 
@@ -247,8 +410,6 @@ public class RecordManager : MonoBehaviour
                 string uniqueId = $"{br.buildingData.buildingName}_{br.gridX}_{br.gridZ}";
                 PlantJSONSaveData rData = GetFacilityData(uniqueId);
 
-                rData.DeployedMemIDs.Clear();
-
                 if (br.TryGetComponent<ProductionFacilityRuntime>(out var facility))
                 {
                     rData.isActive = facility.isProducing;
@@ -256,15 +417,16 @@ public class RecordManager : MonoBehaviour
                     rData.currentProgressTime = facility.currentProgressTime;
                     rData.currentStorageCount = facility.currentStorageCount;
 
-                    if (facility.DeployedMemEntries != null)
+                    if (!isTeardown && facility.DeployedMemEntries != null)
                     {
+                        List<string> liveIDs = new List<string>();
+                        bool isClean = true;
                         foreach (var entry in facility.DeployedMemEntries)
                         {
-                            if (entry != null && !string.IsNullOrEmpty(entry.KeyId))
-                            {
-                                rData.DeployedMemIDs.Add(entry.KeyId);
-                            }
+                            if (entry == null) { isClean = false; break; }
+                            if (!string.IsNullOrEmpty(entry.KeyId)) liveIDs.Add(entry.KeyId);
                         }
+                        if (isClean) rData.DeployedMemIDs = liveIDs;
                     }
                 }
                 else if (br.TryGetComponent<ProductionCraftRuntime>(out var craft))
@@ -276,13 +438,16 @@ public class RecordManager : MonoBehaviour
                     rData.currentProgressTime = craft.currentProgressTime;
                     rData.currentStorageCount = craft.currentStorageCount;
 
-                    if (craft.DeployedMemEntries != null)
+                    if (!isTeardown && craft.DeployedMemEntries != null)
                     {
+                        List<string> liveIDs = new List<string>();
+                        bool isClean = true;
                         foreach (var entry in craft.DeployedMemEntries)
                         {
-                            if (entry != null && !string.IsNullOrEmpty(entry.KeyId))
-                                rData.DeployedMemIDs.Add(entry.KeyId);
+                            if (entry == null) { isClean = false; break; }
+                            if (!string.IsNullOrEmpty(entry.KeyId)) liveIDs.Add(entry.KeyId);
                         }
+                        if (isClean) rData.DeployedMemIDs = liveIDs;
                     }
                 }
 
@@ -315,7 +480,7 @@ public class RecordManager : MonoBehaviour
             PlayerPrefs.SetString(LastPlayTimeKey, saveData.lastSaveTime);
             PlayerPrefs.Save();
 
-            Debug.Log($"<color=lime><b>[RecordManager]</b></color> 영지 전체 데이터 JSON 백업 일괄 세이브 성공!");
+            Debug.Log($"<color=lime><b>[RecordManager]</b></color> 영지 전체 데이터 백업 일괄 정산 세이브 성공!");
         }
         catch (Exception e)
         {
@@ -330,7 +495,8 @@ public class RecordManager : MonoBehaviour
         if (!File.Exists(saveFilePath))
         {
             Debug.Log("<color=cyan>[RecordManager]</color> 최초 파일이 없어 디폴트 뼈대를 자동 개설합니다.");
-            ExecuteBulkSaveProcess();
+            CreateDefaultTerritoryRecord(); // 기본 파일 즉시 생성
+            LoadTerritoryRecordData();       // 재귀 호출하여 데이터 복구 진행
             return;
         }
 
@@ -469,16 +635,13 @@ public class RecordManager : MonoBehaviour
                         facility.currentProgressTime = entry.currentProgressTime;
                         facility.currentStorageCount = entry.currentStorageCount;
 
-                        // 🌟 [교정]: 다른 UI 매니저의 순서와 관계없이 하드디스크 에셋 통계에서 직통으로 대조하여 에러를 완벽히 소멸시킵니다.
                         facility.craftingItem = FindItemDataInProject(entry.currentCraftingItemId);
-
                         facility.UpdateMaxStorage();
 
                         if (facility.DeployedMems != null && facility.DeployedMemEntries != null)
                         {
                             facility.DeployedMems.Clear();
                             facility.DeployedMemEntries.Clear();
-
                             facility.DeployedMems.AddRange(restoredMems);
                             facility.DeployedMemEntries.AddRange(matchedEntries);
                         }
@@ -494,19 +657,16 @@ public class RecordManager : MonoBehaviour
                         craft.currentProgressTime = entry.currentProgressTime;
                         craft.currentStorageCount = entry.currentStorageCount;
 
-                        // 🌟 [교정]: 제작대의 진행 중인 아이템 데이터 참조 결속을 프로젝션 파일 쿼리로 직결 복구합니다.
                         craft.currentCraftingItem = FindItemDataInProject(entry.currentCraftingItemId);
 
                         if (craft.DeployedMems != null && craft.DeployedMemEntries != null)
                         {
                             craft.DeployedMems.Clear();
                             craft.DeployedMemEntries.Clear();
-
                             craft.DeployedMems.AddRange(restoredMems);
                             craft.DeployedMemEntries.AddRange(matchedEntries);
                         }
 
-                        // 🌟 [추가]: 제작대의 정지되어 있던 진행 주기 타이머 버프 공식을 최종 재계산하여 진행도가 굳지 않도록 깨워줍니다.
                         if (craft.currentCraftingItem != null && craft.DeployedMems.Count > 0)
                         {
                             craft.totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(20f, craft.DeployedMems);
@@ -577,9 +737,66 @@ public class RecordManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// 🌟 [추가 유틸리티]: 씬의 매니저 상태와 관계없이 프로젝트 내부 카탈로그 에셋 전체에서 고유 고유 ID에 해당하는 ItemData 참조를 역추적해옵니다.
-    /// </summary>
+    private void MaintainHealthyFacilityCache()
+    {
+        if (isApplicationQuitting) return;
+
+        var activeBuildings = FindObjectsByType<BuildingRuntime>(FindObjectsSortMode.None);
+        if (activeBuildings == null || activeBuildings.Length == 0) return;
+
+        foreach (var br in activeBuildings)
+        {
+            if (br == null || br.buildingData == null) continue;
+
+            string uniqueId = $"{br.buildingData.buildingName}_{br.gridX}_{br.gridZ}";
+            PlantJSONSaveData rData = GetFacilityData(uniqueId);
+
+            if (br.TryGetComponent<ProductionFacilityRuntime>(out var facility))
+            {
+                if (facility.DeployedMemEntries != null)
+                {
+                    List<string> currentIDs = new List<string>();
+                    bool containsDestroyedNull = false;
+
+                    foreach (var entry in facility.DeployedMemEntries)
+                    {
+                        if (entry == null) { containsDestroyedNull = true; break; }
+                        if (!string.IsNullOrEmpty(entry.KeyId)) currentIDs.Add(entry.KeyId);
+                    }
+
+                    if (!containsDestroyedNull)
+                    {
+                        rData.DeployedMemIDs = currentIDs;
+                    }
+                }
+            }
+            else if (br.TryGetComponent<ProductionCraftRuntime>(out var craft))
+            {
+                if (craft.DeployedMemEntries != null)
+                {
+                    List<string> currentIDs = new List<string>();
+                    bool containsDestroyedNull = false;
+
+                    foreach (var entry in craft.DeployedMemEntries)
+                    {
+                        if (entry == null) { containsDestroyedNull = true; break; }
+                        if (!string.IsNullOrEmpty(entry.KeyId)) currentIDs.Add(entry.KeyId);
+                    }
+
+                    if (!containsDestroyedNull)
+                    {
+                        rData.DeployedMemIDs = currentIDs;
+                    }
+                }
+            }
+        }
+    }
+
+    private ItemData PackItemData(string itemId)
+    {
+        return FindItemDataInProject(itemId);
+    }
+
     private ItemData FindItemDataInProject(string itemId)
     {
         if (string.IsNullOrEmpty(itemId)) return null;
@@ -621,14 +838,14 @@ public class RecordManager : MonoBehaviour
     {
         if (isApplicationQuitting) return;
         isApplicationQuitting = true;
-        ExecuteBulkSaveProcess();
+        ExecuteBulkSaveProcess(true);
     }
 
     private void OnApplicationPause(bool pause)
     {
         if (pause)
         {
-            ExecuteBulkSaveProcess();
+            ExecuteBulkSaveProcess(false);
         }
     }
 
@@ -640,7 +857,7 @@ public class RecordManager : MonoBehaviour
 
     private void ExecuteBulkProcess()
     {
-        ExecuteBulkSaveProcess();
+        ExecuteBulkSaveProcess(true);
     }
 
     public void SaveCurrentTime()
