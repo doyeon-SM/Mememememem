@@ -12,7 +12,6 @@ GameObject:
   - component: {fileID: 7294453871775686018}
   - component: {fileID: 6791824935543099561}
   - component: {fileID: 3109777930955922154}
-  - component: {fileID: 4875038272747656768}
   m_Layer: 0
   m_Name: TerritoryManager
   m_TagString: Untagged
@@ -144,17 +143,3 @@ MonoBehaviour:
       Amount: 50
     RewardExp: 0
     IsExpanded: 0
---- !u!114 &4875038272747656768
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1106855712551666943}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 2e5c5a6de6ca6e94a9121e568e4330b6, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::HDY.Territory.GameTimeManager
-  territoryData: {fileID: 7294453871775686018}
-  dayLengthSeconds: 1200

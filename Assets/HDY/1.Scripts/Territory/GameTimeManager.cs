@@ -43,9 +43,10 @@ namespace HDY.Territory
     /// "며칠치" 하루가 한꺼번에 넘어간 것처럼 보여 상점이 즉시 리셋되는 등 원치 않는 부작용이 생길 수 있다.
     ///
     /// [싱글톤 해결 패턴] ItemCatalogManager와 동일한 Resolve(existing) 폴백을 제공한다 - 다른 스크립트가
-    /// 인스펙터 참조가 비어있을 때 1) 기존 참조 2) Instance 3) 씬 검색 순으로 찾을 수 있다. TerritoryData
-    /// 등 다른 영지 관련 매니저와 마찬가지로 DontDestroyOnLoad는 쓰지 않는다(저장/불러오기 시스템이
-    /// 생명주기를 관리할 예정).
+    /// 인스펙터 참조가 비어있을 때 1) 기존 참조 2) Instance 3) 씬 검색 순으로 찾을 수 있다.
+    /// [DontDestroyOnLoad - 임시 조치] 저장/불러오기 시스템이 아직 없어서, TerritoryData/
+    /// TerritoryExpansionManager와 마찬가지로 이 매니저도 임시로 DontDestroyOnLoad를 사용한다.
+    /// TODO: 저장/불러오기 시스템이 추가되면 생명주기 관리 방식을 다시 검토해야 한다.
     ///
     /// [UIManager 연결] UIManager.GameTime 프로퍼티로 이 매니저에 접근할 수 있다. Text를 직접 이 컴포넌트에
     /// 연결하지 않고 다른 화면에서도 같은 값을 쓰고 싶다면, OnRealTimeTextChanged/OnInGameTimeTextChanged/
@@ -64,8 +65,8 @@ namespace HDY.Territory
         [Header("Text 연결 (선택 사항 - 비워두면 데이터 계산/이벤트 발행만 하고 화면에는 표시하지 않음)")]
         [Tooltip("\"00시 00분\" 형식으로 표시할 TMP_Text. 값이 바뀔 때마다 이 매니저가 알아서 text를 갱신한다.")]
         [SerializeField] private TMP_Text realTimeText;
-        [Tooltip("\"00분 00초\" 형식으로 표시할 TMP_Text. 값이 바뀔 때마다 이 매니저가 알아서 text를 갱신한다.")]
-        [SerializeField] private TMP_Text inGameTimeText;
+        //[Tooltip("\"00분 00초\" 형식으로 표시할 TMP_Text. 값이 바뀔 때마다 이 매니저가 알아서 text를 갱신한다.")]
+        //[SerializeField] private TMP_Text inGameTimeText;
 
         /// <summary>인게임 하루 길이(초). ShopStockManager 등 다른 매니저가 자신의 주기를 "며칠"로 환산할 때 참조한다.</summary>
         public float DayLengthSeconds => dayLengthSeconds;
@@ -85,13 +86,13 @@ namespace HDY.Territory
         private int lastInGameSeconds = -1;
 
         private string lastRealTimeText = string.Empty;
-        private string lastInGameTimeText = string.Empty;
+        //private string lastInGameTimeText = string.Empty;
 
         /// <summary>리얼타임 표시 문자열("00시 00분")이 바뀔 때마다(분 단위) 발행.</summary>
         public event Action<string> OnRealTimeTextChanged;
 
         /// <summary>인게임 시간 표시 문자열("00분 00초")이 바뀔 때마다(초 단위) 발행.</summary>
-        public event Action<string> OnInGameTimeTextChanged;
+        //public event Action<string> OnInGameTimeTextChanged;
 
         /// <summary>인게임 하루가 넘어갈 때(다음 CurrentInGameDay로 진입할 때)마다 발행 - ShopStockManager가 재입고 판단에 구독.</summary>
         public event Action OnInGameDayChanged;
@@ -106,6 +107,7 @@ namespace HDY.Territory
             }
 
             Instance = this;
+            DontDestroyOnLoad(gameObject);
 
             if (territoryData == null) territoryData = FindFirstObjectByType<TerritoryData>();
             if (territoryData == null) Debug.LogWarning("[GameTimeManager] territoryData를 찾을 수 없습니다. 인게임 시간을 계산할 수 없습니다.", this);
@@ -142,8 +144,8 @@ namespace HDY.Territory
 
             lastInGameMinutes = Mathf.FloorToInt(InGameTimeOfDaySeconds / 60f);
             lastInGameSeconds = Mathf.FloorToInt(InGameTimeOfDaySeconds % 60f);
-            lastInGameTimeText = FormatInGameTime(lastInGameMinutes, lastInGameSeconds);
-            ApplyInGameTimeText(lastInGameTimeText);
+            //lastInGameTimeText = FormatInGameTime(lastInGameMinutes, lastInGameSeconds);
+            //ApplyInGameTimeText(lastInGameTimeText);
 
             var kst = CurrentRealTimeKst;
             lastRealHour = kst.Hour;
@@ -179,9 +181,9 @@ namespace HDY.Territory
             lastInGameMinutes = minutes;
             lastInGameSeconds = seconds;
 
-            lastInGameTimeText = FormatInGameTime(minutes, seconds);
-            ApplyInGameTimeText(lastInGameTimeText);
-            OnInGameTimeTextChanged?.Invoke(lastInGameTimeText);
+            //lastInGameTimeText = FormatInGameTime(minutes, seconds);
+            //ApplyInGameTimeText(lastInGameTimeText);
+            //OnInGameTimeTextChanged?.Invoke(lastInGameTimeText);
         }
 
         /// <summary>KST 시/분을 정수로 비교해서 실제로 바뀐 경우에만 문자열을 새로 만들어 Text에 반영하고 이벤트를 발행한다.</summary>
@@ -208,10 +210,10 @@ namespace HDY.Territory
         }
 
         /// <summary>inGameTimeText가 연결되어 있으면 그 Text에 바로 반영한다(비어있으면 아무 것도 하지 않음).</summary>
-        private void ApplyInGameTimeText(string text)
-        {
-            if (inGameTimeText != null) inGameTimeText.text = text;
-        }
+        //private void ApplyInGameTimeText(string text)
+        //{
+        //    if (inGameTimeText != null) inGameTimeText.text = text;
+        //}
 
         private static string FormatInGameTime(int minutes, int seconds)
         {
@@ -227,7 +229,7 @@ namespace HDY.Territory
         public string GetRealTimeText() => lastRealTimeText;
 
         /// <summary>지금 기준 인게임 시간 표시 문자열을 반환한다("00분 00초"). Update에서 매 프레임 최신 상태로 유지된다.</summary>
-        public string GetInGameTimeText() => lastInGameTimeText;
+        //public string GetInGameTimeText() => lastInGameTimeText;
 
         /// <summary>
         /// 다른 스크립트가 들고 있는 GameTimeManager 참조가 비어있을 때 쓰는 공용 폴백 탐색.
