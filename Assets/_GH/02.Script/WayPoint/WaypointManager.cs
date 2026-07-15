@@ -188,6 +188,18 @@ public class WayPointManager : MonoBehaviour
         }
     }
 
+    /// <summary>보기 전용 지도가 닫혀 있으면 열고, 지도가 열려 있으면 닫습니다.</summary>
+    public void TogglePreviewMap()
+    {
+        if (isMapOpen)
+        {
+            CloseMap();
+            return;
+        }
+
+        OpenPreviewMap();
+    }
+
     /// <summary>지정한 모드와 초기 지도로 현재 씬의 지도 UI를 엽니다.</summary>
     public bool OpenMap(WayPointMapOpenMode openMode, WayPointMapDefinition mapOverride = null)
     {
@@ -236,6 +248,10 @@ public class WayPointManager : MonoBehaviour
         {
             ApplyMapInputState(false, shouldManageCursor);
         }
+
+        // 상시 커서 씬은 표시 상태를 유지하고, 그 외 씬은 닫기 요청과 함께
+        // PlayerInput/카메라 내부 상태까지 잠금 상태로 다시 맞춘다.
+        RefreshSceneCursorPolicy(SceneManager.GetActiveScene().name);
     }
 
     private WayPointMapOpenMode ResolveShortcutOpenMode()
