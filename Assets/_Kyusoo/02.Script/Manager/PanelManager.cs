@@ -1,6 +1,7 @@
 ﻿using HDY.UI;
-using UnityEngine;
 using HDY.Upgrade;
+using System.Reflection;
+using UnityEngine;
 
 public class PanelManager : MonoBehaviour
 {
@@ -21,6 +22,9 @@ public class PanelManager : MonoBehaviour
     [SerializeField] private GameObject closeButtonGroup;
     [SerializeField] private GameObject placeButtonGroup;
 
+    private GridManager cachedGridManager;
+    private FieldInfo placementModeFieldInfo;
+
 
     private void Awake()
     {
@@ -28,6 +32,16 @@ public class PanelManager : MonoBehaviour
         else Destroy(gameObject);
 
         CloseAllPanels();
+    }
+
+    private void Start()
+    {
+        cachedGridManager = FindFirstObjectByType<GridManager>();
+        if (cachedGridManager != null)
+        {
+            placementModeFieldInfo = typeof(GridManager).GetField("isPlacementMode",
+                BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public);
+        }
     }
 
     private void Update()
@@ -38,7 +52,38 @@ public class PanelManager : MonoBehaviour
             {
                 CloseAllPanels();
             }
+            else
+            {
+                if (CheckIsGridPlacementModeActive())
+                {
+                    Debug.Log("<color=yellow><b>[PanelManager]</b></color> ⌨️ 배치 모드 중 ESC 입력 포착 ➡️ GridManager.CancelPlacement() 강제 롤백을 집행합니다.");
+                    cachedGridManager.CancelPlacement();
+                }
+            }
         }
+    }
+
+    /// <summary>
+    /// 배치모드가 활성화되었는지 확인하기.
+    /// </summary>
+    private bool CheckIsGridPlacementModeActive()
+    {
+        if (cachedGridManager == null)
+        {
+            cachedGridManager = FindFirstObjectByType<GridManager>();
+            if (cachedGridManager != null)
+            {
+                placementModeFieldInfo = typeof(GridManager).GetField("isPlacementMode",
+                    BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public);
+            }
+        }
+
+        if (cachedGridManager != null && placementModeFieldInfo != null)
+        {
+            return (bool)placementModeFieldInfo.GetValue(cachedGridManager);
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -194,48 +239,4 @@ public class PanelManager : MonoBehaviour
         CameraZoomController zoomController = Object.FindFirstObjectByType<CameraZoomController>();
         if (zoomController != null) zoomController.enabled = isEnable;
     }
-
-    ///// <summary>
-    ///// 현재 켜져 있는 생산/제작 패널의 실시간 데이터를 패널을 닫기 전에 저장.
-    ///// </summary>
-    //private void SaveActivePanelData()
-    //{
-    //    if (productionPanel != null && productionPanel.activeSelf && productionPanelUI != null)
-    //    {
-    //        var facility = productionPanelUI.TargetFacility;
-    //        if (facility != null && facility.buildingData != null && PlantSystem.Instance != null)
-    //        {
-    //            var br = facility.GetComponent<BuildingRuntime>();
-    //            string uniqueId = br != null ? $"{facility.buildingData.buildingName}_{br.gridX}_{br.gridZ}" : facility.buildingData.buildingId;
-
-    //            var data = PlantSystem.Instance.GetFacilityData(uniqueId);
-    //            data.isActive = facility.isProducing;
-    //            data.currentCraftingItemId = facility.craftingItem != null ? facility.craftingItem.Item_ID : "";
-    //            data.currentProgressTime = facility.currentProgressTime;
-    //            data.currentStorageCount = facility.currentStorageCount;
-
-    //            PlantSystem.Instance.UpdateFacilityData(uniqueId, data);
-    //        }
-    //    }
-
-    //    if (craftingPanel != null && craftingPanel.activeSelf && craftingPanelUI != null)
-    //    {
-    //        var craft = craftingPanelUI.TargetFacility;
-    //        if (craft != null && craft.buildingData != null && PlantSystem.Instance != null)
-    //        {
-    //            var br = craft.GetComponent<BuildingRuntime>();
-    //            string uniqueId = br != null ? $"{craft.buildingData.buildingName}_{br.gridX}_{br.gridZ}" : craft.buildingData.buildingId;
-
-    //            var data = PlantSystem.Instance.GetFacilityData(uniqueId);
-    //            data.isActive = craft.isProducing;
-    //            data.currentCraftingItemId = craft.currentCraftingItem != null ? craft.currentCraftingItem.Item_ID : "";
-    //            data.targetQuantity = craft.targetQuantity;
-    //            data.remainingQuantity = craft.remainingQuantity;
-    //            data.currentProgressTime = craft.currentProgressTime;
-    //            data.currentStorageCount = craft.currentStorageCount;
-
-    //            PlantSystem.Instance.UpdateFacilityData(uniqueId, data);
-    //        }
-    //    }
-    //}
 }

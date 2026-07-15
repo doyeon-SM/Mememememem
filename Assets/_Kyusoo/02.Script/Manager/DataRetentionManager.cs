@@ -146,7 +146,7 @@ public class DataRetentionManager : MonoBehaviour
                     elapsedTime = 0f,
                     currentGridSize = 5,
                     expansionExpandedStates = new List<bool> { false, false, false, false, false },
-                    warehouseStorageData = new SerializableContainerData { width = 10, height = 6 },
+                    warehouseStorageData = new SerializableContainerData { width = 10, height = 2 },
                     foodWarehouseStorageData = new SerializableContainerData { width = 10, height = 6 },
                     foodBagStorageData = new SerializableContainerData { width = 10, height = 6 },
                     playerQuickSlotsData = new SerializableContainerData { width = 10, height = 1 },
@@ -293,6 +293,7 @@ public class DataRetentionManager : MonoBehaviour
                     isWorkStoppedDueToStarvation = false,
                     unlockedPageCount = 2,
                     placedBuildings = new List<PlacedBuildingSaveData>(),
+                    isBlueprintGiven = false,
                     serializedCapturedMems = new List<CapturedMemEntry>()
                 };
 
