@@ -273,11 +273,12 @@ public class WorldItem : MonoBehaviour
         bobFrequency = Mathf.Max(0f, bobFrequency);
         colliderPadding = Mathf.Max(0f, colliderPadding);
         colliderDepth = Mathf.Max(0.01f, colliderDepth);
-
-        if (Application.isPlaying)
+        if (!Application.isPlaying || UnityEditor.EditorUtility.IsPersistent(gameObject))
         {
-            RefreshVisual();
+            return;
         }
+        RefreshVisual();
+
     }
 #endif
 }

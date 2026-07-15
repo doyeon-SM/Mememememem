@@ -274,7 +274,9 @@ public class WorldObjectInfoUI : MonoBehaviour
             return;
         }
 
-        WorldObjectInteractionState state = currentTarget.EvaluateInteraction(currentTool);
+        // HP 변경 이벤트는 Update보다 먼저 발생할 수 있으므로 currentTool 캐시를 판정에 쓰지 않는다.
+        // 실제 채집과 동일하게 현재 PlayerInventory의 선택 퀵슬롯을 WorldObject가 직접 해석한다.
+        WorldObjectInteractionState state = currentTarget.EvaluateInteraction(playerInventory);
         interactionStatusText.color = state == WorldObjectInteractionState.Available
             ? availableColor
             : unavailableColor;
