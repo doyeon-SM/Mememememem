@@ -23,6 +23,10 @@ public class GridManager : MonoBehaviour
     [SerializeField] private List<BuildingData> buildings = new List<BuildingData>();
     [SerializeField] private Material previewMaterial;
 
+    // 🌟 [빌드 쉴드 강화]: Shader 대신 규격이 완벽히 잡힌 머티리얼 프리댑 에셋을 직접 주입받습니다.
+    [Tooltip("URP/Unlit 기반의 Surface Type: Transparent로 설정된 머티리얼 에셋을 여기에 넣어주세요.")]
+    [SerializeField] private Material gridMaterialPrefab;
+
     [Header("타일 색상 정보: 배치 가능, 배치 불가")]
     [SerializeField] private Color buildableColor = new Color(0f, 0.5f, 1f, 0.4f);
     [SerializeField] private Color unbuildableColor = new Color(1f, 0f, 0f, 0.4f);
@@ -92,7 +96,7 @@ public class GridManager : MonoBehaviour
 
     private void Start()
     {
-        // 🌟 [머티리얼 보존]: 프리팹 원본 머티리얼을 먼저 캐싱합니다.
+        // 프리팹 원본 머티리얼을 먼저 캐싱합니다.
         if (tilePrefab != null && tilePrefab.TryGetComponent<MeshRenderer>(out MeshRenderer prefabRenderer))
         {
             defaultModeMaterial = prefabRenderer.sharedMaterial;
@@ -261,7 +265,7 @@ public class GridManager : MonoBehaviour
 
         gridOverlay.name = "GridOverlay";
         gridOverlay.transform.SetParent(newTile.transform);
-        gridOverlay.transform.localPosition = new Vector3(0f, 0f, -0.001f); 
+        gridOverlay.transform.localPosition = new Vector3(0f, 0f, -0.001f);
         gridOverlay.transform.localRotation = Quaternion.identity;
         gridOverlay.transform.localScale = Vector3.one;
 
@@ -270,7 +274,6 @@ public class GridManager : MonoBehaviour
             overlayRenderer.material = placeModeMaterial;
         }
 
-        // 현재 모드 상태에 맞추어 격자 가이드 레이어를 활성화/비활성화 처리합니다.
         gridOverlay.SetActive(isPlacementMode);
 
         return newTile;
@@ -297,7 +300,6 @@ public class GridManager : MonoBehaviour
 
         if (tileGrid == null) return;
 
-        // 🌟 [구조 변경 부위]: 본체 재질을 건드리지 않고 자식 격자 레이어(GridOverlay)의 활성화 여부만 제어합니다.
         for (int i = 0; i < currentWidth; i++)
         {
             for (int j = 0; j < currentHeight; j++)
@@ -408,7 +410,6 @@ public class GridManager : MonoBehaviour
         Texture2D texture = new Texture2D(64, 64);
         texture.filterMode = FilterMode.Point;
 
-        // 가장 기본적이고 깔끔한 회색 격자 가이드 라인 틴트 색상 규격
         Color gridBorderColor = new Color(0.5f, 0.5f, 0.5f, 0.4f);
 
         for (int y = 0; y < 64; y++)
@@ -427,16 +428,31 @@ public class GridManager : MonoBehaviour
         }
         texture.Apply();
 
-        Material mat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
-        mat.SetTexture("_BaseMap", texture);
-        mat.SetColor("_BaseColor", Color.white);
+        Material mat = null;
 
-        mat.SetFloat("_Surface", 1f); // 1.0f = Transparent
-        mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-        mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-        mat.SetInt("_ZWrite", 0);
-        mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-        mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+        // 🌟 [안전 복사 트랜잭션]: 머티리얼 에셋 프리댑이 꽂혀있다면 그것을 복사 인스턴스화하여 무결성 확보
+        if (gridMaterialPrefab != null)
+        {
+            mat = new Material(gridMaterialPrefab);
+        }
+        else
+        {
+            // 만약 비어있을 때의 자동 안전 장치 (Fallback 백업)
+            Shader targetShader = Shader.Find("Universal Render Pipeline/Unlit");
+            mat = new Material(targetShader);
+            mat.SetFloat("_Surface", 1f);
+            mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            mat.SetInt("_ZWrite", 0);
+            mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+        }
+
+        // 🌟 빌트인과 URP 프로퍼티에 전부 안전하게 동시 텍스처 사상 주입
+        if (mat.HasProperty("_BaseMap")) mat.SetTexture("_BaseMap", texture);
+        if (mat.HasProperty("_MainTex")) mat.SetTexture("_MainTex", texture);
+        if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", Color.white);
+        if (mat.HasProperty("_Color")) mat.SetColor("_Color", Color.white);
 
         return mat;
     }
