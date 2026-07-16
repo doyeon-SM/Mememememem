@@ -33,7 +33,11 @@ public class ProductionFacilityRuntime : MonoBehaviour
 
     public static event Action OnMemDeploymentChanged;
 
+    // 시설에 실제 멤 UI배치와 관련하여 멤 배치/해제, 시설 가동, 가동 중단에 대한 이벤트 발행
+    // 해당 이벤트를 받아서 멤의 실제 UI배치 처리 및 Animation 동작진행 예정
     public static event Action<BuildingType, bool> MemAdded;
+    public static event Action<BuildingType> FacilityStarted;
+    public static event Action<BuildingType, FacilityStopReason> FacilityStopped;
 
     private void Start()
     {
@@ -81,22 +85,22 @@ public class ProductionFacilityRuntime : MonoBehaviour
             totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseProductionTime, addMems);
             currentProgressTime = totalRequiredTime * currentProgressPercent;
 
-            /* 🌟 [임시 주석 처리]: 허기 상태 및 식량 부족으로 인한 작업 중지 가드 무력화
             if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
             {
-                isProducing = true;
+                SetProducingActive(true);
             }
-            */
-            isProducing = true; // 식량 상태에 상관없이 무조건 생산 진행
+            else
+            {
+                isProducing = false;
+            }
         }
         else
         {
             totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseProductionTime, addMems);
 
-            /* 🌟 [임시 주석 처리]: 허기 상태 및 식량 부족으로 인한 작업 중지 분기 무력화
             if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
             {
-                isProducing = true;
+                SetProducingActive(true);
                 currentProgressTime = 0f;
             }
             else
@@ -104,9 +108,6 @@ public class ProductionFacilityRuntime : MonoBehaviour
                 isProducing = false;
                 currentProgressTime = 0f;
             }
-            */
-            isProducing = true; // 식량 상태에 상관없이 무조건 활성화
-            currentProgressTime = 0f;
         }
     }
 
@@ -138,7 +139,6 @@ public class ProductionFacilityRuntime : MonoBehaviour
             return false;
         }
 
-        // 3. 배치 성공 및 실시간 소요 시간 재반영
         addMems.Add(targetMem);
         addMemEntries.Add(targetEntry);
         targetEntry.IsActive = true;
@@ -149,15 +149,9 @@ public class ProductionFacilityRuntime : MonoBehaviour
         if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
         OnMemDeploymentChanged?.Invoke();
 
-        BuildingType type = buildingData.buildingType;
-        switch (type)
+        if(buildingData != null)
         {
-            case BuildingType.LoggingCamp: MemAdded?.Invoke(BuildingType.LoggingCamp, true); break;
-            case BuildingType.MiningCamp: MemAdded?.Invoke(BuildingType.MiningCamp, true); break;
-            case BuildingType.Farm: MemAdded?.Invoke(BuildingType.Farm, true); break;
-                //case BuildingType.Ranch: MemAdded?.Invoke(BuildingType.Ranch, true); break;
-                //case BuildingType.TransportFacility: MemAdded?.Invoke(BuildingType.TransportFacility, true); break;
-                //case BuildingType.Generator: MemAdded?.Invoke(BuildingType.Generator, true); break;
+            MemAdded?.Invoke(buildingData.buildingType, true);
         }
 
         return true;
@@ -185,15 +179,9 @@ public class ProductionFacilityRuntime : MonoBehaviour
             if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
             OnMemDeploymentChanged?.Invoke();
 
-            BuildingType type = buildingData.buildingType;
-            switch (type)
+            if (buildingData != null)
             {
-                case BuildingType.LoggingCamp: MemAdded?.Invoke(BuildingType.LoggingCamp, false); break;
-                case BuildingType.MiningCamp: MemAdded?.Invoke(BuildingType.MiningCamp, false); break;
-                case BuildingType.Farm: MemAdded?.Invoke(BuildingType.Farm, false); break;
-                    //case BuildingType.Ranch: MemAdded?.Invoke(BuildingType.Ranch, true); break;
-                    //case BuildingType.TransportFacility: MemAdded?.Invoke(BuildingType.TransportFacility, true); break;
-                    //case BuildingType.Generator: MemAdded?.Invoke(BuildingType.Generator, true); break;
+                MemAdded?.Invoke(buildingData.buildingType, false);
             }
         }
     }
@@ -232,5 +220,33 @@ public class ProductionFacilityRuntime : MonoBehaviour
             currentStorageCount = remaining;
         }
 
+    }
+
+    /// <summary>
+    /// 시설 가동이 시작될 때 이벤트 발행용 함수
+    /// </summary>
+    private void SetProducingActive(bool value)
+    {
+        if (isProducing == value) return;
+        isProducing = value;
+
+        if (isProducing && buildingData != null)
+        {
+            FacilityStarted?.Invoke(buildingData.buildingType);
+        }
+    }
+
+    /// <summary>
+    /// 식량 부족으로 인해 가동 중지시 가동 중지 이벤트 발행
+    /// </summary>
+    public void StopWorkDueToStarvation()
+    {
+        if (!isProducing) return;
+        isProducing = false;
+
+        if (buildingData != null)
+        {
+            FacilityStopped?.Invoke(buildingData.buildingType, FacilityStopReason.Starvation);
+        }
     }
 }
