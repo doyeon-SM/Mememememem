@@ -2,6 +2,7 @@
 using HDY.Item;
 using HDY.Upgrade;
 using KMS.InventoryDuped;
+using System;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
@@ -47,6 +48,8 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner
     public InventoryContainer FoodStorageContainer => ConsumeFoodSystem.Instance != null ? ConsumeFoodSystem.Instance.FoodStorageContainer : null;
     public InventoryContainer FoodBagContainer => ConsumeFoodSystem.Instance != null ? ConsumeFoodSystem.Instance.FoodBagContainer : null;
     public ItemCatalogManager CatalogManager => catalogManager;
+
+    public static event Action OnFoodDataChanged;
 
     private void Awake()
     {
@@ -157,6 +160,8 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner
         {
             ConsumeFoodSystem.Instance.ProcessFoodConsumption(true);
         }
+
+        OnFoodDataChanged?.Invoke();
     }
 
     private int AddItemToContainer(InventoryContainer container, string itemId, int amount)
@@ -279,6 +284,8 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner
                 if (ConsumeFoodSystem.Instance != null)
                 {
                     ConsumeFoodSystem.Instance.OnRightToLeftMove();
+
+                    OnFoodDataChanged?.Invoke();
                 }
             }
             return;

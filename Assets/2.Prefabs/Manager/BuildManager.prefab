@@ -1,6 +1,6 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!1 &8276230485055090308
+--- !u!1 &7934341091358855573
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -8,43 +8,40 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 7615346171503629276}
-  - component: {fileID: 7563141888888778094}
+  - component: {fileID: 7770892344901942051}
+  - component: {fileID: 6968804410744109386}
   m_Layer: 0
-  m_Name: MemCatalogManager
+  m_Name: BuildManager
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &7615346171503629276
+--- !u!4 &7770892344901942051
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8276230485055090308}
+  m_GameObject: {fileID: 7934341091358855573}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: -0, z: 0}
+  m_LocalPosition: {x: 592.094, y: 367.2961, z: -80.21059}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &7563141888888778094
+--- !u!114 &6968804410744109386
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8276230485055090308}
+  m_GameObject: {fileID: 7934341091358855573}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 9a78a38c61853584a8dfc47f272d2205, type: 3}
+  m_Script: {fileID: 11500000, guid: c6dc0db3ea460cf46b89c2a5acf00272, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::HDY.Mem.MemCatalogManager
-  memDataList:
-  - {fileID: 11400000, guid: 2e401caa7986662408594d1503a7093b, type: 2}
-  - {fileID: 11400000, guid: 4b7863329da65734098ad9e62b31a5f8, type: 2}
-  - {fileID: 11400000, guid: cb56219a606adbf4bacac9046fa0f26b, type: 2}
+  m_EditorClassIdentifier: Assembly-CSharp::HDY.Bootstrap.BuildManager
+  targetFrameRate: 60

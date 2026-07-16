@@ -1,12 +1,16 @@
 ﻿using DG.Tweening;
+using HDY.Capture;
+using HDY.Item;
+using HDY.Mem;
+using KMS.InventoryDuped;
+using MemSystem.Data;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
-using UnityEngine.InputSystem;
 using UnityEngine.EventSystems;
-using KMS.InventoryDuped;
-using HDY.Item;
+using UnityEngine.InputSystem;
 
 public class GridManager : MonoBehaviour
 {
@@ -18,6 +22,10 @@ public class GridManager : MonoBehaviour
     [Header("시설 데이터 정보: SO, 프리뷰")]
     [SerializeField] private List<BuildingData> buildings = new List<BuildingData>();
     [SerializeField] private Material previewMaterial;
+
+    // 🌟 [빌드 쉴드 강화]: Shader 대신 규격이 완벽히 잡힌 머티리얼 프리댑 에셋을 직접 주입받습니다.
+    [Tooltip("URP/Unlit 기반의 Surface Type: Transparent로 설정된 머티리얼 에셋을 여기에 넣어주세요.")]
+    [SerializeField] private Material gridMaterialPrefab;
 
     [Header("타일 색상 정보: 배치 가능, 배치 불가")]
     [SerializeField] private Color buildableColor = new Color(0f, 0.5f, 1f, 0.4f);
@@ -76,6 +84,8 @@ public class GridManager : MonoBehaviour
     // 이벤트 발행(UI 연결용)
     public static event Action<bool, List<BuildingData>> OnPlacementModeChanged;
 
+    public static event Action OnGridDataChanged;
+
     // Test전역변수
     private int count = 5;
 
@@ -83,9 +93,25 @@ public class GridManager : MonoBehaviour
     {
         if (buildRecordManager == null) buildRecordManager = FindFirstObjectByType<BuildRecordManager>();
     }
+
     private void Start()
     {
-        defaultModeMaterial = CreateGridMaterial(false);
+        // 프리팹 원본 머티리얼을 먼저 캐싱합니다.
+        if (tilePrefab != null && tilePrefab.TryGetComponent<MeshRenderer>(out MeshRenderer prefabRenderer))
+        {
+            defaultModeMaterial = prefabRenderer.sharedMaterial;
+        }
+
+        // 프리팹에 머티리얼이 비어있다면 프로젝트 내부 리소스를 수색하여 Green_Mat를 주입합니다.
+        if (defaultModeMaterial == null)
+        {
+            defaultModeMaterial = Resources.Load<Material>("Green_Mat");
+        }
+        if (defaultModeMaterial == null)
+        {
+            defaultModeMaterial = Resources.FindObjectsOfTypeAll<Material>().FirstOrDefault(m => m != null && m.name == "Green_Mat");
+        }
+
         placeModeMaterial = CreateGridMaterial(true);
         InitializeGrid(5, 5);
     }
@@ -231,8 +257,24 @@ public class GridManager : MonoBehaviour
 
         if (newTile.TryGetComponent<MeshRenderer>(out MeshRenderer meshRenderer))
         {
-            meshRenderer.material = isPlacementMode ? placeModeMaterial : defaultModeMaterial;
+            meshRenderer.material = defaultModeMaterial;
         }
+
+        GameObject gridOverlay = GameObject.CreatePrimitive(PrimitiveType.Quad);
+        if (gridOverlay.TryGetComponent<Collider>(out var col)) DestroyImmediate(col);
+
+        gridOverlay.name = "GridOverlay";
+        gridOverlay.transform.SetParent(newTile.transform);
+        gridOverlay.transform.localPosition = new Vector3(0f, 0f, -0.001f);
+        gridOverlay.transform.localRotation = Quaternion.identity;
+        gridOverlay.transform.localScale = Vector3.one;
+
+        if (gridOverlay.TryGetComponent<MeshRenderer>(out MeshRenderer overlayRenderer))
+        {
+            overlayRenderer.material = placeModeMaterial;
+        }
+
+        gridOverlay.SetActive(isPlacementMode);
 
         return newTile;
     }
@@ -258,15 +300,17 @@ public class GridManager : MonoBehaviour
 
         if (tileGrid == null) return;
 
-        Material targetMaterial = isPlacementMode ? placeModeMaterial : defaultModeMaterial;
-
         for (int i = 0; i < currentWidth; i++)
         {
             for (int j = 0; j < currentHeight; j++)
             {
-                if (tileGrid[i, j] != null && tileGrid[i, j].TryGetComponent<MeshRenderer>(out MeshRenderer meshRenderer))
+                if (tileGrid[i, j] != null)
                 {
-                    meshRenderer.material = targetMaterial;
+                    Transform overlay = tileGrid[i, j].transform.Find("GridOverlay");
+                    if (overlay != null)
+                    {
+                        overlay.gameObject.SetActive(isPlacementMode);
+                    }
                 }
             }
         }
@@ -329,8 +373,7 @@ public class GridManager : MonoBehaviour
 
         canPlaceCurrent = CheckPlacement(currentStartGridX, currentStartGridZ, currentTargetWidth, currentTargetHeight);
 
-        // 예외 처리 적용: 제작대가 아닌 일반 건물일 때만 마우스 조준 이동 중 청사진 소진 여부를 실시간 검사합니다.
-        if (canPlaceCurrent && selectedBuildingData.requireBlueprint != null && !IsCraftingTable(selectedBuildingData))
+        if (canPlaceCurrent && selectedBuildingData.requireBlueprint != null)
         {
             var inventory = FindFirstObjectByType<PlayerInventory>();
             if (inventory == null || inventory.GetItemAmount(selectedBuildingData.requireBlueprint.Item_ID) <= 0)
@@ -367,27 +410,49 @@ public class GridManager : MonoBehaviour
         Texture2D texture = new Texture2D(64, 64);
         texture.filterMode = FilterMode.Point;
 
-        Color grassGreen = new Color(0.3f, 0.75f, 0.3f);
-        Color borderColor = new Color(0.15f, 0.5f, 0.15f);
+        Color gridBorderColor = new Color(0.5f, 0.5f, 0.5f, 0.4f);
 
         for (int y = 0; y < 64; y++)
         {
             for (int x = 0; x < 64; x++)
             {
-                if (isPlacementMode && (x < 2 || x > 61 || y < 2 || y > 61))
+                if (x < 2 || x > 61 || y < 2 || y > 61)
                 {
-                    texture.SetPixel(x, y, borderColor);
+                    texture.SetPixel(x, y, gridBorderColor);
                 }
                 else
                 {
-                    texture.SetPixel(x, y, grassGreen);
+                    texture.SetPixel(x, y, Color.clear);
                 }
             }
         }
         texture.Apply();
 
-        Material mat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
-        mat.SetTexture("_BaseMap", texture);
+        Material mat = null;
+
+        // 🌟 [안전 복사 트랜잭션]: 머티리얼 에셋 프리댑이 꽂혀있다면 그것을 복사 인스턴스화하여 무결성 확보
+        if (gridMaterialPrefab != null)
+        {
+            mat = new Material(gridMaterialPrefab);
+        }
+        else
+        {
+            // 만약 비어있을 때의 자동 안전 장치 (Fallback 백업)
+            Shader targetShader = Shader.Find("Universal Render Pipeline/Unlit");
+            mat = new Material(targetShader);
+            mat.SetFloat("_Surface", 1f);
+            mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            mat.SetInt("_ZWrite", 0);
+            mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+        }
+
+        // 🌟 빌트인과 URP 프로퍼티에 전부 안전하게 동시 텍스처 사상 주입
+        if (mat.HasProperty("_BaseMap")) mat.SetTexture("_BaseMap", texture);
+        if (mat.HasProperty("_MainTex")) mat.SetTexture("_MainTex", texture);
+        if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", Color.white);
+        if (mat.HasProperty("_Color")) mat.SetColor("_Color", Color.white);
 
         return mat;
     }
@@ -438,8 +503,7 @@ public class GridManager : MonoBehaviour
             }
         }
 
-        // 🌟 예외 처리: '제작대'가 아닌 일반 설계도 기반 건축물일 때만 인벤토리 청사진 차감 진행
-        if (selectedBuildingData.requireBlueprint != null && !IsCraftingTable(selectedBuildingData))
+        if (selectedBuildingData.requireBlueprint != null)
         {
             var inventory = FindFirstObjectByType<PlayerInventory>();
             if (inventory != null)
@@ -455,6 +519,8 @@ public class GridManager : MonoBehaviour
 
         currentAvailableBuildings = GetAvailableBuildingsFromInventory();
         OnPlacementModeChanged?.Invoke(isPlacementMode, currentAvailableBuildings);
+
+        OnGridDataChanged?.Invoke();
     }
 
     private void TryPickUpBuilding(int x, int z)
@@ -481,8 +547,7 @@ public class GridManager : MonoBehaviour
 
         Destroy(targetBuilding);
 
-        // 🌟 예외 처리: 철거/회수 시에도 '제작대'가 아닐 때만 청사진 아이템을 인벤토리에 돌려줍니다.
-        if (retrievedData != null && retrievedData.requireBlueprint != null && !IsCraftingTable(retrievedData))
+        if (retrievedData != null && retrievedData.requireBlueprint != null)
         {
             var inventory = FindFirstObjectByType<PlayerInventory>();
             if (inventory != null)
@@ -494,6 +559,8 @@ public class GridManager : MonoBehaviour
 
         currentAvailableBuildings = GetAvailableBuildingsFromInventory();
         OnPlacementModeChanged?.Invoke(isPlacementMode, currentAvailableBuildings);
+
+        OnGridDataChanged?.Invoke();
 
         int availableIndex = currentAvailableBuildings.IndexOf(retrievedData);
         if (availableIndex >= 0)
@@ -658,6 +725,77 @@ public class GridManager : MonoBehaviour
                 buildingRuntime.Initialize(snap.data, snap.startX, snap.startZ);
             }
 
+            string uniqueId = $"{snap.data.buildingName}_{snap.startX}_{snap.startZ}";
+            if (RecordManager.Instance != null)
+            {
+                PlantJSONSaveData entry = RecordManager.Instance.GetFacilityData(uniqueId);
+                if (entry != null)
+                {
+                    List<CapturedMemEntry> matchedEntries = new List<CapturedMemEntry>();
+                    List<MemData> restoredMems = new List<MemData>();
+
+                    var memManager = FindFirstObjectByType<MemCaptureManager>();
+                    if (memManager != null && entry.DeployedMemIDs != null)
+                    {
+                        var warehouseList = memManager.CapturedMems;
+                        foreach (var savedKeyId in entry.DeployedMemIDs)
+                        {
+                            var warehouseMatch = warehouseList.FirstOrDefault(m => m != null && m.KeyId == savedKeyId);
+                            if (warehouseMatch != null)
+                            {
+                                warehouseMatch.IsActive = true;
+                                matchedEntries.Add(warehouseMatch);
+
+                                MemData mData = new MemData();
+                                mData.memName = warehouseMatch.MemId;
+
+                                var template = MemCatalogManager.Instance != null ? MemCatalogManager.Instance.FindMemData(warehouseMatch.MemId) : null;
+                                mData.maxHunger = (template != null) ? template.maxHunger : 10;
+
+                                restoredMems.Add(mData);
+                            }
+                        }
+                    }
+
+                    if (restoredBuilding.TryGetComponent<ProductionFacilityRuntime>(out var facility))
+                    {
+                        facility.buildingData = snap.data;
+                        facility.isProducing = entry.isActive;
+                        facility.currentProgressTime = entry.currentProgressTime;
+                        facility.currentStorageCount = entry.currentStorageCount;
+                        facility.craftingItem = FindItemDataInProject(entry.currentCraftingItemId);
+                        facility.UpdateMaxStorage();
+
+                        if (facility.DeployedMems != null && facility.DeployedMemEntries != null)
+                        {
+                            facility.DeployedMems.Clear();
+                            facility.DeployedMemEntries.Clear();
+                            facility.DeployedMems.AddRange(restoredMems);
+                            facility.DeployedMemEntries.AddRange(matchedEntries);
+                        }
+                        facility.CheckProductionCondition();
+                    }
+                    else if (restoredBuilding.TryGetComponent<ProductionCraftRuntime>(out var craft))
+                    {
+                        craft.buildingData = snap.data;
+                        craft.isProducing = entry.isActive;
+                        craft.targetQuantity = entry.targetQuantity;
+                        craft.remainingQuantity = entry.remainingQuantity;
+                        craft.currentProgressTime = entry.currentProgressTime;
+                        craft.currentStorageCount = entry.currentStorageCount;
+                        craft.currentCraftingItem = FindItemDataInProject(entry.currentCraftingItemId);
+
+                        if (craft.DeployedMems != null && craft.DeployedMemEntries != null)
+                        {
+                            craft.DeployedMems.Clear();
+                            craft.DeployedMemEntries.Clear();
+                            craft.DeployedMems.AddRange(restoredMems);
+                            craft.DeployedMemEntries.AddRange(matchedEntries);
+                        }
+                    }
+                }
+            }
+
             for (int x = snap.startX; x < snap.startX + bWidth; x++)
             {
                 for (int z = snap.startZ; z < snap.startZ + bHeight; z++)
@@ -668,6 +806,13 @@ public class GridManager : MonoBehaviour
                 }
             }
         }
+    }
+
+    private ItemData FindItemDataInProject(string itemId)
+    {
+        if (string.IsNullOrEmpty(itemId)) return null;
+        ItemData[] allItems = Resources.FindObjectsOfTypeAll<ItemData>();
+        return allItems.FirstOrDefault(item => item != null && item.Item_ID == itemId);
     }
 
     private bool IsPointerOverBlockingUI()
@@ -746,9 +891,6 @@ public class GridManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// 인벤토리에 실물 청사진 아이템을 들고 있는 건물 데이터만 정교하게 걸러내어 수집합니다.
-    /// </summary>
     private List<BuildingData> GetAvailableBuildingsFromInventory()
     {
         List<BuildingData> filteredList = new List<BuildingData>();
@@ -758,14 +900,6 @@ public class GridManager : MonoBehaviour
         {
             if (bData == null) continue;
 
-            // 🌟 [임시 - 제작대 생성]: 제작대는 청사진 보유 여부와 상관없이 무조건 노출 리스트에 포함시킵니다.
-            if (IsCraftingTable(bData))
-            {
-                filteredList.Add(bData);
-                continue;
-            }
-
-            // 요구하는 설계도가 없는 기본 건축물이거나, 인벤토리에 해당 설계도 아이템을 1개 이상 들고 있는 경우에만 진입 허용
             if (bData.requireBlueprint == null || (inventory != null && inventory.GetItemAmount(bData.requireBlueprint.Item_ID) > 0))
             {
                 filteredList.Add(bData);
@@ -773,15 +907,6 @@ public class GridManager : MonoBehaviour
         }
 
         return filteredList;
-    }
-
-    /// <summary>
-    /// 건물 데이터가 '제작대'를 의미하는지 여부를 판별합니다.
-    /// </summary>
-    private bool IsCraftingTable(BuildingData data)
-    {
-        if (data == null) return false;
-        return data.buildingName.Contains("제작대") || data.buildingId.ToLower().Contains("crafting");
     }
 
     [ContextMenu("Function: Expand to Test")]

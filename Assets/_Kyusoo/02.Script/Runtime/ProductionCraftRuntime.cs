@@ -1,9 +1,10 @@
 ﻿using HDY.Capture;
+using HDY.Inventory;
 using HDY.Item;
 using HDY.Recipe;
 using KMS.InventoryDuped;
-using HDY.Inventory;
 using MemSystem.Data;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -37,6 +38,10 @@ public class ProductionCraftRuntime : MonoBehaviour
 
     // 임시. 생산 소요 시간
     private float craftingDuration = 20f;
+
+    public static event Action OnMemDeploymentChanged;
+
+    public static event Action<BuildingType, bool> MemAdded;
 
     private void Start()
     {
@@ -77,6 +82,7 @@ public class ProductionCraftRuntime : MonoBehaviour
 
         totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(craftingDuration, addMems);
 
+        /* 🌟 [임시 주석 처리]: 허기 및 굶주림 정지 조건 체크 무력화
         if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
         {
             isProducing = true;
@@ -85,6 +91,8 @@ public class ProductionCraftRuntime : MonoBehaviour
         {
             isProducing = false;
         }
+        */
+        isProducing = true; // 식량 고갈 상태 유무를 묻지 않고 제작 강제 개시
     }
 
     /// <summary>
@@ -109,6 +117,7 @@ public class ProductionCraftRuntime : MonoBehaviour
             totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(craftingDuration, addMems);
             currentProgressTime = totalRequiredTime * currentProgressPercent;
 
+            /* 🌟 [임시 주석 처리]: 멤 교체 연산 시 굶주림 작동 중지 감지 무력화
             if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
             {
                 isProducing = true;
@@ -117,6 +126,8 @@ public class ProductionCraftRuntime : MonoBehaviour
             {
                 isProducing = false;
             }
+            */
+            isProducing = true; // 식량 상태에 관계없이 무조건 제작 상태 상시 유지
         }
     }
 
@@ -143,6 +154,9 @@ public class ProductionCraftRuntime : MonoBehaviour
 
         if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
 
+        OnMemDeploymentChanged?.Invoke();
+        MemAdded?.Invoke(buildingData.buildingType, true);
+
         return true;
     }
 
@@ -164,6 +178,9 @@ public class ProductionCraftRuntime : MonoBehaviour
             RecalculateCraftingTimer();
 
             if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
+
+            OnMemDeploymentChanged?.Invoke();
+            MemAdded?.Invoke(buildingData.buildingType, false);
         }
     }
 

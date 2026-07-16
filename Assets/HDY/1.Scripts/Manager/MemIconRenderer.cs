@@ -29,6 +29,14 @@ namespace HDY.Mem
     /// 다만 이 방식은 Start()가 실행되기 전에(같은 프레임 내에서) 촬영이 끝나므로, modelPrefab의 외형이
     /// Start()에서 스크립트로 결정되는 경우 그 부분은 반영되지 않는다(대부분의 정적 메시 모델은 문제 없음).
     ///
+    /// [빌드에서만 아이콘이 노이즈로 깨지는 문제 - 수정됨] 에디터는 모든 셰이더가 이미 컴파일되어 있지만,
+    /// 빌드에서는 특정 멤 모델의 셰이더가 "처음 그려지는 순간" 드라이버가 그 자리에서 셰이더 변형을
+    /// 컴파일하는 경우가 있다. 이 클래스는 멤창고 그리드가 열릴 때 수십~수백 개의 서로 다른 멤을 순식간에
+    /// 연속으로 촬영하는데, 그 "처음 그려지는 프레임"이 아직 준비되지 않은 상태로 캡처되면 알록달록한
+    /// 노이즈로 찍히고, 이 결과가 영구 캐싱되어 계속 그렇게 보이는 문제가 있었다. 그래서 같은 프레이밍으로
+    /// 두 번 렌더링하되 첫 번째 결과는 버리고(셰이더/드라이버 예열용) 두 번째 결과만 실제로 캡처한다.
+    /// 추가로 Camera.Render() 직후 GL.Flush()를 호출해 GPU 커맨드가 실제로 끝났음을 보장한다.
+    ///
     /// [부작용 방지] 촬영용 임시 인스턴스는 Collider를 끄고 Rigidbody를 kinematic으로 돌려서, 물리
     /// 충돌/낙하 등 부작용 없이 순수 비주얼만 담당하도록 한다(GridManager의 건물 미리보기 인스턴스와 같은 방식).
     /// </summary>
@@ -86,9 +94,17 @@ namespace HDY.Mem
             iconCamera.nearClipPlane = 0.01f;
             iconCamera.enabled = false; // 자동 매 프레임 렌더링을 막고, Render()를 직접 호출할 때만 그린다.
 
+            CreateIconRenderTexture();
+        }
+
+        /// <summary>RenderTexture를 생성한다. 빌드에서 드물게 생성이 실패하는 경우를 대비해 별도 메서드로
+        /// 분리하고, RenderIcon()에서 매번 IsCreated()를 확인해 필요하면 다시 생성하도록 한다.</summary>
+        private void CreateIconRenderTexture()
+        {
             iconRenderTexture = new RenderTexture(iconResolution, iconResolution, 16, RenderTextureFormat.ARGB32)
             {
-                name = "MemIconRenderTexture"
+                name = "MemIconRenderTexture",
+                antiAliasing = 1
             };
             iconRenderTexture.Create();
 
@@ -124,15 +140,31 @@ namespace HDY.Mem
             return sprite;
         }
 
-        /// <summary>modelPrefab을 촬영 위치에 임시로 세워두고 찍은 뒤 바로 정리한다.</summary>
+        /// <summary>modelPrefab을 촬영 위치에 임시로 세워두고 찍은 뒤 바로 정리한다.
+        /// [빌드 노이즈 방지] 같은 프레이밍으로 두 번 렌더링한다 - 첫 번째는 셰이더/드라이버 예열용으로
+        /// 버리고, 두 번째 결과만 실제로 ReadPixels로 캡처한다. 빌드에서 특정 멤의 셰이더가 처음 그려지는
+        /// 순간 드라이버가 그 자리에서 컴파일하며 한 프레임 깨지는 경우가 있는데, 이 방식이면 그 깨진
+        /// 프레임은 버려지고 캐싱되지 않는다.</summary>
         private Sprite RenderIcon(GameObject modelPrefab)
         {
+            if (iconRenderTexture == null || !iconRenderTexture.IsCreated())
+            {
+                Debug.LogWarning("[MemIconRenderer] iconRenderTexture가 준비되지 않아 다시 생성합니다.", this);
+                CreateIconRenderTexture();
+            }
+
             var instance = Instantiate(modelPrefab, shootingStagePosition, Quaternion.identity);
 
             DisablePhysicsSideEffects(instance);
             FrameCameraToBounds(instance);
 
+            // 1차 렌더(예열) - 결과는 버린다. 셰이더 변형이 이 시점에 컴파일되어도 캡처되지 않는다.
             iconCamera.Render();
+            GL.Flush();
+
+            // 2차 렌더(실제 캡처) - 이제는 셰이더가 준비된 상태로 그려진다.
+            iconCamera.Render();
+            GL.Flush();
 
             var texture = new Texture2D(iconResolution, iconResolution, TextureFormat.RGBA32, false);
 
