@@ -92,7 +92,22 @@ public class GridManager : MonoBehaviour
 
     private void Start()
     {
-        defaultModeMaterial = CreateGridMaterial(false);
+        // 🌟 [머티리얼 보존]: 프리팹 원본 머티리얼을 먼저 캐싱합니다.
+        if (tilePrefab != null && tilePrefab.TryGetComponent<MeshRenderer>(out MeshRenderer prefabRenderer))
+        {
+            defaultModeMaterial = prefabRenderer.sharedMaterial;
+        }
+
+        // 프리팹에 머티리얼이 비어있다면 프로젝트 내부 리소스를 수색하여 Green_Mat를 주입합니다.
+        if (defaultModeMaterial == null)
+        {
+            defaultModeMaterial = Resources.Load<Material>("Green_Mat");
+        }
+        if (defaultModeMaterial == null)
+        {
+            defaultModeMaterial = Resources.FindObjectsOfTypeAll<Material>().FirstOrDefault(m => m != null && m.name == "Green_Mat");
+        }
+
         placeModeMaterial = CreateGridMaterial(true);
         InitializeGrid(5, 5);
     }
@@ -238,8 +253,25 @@ public class GridManager : MonoBehaviour
 
         if (newTile.TryGetComponent<MeshRenderer>(out MeshRenderer meshRenderer))
         {
-            meshRenderer.material = isPlacementMode ? placeModeMaterial : defaultModeMaterial;
+            meshRenderer.material = defaultModeMaterial;
         }
+
+        GameObject gridOverlay = GameObject.CreatePrimitive(PrimitiveType.Quad);
+        if (gridOverlay.TryGetComponent<Collider>(out var col)) DestroyImmediate(col);
+
+        gridOverlay.name = "GridOverlay";
+        gridOverlay.transform.SetParent(newTile.transform);
+        gridOverlay.transform.localPosition = new Vector3(0f, 0f, -0.001f); 
+        gridOverlay.transform.localRotation = Quaternion.identity;
+        gridOverlay.transform.localScale = Vector3.one;
+
+        if (gridOverlay.TryGetComponent<MeshRenderer>(out MeshRenderer overlayRenderer))
+        {
+            overlayRenderer.material = placeModeMaterial;
+        }
+
+        // 현재 모드 상태에 맞추어 격자 가이드 레이어를 활성화/비활성화 처리합니다.
+        gridOverlay.SetActive(isPlacementMode);
 
         return newTile;
     }
@@ -265,15 +297,18 @@ public class GridManager : MonoBehaviour
 
         if (tileGrid == null) return;
 
-        Material targetMaterial = isPlacementMode ? placeModeMaterial : defaultModeMaterial;
-
+        // 🌟 [구조 변경 부위]: 본체 재질을 건드리지 않고 자식 격자 레이어(GridOverlay)의 활성화 여부만 제어합니다.
         for (int i = 0; i < currentWidth; i++)
         {
             for (int j = 0; j < currentHeight; j++)
             {
-                if (tileGrid[i, j] != null && tileGrid[i, j].TryGetComponent<MeshRenderer>(out MeshRenderer meshRenderer))
+                if (tileGrid[i, j] != null)
                 {
-                    meshRenderer.material = targetMaterial;
+                    Transform overlay = tileGrid[i, j].transform.Find("GridOverlay");
+                    if (overlay != null)
+                    {
+                        overlay.gameObject.SetActive(isPlacementMode);
+                    }
                 }
             }
         }
@@ -373,20 +408,20 @@ public class GridManager : MonoBehaviour
         Texture2D texture = new Texture2D(64, 64);
         texture.filterMode = FilterMode.Point;
 
-        Color grassGreen = new Color(0.3f, 0.75f, 0.3f);
-        Color borderColor = new Color(0.15f, 0.5f, 0.15f);
+        // 가장 기본적이고 깔끔한 회색 격자 가이드 라인 틴트 색상 규격
+        Color gridBorderColor = new Color(0.5f, 0.5f, 0.5f, 0.4f);
 
         for (int y = 0; y < 64; y++)
         {
             for (int x = 0; x < 64; x++)
             {
-                if (isPlacementMode && (x < 2 || x > 61 || y < 2 || y > 61))
+                if (x < 2 || x > 61 || y < 2 || y > 61)
                 {
-                    texture.SetPixel(x, y, borderColor);
+                    texture.SetPixel(x, y, gridBorderColor);
                 }
                 else
                 {
-                    texture.SetPixel(x, y, grassGreen);
+                    texture.SetPixel(x, y, Color.clear);
                 }
             }
         }
@@ -394,6 +429,14 @@ public class GridManager : MonoBehaviour
 
         Material mat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
         mat.SetTexture("_BaseMap", texture);
+        mat.SetColor("_BaseColor", Color.white);
+
+        mat.SetFloat("_Surface", 1f); // 1.0f = Transparent
+        mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+        mat.SetInt("_ZWrite", 0);
+        mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
 
         return mat;
     }
@@ -641,10 +684,6 @@ public class GridManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// 🌟 [요구사항 반영 완동]: 복원 롤백 분기 가동 시, RecordManager의 실시간 캐시데이터 데이터베이스를 매칭 수색하여
-    /// 이관되어있던 일꾼 멤 정보(DeployedMemEntries)를 원본 손실 없이 거울 구조로 재조립 역주입합니다.
-    /// </summary>
     private void RestoreRollbackData(List<BuildingSnapshot> rollbackData)
     {
         if (rollbackData == null) return;
@@ -670,7 +709,6 @@ public class GridManager : MonoBehaviour
                 buildingRuntime.Initialize(snap.data, snap.startX, snap.startZ);
             }
 
-            // 🌟 RecordManager의 facilityDatabase에서 기존 상태 복원 연쇄 가동
             string uniqueId = $"{snap.data.buildingName}_{snap.startX}_{snap.startZ}";
             if (RecordManager.Instance != null)
             {
@@ -846,7 +884,6 @@ public class GridManager : MonoBehaviour
         {
             if (bData == null) continue;
 
-            // 요구하는 설계도가 없는 기본 건축물이거나, 인벤토리에 해당 설계도 아이템을 1개 이상 들고 있는 경우에만 진입 허용
             if (bData.requireBlueprint == null || (inventory != null && inventory.GetItemAmount(bData.requireBlueprint.Item_ID) > 0))
             {
                 filteredList.Add(bData);
