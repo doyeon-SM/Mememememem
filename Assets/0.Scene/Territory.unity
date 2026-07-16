@@ -10794,8 +10794,8 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 958407987}
   m_HandleRect: {fileID: 958407986}
   m_Direction: 2
-  m_Value: 1
-  m_Size: 0.99997735
+  m_Value: 0
+  m_Size: 1
   m_NumberOfSteps: 0
   m_OnValueChanged:
     m_PersistentCalls:
@@ -15972,7 +15972,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -341.49994, y: 124.99961}
+  m_AnchoredPosition: {x: -341.49994, y: 125.00005}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &1284124137
@@ -23596,6 +23596,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 3495c48f7130d0345a7a91b2a1e10ca3, type: 2}
   - {fileID: 11400000, guid: 706801ee889e1e349871c8dbb17c186f, type: 2}
   previewMaterial: {fileID: 2100000, guid: 0c5230834dfe7d747bda2eef2f210bd8, type: 2}
+  gridMaterialPrefab: {fileID: 2100000, guid: 540cdc1db2a6abc4196654a76ed4ee2d, type: 2}
   buildableColor: {r: 0, g: 0.5, b: 1, a: 0.4}
   unbuildableColor: {r: 1, g: 0, b: 0, a: 0.4}
 --- !u!1 &2107552342

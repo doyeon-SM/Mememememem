@@ -256,18 +256,27 @@ public class ConsumeFoodSystem : MonoBehaviour
         foreach (var facility in productionFacilities)
         {
             if (facility == null) continue;
-            if (!isWorking) facility.isProducing = false;
-            else facility.CheckProductionCondition();
+            if (!isWorking)
+            {
+                facility.StopWorkDueToStarvation();
+            }
+            else
+            {
+                facility.CheckProductionCondition();
+            }
         }
 
         var craftingFacilities = FindObjectsByType<ProductionCraftRuntime>(FindObjectsSortMode.None);
         foreach (var craft in craftingFacilities)
         {
             if (craft == null) continue;
-            if (!isWorking) craft.isProducing = false;
+            if (!isWorking)
+            {
+                craft.StopWorkDueToStarvation();
+            }
             else
             {
-                if (craft.currentCraftingItem != null && craft.DeployedMems.Count > 0) craft.isProducing = true;
+                craft.ResumeWorkAfterStarvation();
             }
         }
     }
