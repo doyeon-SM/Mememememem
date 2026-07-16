@@ -43,9 +43,9 @@ public class ProductionCraftRuntime : MonoBehaviour
 
     // 시설에 실제 멤 UI배치와 관련하여 멤 배치/해제, 시설 가동, 가동 중단에 대한 이벤트 발행
     // 해당 이벤트를 받아서 멤의 실제 UI배치 처리 및 Animation 동작진행 예정
-    public static event Action<BuildingType, bool> MemAdded;
-    public static event Action<BuildingType> FacilityStarted;
-    public static event Action<BuildingType, FacilityStopReason> FacilityStopped;
+    public static event Action<BuildingType, MemData, bool> MemAdded;
+    public static event Action<BuildingType, List<MemData>> FacilityStarted;
+    public static event Action<BuildingType, List<MemData>, FacilityStopReason> FacilityStopped;
 
     private void Start()
     {
@@ -156,7 +156,7 @@ public class ProductionCraftRuntime : MonoBehaviour
 
         if (buildingData != null)
         {
-            MemAdded?.Invoke(buildingData.buildingType, true);
+            MemAdded?.Invoke(buildingData.buildingType, targetMem, true);
         }
 
         return true;
@@ -185,7 +185,7 @@ public class ProductionCraftRuntime : MonoBehaviour
 
             if (buildingData != null)
             {
-                MemAdded?.Invoke(buildingData.buildingType, false);
+                MemAdded?.Invoke(buildingData.buildingType, targetMem, false);
             }
         }
     }
@@ -210,7 +210,7 @@ public class ProductionCraftRuntime : MonoBehaviour
 
             if (buildingData != null)
             {
-                FacilityStopped?.Invoke(buildingData.buildingType, FacilityStopReason.CompleteCrafting);
+                FacilityStopped?.Invoke(buildingData.buildingType, addMems, FacilityStopReason.CompleteCrafting);
             }
         }
     }
@@ -278,7 +278,7 @@ public class ProductionCraftRuntime : MonoBehaviour
 
         if (wasWorking && buildingData != null)
         {
-            FacilityStopped?.Invoke(buildingData.buildingType, FacilityStopReason.CancelCrafting);
+            FacilityStopped?.Invoke(buildingData.buildingType, addMems, FacilityStopReason.CancelCrafting);
         }
     }
 
@@ -322,7 +322,7 @@ public class ProductionCraftRuntime : MonoBehaviour
 
         if (isProducing && buildingData != null)
         {
-            FacilityStarted?.Invoke(buildingData.buildingType);
+            FacilityStarted?.Invoke(buildingData.buildingType, addMems);
         }
     }
 
@@ -336,7 +336,8 @@ public class ProductionCraftRuntime : MonoBehaviour
 
         if (buildingData != null)
         {
-            FacilityStopped?.Invoke(buildingData.buildingType, FacilityStopReason.Starvation);
+            FacilityStopped?.Invoke(buildingData.buildingType, addMems, FacilityStopReason.Starvation);
+        
         }
     }
 
