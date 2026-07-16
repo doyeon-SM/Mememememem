@@ -1,13 +1,13 @@
 ﻿using HDY.Capture;
 using HDY.Inventory;
-using HDY.Item; 
+using HDY.Item;
 using HDY.Recipe;
 using HDY.UI;
 using KMS.InventoryDuped;
 using MemSystem.Data;
 using System.Collections;
 using TMPro;
-using Unity.Services.Authentication;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -33,21 +33,21 @@ public class CraftingPanelUI : MonoBehaviour
     [SerializeField] private GameObject selectProductModeObject;
     [SerializeField] private Image selectionImage;
     [SerializeField] private TextMeshProUGUI selectionName;
-    [SerializeField] private Transform requiredListParent;     
-    [SerializeField] private GameObject requireMaterialPrefab;  
-    [SerializeField] private TextMeshProUGUI productAmountText; 
-    [SerializeField] private Button btnMin;   
-    [SerializeField] private Button btnMinus; 
-    [SerializeField] private Button btnPlus;  
-    [SerializeField] private Button btnMax;   
-    [SerializeField] private Slider quantitySlider; 
+    [SerializeField] private Transform requiredListParent;
+    [SerializeField] private GameObject requireMaterialPrefab;
+    [SerializeField] private TextMeshProUGUI productAmountText;
+    [SerializeField] private Button btnMin;
+    [SerializeField] private Button btnMinus;
+    [SerializeField] private Button btnPlus;
+    [SerializeField] private Button btnMax;
+    [SerializeField] private Slider quantitySlider;
 
     [Header("중앙 패널 - Center: Crafting 오브젝트, 제작 아이템 정보, 수령 버튼, 완성수량")]
     [SerializeField] private GameObject craftingModeObject;
     [SerializeField] private Image craftingItemIcon;
     [SerializeField] private TextMeshProUGUI craftingItemName;
-    [SerializeField] private Button collectRewardBtn; 
-    [SerializeField] private TextMeshProUGUI completeCountText;  
+    [SerializeField] private Button collectRewardBtn;
+    [SerializeField] private TextMeshProUGUI completeCountText;
 
     [Header("중앙 패널 - Bottom: Default_Mode 오브젝트, Desc연결")]
     [SerializeField] private GameObject bottomDefaultModeObject;
@@ -55,14 +55,14 @@ public class CraftingPanelUI : MonoBehaviour
 
     [Header("중앙 패널 - Bottom: Select_Product 오브젝트, 제작 예상 시간, 다시 선택/제작 버튼")]
     [SerializeField] private GameObject bottomSelectProductModeObject;
-    [SerializeField] private TextMeshProUGUI craftingDurationText; 
-    [SerializeField] private Button reSelectBtn; 
-    [SerializeField] private Button craftBtn;    
+    [SerializeField] private TextMeshProUGUI craftingDurationText;
+    [SerializeField] private Button reSelectBtn;
+    [SerializeField] private Button craftBtn;
 
     [Header("중앙 패널 - Bottom: Crafting 오브젝트, 진행도, 완성품 취소/수령 버튼")]
     [SerializeField] private GameObject bottomCraftingModeObject;
     [SerializeField] private Slider progressBar;
-    [SerializeField] private TextMeshProUGUI durationText; 
+    [SerializeField] private TextMeshProUGUI durationText;
     [SerializeField] private Button cancelBtn;
     [SerializeField] private Button getBtn;
 
@@ -73,7 +73,7 @@ public class CraftingPanelUI : MonoBehaviour
     private HDY.Recipe.RecipeData activeSelectedRecipeData;
 
     private int selectedQuantity = 1;
-    private int maxCraftableQuantity = 1; 
+    private int maxCraftableQuantity = 1;
 
     private bool isUpdatingQuantitySystem = false;
     private Coroutine errorFeedbackCoroutine;
@@ -109,6 +109,7 @@ public class CraftingPanelUI : MonoBehaviour
             float progressNormalized = targetFacility.currentProgressTime / targetFacility.totalRequiredTime;
             if (progressBar != null) progressBar.value = progressNormalized;
 
+            /* 🌟 [임시 주석 처리]: 굶주림(식량 부족)으로 가동 중지되었을 때 UI 상에 <color=red>중지</color> 텍스트 노출 조건 분기 무력화
             if (targetFacility.isProducing)
             {
                 if (durationText != null) durationText.text = $"{Mathf.Clamp(progressNormalized * 100f, 0f, 100f):F0}%";
@@ -117,6 +118,10 @@ public class CraftingPanelUI : MonoBehaviour
             {
                 if (durationText != null) durationText.text = $"<color=red>중지 ({Mathf.Clamp(progressNormalized * 100f, 0f, 100f):F0}%)</color>";
             }
+            */
+
+            // 허기 유무 및 보급 상태와 상관없이 언제나 백분율 퍼센트 텍스트만 고정 출력되도록 수정
+            if (durationText != null) durationText.text = $"{Mathf.Clamp(progressNormalized * 100f, 0f, 100f):F0}%";
         }
 
         bool canGet = (targetFacility.currentStorageCount > 0);
@@ -164,9 +169,6 @@ public class CraftingPanelUI : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// 제작의 3단계 흐름에 따라 Center, Bottom에 분리한 3가지 모드를 세트로 전환처리
-    /// </summary>
     private void RefreshCraftingModeUI()
     {
         if (targetFacility == null) return;
@@ -195,9 +197,6 @@ public class CraftingPanelUI : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// 멤 배치를 통해 예상 소요 시간을 실시간으로 연산하여 표시
-    /// </summary>
     private void UpdateSelectProductCalculatedUI()
     {
         if (activeSelectedRecipe == null) return;
@@ -237,10 +236,11 @@ public class CraftingPanelUI : MonoBehaviour
     {
         if (isUpdatingQuantitySystem) return;
 
-        selectedQuantity = Mathf.Clamp(Mathf.RoundToInt(value), 1, maxCraftableQuantity);
-        selectedQuantity = Mathf.RoundToInt(value);
+        int maxLimit = Mathf.Max(1, maxCraftableQuantity);
+        selectedQuantity = Mathf.Clamp(Mathf.RoundToInt(value), 1, maxLimit);
+
         UpdateSelectProductCalculatedUI();
-        GenerateRequiredMaterialListUI(); 
+        GenerateRequiredMaterialListUI();
     }
 
     private void ModifyQuantity(int amount)
@@ -264,10 +264,6 @@ public class CraftingPanelUI : MonoBehaviour
         GenerateRequiredMaterialListUI();
     }
 
-    /// <summary>
-    /// 인벤토리 or 창고 내 원자재 한계치를 기반으로 최대 제작 가능 수량 계산
-    /// 최소 제작에 필요한 재료도 부족한 경우 0을 반환
-    /// </summary>
     private int CalculateMaxCraftableLimitAmount(ItemData recipe)
     {
         if (recipe == null || activeSelectedRecipeData == null) return 1;
@@ -284,7 +280,6 @@ public class CraftingPanelUI : MonoBehaviour
 
             hasMateria = true;
 
-            // Mock데이터
             int totalOwnedAmount = 0;
             if (inventory != null) totalOwnedAmount += inventory.GetItemAmount(reqItem.Item_ID);
             if (warehouse != null) totalOwnedAmount += warehouse.GetItemAmount(reqItem.Item_ID);
@@ -300,12 +295,14 @@ public class CraftingPanelUI : MonoBehaviour
 
         if (!hasMateria) return 0;
 
+        return netMaximumCheck(finalCalculatedMax);
+    }
+
+    private int netMaximumCheck(int finalCalculatedMax)
+    {
         return Mathf.Max(0, finalCalculatedMax);
     }
 
-    /// <summary>
-    /// 수량 조절을 통해 필요한 재료 갯수를 업데이트(+, -, 최대, 최소, 슬라이더 조절)에 맞춰서 처리
-    /// </summary>
     private void GenerateRequiredMaterialListUI()
     {
         foreach (Transform child in requiredListParent) Destroy(child.gameObject);
@@ -336,7 +333,6 @@ public class CraftingPanelUI : MonoBehaviour
         }
     }
 
-    // 해금된 제작 레시피들 UI에 표시
     private void GenerateAvailableRecipeList()
     {
         foreach (Transform child in recipeGridParent) Destroy(child.gameObject);
@@ -375,10 +371,6 @@ public class CraftingPanelUI : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// 해금된 레시피중 하나를 클릭할때, ItemCatalogManager의 recipeId
-    /// ItemCatalogManager 산하의 중앙 카탈로그(recipeDataList)를 직접 실시간 쿼리하여 매칭되는 RecipeData를 가져옵니다.
-    /// </summary>
     public void OnSelectItemRecipe(ItemData selectedItem)
     {
         if (targetFacility == null || selectedItem == null) return;
@@ -391,7 +383,7 @@ public class CraftingPanelUI : MonoBehaviour
         {
             if (recipe != null && recipe.Recipe_Item_ID == selectedItem.Item_ID)
             {
-                activeSelectedRecipeData = recipe; 
+                activeSelectedRecipeData = recipe;
                 break;
             }
         }
@@ -403,12 +395,12 @@ public class CraftingPanelUI : MonoBehaviour
 
         maxCraftableQuantity = CalculateMaxCraftableLimitAmount(selectedItem);
 
-        selectedQuantity = (maxCraftableQuantity == 0) ? 0 : 1;
+        selectedQuantity = 1;
 
         if (quantitySlider != null)
         {
-            quantitySlider.minValue = (maxCraftableQuantity == 0) ? 0 : 1;
-            quantitySlider.maxValue = maxCraftableQuantity;
+            quantitySlider.minValue = 1;
+            quantitySlider.maxValue = Mathf.Max(1, maxCraftableQuantity);
             quantitySlider.wholeNumbers = true;
         }
 
@@ -416,9 +408,6 @@ public class CraftingPanelUI : MonoBehaviour
         RefreshCraftingModeUI();
     }
 
-    /// <summary>
-    /// 다시선택 클릭 시 제작 가능 리스트 목록으로 복귀
-    /// </summary>
     private void OnClickReSelect()
     {
         if (errorFeedbackCoroutine != null) StopCoroutine(errorFeedbackCoroutine);
@@ -431,11 +420,6 @@ public class CraftingPanelUI : MonoBehaviour
         RefreshCraftingModeUI();
     }
 
-    /// <summary>
-    /// 제작 조건 미충족 상태를 판별하여 조건 미충족시 시각적 피드백 제공
-    /// 멤 배치, 제작에 필요한 재료 보유 여부를 조건으로 판별
-    /// 이상없으면 Crafting_Mode로 전환
-    /// </summary>
     private void OnClickCraftStart()
     {
         if (targetFacility == null || activeSelectedRecipe == null) return;
@@ -475,7 +459,6 @@ public class CraftingPanelUI : MonoBehaviour
             return;
         }
 
-        // 1차적으로 인벤토리에서 차감 후 부족하면 창고에서 차감되도록 처리
         if (activeSelectedRecipeData != null && activeSelectedRecipeData.Requset_Items_ID != null)
         {
             foreach (Recipe_Requset_Item_Data req in activeSelectedRecipeData.Requset_Items_ID)
@@ -530,7 +513,7 @@ public class CraftingPanelUI : MonoBehaviour
         }
 
         errorFeedbackCoroutine = null;
-        UpdateSelectProductCalculatedUI(); 
+        UpdateSelectProductCalculatedUI();
     }
 
     private void OnClickCancelCrafting()
@@ -543,7 +526,6 @@ public class CraftingPanelUI : MonoBehaviour
         RefreshCraftingModeUI();
     }
 
-    // 제작 아이템 수령 분기에 따른 UI 갱신
     private void OnClickCollectReward()
     {
         if (targetFacility == null) return;
@@ -564,21 +546,16 @@ public class CraftingPanelUI : MonoBehaviour
         completeCountText.text = targetFacility.currentStorageCount.ToString();
     }
 
-    /// <summary>
-    /// 멤 창고에서 드래그하여 슬롯에 드롭할 때 이벤트 수신
-    /// </summary>
     public void TryDeployMemFromUI(MemData targetMem, CapturedMemEntry targetEntry)
     {
         if (targetFacility == null || targetMem == null || targetEntry == null) return;
 
-        // 실질적인 배치 가동은 런타임 스크립트에 지시
         bool isSuccess = targetFacility.TryAddMem(targetMem, targetEntry);
 
         if (isSuccess)
         {
             RefreshStaticUI();
 
-            // 👥 만약 수량 선택 대기 중인 상태라면, 멤이 추가됨에 따라 버프를 재연산하여 예상 시간을 실시간으로 깎아줍니다.
             if (currentUIState == CraftingUIState.SelectProduct)
             {
                 UpdateSelectProductCalculatedUI();
@@ -586,9 +563,6 @@ public class CraftingPanelUI : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// 슬롯에 배치된 멤 제거처리
-    /// </summary>
     public void TryRemoveMemFromUI(MemData targetMem)
     {
         if (targetFacility == null || targetMem == null) return;
@@ -596,7 +570,6 @@ public class CraftingPanelUI : MonoBehaviour
         targetFacility.RemoveMem(targetMem);
 
         RefreshStaticUI();
-
         RefreshCraftingModeUI();
     }
 
@@ -606,14 +579,13 @@ public class CraftingPanelUI : MonoBehaviour
         errorFeedbackCoroutine = null;
 
         targetFacility = null;
-        
     }
 
     public void RefreshUI()
     {
         if (targetFacility == null) return;
-        RefreshStaticUI();         
-        RefreshCraftingModeUI();   
-        UpdateStorageText();      
+        RefreshStaticUI();
+        RefreshCraftingModeUI();
+        UpdateStorageText();
     }
 }

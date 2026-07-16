@@ -17,13 +17,48 @@ namespace HDY.Territory
 
     /// <summary>
     /// 영지에 필요한 기초 데이터를 보관하는 컴포넌트.
-    /// [저장/불러오기 대응] 저장 및 불러오기 시스템이 이 데이터의 생명주기(씬 로드 시 재생성/파일에서 값 복원)를
-    /// 직접 관리할 예정이라, 더 이상 DontDestroyOnLoad 파괴불가 싱글톤을 쓰지 않는다(일반 컴포넌트).
-    /// 다른 스크립트는 인스펙터에서 이 컴포넌트를 직접 참조해서 사용한다.
+    /// [임시 조치 - 싱글톤 + DontDestroyOnLoad] 저장/불러오기 시스템이 아직 없어서, 그 시스템이 붙기 전까지
+    /// GameTimeManager와 동일한 패턴(Instance 싱글톤 + DontDestroyOnLoad + Resolve(existing) 폴백)을 임시로
+    /// 사용한다. TODO: 추후 저장/불러오기 시스템이 추가되면 이 생명주기 관리 방식(싱글톤 유지 여부, 씬 로드
+    /// 시 값 복원 시점 등)을 다시 검토해야 한다.
+    /// 다른 스크립트는 인스펙터 참조가 비어있으면 Resolve(existing)로 이 컴포넌트를 찾아 쓸 수 있다.
     /// [교통정리] HDY 폴더 소속. Pikachu 코드와 겹치는 기능 없음.
     /// </summary>
     public class TerritoryData : MonoBehaviour
     {
+        public static TerritoryData Instance { get; private set; }
+
+        private void Awake()
+        {
+            if (Instance != null && Instance != this)
+            {
+                Debug.LogWarning("[TerritoryData] 씬에 TerritoryData가 이미 있어 중복 오브젝트를 파괴합니다.", this);
+                Destroy(gameObject);
+                return;
+            }
+
+            Instance = this;
+            DontDestroyOnLoad(gameObject);
+        }
+
+        /// <summary>
+        /// 다른 스크립트가 들고 있는 TerritoryData 참조가 비어있을 때 쓰는 공용 폴백 탐색.
+        /// 1) 이미 참조가 있으면 그대로 반환, 2) 없으면 싱글톤(Instance), 3) 그래도 없으면 씬 전체에서 검색.
+        /// </summary>
+        public static TerritoryData Resolve(TerritoryData existing)
+        {
+            if (existing != null) return existing;
+            if (Instance != null) return Instance;
+
+            var found = FindFirstObjectByType<TerritoryData>();
+            if (found == null)
+            {
+                Debug.LogWarning("[TerritoryData] 씬에서 TerritoryData를 찾을 수 없습니다.");
+            }
+
+            return found;
+        }
+
         // =================================================================
         // 만족도 (= 영지 포인트)
         // =================================================================
@@ -145,19 +180,28 @@ namespace HDY.Territory
         }
 
         // =================================================================
-        // 시간 (인게임 시간, 누적 초 단위로 관리)
+        // 시간 (인게임 시간, 누적 초 단위 - 저장 호환용 다리)
+        // [타이머 이주] 실제 시간 누적(타이머) 로직은 GameTimeManager로 이주했다. 이 필드는 스스로
+        // 누적하지 않으며, GameTimeManager가 매 프레임 SyncElapsedTimeFromGameTimeManager로 최신 값을
+        // 밀어넣어주는 "저장 호환용 거울"일 뿐이다. Kyusoo팀 RecordManager.cs가 저장 시
+        // TerritoryData.ElapsedTime을 읽고, 불러오기 시 reflection으로 이 필드("elapsedTime")에 직접
+        // 대입하기 때문에(Kyusoo 파일은 건드리지 않기로 함) 필드/프로퍼티 이름과 타입을 그대로 유지한다.
         // =================================================================
-        [Header("인게임 시간")]
-        [Tooltip("게임 시작 이후 누적된 인게임 시간(초)")]
+        [Header("인게임 시간 (저장 호환용 - 실제 누적은 GameTimeManager가 전담)")]
+        [Tooltip("GameTimeManager가 매 프레임 동기화해주는 값. 이 컴포넌트 스스로는 더 이상 누적하지 않는다.")]
         [SerializeField] private float elapsedTime = 0f;
 
         public float ElapsedTime => elapsedTime;
 
-        /// <summary>인게임 시간을 seconds만큼 누적시킨다.</summary>
-        public void AddTime(float seconds)
+        /// <summary>
+        /// [저장 호환용 다리] GameTimeManager가 매 프레임 자신이 누적한 값을 이 필드에 동기화하기 위해
+        /// 호출한다. Kyusoo팀 RecordManager가 저장 시 여전히 TerritoryData.ElapsedTime을 읽으므로,
+        /// 실제 누적 주체는 GameTimeManager이지만 이 값도 항상 최신 상태로 맞춰둔다.
+        /// 이 메서드 외에는 elapsedTime을 수정하는 경로가 없다(GameTimeManager.Update에서만 호출됨).
+        /// </summary>
+        public void SyncElapsedTimeFromGameTimeManager(float elapsedSeconds)
         {
-            if (seconds <= 0) return;
-            elapsedTime += seconds;
+            elapsedTime = elapsedSeconds;
         }
     }
 }

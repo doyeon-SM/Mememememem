@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using HDY.Recipe;
 
 namespace HDY.Territory
@@ -49,9 +50,21 @@ namespace HDY.Territory
     /// 추적한다. 만약 이 매니저를 거치지 않고 다른 경로로 그리드 크기가 바뀌는 일이 생기면 추적값이
     /// 실제 그리드 크기와 어긋날 수 있다 - 현재는 그런 경로가 없어 보이지만, 나중에 GridManager 쪽에
     /// 그리드 크기를 바꾸는 다른 기능이 추가된다면 이 부분을 다시 확인해야 한다.
+    ///
+    /// [싱글톤 + DontDestroyOnLoad - 임시 조치] GameTimeManager와 동일한 패턴(Instance 싱글톤 + 중복 파괴 +
+    /// DontDestroyOnLoad + Resolve(existing) 폴백)을 사용한다. 저장/불러오기 시스템이 붙기 전까지의 임시
+    /// 조치이며, TerritoryData와 마찬가지로 추후 재검토가 필요하다.
+    ///
+    /// [씬 전환 시 GridManager 재탐색] gridManager는 Kyusoo팀 소유 파일이라 DontDestroyOnLoad를 걸 수 없다 -
+    /// 즉 씬이 전환되면 이전 씬의 GridManager는 파괴되고 새 씬에 다시 배치된다. 이 매니저 자신은
+    /// DontDestroyOnLoad로 유지되어 Awake가 다시 호출되지 않으므로, SceneManager.sceneLoaded 이벤트를
+    /// 구독해 씬이 로드될 때마다 gridManager 참조를 다시 탐색한다. territoryData는 이 매니저처럼
+    /// DontDestroyOnLoad로 함께 유지되므로 보통은 끊어지지 않지만, 혹시 몰라 같이 확인한다.
     /// </summary>
     public class TerritoryExpansionManager : MonoBehaviour
     {
+        public static TerritoryExpansionManager Instance { get; private set; }
+
         [Header("데이터 참조")]
         [SerializeField] private GridManager gridManager;
 
@@ -74,6 +87,16 @@ namespace HDY.Territory
 
         private void Awake()
         {
+            if (Instance != null && Instance != this)
+            {
+                Debug.LogWarning("[TerritoryExpansionManager] 씬에 TerritoryExpansionManager가 이미 있어 중복 오브젝트를 파괴합니다.", this);
+                Destroy(gameObject);
+                return;
+            }
+
+            Instance = this;
+            DontDestroyOnLoad(gameObject);
+
             if (gridManager == null) gridManager = FindFirstObjectByType<GridManager>();
             if (gridManager == null) Debug.LogWarning("[TerritoryExpansionManager] gridManager를 찾을 수 없습니다.", this);
 
@@ -81,6 +104,29 @@ namespace HDY.Territory
             if (territoryData == null) Debug.LogWarning("[TerritoryExpansionManager] territoryData를 찾을 수 없습니다.", this);
 
             currentGridSize = startingGridSize;
+
+            SceneManager.sceneLoaded += OnSceneLoaded;
+        }
+
+        private void OnDestroy()
+        {
+            if (Instance == this)
+            {
+                SceneManager.sceneLoaded -= OnSceneLoaded;
+            }
+        }
+
+        /// <summary>
+        /// [씬 전환 대비] DontDestroyOnLoad로 유지되는 동안에는 Awake가 다시 호출되지 않으므로, 새 씬이
+        /// 로드될 때마다 gridManager(Kyusoo팀 소유, 씬마다 새로 배치됨) 참조를 다시 탐색한다. territoryData도
+        /// DontDestroyOnLoad로 함께 유지되어 보통은 끊어지지 않지만, 혹시 몰라 함께 확인한다.
+        /// </summary>
+        private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+        {
+            gridManager = FindFirstObjectByType<GridManager>();
+            if (gridManager == null) Debug.LogWarning("[TerritoryExpansionManager] 씬 전환 후 gridManager를 찾을 수 없습니다.", this);
+
+            if (territoryData == null) territoryData = FindFirstObjectByType<TerritoryData>();
         }
 
         /// <summary>아직 완료되지 않은 첫 번째(가장 앞선) 확장 단계를 반환한다. 전부 완료됐으면 null.
@@ -148,6 +194,24 @@ namespace HDY.Territory
             Debug.Log($"[TerritoryExpansionManager] 영지 확장 완료: {currentGridSize}x{currentGridSize}");
 
             OnExpansionChanged?.Invoke();
+        }
+
+        /// <summary>
+        /// 다른 스크립트가 들고 있는 TerritoryExpansionManager 참조가 비어있을 때 쓰는 공용 폴백 탐색.
+        /// 1) 이미 참조가 있으면 그대로 반환, 2) 없으면 싱글톤(Instance), 3) 그래도 없으면 씬 전체에서 검색.
+        /// </summary>
+        public static TerritoryExpansionManager Resolve(TerritoryExpansionManager existing)
+        {
+            if (existing != null) return existing;
+            if (Instance != null) return Instance;
+
+            var found = FindFirstObjectByType<TerritoryExpansionManager>();
+            if (found == null)
+            {
+                Debug.LogWarning("[TerritoryExpansionManager] 씬에서 TerritoryExpansionManager를 찾을 수 없습니다.");
+            }
+
+            return found;
         }
     }
 }

@@ -119,7 +119,7 @@ namespace HDY.UI
             }
         }
 
-        private void HandleHudButtonClicked(GameObject prefab)
+        public void HandleHudButtonClicked(GameObject prefab)
         {
             if (uiRoot == null || prefab == null) return;
 

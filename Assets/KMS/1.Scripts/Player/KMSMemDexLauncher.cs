@@ -1,5 +1,3 @@
-using System;
-using System.Reflection;
 using HDY.Mem;
 using HDY.UI;
 using KMS.InventoryDuped;
@@ -14,7 +12,8 @@ namespace KMS
 {
     /// <summary>
     /// KMS UI Toolkit HUD의 도감 버튼과 HDY uGUI 멤 도감 프리팹을 연결한다.
-    /// 현재는 자체 Canvas에 도감을 생성하며, HDY UIManager 원본은 수정하지 않는다.
+    /// HDY UIManager가 있는 씬에서는 공용 패널 스택을 사용하고,
+    /// 없는 KMS 테스트 씬에서는 자체 Canvas로 대체한다.
     /// </summary>
     public class KMSMemDexLauncher : MonoBehaviour
     {
@@ -32,11 +31,6 @@ namespace KMS
         [SerializeField] private PlayerMovement playerMovement;
         [SerializeField] private PlayerCameraController cameraController;
         [SerializeField] private InventoryUI inventoryUi;
-
-        [Header("Future HDY UIManager Bridge (Disabled By Default)")]
-        [Tooltip("HDY UIManager가 public OpenPrefab(GameObject)를 제공하게 된 뒤에만 켠다. 지금은 자체 Canvas 경로를 사용한다.")]
-        [SerializeField] private bool preferHdyUiManagerWhenAvailable;
-        [SerializeField] private string hdyOpenMethodName = "OpenPrefab";
 
         private UIToolkitButton collectionButton;
         private GameObject modalCanvasObject;
@@ -107,7 +101,7 @@ namespace KMS
             inventoryUi?.Close();
             CapturePlayerState();
 
-            openedThroughHdyUiManager = TryOpenThroughFutureHdyUiManager();
+            openedThroughHdyUiManager = TryOpenThroughHdyUiManager();
             if (!openedThroughHdyUiManager && !OpenStandalone())
             {
                 RestorePlayerState();
@@ -330,44 +324,13 @@ namespace KMS
             RestorePlayerState();
         }
 
-        /// <summary>
-        /// 미래 HDY 연동 지점.
-        /// 현재 UIManager의 실제 열기 함수는 private이므로 이 옵션은 기본적으로 꺼져 있다.
-        /// 나중에 HDY가 public OpenPrefab(GameObject)를 제공하면 HDY 코드를 다시 참조해
-        /// 컴파일할 필요 없이 preferHdyUiManagerWhenAvailable만 켜서 전환할 수 있다.
-        /// 공개 메서드 이름이 다르면 hdyOpenMethodName을 인스펙터에서 맞춘다.
-        /// </summary>
-        private bool TryOpenThroughFutureHdyUiManager()
+        private bool TryOpenThroughHdyUiManager()
         {
-            if (!preferHdyUiManagerWhenAvailable || UIManager.Instance == null) return false;
+            var uiManager = UIManager.Instance;
+            if (uiManager == null) return false;
 
-            MethodInfo openMethod = typeof(UIManager).GetMethod(
-                hdyOpenMethodName,
-                BindingFlags.Instance | BindingFlags.Public,
-                null,
-                new[] { typeof(GameObject) },
-                null);
-
-            if (openMethod == null)
-            {
-                Debug.LogWarning(
-                    $"[KMSMemDexLauncher] UIManager에 public {hdyOpenMethodName}(GameObject)가 없어 자체 Canvas로 엽니다.",
-                    this);
-                return false;
-            }
-
-            try
-            {
-                openMethod.Invoke(UIManager.Instance, new object[] { memDexPrefab });
-                return UIManager.Instance.HasActivePanel();
-            }
-            catch (Exception exception)
-            {
-                Debug.LogWarning(
-                    $"[KMSMemDexLauncher] HDY UIManager 도감 열기에 실패해 자체 Canvas로 대체합니다. {exception.Message}",
-                    this);
-                return false;
-            }
+            uiManager.HandleHudButtonClicked(memDexPrefab);
+            return uiManager.HasActivePanel();
         }
     }
 }

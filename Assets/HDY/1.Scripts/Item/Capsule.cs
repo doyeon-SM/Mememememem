@@ -15,11 +15,41 @@ namespace HDY.Capture
         [Header("캡슐 아이템 데이터 (ItemClass = 캡슐 등급)")]
         public ItemData CapsuleItemData;
 
+        private bool consumed;
+        private Collider capsuleCollider;
+        private Rigidbody capsuleRigidbody;
+
+        private void Awake()
+        {
+            capsuleCollider = GetComponent<Collider>();
+            capsuleRigidbody = GetComponent<Rigidbody>();
+        }
+
         private void OnTriggerEnter(Collider other)
         {
+            if (consumed) return;
             if (!other.TryGetComponent<ICapturable>(out var capturable)) return;
 
+            Consume();
             TryCapture(capturable);
+            Destroy(gameObject);
+        }
+
+        private void Consume()
+        {
+            consumed = true;
+
+            if (capsuleCollider != null)
+            {
+                capsuleCollider.enabled = false;
+            }
+
+            if (capsuleRigidbody != null)
+            {
+                capsuleRigidbody.linearVelocity = Vector3.zero;
+                capsuleRigidbody.angularVelocity = Vector3.zero;
+                capsuleRigidbody.isKinematic = true;
+            }
         }
 
         private void TryCapture(ICapturable capturable)

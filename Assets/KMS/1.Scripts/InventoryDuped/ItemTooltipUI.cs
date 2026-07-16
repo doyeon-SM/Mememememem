@@ -103,12 +103,7 @@ namespace KMS.InventoryDuped
 
         private void CreateEffectTags(ItemData item)
         {
-            if (item.Category != HDY.Item.ItemCategory.Food && item.UseAction != HDY.Item.UseAction.Eat) return;
-
-            if (item.Value > 0)
-            {
-                CreateTag($"포만감 +{item.Value}", effectBackgroundColor, lightTextColor);
-            }
+            if (item.UseAction != HDY.Item.UseAction.Eat) return;
 
             if (item.EatEffects == null) return;
 
@@ -155,6 +150,8 @@ namespace KMS.InventoryDuped
         {
             switch (effect)
             {
+                case HDY.Item.EffectType.Satiety:
+                    return "포만감";
                 case HDY.Item.EffectType.Speed:
                     return "이동속도";
                 default:

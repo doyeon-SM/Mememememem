@@ -1,81 +1,113 @@
-using DG.Tweening;
+ï»¿using DG.Tweening;
+using HDY.Capture;
+using HDY.Item;
+using HDY.Mem;
+using KMS.InventoryDuped;
+using MemSystem.Data;
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
-using UnityEngine.InputSystem;
 using UnityEngine.EventSystems;
+using UnityEngine.InputSystem;
 
 public class GridManager : MonoBehaviour
 {
-    [Header("Å¸ÀÏ »ı¼º °ü·Ã Á¤º¸: Prefab, »ı¼ºµÉ À§Ä¡, Grid Layer")]
+    [Header("íƒ€ì¼ ìƒì„± ê´€ë ¨ ì •ë³´: Prefab, ìƒì„±ë  ìœ„ì¹˜, Grid Layer")]
     [SerializeField] private GameObject tilePrefab;
     [SerializeField] private Transform floorContainer;
     [SerializeField] private LayerMask gridLayerMask;
 
-    [Header("½Ã¼³ µ¥ÀÌÅÍ Á¤º¸: SO, ÇÁ¸®ºä")]
+    [Header("ì‹œì„¤ ë°ì´í„° ì •ë³´: SO, í”„ë¦¬ë·°")]
     [SerializeField] private List<BuildingData> buildings = new List<BuildingData>();
     [SerializeField] private Material previewMaterial;
 
-    [Header("Å¸ÀÏ »ö»ó Á¤º¸: ¹èÄ¡ °¡´É, ¹èÄ¡ ºÒ°¡")]
+    [Header("íƒ€ì¼ ìƒ‰ìƒ ì •ë³´: ë°°ì¹˜ ê°€ëŠ¥, ë°°ì¹˜ ë¶ˆê°€")]
     [SerializeField] private Color buildableColor = new Color(0f, 0.5f, 1f, 0.4f);
     [SerializeField] private Color unbuildableColor = new Color(1f, 0f, 0f, 0.4f);
 
-    // ÇöÀç ¼±ÅÃµÈ ½Ã¼³ µ¥ÀÌÅÍ, ¹èÄ¡ÇÒ ¶§ º¸ÀÌ´Â ÇÁ¸®ºä
+    // í˜„ì¬ ì„ íƒëœ ì‹œì„¤ ë°ì´í„°, ë°°ì¹˜í•  ë•Œ ë³´ì´ëŠ” í”„ë¦¬ë·°
     private BuildingData selectedBuildingData;
     private GameObject currentPreviewInstance;
 
-    // ÇÁ¸®ºä ÃÖÃÊ ¼ÒÈ¯½Ã Ä³½ÌÇÏ¿© ÇÁ·¹ÀÓ¸¶´Ù È£ÃâÇÏ¿© ¿¬»êµÇÁö ¾Êµµ·Ï Ã³¸®
+    // í”„ë¦¬ë·° ìµœì´ˆ ì†Œí™˜ì‹œ ìºì‹±í•˜ì—¬ í”„ë ˆì„ë§ˆë‹¤ í˜¸ì¶œí•˜ì—¬ ì—°ì‚°ë˜ì§€ ì•Šë„ë¡ ì²˜ë¦¬
     private MeshRenderer[] previewRenderers;
 
     private int currentWidth;
     private int currentHeight;
 
-    // tileGrid => ¹Ù´Ú Å¸ÀÏ ÁÂÇ¥ / occupiedCells => ÇØ´ç ÁÂÇ¥¿¡ °Ç¹°ÀÌ Á¸ÀçÇÏ´ÂÁö ¿©ºÎ(ºó Å¸ÀÏ: false)
+    // tileGrid => ë°”ë‹¥ íƒ€ì¼ ì¢Œí‘œ / occupiedCells => í•´ë‹¹ ì¢Œí‘œì— ê±´ë¬¼ì´ ì¡´ì¬í•˜ëŠ”ì§€ ì—¬ë¶€(ë¹ˆ íƒ€ì¼: false)
     private GameObject[,] tileGrid;
     private Vector3 raycastHitPoint;
     private bool[,] occupiedCells;
 
-    // Å¸ÀÏ¿¡ ¹èÄ¡µÈ ½Ã¼³ Á¤º¸
-    private GameObject[,] buildingObjectsGrid; 
+    // íƒ€ì¼ì— ë°°ì¹˜ëœ ì‹œì„¤ ì •ë³´
+    private GameObject[,] buildingObjectsGrid;
     private BuildingData[,] buildingDataGrid;
 
-    // ÇöÀç ¸¶¿ì½º°¡ °¡¸®Å°´Â ½Ã¼³ÀÇ ½ÃÀÛÁ¡ ÁÂÇ¥
+    // í˜„ì¬ ë§ˆìš°ìŠ¤ê°€ ê°€ë¦¬í‚¤ëŠ” ì‹œì„¤ì˜ ì‹œì‘ì  ì¢Œí‘œ
     private int currentStartGridX;
     private int currentStartGridZ;
 
-    // ½Ã¼³ÀÇ È¸Àü »óÅÂ°¡ ¹İ¿µµÈ ÃÖÁ¾ Å©±â
+    // ì‹œì„¤ì˜ íšŒì „ ìƒíƒœê°€ ë°˜ì˜ëœ ìµœì¢… í¬ê¸°
     private int currentTargetWidth;
     private int currentTargetHeight;
-    
-    // ½Ã¼³ ¹èÄ¡ °¡´É ¿©ºÎ, ºÒ°¡´ÉÇÒ ¶§ DOTween Áøµ¿¿©ºÎ
+
+    // ì‹œì„¤ ë°°ì¹˜ ê°€ëŠ¥ ì—¬ë¶€, ë¶ˆê°€ëŠ¥í•  ë•Œ DOTween ì§„ë™ì—¬ë¶€
     private bool canPlaceCurrent = false;
     private bool isShaking = false;
 
-    // ±âº»¸ğµå, ¹èÄ¡¸ğµå¿¡ µû¸¥ °æ°è¼± Ã³¸®
+    // ê¸°ë³¸ëª¨ë“œ, ë°°ì¹˜ëª¨ë“œì— ë”°ë¥¸ ê²½ê³„ì„  ì²˜ë¦¬
     private Material defaultModeMaterial;
     private Material placeModeMaterial;
     private bool isPlacementMode = false;
 
-    // ½Ã¼³ ¹èÄ¡ ±â·Ï °ü¸®¿ë ÂüÁ¶
+    // ì‹œì„¤ ë°°ì¹˜ ê¸°ë¡ ê´€ë¦¬ìš© ì°¸ì¡°
     private BuildRecordManager buildRecordManager;
+
+    // ì¸ë²¤í† ë¦¬ì˜ ì„¤ê³„ë„ ìƒíƒœì— ë”°ë¼ í•„í„°ë§ëœ ì‹¤ì‹œê°„ ë°°ì¹˜ ê°€ëŠ¥ ê±´ë¬¼ ë¦¬ìŠ¤íŠ¸ ìºì‹œ
+    private List<BuildingData> currentAvailableBuildings = new List<BuildingData>();
+
+    // ë°°ì¹˜ ëª¨ë“œ ì§„í–‰ ë„ì¤‘ ì‹¤ì‹œê°„ìœ¼ë¡œ ì¦ê°ëœ ì„¤ê³„ë„ ë‚´ì—­ì„ ê¸°ì–µí•˜ì—¬ ë¡¤ë°± ì‹œ ì¸ë²¤í† ë¦¬ë¥¼ ì™„ë²½í•˜ê²Œ ì›ë³µí•©ë‹ˆë‹¤.
+    private List<ItemData> sessionRemovedBlueprints = new List<ItemData>();
+    private List<ItemData> sessionAddedBlueprints = new List<ItemData>();
 
     public int MouseGridX { get; private set; }
     public int MouseGridZ { get; private set; }
     public bool IsMouseOnGrid { get; private set; }
 
-    // ÀÌº¥Æ® ¹ßÇà(UI ¿¬°á¿ë)
+    // ì´ë²¤íŠ¸ ë°œí–‰(UI ì—°ê²°ìš©)
     public static event Action<bool, List<BuildingData>> OnPlacementModeChanged;
 
-    // TestÀü¿ªº¯¼ö
+    public static event Action OnGridDataChanged;
+
+    // Testì „ì—­ë³€ìˆ˜
     private int count = 5;
 
     private void Awake()
     {
-        if(buildRecordManager == null) buildRecordManager = FindFirstObjectByType<BuildRecordManager>();
+        if (buildRecordManager == null) buildRecordManager = FindFirstObjectByType<BuildRecordManager>();
     }
+
     private void Start()
     {
-        defaultModeMaterial = CreateGridMaterial(false);
+        // ğŸŒŸ [ë¨¸í‹°ë¦¬ì–¼ ë³´ì¡´]: í”„ë¦¬íŒ¹ ì›ë³¸ ë¨¸í‹°ë¦¬ì–¼ì„ ë¨¼ì € ìºì‹±í•©ë‹ˆë‹¤.
+        if (tilePrefab != null && tilePrefab.TryGetComponent<MeshRenderer>(out MeshRenderer prefabRenderer))
+        {
+            defaultModeMaterial = prefabRenderer.sharedMaterial;
+        }
+
+        // í”„ë¦¬íŒ¹ì— ë¨¸í‹°ë¦¬ì–¼ì´ ë¹„ì–´ìˆë‹¤ë©´ í”„ë¡œì íŠ¸ ë‚´ë¶€ ë¦¬ì†ŒìŠ¤ë¥¼ ìˆ˜ìƒ‰í•˜ì—¬ Green_Matë¥¼ ì£¼ì…í•©ë‹ˆë‹¤.
+        if (defaultModeMaterial == null)
+        {
+            defaultModeMaterial = Resources.Load<Material>("Green_Mat");
+        }
+        if (defaultModeMaterial == null)
+        {
+            defaultModeMaterial = Resources.FindObjectsOfTypeAll<Material>().FirstOrDefault(m => m != null && m.name == "Green_Mat");
+        }
+
         placeModeMaterial = CreateGridMaterial(true);
         InitializeGrid(5, 5);
     }
@@ -98,7 +130,7 @@ public class GridManager : MonoBehaviour
     {
         UpdateMouseGridPosition();
 
-        if(currentPreviewInstance != null)
+        if (currentPreviewInstance != null)
         {
             if (Mouse.current != null && Mouse.current.rightButton.wasPressedThisFrame)
             {
@@ -134,7 +166,6 @@ public class GridManager : MonoBehaviour
             if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame)
             {
                 if (EventSystem.current != null && IsPointerOverBlockingUI()) return;
-                //if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject()) return;
 
                 if (occupiedCells[MouseGridX, MouseGridZ] && buildingObjectsGrid[MouseGridX, MouseGridZ] != null)
                 {
@@ -145,19 +176,15 @@ public class GridManager : MonoBehaviour
                         PanelManager.Instance.OpenProductionPanel(facility);
                     }
 
-                    if(targetObj.TryGetComponent<ProductionCraftRuntime>(out ProductionCraftRuntime craft))
+                    if (targetObj.TryGetComponent<ProductionCraftRuntime>(out ProductionCraftRuntime craft))
                     {
                         PanelManager.Instance.OpenCraftingPanel(craft);
                     }
-
                 }
             }
         }
     }
 
-    /// <summary>
-    /// ÃÖÃÊ ¿µÁö »ı¼º½Ã 5x5 Å¸ÀÏ·Î »ı¼º½ÃÅ°´Â ÇÔ¼ö
-    /// </summary>
     public void InitializeGrid(int width, int height)
     {
         currentWidth = width;
@@ -177,9 +204,6 @@ public class GridManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// 5x5 ¿µÁö¸¦ ¾÷±×·¹ÀÌµå ÇÏ¿´À» ¶§, 1¾¿ »çÀÌÁî¸¦ ´Ã¸®´Â È®Àå¿ë ÇÔ¼ö
-    /// </summary>
     public void ExpandGrid(int newWidth, int newHeight)
     {
         if (newWidth == currentWidth || newHeight == currentHeight) return;
@@ -201,7 +225,6 @@ public class GridManager : MonoBehaviour
             }
         }
 
-        // »õ·Ó°Ô È®ÀåµÇ´Â ¿Ü°û¼± ¿µ¿ª¿¡¸¸ Å¸ÀÏ Ãß°¡ ½ºÆù
         for (int i = 0; i < newWidth; i++)
         {
             for (int j = 0; j < newHeight; j++)
@@ -221,67 +244,78 @@ public class GridManager : MonoBehaviour
         currentHeight = newHeight;
     }
 
-    /// <summary>
-    /// Æ¯Á¤ ÁÂÇ¥¿¡ Quad Å¸ÀÏÀ» ¿Ã¹Ù¸¥ ¿ÀÇÁ¼ÂÀ¸·Î »ı¼ºÇÏ´Â ¼­ºê ·çÆ¾
-    /// </summary>
     private GameObject SpawnTile(int x, int z)
     {
-        // QuadÀÇ ÇÇ¹şÀÌ Áß¾ÓÀÌ¹Ç·Î ¿ùµå ÁÂÇ¥ (x + 0.5, z + 0.5)¿¡ ¹èÄ¡ÇØ¾ß 
-        // 0.0~1.0 ¿µ¿ªÀÌ ¿Ïº®ÇÏ°Ô 1Ä­ÀÇ °İÀÚ°¡ µË´Ï´Ù.
         Vector3 spawnPosition = new Vector3(x + 0.5f, 0f, z + 0.5f);
-
 
         GameObject newTile = Instantiate(tilePrefab, spawnPosition, Quaternion.Euler(90, 0, 0), floorContainer);
         newTile.name = $"Tile_({x},{z})";
 
         if (newTile.TryGetComponent<MeshRenderer>(out MeshRenderer meshRenderer))
         {
-            meshRenderer.material = isPlacementMode ? placeModeMaterial : defaultModeMaterial;
+            meshRenderer.material = defaultModeMaterial;
         }
+
+        GameObject gridOverlay = GameObject.CreatePrimitive(PrimitiveType.Quad);
+        if (gridOverlay.TryGetComponent<Collider>(out var col)) DestroyImmediate(col);
+
+        gridOverlay.name = "GridOverlay";
+        gridOverlay.transform.SetParent(newTile.transform);
+        gridOverlay.transform.localPosition = new Vector3(0f, 0f, -0.001f); 
+        gridOverlay.transform.localRotation = Quaternion.identity;
+        gridOverlay.transform.localScale = Vector3.one;
+
+        if (gridOverlay.TryGetComponent<MeshRenderer>(out MeshRenderer overlayRenderer))
+        {
+            overlayRenderer.material = placeModeMaterial;
+        }
+
+        // í˜„ì¬ ëª¨ë“œ ìƒíƒœì— ë§ì¶”ì–´ ê²©ì ê°€ì´ë“œ ë ˆì´ì–´ë¥¼ í™œì„±í™”/ë¹„í™œì„±í™” ì²˜ë¦¬í•©ë‹ˆë‹¤.
+        gridOverlay.SetActive(isPlacementMode);
 
         return newTile;
     }
 
-    /// <summary>
-    /// ¹öÆ° ¿¬µ¿À» ÅëÇØ ¹èÄ¡¸ğµå ÀüÈ¯Ã³¸®
-    /// </summary>
     public void ChangePlacementMode()
     {
         isPlacementMode = !isPlacementMode;
 
-        OnPlacementModeChanged?.Invoke(isPlacementMode, buildings);
-
         if (isPlacementMode)
         {
+            sessionRemovedBlueprints.Clear();
+            sessionAddedBlueprints.Clear();
+
             buildRecordManager?.SaveRollbackData(buildingObjectsGrid, buildingDataGrid, currentWidth, currentHeight);
-            
         }
         else
         {
             ClearPreview();
         }
 
+        currentAvailableBuildings = GetAvailableBuildingsFromInventory();
+        OnPlacementModeChanged?.Invoke(isPlacementMode, currentAvailableBuildings);
+
         if (tileGrid == null) return;
 
-        Material targetMaterial = isPlacementMode ? placeModeMaterial : defaultModeMaterial;
-
+        // ğŸŒŸ [êµ¬ì¡° ë³€ê²½ ë¶€ìœ„]: ë³¸ì²´ ì¬ì§ˆì„ ê±´ë“œë¦¬ì§€ ì•Šê³  ìì‹ ê²©ì ë ˆì´ì–´(GridOverlay)ì˜ í™œì„±í™” ì—¬ë¶€ë§Œ ì œì–´í•©ë‹ˆë‹¤.
         for (int i = 0; i < currentWidth; i++)
         {
             for (int j = 0; j < currentHeight; j++)
             {
-                if (tileGrid[i, j] != null && tileGrid[i, j].TryGetComponent<MeshRenderer>(out MeshRenderer meshRenderer))
+                if (tileGrid[i, j] != null)
                 {
-                    meshRenderer.material = targetMaterial;
+                    Transform overlay = tileGrid[i, j].transform.Find("GridOverlay");
+                    if (overlay != null)
+                    {
+                        overlay.gameObject.SetActive(isPlacementMode);
+                    }
                 }
             }
         }
 
-        Debug.Log($"¹èÄ¡ ¸ğµå »óÅÂ º¯°æ: {isPlacementMode}");
+        Debug.Log($"ë°°ì¹˜ ëª¨ë“œ ìƒíƒœ ë³€ê²½: {isPlacementMode} | ë°°ì¹˜ ê°€ëŠ¥ ê±´ë¬¼ ìˆ˜: {currentAvailableBuildings.Count}ê°œ");
     }
 
-    /// <summary>
-    /// ¹èÄ¡¸ğµå°¡ ´İÇûÀ» ¶§ ÇÁ¸®ºä, ¼±ÅÃ °Ç¹° µ¥ÀÌÅÍ ÃÊ±âÈ­
-    /// </summary>
     private void ClearPreview()
     {
         if (currentPreviewInstance != null)
@@ -296,15 +330,11 @@ public class GridManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// ¸¶¿ì½ºÀÇ ·¹ÀÌÄ³½ºÆ® ÁÂÇ¥¸¦ Á¤¼öÇü Grid ÁÂÇ¥·Î º¯È¯ÇÏ´Â ÇÙ½É ·ÎÁ÷
-    /// </summary>
     private void UpdateMouseGridPosition()
     {
         if (Mouse.current == null) return;
 
         Vector2 mousePosition = Mouse.current.position.ReadValue();
-
         Ray ray = Camera.main.ScreenPointToRay(mousePosition);
 
         if (Physics.Raycast(ray, out RaycastHit hit, Mathf.Infinity, gridLayerMask))
@@ -321,10 +351,6 @@ public class GridManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// ¸¶¿ì½º À§Ä¡¸¦ Update¿¡¼­ °è»ê
-    /// À§Ä¡ ±â¹İ ÇÁ¸®ºä¸¦ °İÀÚ¿¡ ¸ÂÃç Á¤·Ä½ÃÅ°°í ÇØ´ç À§Ä¡¿¡ ½Ã¼³ ¹èÄ¡°¡ °¡´ÉÇÑÁö ¿©ºÎ Ã¼Å© ¹× »ö»óº¯°æ
-    /// </summary>
     private void UpdatePreviewPosition()
     {
         if (selectedBuildingData == null || currentPreviewInstance == null) return;
@@ -336,7 +362,6 @@ public class GridManager : MonoBehaviour
         currentTargetWidth = isRotated ? selectedBuildingData.height : selectedBuildingData.width;
         currentTargetHeight = isRotated ? selectedBuildingData.width : selectedBuildingData.height;
 
-        // ÇöÀç ¸¶¿ì½º À§Ä¡¸¦ ±âÁØÀ¸·Î ÇÁ¸®ºäÀÇ ½ÃÀÛ ÁÂÇ¥¸¦ °è»ê
         currentStartGridX = Mathf.FloorToInt(raycastHitPoint.x - (currentTargetWidth / 2.0f));
         currentStartGridZ = Mathf.FloorToInt(raycastHitPoint.z - (currentTargetHeight / 2.0f));
 
@@ -345,16 +370,21 @@ public class GridManager : MonoBehaviour
         currentPreviewInstance.transform.position = new Vector3(offsetX, 0f, offsetZ);
 
         canPlaceCurrent = CheckPlacement(currentStartGridX, currentStartGridZ, currentTargetWidth, currentTargetHeight);
+
+        if (canPlaceCurrent && selectedBuildingData.requireBlueprint != null)
+        {
+            var inventory = FindFirstObjectByType<PlayerInventory>();
+            if (inventory == null || inventory.GetItemAmount(selectedBuildingData.requireBlueprint.Item_ID) <= 0)
+            {
+                canPlaceCurrent = false;
+            }
+        }
+
         UpdatePreviewVisual(canPlaceCurrent);
     }
 
-    /// <summary>
-    /// °Ç¹°ÀÌ ¿µÁöÀÇ ¿Ü°ûÀ» ¹ş¾î³ª°Å³ª ´Ù¸¥ °Ç¹°°ú °ãÄ¡´ÂÁö¸¦ °Ë»çÇÏ´Â ÇÔ¼ö
-    /// ÀÌ ÇÔ¼ö¸¦ ÅëÇØ ÀÌÈÄ UpdatePreviewPosition¿¡¼­ ÇÁ¸®ºä »ö»óÀ» º¯°æ.
-    /// </summary>
     private bool CheckPlacement(int startX, int startZ, int width, int height)
     {
-
         for (int x = startX; x < startX + width; x++)
         {
             for (int z = startZ; z < startZ + height; z++)
@@ -370,32 +400,28 @@ public class GridManager : MonoBehaviour
                 }
             }
         }
-        return true; 
+        return true;
     }
 
-    /// <summary>
-    /// ÀÓ½Ã. ÃÊ·Ï»ö Å¸ÀÏ
-    /// ¹èÄ¡¸ğµå·Î º¯°æµÇ¸é ÃÊ·Ï»ö Å¸ÀÏ + ¿Ü°û¼± Ã³¸®ÇÏ¿© 1x1 Å¸ÀÏÀÌ ºÙ¾îÀÖ´Ù´Â ½Ã°¢ Á¤º¸ Á¦°ø
-    /// </summary>
     private Material CreateGridMaterial(bool isPlacementMode)
     {
         Texture2D texture = new Texture2D(64, 64);
         texture.filterMode = FilterMode.Point;
 
-        Color grassGreen = new Color(0.3f, 0.75f, 0.3f);
-        Color borderColor = new Color(0.15f, 0.5f, 0.15f);
+        // ê°€ì¥ ê¸°ë³¸ì ì´ê³  ê¹”ë”í•œ íšŒìƒ‰ ê²©ì ê°€ì´ë“œ ë¼ì¸ í‹´íŠ¸ ìƒ‰ìƒ ê·œê²©
+        Color gridBorderColor = new Color(0.5f, 0.5f, 0.5f, 0.4f);
 
         for (int y = 0; y < 64; y++)
         {
             for (int x = 0; x < 64; x++)
             {
-                if (isPlacementMode && (x < 2 || x > 61 || y < 2 || y > 61))
+                if (x < 2 || x > 61 || y < 2 || y > 61)
                 {
-                    texture.SetPixel(x, y, borderColor);
+                    texture.SetPixel(x, y, gridBorderColor);
                 }
                 else
                 {
-                    texture.SetPixel(x, y, grassGreen);
+                    texture.SetPixel(x, y, Color.clear);
                 }
             }
         }
@@ -403,26 +429,26 @@ public class GridManager : MonoBehaviour
 
         Material mat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
         mat.SetTexture("_BaseMap", texture);
+        mat.SetColor("_BaseColor", Color.white);
+
+        mat.SetFloat("_Surface", 1f); // 1.0f = Transparent
+        mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+        mat.SetInt("_ZWrite", 0);
+        mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
 
         return mat;
     }
 
-    /// <summary>
-    /// ¸¶¿ì½º ÁÂÅ¬¸¯½Ã ¹èÄ¡ °¡´ÉÇÑÁö È®ÀÎ ÈÄ ½Ã¼³ ½ÇÁ¦ »ı¼º ¹× Á¡À¯ ¾÷µ¥ÀÌÆ®
-    /// ºÒ°¡´ÉÇÑ À§Ä¡¿¡ ¹èÄ¡ ½Ãµµ½Ã DOTween Áøµ¿È¿°ú Ã³¸®
-    /// </summary>
     private void TryPlaceBuilding()
     {
-        Debug.Log($"[Click °ËÁõ] ¹èÄ¡°¡´É¿©ºÎ: {canPlaceCurrent} | SOµ¥ÀÌÅÍÁ¸Àç: {selectedBuildingData != null} | ÇÁ¸®ºäÁ¸Àç: {currentPreviewInstance != null}");
-
         if (!canPlaceCurrent || selectedBuildingData == null || currentPreviewInstance == null)
         {
             if (!isShaking && currentPreviewInstance != null)
             {
                 isShaking = true;
-
                 currentPreviewInstance.transform.DOKill();
-
                 currentPreviewInstance.transform.DOShakePosition(0.25f, new Vector3(0.25f, 0f, 0.25f), 40, 90, false, true)
                     .OnComplete(() =>
                     {
@@ -461,14 +487,26 @@ public class GridManager : MonoBehaviour
             }
         }
 
-        Debug.Log($"[Build] {selectedBuildingData.buildingName} °Ç¼³ ¼º°ø!");
+        if (selectedBuildingData.requireBlueprint != null)
+        {
+            var inventory = FindFirstObjectByType<PlayerInventory>();
+            if (inventory != null)
+            {
+                inventory.RemoveItem(selectedBuildingData.requireBlueprint.Item_ID, 1);
+                sessionRemovedBlueprints.Add(selectedBuildingData.requireBlueprint);
+            }
+        }
+
+        Debug.Log($"[Build] {selectedBuildingData.buildingName} ê±´ì„¤ ì„±ê³µ!");
 
         ClearPreview();
+
+        currentAvailableBuildings = GetAvailableBuildingsFromInventory();
+        OnPlacementModeChanged?.Invoke(isPlacementMode, currentAvailableBuildings);
+
+        OnGridDataChanged?.Invoke();
     }
 
-    /// <summary>
-    /// ÀÌ¹Ì ¼³Ä¡µÈ ½Ã¼³¿¡ ÁÂÅ¬¸¯½Ã ¹èÄ¡µÈ Á¤º¸ Á¦°Å, ÇÁ¸®ºä·Î ÀüÈ¯Ã³¸®
-    /// </summary>
     private void TryPickUpBuilding(int x, int z)
     {
         if (x < 0 || x >= currentWidth || z < 0 || z >= currentHeight) return;
@@ -476,7 +514,6 @@ public class GridManager : MonoBehaviour
 
         GameObject targetBuilding = buildingObjectsGrid[x, z];
         BuildingData retrievedData = buildingDataGrid[x, z];
-
         Quaternion targetRotation = targetBuilding.transform.rotation;
 
         for (int i = 0; i < currentWidth; i++)
@@ -492,33 +529,43 @@ public class GridManager : MonoBehaviour
             }
         }
 
-        int buildingIndex = buildings.IndexOf(retrievedData);
-        if (buildingIndex >= 0)
+        Destroy(targetBuilding);
+
+        if (retrievedData != null && retrievedData.requireBlueprint != null)
         {
-            CreateBuildingPreview(buildingIndex);
+            var inventory = FindFirstObjectByType<PlayerInventory>();
+            if (inventory != null)
+            {
+                inventory.AddItem(retrievedData.requireBlueprint, 1);
+                sessionAddedBlueprints.Add(retrievedData.requireBlueprint);
+            }
+        }
+
+        currentAvailableBuildings = GetAvailableBuildingsFromInventory();
+        OnPlacementModeChanged?.Invoke(isPlacementMode, currentAvailableBuildings);
+
+        OnGridDataChanged?.Invoke();
+
+        int availableIndex = currentAvailableBuildings.IndexOf(retrievedData);
+        if (availableIndex >= 0)
+        {
+            CreateBuildingPreview(availableIndex);
 
             if (currentPreviewInstance != null)
             {
                 currentPreviewInstance.transform.rotation = targetRotation;
             }
-
-            Debug.Log($"[PickUp] {retrievedData.buildingName} Á¤º¸¸¦ È¸¼öÇÏ¿© Àç¹èÄ¡ ¸ğµå·Î ÀüÈ¯ÇÕ´Ï´Ù.");
         }
-
-        Destroy(targetBuilding);
     }
 
-    /// <summary>
-    /// ¼±ÅÃÇÑ ½Ã¼³ ÀÌ¹ÌÁö Å¬¸¯½Ã ±¸µ¶ÇÏ¿© ¸¶¿ì½º¿¡ 3DÇÁ¸®ºä¸¦ »ı¼ºÃ³¸®
-    /// </summary>
     private void CreateBuildingPreview(int buildingIndex)
     {
-        if (buildingIndex < 0 || buildingIndex >= buildings.Count) return;
+        if (buildingIndex < 0 || buildingIndex >= currentAvailableBuildings.Count) return;
 
         ClearPreview();
-        selectedBuildingData = buildings[buildingIndex];
+        selectedBuildingData = currentAvailableBuildings[buildingIndex];
 
-        if(selectedBuildingData.buildingPrefab != null)
+        if (selectedBuildingData.buildingPrefab != null)
         {
             currentPreviewInstance = Instantiate(selectedBuildingData.buildingPrefab);
             if (currentPreviewInstance.TryGetComponent<BuildingRuntime>(out BuildingRuntime buildingRuntime))
@@ -540,9 +587,6 @@ public class GridManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// ÇÁ¸®ºä ¸Ş½¬ÀÇ »ö»óÀ» ÆÄ¶õ»ö/»¡°£»öÀ¸·Î º¯°æÇÏ´Â ÇÔ¼ö
-    /// </summary>
     private void UpdatePreviewVisual(bool canPlace)
     {
         if (previewRenderers == null) return;
@@ -563,19 +607,12 @@ public class GridManager : MonoBehaviour
         if (currentPreviewInstance == null) return;
 
         float currentY = currentPreviewInstance.transform.eulerAngles.y;
-
         float rotateY = (currentY > 45f) ? 0f : 90f;
 
         currentPreviewInstance.transform.rotation = Quaternion.Euler(0f, rotateY, 0f);
-
         UpdatePreviewPosition();
     }
 
-    /// <summary>
-    /// ÀúÀå È£Ãâ ÇÔ¼ö
-    /// PlacementUI¿¡¼­ ÀúÀå ¹öÆ° Å¬¸¯ -> GridManager.SavePlacement()È£Ãâ -> BuildRecordManager.Save()¸¦ È£Ãâ
-    /// ¸¶Áö¸·À¸·Î ChangePlacementMode()¸¦ È£ÃâÇÏ¿© ¹èÄ¡¸ğµå Á¾·á
-    /// </summary>
     public void SavePlacement()
     {
         if (!isPlacementMode) return;
@@ -584,14 +621,12 @@ public class GridManager : MonoBehaviour
         buildRecordManager.ClearRecordOnSave();
         ChangePlacementMode();
 
+        sessionRemovedBlueprints.Clear();
+        sessionAddedBlueprints.Clear();
+
         TriggerSatisfactionUpdate();
     }
 
-    /// <summary>
-    /// PlacementUI¿¡¼­ Ãë¼Ò¹öÆ° Å¬¸¯½Ã È£Ãâ
-    /// GridManager.CancelPlacement() È£Ãâ -> BuildRecordManager.Cancel()¸¦ È£Ãâ
-    /// ±âÁ¸ ¸ğµç ¹èÄ¡ Á¤º¸¸¦ Á¦°ÅÃ³¸® -> SnapShot µ¥ÀÌÅÍ¸¦ °¡Á®¿Í º¹±¸Ã³¸® ÁøÇà
-    /// </summary>
     public void CancelPlacement()
     {
         if (!isPlacementMode) return;
@@ -602,16 +637,26 @@ public class GridManager : MonoBehaviour
         List<BuildingSnapshot> rollbackData = buildRecordManager.Rollback();
         RestoreRollbackData(rollbackData);
 
+        var inventory = FindFirstObjectByType<PlayerInventory>();
+        if (inventory != null)
+        {
+            foreach (var item in sessionRemovedBlueprints)
+            {
+                inventory.AddItem(item, 1);
+            }
+            foreach (var item in sessionAddedBlueprints)
+            {
+                inventory.RemoveItem(item.Item_ID, 1);
+            }
+        }
+        sessionRemovedBlueprints.Clear();
+        sessionAddedBlueprints.Clear();
+
         ChangePlacementMode();
 
         TriggerSatisfactionUpdate();
     }
 
-    /// <summary>
-    /// ¹èÄ¡¸ğµå µµÁß º¯°æµÈ ¸ğµç ¹èÄ¡Á¤º¸ Á¦°ÅÃ³¸®
-    /// ÀüÃ¼ ÁÂÇ¥¿¡¼­ ¹èÄ¡µÈ ½Ã¼³À» Ã£°í ÇØ´ç ½Ã¼³ÀÌ ¹èÄ¡µÈ ¸ğµç Á¤º¸¸¦ ´Ù½Ã ¼øÈ¸ÇÏ¿© ÀÏ°ı Á¦°ÅÃ³¸®
-    /// ÀÌÈÄ, ¸Ş¸ğ¸® ÇØÁ¦¸¦ À§ÇØ Destroy() È£Ãâ
-    /// </summary>
     private void ClearAllPlacedBuildings()
     {
         for (int x = 0; x < currentWidth; x++)
@@ -639,11 +684,6 @@ public class GridManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Stack¿¡¼­ ÀúÀåÇß´ø rollbackData¸¦ °¡Á®¿Í¼­ ºó ¹èÄ¡»óÅÂ¿¡¼­ ´Ù½Ã ¹èÄ¡Ã³¸®
-    /// È¸Àü »óÅÂ ±â¹İ °¡·Î¼¼·Î °è»ê -> °Ç¹°ÀÇ Á¤Áß¾Ó ¿ùµå ÁÂÇ¥ ¿ª»ê
-    /// ÀÌÈÄ ´Ù½Ã °Ç¹° »ı¼º ¹× Á¡À¯»óÅÂ ¾÷µ¥ÀÌÆ®
-    /// </summary>
     private void RestoreRollbackData(List<BuildingSnapshot> rollbackData)
     {
         if (rollbackData == null) return;
@@ -669,6 +709,77 @@ public class GridManager : MonoBehaviour
                 buildingRuntime.Initialize(snap.data, snap.startX, snap.startZ);
             }
 
+            string uniqueId = $"{snap.data.buildingName}_{snap.startX}_{snap.startZ}";
+            if (RecordManager.Instance != null)
+            {
+                PlantJSONSaveData entry = RecordManager.Instance.GetFacilityData(uniqueId);
+                if (entry != null)
+                {
+                    List<CapturedMemEntry> matchedEntries = new List<CapturedMemEntry>();
+                    List<MemData> restoredMems = new List<MemData>();
+
+                    var memManager = FindFirstObjectByType<MemCaptureManager>();
+                    if (memManager != null && entry.DeployedMemIDs != null)
+                    {
+                        var warehouseList = memManager.CapturedMems;
+                        foreach (var savedKeyId in entry.DeployedMemIDs)
+                        {
+                            var warehouseMatch = warehouseList.FirstOrDefault(m => m != null && m.KeyId == savedKeyId);
+                            if (warehouseMatch != null)
+                            {
+                                warehouseMatch.IsActive = true;
+                                matchedEntries.Add(warehouseMatch);
+
+                                MemData mData = new MemData();
+                                mData.memName = warehouseMatch.MemId;
+
+                                var template = MemCatalogManager.Instance != null ? MemCatalogManager.Instance.FindMemData(warehouseMatch.MemId) : null;
+                                mData.maxHunger = (template != null) ? template.maxHunger : 10;
+
+                                restoredMems.Add(mData);
+                            }
+                        }
+                    }
+
+                    if (restoredBuilding.TryGetComponent<ProductionFacilityRuntime>(out var facility))
+                    {
+                        facility.buildingData = snap.data;
+                        facility.isProducing = entry.isActive;
+                        facility.currentProgressTime = entry.currentProgressTime;
+                        facility.currentStorageCount = entry.currentStorageCount;
+                        facility.craftingItem = FindItemDataInProject(entry.currentCraftingItemId);
+                        facility.UpdateMaxStorage();
+
+                        if (facility.DeployedMems != null && facility.DeployedMemEntries != null)
+                        {
+                            facility.DeployedMems.Clear();
+                            facility.DeployedMemEntries.Clear();
+                            facility.DeployedMems.AddRange(restoredMems);
+                            facility.DeployedMemEntries.AddRange(matchedEntries);
+                        }
+                        facility.CheckProductionCondition();
+                    }
+                    else if (restoredBuilding.TryGetComponent<ProductionCraftRuntime>(out var craft))
+                    {
+                        craft.buildingData = snap.data;
+                        craft.isProducing = entry.isActive;
+                        craft.targetQuantity = entry.targetQuantity;
+                        craft.remainingQuantity = entry.remainingQuantity;
+                        craft.currentProgressTime = entry.currentProgressTime;
+                        craft.currentStorageCount = entry.currentStorageCount;
+                        craft.currentCraftingItem = FindItemDataInProject(entry.currentCraftingItemId);
+
+                        if (craft.DeployedMems != null && craft.DeployedMemEntries != null)
+                        {
+                            craft.DeployedMems.Clear();
+                            craft.DeployedMemEntries.Clear();
+                            craft.DeployedMems.AddRange(restoredMems);
+                            craft.DeployedMemEntries.AddRange(matchedEntries);
+                        }
+                    }
+                }
+            }
+
             for (int x = snap.startX; x < snap.startX + bWidth; x++)
             {
                 for (int z = snap.startZ; z < snap.startZ + bHeight; z++)
@@ -679,6 +790,13 @@ public class GridManager : MonoBehaviour
                 }
             }
         }
+    }
+
+    private ItemData FindItemDataInProject(string itemId)
+    {
+        if (string.IsNullOrEmpty(itemId)) return null;
+        ItemData[] allItems = Resources.FindObjectsOfTypeAll<ItemData>();
+        return allItems.FirstOrDefault(item => item != null && item.Item_ID == itemId);
     }
 
     private bool IsPointerOverBlockingUI()
@@ -707,7 +825,7 @@ public class GridManager : MonoBehaviour
 
                 if (uiName.Contains("root") || uiName.Contains("hud") || uiName.Equals("panel") || uiName.Contains("bg") || uiName.Contains("background"))
                 {
-                    continue; 
+                    continue;
                 }
 
                 return true;
@@ -717,9 +835,6 @@ public class GridManager : MonoBehaviour
         return false;
     }
 
-    /// <summary>
-    /// Å¸ÀÏ Àü¼öÁ¶»ç¸¦ ÅëÇÑ ¸¸Á·µµ °è»ê
-    /// </summary>
     public int GetTotalSatisfactionFromGrid()
     {
         int totalSatisfaction = 0;
@@ -735,7 +850,7 @@ public class GridManager : MonoBehaviour
 
                 if (buildingObj != null && !countedBuildings.Contains(buildingObj))
                 {
-                    countedBuildings.Add(buildingObj); 
+                    countedBuildings.Add(buildingObj);
 
                     if (buildingObj.TryGetComponent<BuildingRuntime>(out BuildingRuntime runtime))
                     {
@@ -760,14 +875,28 @@ public class GridManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// È®Àå¿¡ ´ëÇÑ Å×½ºÆ®ÇÔ¼ö
-    /// </summary>
+    private List<BuildingData> GetAvailableBuildingsFromInventory()
+    {
+        List<BuildingData> filteredList = new List<BuildingData>();
+        PlayerInventory inventory = FindFirstObjectByType<PlayerInventory>();
+
+        foreach (var bData in buildings)
+        {
+            if (bData == null) continue;
+
+            if (bData.requireBlueprint == null || (inventory != null && inventory.GetItemAmount(bData.requireBlueprint.Item_ID) > 0))
+            {
+                filteredList.Add(bData);
+            }
+        }
+
+        return filteredList;
+    }
+
     [ContextMenu("Function: Expand to Test")]
     public void TestExpand()
     {
         count++;
         ExpandGrid(count, count);
     }
-
 }

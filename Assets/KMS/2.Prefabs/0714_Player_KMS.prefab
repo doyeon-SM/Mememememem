@@ -2915,9 +2915,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ed62db97f2ac3ce4398f97ad3a441a1e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::KMS.PlayerInput
+  inputActions: {fileID: -944628639613478452, guid: 5a1c6636b5524da08847138a2cb64292, type: 3}
   mouseLookScale: 1
   gamepadLookScale: 12
-  interactKey: 20
 --- !u!114 &4191295553828768883
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3103,6 +3103,7 @@ MonoBehaviour:
   input: {fileID: 2825149733357899923}
   movement: {fileID: 757377502652196312}
   inventory: {fileID: 9124669202358280069}
+  playerStats: {fileID: 4191295553828768883}
   cameraTransform: {fileID: 0}
   animator: {fileID: 1914156871709254916}
   catalogManager: {fileID: 0}
@@ -3113,6 +3114,9 @@ MonoBehaviour:
   harvestCooldown: 0.35
   toolUseCooldown: 0.5
   fallbackToolDamage: 1
+  memMeleeItemId: tool_shabby_club
+  memMeleeDistance: 5
+  memMeleeHungerCost: 1
   drawDebugRay: 1
   debugMissColor: {r: 1, g: 0, b: 0, a: 1}
   debugHitColor: {r: 0, g: 1, b: 0, a: 1}
@@ -3210,8 +3214,6 @@ MonoBehaviour:
   playerMovement: {fileID: 0}
   cameraController: {fileID: 0}
   inventoryUi: {fileID: 0}
-  preferHdyUiManagerWhenAvailable: 0
-  hdyOpenMethodName: OpenPrefab
 --- !u!114 &2109728097256706564
 MonoBehaviour:
   m_ObjectHideFlags: 0

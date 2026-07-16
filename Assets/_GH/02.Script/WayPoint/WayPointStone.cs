@@ -88,6 +88,12 @@ public class WayPointStone : MonoBehaviour, IInteractable
     /// <summary>KMS 상호작용 요청을 받아 웨이포인트 이동 모드로 지도 UI를 엽니다.</summary>
     public void Interact(PlayerInteraction interactor)
     {
+        if (WayPointManager.Instance != null)
+        {
+            WayPointManager.Instance.OpenMapFromStone(definition);
+            return;
+        }
+
         WayPointMapUI targetMapUI = ResolveMapUI();
         if (targetMapUI != null)
         {
