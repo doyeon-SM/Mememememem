@@ -1,0 +1,83 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &1601920176619167970
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 4213579412577935304}
+  - component: {fileID: 8656020411438665445}
+  - component: {fileID: 5809573651412473617}
+  m_Layer: 0
+  m_Name: WayPointManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &4213579412577935304
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1601920176619167970}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -0.7852907, y: 0, z: -2.4715605}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &8656020411438665445
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1601920176619167970}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: be365c90650f24b4b8b1613f0e45cd55, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::WayPointManager
+  mapDefinitions:
+  - {fileID: 11400000, guid: 998808f35b3ba4b4ba4524769475b42b, type: 2}
+  - {fileID: 11400000, guid: 0191426a15940084ab1e6cde2a9089e5, type: 2}
+  definitions:
+  - {fileID: 11400000, guid: 2d568582931eb254cb9159dc95912480, type: 2}
+  - {fileID: 11400000, guid: bcb7e3164fe3c384298b4d8d372d06e2, type: 2}
+  - {fileID: 11400000, guid: 8d8da0178c653104485d7f01705b1332, type: 2}
+  player: {fileID: 0}
+  autoFindPlayerByTag: 1
+  playerTag: Player
+  dontDestroyOnLoad: 1
+  logWayPointState: 1
+  logUnlockStackTrace: 1
+--- !u!114 &5809573651412473617
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1601920176619167970}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 682a78aa9ef757f4580f748fec4e013b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::WayPointUIToggle
+  targetUI: {fileID: 0}
+  mapUI: {fileID: 0}
+  hideOnStart: 1
+  legacyToggleKey: 109
+  shortcutOpenMode: 0
+  shortcutMap: {fileID: 0}
+  shortcutTravelSceneNames:
+  - Territory
+  notifyInputManager: 1
+  blockKmsPlayerInput: 1
+  unlockCursorWhileOpen: 1

@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8dfff957c00413340a48e8d59c2e1f4b, type: 3}
+  m_Name: Shop_BaseBluePrint
+  m_EditorClassIdentifier: Assembly-CSharp::HDY.Shop.ShopItemData
+  Item_ID: item_baseblueprint
+  Selling_Price: 0
+  Purchase_Price_Golds: 1000
+  Purchase_Price_Material:
+    Item_ID: 
+    Amount: 0
+  Purchase_MaxAmount: 999999
+  Selling_MaxAmount: 0

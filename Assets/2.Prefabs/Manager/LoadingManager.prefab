@@ -1,0 +1,82 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &4671237478297558605
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 7401636868874155413}
+  - component: {fileID: 1850859522585444131}
+  - component: {fileID: 3249628578294396626}
+  m_Layer: 0
+  m_Name: LoadingManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &7401636868874155413
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4671237478297558605}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: -7.61944, y: 0, z: 12.93876}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1850859522585444131
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4671237478297558605}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 55953d073bf41fe4280c632206cffabc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::GH.Loading.LoadingManager
+  loadingPanelPrefab: {fileID: 6680786875040876863, guid: dc41aa79ab2cb6b4795f84f01003b1b2, type: 3}
+  progressSlider: {fileID: 0}
+  descriptionText: {fileID: 0}
+  percentText: {fileID: 0}
+  tipText: {fileID: 0}
+  actualLoadingProgressPortion: 0.9
+  presentationDurationRange: {x: 3, y: 4}
+  loadingTips: []
+  presentationDescription: "\uC6D4\uB4DC \uBC30\uCE58 \uC911"
+  taskBehaviours:
+  - {fileID: 3249628578294396626}
+  playOnStart: 0
+  dontDestroyOnLoad: 1
+  onLoadingStarted:
+    m_PersistentCalls:
+      m_Calls: []
+  onLoadingCompleted:
+    m_PersistentCalls:
+      m_Calls: []
+--- !u!114 &3249628578294396626
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4671237478297558605}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1885c00c45fdcde44ab324d431bc8b75, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::GH.Loading.SceneLoadTask
+  fallbackSceneName: '[BB] Core'
+  loadSceneMode: 0
+  weight: 0.7
+  description: "\uC6D4\uB4DC \uC52C \uBD88\uB7EC\uC624\uB294 \uC911"
