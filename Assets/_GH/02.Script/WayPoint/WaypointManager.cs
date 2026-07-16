@@ -1,8 +1,11 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using GH.Loading;
+using KMS.InventoryDuped;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.Serialization;
 
 /// <summary>
 /// 모든 웨이포인트의 런타임 해금 상태, 지도 개방 조건, 스톤 등록과 이동 요청을 관리합니다.
@@ -18,10 +21,31 @@ public class WayPointManager : MonoBehaviour
     [SerializeField] private List<WayPointMapDefinition> mapDefinitions = new List<WayPointMapDefinition>();
     [SerializeField] private List<WayPointDefinition> definitions = new List<WayPointDefinition>();
 
+    [Header("Scene Map UI")]
+    [Tooltip("활성 씬에서 비활성 오브젝트까지 포함해 자동으로 찾습니다.")]
+    [SerializeField] private WayPointMapUI mapUI;
+    [SerializeField] private bool hideMapOnSceneLoad = true;
+
+    [Header("Shortcut Map")]
+    [SerializeField] private WayPointMapOpenMode shortcutOpenMode = WayPointMapOpenMode.PreviewOnly;
+    [SerializeField] private WayPointMapDefinition shortcutMap;
+    [Tooltip("등록된 씬에서는 단축키 지도를 웨이포인트 이동 모드로 엽니다.")]
+    [SerializeField] private List<string> shortcutTravelSceneNames = new List<string> { "Territory" };
+
+    [Header("Map Input And Cursor")]
+    [SerializeField] private bool notifyInputManager = true;
+    [SerializeField] private bool blockKmsPlayerInput = true;
+    [Tooltip("일반 씬에서 지도를 열면 커서를 표시하고, 닫으면 다시 숨기고 잠급니다.")]
+    [SerializeField] private bool unlockCursorWhileOpen = true;
+    [Tooltip("등록된 씬에 진입하면 커서를 항상 표시하고 잠금을 해제합니다. 지도 열기/닫기 후에도 이 상태를 유지합니다.")]
+    [SerializeField] private List<string> alwaysVisibleCursorSceneNames = new List<string> { "Territory" };
+
     [Header("Runtime")]
     [SerializeField] private Transform player;
-    [SerializeField] private bool autoFindPlayerByTag = true;
+    [FormerlySerializedAs("autoFindPlayerByTag")]
+    [SerializeField] private bool autoFindPlayer = true;
     [SerializeField] private string playerTag = "Player";
+    [SerializeField] private string playerLayerName = "Player";
     [SerializeField] private bool dontDestroyOnLoad = true;
 
     [Header("Debug")]
@@ -31,6 +55,11 @@ public class WayPointManager : MonoBehaviour
     private readonly Dictionary<string, WayPointRunTime> statesById = new Dictionary<string, WayPointRunTime>();
     private readonly Dictionary<string, WayPointStone> stonesById = new Dictionary<string, WayPointStone>();
     private WayPointRunTime pendingTravelState;
+    private GameObject targetUI;
+    private bool isMapOpen;
+    private bool manageCursorForOpenMap;
+    private int lastShortcutToggleFrame = -1;
+    private Coroutine cursorPolicyRefreshCoroutine;
 
     /// <summary>잠긴 웨이포인트가 처음 해금될 때 발생합니다.</summary>
     public event Action<WayPointRunTime> OnWayPointUnlocked;
@@ -52,6 +81,9 @@ public class WayPointManager : MonoBehaviour
 
     /// <summary>웨이포인트 ID로 조회할 수 있는 전체 런타임 상태입니다.</summary>
     public IReadOnlyDictionary<string, WayPointRunTime> StatesById => statesById;
+
+    /// <summary>현재 활성 씬의 지도 UI가 매니저를 통해 열려 있는지 나타냅니다.</summary>
+    public bool IsMapOpen => isMapOpen;
 
     private void Awake()
     {
@@ -84,10 +116,23 @@ public class WayPointManager : MonoBehaviour
     private void Start()
     {
         RegisterSceneStones();
+        ResolveSceneMapUI();
+
+        if (hideMapOnSceneLoad)
+        {
+            SetSceneMapVisible(false);
+        }
+
+        RefreshSceneCursorPolicy(SceneManager.GetActiveScene().name);
     }
 
     private void OnDestroy()
     {
+        if (isMapOpen)
+        {
+            ApplyMapInputState(false, manageCursorForOpenMap);
+        }
+
         if (LoadingManager.Instance != null)
         {
             LoadingManager.Instance.LoadingCompleted -= HandleCrossSceneTravelCompleted;
@@ -96,6 +141,301 @@ public class WayPointManager : MonoBehaviour
         if (Instance == this)
         {
             Instance = null;
+        }
+    }
+
+    /// <summary>현재 씬 정책에 맞는 모드로 단축키 지도를 열거나 닫습니다.</summary>
+    public void ToggleShortcutMap()
+    {
+        // 같은 씬에 이전 Toggle 컴포넌트가 둘 이상 남아 있어도 한 프레임에는 한 번만 처리한다.
+        if (lastShortcutToggleFrame == Time.frameCount)
+        {
+            return;
+        }
+
+        lastShortcutToggleFrame = Time.frameCount;
+
+        if (isMapOpen)
+        {
+            CloseMap();
+            return;
+        }
+
+        OpenMap(ResolveShortcutOpenMode(), shortcutMap);
+    }
+
+    /// <summary>
+    /// 탐험 출발 버튼처럼 UI Button의 OnClick에서 호출할 웨이포인트 이동 지도 진입점입니다.
+    /// 단축키의 보기 전용 설정과 관계없이 항상 웨이포인트 이동 모드로 지도를 엽니다.
+    /// </summary>
+    public void OpenTravelMap()
+    {
+        if (!OpenMap(WayPointMapOpenMode.Travel, shortcutMap))
+        {
+            Debug.LogWarning("[WayPointManager] Travel map could not be opened because the active scene map UI is missing.", this);
+        }
+    }
+
+    /// <summary>
+    /// 지도 보기 버튼처럼 UI Button의 OnClick에서 호출할 보기 전용 지도 진입점입니다.
+    /// 씬의 단축키 설정과 관계없이 웨이포인트 이동이 불가능한 보기 모드로 지도를 엽니다.
+    /// </summary>
+    public void OpenPreviewMap()
+    {
+        if (!OpenMap(WayPointMapOpenMode.PreviewOnly, shortcutMap))
+        {
+            Debug.LogWarning("[WayPointManager] Preview map could not be opened because the active scene map UI is missing.", this);
+        }
+    }
+
+    /// <summary>보기 전용 지도가 닫혀 있으면 열고, 지도가 열려 있으면 닫습니다.</summary>
+    public void TogglePreviewMap()
+    {
+        if (isMapOpen)
+        {
+            CloseMap();
+            return;
+        }
+
+        OpenPreviewMap();
+    }
+
+    /// <summary>지정한 모드와 초기 지도로 현재 씬의 지도 UI를 엽니다.</summary>
+    public bool OpenMap(WayPointMapOpenMode openMode, WayPointMapDefinition mapOverride = null)
+    {
+        ResolveSceneMapUI();
+        if (mapUI == null || targetUI == null)
+        {
+            return false;
+        }
+
+        manageCursorForOpenMap = !IsAlwaysVisibleCursorScene();
+        isMapOpen = true;
+        SetSceneMapVisible(true);
+        mapUI.PrepareOpen(openMode, mapOverride);
+        ApplyMapInputState(true, manageCursorForOpenMap);
+        return true;
+    }
+
+    /// <summary>웨이포인트 스톤 상호작용으로 이동 모드 지도를 엽니다.</summary>
+    public bool OpenMapFromStone(WayPointDefinition sourceWayPoint)
+    {
+        WayPointMapDefinition targetMap = sourceWayPoint != null ? sourceWayPoint.mapDefinition : null;
+        bool opened = OpenMap(WayPointMapOpenMode.Travel, targetMap);
+        if (opened && mapUI != null)
+        {
+            mapUI.SetOpenedFromWayPoint(sourceWayPoint);
+        }
+
+        return opened;
+    }
+
+    /// <summary>현재 지도 UI를 닫고 일반 씬에서 플레이 커서를 다시 숨기고 잠급니다.</summary>
+    public void CloseMap()
+    {
+        if (mapUI != null)
+        {
+            mapUI.PrepareClose();
+        }
+
+        SetSceneMapVisible(false);
+        bool wasOpen = isMapOpen;
+        bool shouldManageCursor = manageCursorForOpenMap;
+        isMapOpen = false;
+        manageCursorForOpenMap = false;
+
+        if (wasOpen)
+        {
+            ApplyMapInputState(false, shouldManageCursor);
+        }
+
+        // 상시 커서 씬은 표시 상태를 유지하고, 그 외 씬은 닫기 요청과 함께
+        // PlayerInput/카메라 내부 상태까지 잠금 상태로 다시 맞춘다.
+        RefreshSceneCursorPolicy(SceneManager.GetActiveScene().name);
+    }
+
+    private WayPointMapOpenMode ResolveShortcutOpenMode()
+    {
+        if (shortcutOpenMode == WayPointMapOpenMode.Travel)
+        {
+            return WayPointMapOpenMode.Travel;
+        }
+
+        return IsShortcutTravelScene()
+            ? WayPointMapOpenMode.Travel
+            : shortcutOpenMode;
+    }
+
+    private bool IsShortcutTravelScene()
+    {
+        return ContainsSceneName(shortcutTravelSceneNames, SceneManager.GetActiveScene().name);
+    }
+
+    private bool IsAlwaysVisibleCursorScene()
+    {
+        return ContainsSceneName(alwaysVisibleCursorSceneNames, SceneManager.GetActiveScene().name);
+    }
+
+    private static bool ContainsSceneName(List<string> sceneNames, string targetSceneName)
+    {
+        if (sceneNames == null)
+        {
+            return false;
+        }
+
+        foreach (string sceneName in sceneNames)
+        {
+            if (!string.IsNullOrWhiteSpace(sceneName)
+                && string.Equals(sceneName.Trim(), targetSceneName, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void ResolveSceneMapUI()
+    {
+        Scene activeScene = SceneManager.GetActiveScene();
+        if (mapUI != null && mapUI.gameObject.scene == activeScene)
+        {
+            targetUI = mapUI.VisibilityTarget;
+            return;
+        }
+
+        mapUI = null;
+        targetUI = null;
+
+        if (WayPointMapUI.Instance != null && WayPointMapUI.Instance.gameObject.scene == activeScene)
+        {
+            mapUI = WayPointMapUI.Instance;
+        }
+        else
+        {
+            WayPointMapUI[] sceneMapUIs = FindObjectsByType<WayPointMapUI>(
+                FindObjectsInactive.Include,
+                FindObjectsSortMode.None);
+
+            foreach (WayPointMapUI candidate in sceneMapUIs)
+            {
+                if (candidate != null && candidate.gameObject.scene == activeScene)
+                {
+                    mapUI = candidate;
+                    break;
+                }
+            }
+        }
+
+        if (mapUI != null)
+        {
+            targetUI = mapUI.VisibilityTarget;
+        }
+    }
+
+    private void SetSceneMapVisible(bool visible)
+    {
+        if (targetUI != null)
+        {
+            targetUI.SetActive(visible);
+        }
+    }
+
+    private void ApplyMapInputState(bool open, bool manageCursor)
+    {
+        if (notifyInputManager && InputManager.Instance != null)
+        {
+            InputManager.Instance.SetSystemMenuOpen(open);
+        }
+
+        SetKmsPlayerInputBlocked(open);
+
+        // 영지처럼 상시 커서를 사용하는 이동 허용 씬에서는 커서 상태를 절대 변경하지 않는다.
+        if (!unlockCursorWhileOpen || !manageCursor)
+        {
+            return;
+        }
+
+        Cursor.visible = open;
+        Cursor.lockState = open ? CursorLockMode.None : CursorLockMode.Locked;
+    }
+
+    private void RefreshSceneCursorPolicy(string sceneName)
+    {
+        ApplySceneCursorPolicy(sceneName);
+
+        if (cursorPolicyRefreshCoroutine != null)
+        {
+            StopCoroutine(cursorPolicyRefreshCoroutine);
+        }
+
+        cursorPolicyRefreshCoroutine = StartCoroutine(ReapplySceneCursorPolicyNextFrame(sceneName));
+    }
+
+    private IEnumerator ReapplySceneCursorPolicyNextFrame(string sceneName)
+    {
+        yield return null;
+
+        if (string.Equals(SceneManager.GetActiveScene().name, sceneName, StringComparison.Ordinal))
+        {
+            ApplySceneCursorPolicy(sceneName);
+        }
+
+        cursorPolicyRefreshCoroutine = null;
+    }
+
+    private void ApplySceneCursorPolicy(string sceneName)
+    {
+        bool keepCursorVisible = ContainsSceneName(alwaysVisibleCursorSceneNames, sceneName);
+        bool showCursorForOpenMap = isMapOpen && unlockCursorWhileOpen && manageCursorForOpenMap;
+        bool releaseCursor = keepCursorVisible || showCursorForOpenMap;
+
+        KMS.PlayerInput[] playerInputs = PlayerReferenceResolver.FindPlayerComponents<KMS.PlayerInput>(
+            playerTag,
+            playerLayerName);
+
+        foreach (KMS.PlayerInput playerInputComponent in playerInputs)
+        {
+            if (playerInputComponent != null)
+            {
+                playerInputComponent.SetCursorReleased(releaseCursor);
+            }
+        }
+
+        KMS.PlayerCameraController[] cameraControllers =
+            PlayerReferenceResolver.FindPlayerComponents<KMS.PlayerCameraController>(
+                playerTag,
+                playerLayerName);
+
+        foreach (KMS.PlayerCameraController cameraController in cameraControllers)
+        {
+            if (cameraController != null)
+            {
+                cameraController.SetCursorLocked(!releaseCursor);
+            }
+        }
+
+        Cursor.lockState = releaseCursor ? CursorLockMode.None : CursorLockMode.Locked;
+        Cursor.visible = releaseCursor;
+    }
+
+    private void SetKmsPlayerInputBlocked(bool blocked)
+    {
+        if (!blockKmsPlayerInput)
+        {
+            return;
+        }
+
+        KMS.PlayerInput[] playerInputs = PlayerReferenceResolver.FindPlayerComponents<KMS.PlayerInput>(
+            playerTag,
+            playerLayerName);
+
+        foreach (KMS.PlayerInput playerInputComponent in playerInputs)
+        {
+            if (playerInputComponent != null)
+            {
+                playerInputComponent.SetGameplayInputBlocked(blocked);
+            }
         }
     }
 
@@ -589,9 +929,10 @@ public class WayPointManager : MonoBehaviour
     public void SetPlayer(Transform newPlayer)
     {
         player = newPlayer;
+        RefreshSceneCursorPolicy(SceneManager.GetActiveScene().name);
     }
 
-    // 인스펙터에 Player가 비어 있으면 Player 태그로 이동 대상을 자동 탐색한다.
+    // 인스펙터에 Player가 비어 있으면 Player 태그를 우선하고, 없으면 Player 레이어로 찾는다.
     private Transform ResolvePlayer()
     {
         if (player != null)
@@ -599,27 +940,12 @@ public class WayPointManager : MonoBehaviour
             return player;
         }
 
-        if (!autoFindPlayerByTag || string.IsNullOrWhiteSpace(playerTag))
+        if (!autoFindPlayer)
         {
             return null;
         }
 
-        GameObject playerObject = null;
-        try
-        {
-            playerObject = GameObject.FindGameObjectWithTag(playerTag);
-        }
-        catch (UnityException)
-        {
-            Debug.LogWarning($"[WayPointManager] Player tag is not defined: {playerTag}");
-        }
-
-        if (playerObject == null)
-        {
-            return null;
-        }
-
-        player = playerObject.transform;
+        player = PlayerReferenceResolver.ResolveTransform(player, playerTag, playerLayerName);
         return player;
     }
 
@@ -638,7 +964,11 @@ public class WayPointManager : MonoBehaviour
     // CharacterController가 있으면 잠시 꺼서 순간이동 위치가 밀리지 않도록 한다.
     private void MovePlayer(Transform targetPlayer, Vector3 destination)
     {
-        CharacterController controller = targetPlayer.GetComponent<CharacterController>();
+        CharacterController controller = PlayerReferenceResolver
+            .FindComponentInPlayerHierarchy<CharacterController>(
+                targetPlayer.gameObject,
+                playerTag,
+                playerLayerName);
 
         if (controller != null)
         {
@@ -657,14 +987,31 @@ public class WayPointManager : MonoBehaviour
         WorldChunkManager chunkManager = FindFirstObjectByType<WorldChunkManager>(FindObjectsInactive.Include);
         if (chunkManager != null)
         {
-            chunkManager.RefreshActiveChunks(true);
+            chunkManager.SetPlayer(ResolvePlayer());
         }
     }
 
     private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
     {
+        if (isMapOpen)
+        {
+            ApplyMapInputState(false, manageCursorForOpenMap);
+        }
+
+        isMapOpen = false;
+        manageCursorForOpenMap = false;
+        mapUI = null;
+        targetUI = null;
         player = null;
         RegisterSceneStones();
+        ResolveSceneMapUI();
+
+        if (hideMapOnSceneLoad)
+        {
+            SetSceneMapVisible(false);
+        }
+
+        RefreshSceneCursorPolicy(scene.name);
     }
 
     private void HandleCrossSceneTravelCompleted()

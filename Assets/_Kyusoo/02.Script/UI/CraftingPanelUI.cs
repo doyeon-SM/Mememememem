@@ -7,7 +7,7 @@ using KMS.InventoryDuped;
 using MemSystem.Data;
 using System.Collections;
 using TMPro;
-using Unity.Services.Authentication;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -237,8 +237,9 @@ public class CraftingPanelUI : MonoBehaviour
     {
         if (isUpdatingQuantitySystem) return;
 
-        selectedQuantity = Mathf.Clamp(Mathf.RoundToInt(value), 1, maxCraftableQuantity);
-        selectedQuantity = Mathf.RoundToInt(value);
+        int maxLimit = Mathf.Max(1, maxCraftableQuantity);
+        selectedQuantity = Mathf.Clamp(Mathf.RoundToInt(value), 1, maxLimit);
+
         UpdateSelectProductCalculatedUI();
         GenerateRequiredMaterialListUI(); 
     }
@@ -403,12 +404,12 @@ public class CraftingPanelUI : MonoBehaviour
 
         maxCraftableQuantity = CalculateMaxCraftableLimitAmount(selectedItem);
 
-        selectedQuantity = (maxCraftableQuantity == 0) ? 0 : 1;
+        selectedQuantity = 1;
 
         if (quantitySlider != null)
         {
-            quantitySlider.minValue = (maxCraftableQuantity == 0) ? 0 : 1;
-            quantitySlider.maxValue = maxCraftableQuantity;
+            quantitySlider.minValue = 1;
+            quantitySlider.maxValue = Mathf.Max(1, maxCraftableQuantity);
             quantitySlider.wholeNumbers = true;
         }
 

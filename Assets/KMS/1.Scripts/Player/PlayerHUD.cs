@@ -326,14 +326,20 @@ namespace KMS
         {
             if (!TryResolveMapUiToggle()) return;
 
-            mapUiToggle.Open(WayPointMapOpenMode.PreviewOnly);
+            //mapUiToggle.Open(WayPointMapOpenMode.PreviewOnly);
+
+            mapUiToggle.TogglePreviewMap();
         }
 
         private void TogglePreviewMap()
         {
             if (!TryResolveMapUiToggle()) return;
 
-            mapUiToggle.Toggle();
+            mapUiToggle.TogglePreviewMap();
+/*            if (WayPointManager.Instance != null)
+            {
+                WayPointManager.Instance.TogglePreviewMap();
+            }*/
         }
 
         private bool TryResolveMapUiToggle()

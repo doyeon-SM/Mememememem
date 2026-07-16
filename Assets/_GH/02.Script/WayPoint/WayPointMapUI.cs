@@ -31,7 +31,6 @@ public class WayPointMapUI : MonoBehaviour
     [SerializeField] private Color lockedMapButtonTextColor = new Color(0.55f, 0.55f, 0.55f, 1f);
 
     [Header("Close")]
-    [SerializeField] private WayPointUIToggle uiToggle;
     [SerializeField] private bool closeAfterTravel = true;
 
     [Header("Canvas")]
@@ -80,8 +79,11 @@ public class WayPointMapUI : MonoBehaviour
     /// <summary>현재 화면에 표시 중인 지도 정의입니다.</summary>
     public WayPointMapDefinition CurrentMap => currentMap;
 
-    /// <summary>지도 UI가 현재 계층에서 실제로 표시되는지 나타냅니다.</summary>
-    public bool IsVisible => mapImage != null ? mapImage.gameObject.activeInHierarchy : gameObject.activeInHierarchy;
+    /// <summary>지도 Panel 전체가 현재 계층에서 실제로 표시되는지 나타냅니다.</summary>
+    public bool IsVisible => gameObject.activeInHierarchy;
+
+    /// <summary>매니저가 열고 닫을 WayPointMapUI가 부착된 Panel 오브젝트입니다.</summary>
+    public GameObject VisibilityTarget => gameObject;
 
     private void Awake()
     {
@@ -152,6 +154,19 @@ public class WayPointMapUI : MonoBehaviour
         RefreshMapView();
     }
 
+    /// <summary>지도 표시가 꺼지기 전에 툴팁과 Canvas 정렬 상태를 정리합니다.</summary>
+    public void PrepareClose()
+    {
+        HideTooltip();
+        RestoreCanvasSorting();
+    }
+
+    /// <summary>현재 이동 지도를 연 출발 웨이포인트를 기록합니다.</summary>
+    internal void SetOpenedFromWayPoint(WayPointDefinition sourceWayPoint)
+    {
+        openedFromWayPointId = sourceWayPoint != null ? sourceWayPoint.id : string.Empty;
+    }
+
     // Stone에서 직접 지도 이동 모드를 열고 싶을 때 호출한다.
     /// <summary>상호작용한 스톤의 지도를 이동 모드로 엽니다.</summary>
     /// <param name="sourceWayPoint">지도를 연 출발 웨이포인트입니다.</param>
@@ -160,9 +175,9 @@ public class WayPointMapUI : MonoBehaviour
         WayPointMapDefinition targetMap = sourceWayPoint != null ? sourceWayPoint.mapDefinition : null;
         openedFromWayPointId = sourceWayPoint != null ? sourceWayPoint.id : string.Empty;
 
-        if (uiToggle != null)
+        if (WayPointManager.Instance != null)
         {
-            uiToggle.Open(WayPointMapOpenMode.Travel, targetMap);
+            WayPointManager.Instance.OpenMapFromStone(sourceWayPoint);
             openedFromWayPointId = sourceWayPoint != null ? sourceWayPoint.id : string.Empty;
             return;
         }
@@ -865,25 +880,18 @@ public class WayPointMapUI : MonoBehaviour
         return canTravelStatusText;
     }
 
-    // 이동 성공 후 지도 UI를 닫고 입력/커서 상태를 복구한다.
+    // 이동 성공 후 지도 UI를 닫는다. 입력/커서 상태 복구는 WayPointManager가 담당한다.
     private void CloseMap()
     {
         HideTooltip();
         RestoreCanvasSorting();
 
-        if (uiToggle != null)
+        if (WayPointManager.Instance != null)
         {
-            uiToggle.Close();
+            WayPointManager.Instance.CloseMap();
             return;
         }
 
-        if (InputManager.Instance != null)
-        {
-            InputManager.Instance.SetSystemMenuOpen(false);
-        }
-
-        Cursor.visible = false;
-        Cursor.lockState = CursorLockMode.Locked;
         gameObject.SetActive(false);
     }
 }

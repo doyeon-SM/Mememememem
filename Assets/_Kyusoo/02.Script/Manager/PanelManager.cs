@@ -21,7 +21,6 @@ public class PanelManager : MonoBehaviour
     [SerializeField] private GameObject closeButtonGroup;
     [SerializeField] private GameObject placeButtonGroup;
 
-    [SerializeField] public WayPointUIToggle waypointui;
 
     private void Awake()
     {
@@ -120,7 +119,11 @@ public class PanelManager : MonoBehaviour
             SetCameraControllersEnabled(false);
 
             exploreMapPanel.SetActive(true);
-            waypointui.Open();
+            if(WayPointManager.Instance != null)
+            {
+                WayPointManager.Instance.OpenTravelMap();
+            }
+            
         }
     }
 
