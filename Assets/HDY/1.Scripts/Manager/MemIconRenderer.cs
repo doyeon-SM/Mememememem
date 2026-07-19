@@ -24,20 +24,6 @@ namespace HDY.Mem
     /// 전체 키의 verticalFocusRatio 비율만큼 올라간 높이"를 카메라가 바라보도록 한다. 기본값 0.55는 사람 기준
     /// 배-가슴 사이 높이 정도이며, 모델 비율에 따라 인스펙터에서 조정할 수 있다.
     ///
-    /// [카메라 프레이밍 - 정면 촬영] 촬영용 인스턴스는 항상 Quaternion.identity로 생성되므로, 모델의 로컬
-    /// 정면(+Z)이 곧 월드 +Z가 된다. 카메라 오프셋은 이 +Z 정면 방향을 기준으로, cameraAzimuthDegrees(오른쪽
-    /// 회전)와 cameraElevationDegrees(위로 들어올리는 각도)만큼 구면 좌표로 회전시켜 계산한다. 두 각도가 모두
-    /// 0이면 정면에서 바라보는 것과 같고, 값을 조절하면 거리(카메라~focusPoint)는 그대로 유지한 채 카메라
-    /// 위치만 오른쪽/위쪽으로 돌아간다.
-    ///
-    /// [촬영용 조명 - 역광 방지] 씬의 Directional Light는 카메라 위치와 무관하게 항상 고정된 방향에서만
-    /// 비추기 때문에, 위 정면 촬영으로 카메라를 돌리고 나면 모델 앞면이 역광으로 어둡게 나오는 문제가
-    /// 있었다. 그래서 카메라와 같은 위치를 따라다니는 촬영 전용 Point 라이트(iconLight)를 별도로 두어,
-    /// 씬의 메인 라이트와 무관하게 항상 카메라가 보는 방향에서 밝게 비추도록 한다. 이 라이트는 카메라
-    /// 오브젝트의 자식이라 FrameCameraToBounds()가 매 촬영마다 카메라를 옮겨도 자동으로 따라간다.
-    /// range는 촬영 거리 기준으로 좁게 제한해서, shootingStagePosition 주변에서만 빛이 미치고 원점 부근의
-    /// 실제 게임 씬까지는 새어나가지 않도록 한다.
-    ///
     /// [동기 처리] Camera.Render()는 카메라의 enabled 여부와 무관하게 즉시 강제 렌더링을 수행하므로,
     /// Instantiate -> 프레이밍 -> Render -> ReadPixels -> Destroy를 코루틴 없이 한 메서드 안에서 끝낸다.
     /// 다만 이 방식은 Start()가 실행되기 전에(같은 프레임 내에서) 촬영이 끝나므로, modelPrefab의 외형이
@@ -72,20 +58,7 @@ namespace HDY.Mem
         [Range(0f, 1f)]
         [SerializeField] private float verticalFocusRatio = 0.55f;
 
-        [Header("촬영 각도 설정")]
-        [Tooltip("정면(0도)을 기준으로 카메라를 오른쪽으로 회전시키는 각도. 거리는 그대로 유지된 채 위치만 돈다.")]
-        [SerializeField] private float cameraAzimuthDegrees = 30f;
-        [Tooltip("눈높이(0도)를 기준으로 카메라를 위로 들어올리는 각도. 90에 가까울수록 위에서 내려다보는 구도가 된다.")]
-        [SerializeField] private float cameraElevationDegrees = 45f;
-
-        [Header("촬영용 조명 설정")]
-        [Tooltip("아이콘 촬영용 키라이트의 밝기. 씬의 Directional Light와는 무관하게 이 값으로만 밝기가 정해진다.")]
-        [SerializeField] private float iconLightIntensity = 3f;
-        [Tooltip("아이콘 촬영용 키라이트의 색상")]
-        [SerializeField] private Color iconLightColor = Color.white;
-
         private Camera iconCamera;
-        private Light iconLight;
         private RenderTexture iconRenderTexture;
         private readonly Dictionary<string, Sprite> iconCache = new Dictionary<string, Sprite>();
 
@@ -110,10 +83,7 @@ namespace HDY.Mem
         {
             var cameraObject = new GameObject("MemIconRenderCamera");
             cameraObject.transform.SetParent(transform, false);
-            // 정면(+Z)에서 촬영 지점을 바라보는 기본 자세. 실제 촬영 직전에는 항상 FrameCameraToBounds()가
-            // 모델 크기 및 cameraAzimuthDegrees/cameraElevationDegrees에 맞춰 위치를 다시 계산하므로,
-            // 여기 값은 초기 기본 자세일 뿐이다.
-            cameraObject.transform.position = shootingStagePosition + new Vector3(0f, 0f, 5f);
+            cameraObject.transform.position = shootingStagePosition + new Vector3(0f, 0f, -5f);
             cameraObject.transform.LookAt(shootingStagePosition);
 
             iconCamera = cameraObject.AddComponent<Camera>();
@@ -125,26 +95,6 @@ namespace HDY.Mem
             iconCamera.enabled = false; // 자동 매 프레임 렌더링을 막고, Render()를 직접 호출할 때만 그린다.
 
             CreateIconRenderTexture();
-            SetupIconLight(cameraObject);
-        }
-
-        /// <summary>
-        /// 카메라와 같은 위치에서 항상 카메라가 보는 쪽을 밝게 비추는 촬영 전용 키라이트를 만든다.
-        /// 씬의 Directional Light는 위치와 무관하게 고정된 방향에서만 비추기 때문에, 카메라를 정면으로
-        /// 돌리면 모델 앞면이 역광으로 어둡게 나오는 문제가 있었다. 이 라이트는 카메라 오브젝트의 자식으로
-        /// 붙어 있어 FrameCameraToBounds()가 매 촬영마다 카메라 위치를 옮겨도 자동으로 같은 위치를
-        /// 따라가며, Point 라이트라 방향과 무관하게 주변(=카메라가 보는 모델)을 비춘다.
-        /// [메인 씬에 영향 없음] range를 FrameCameraToBounds()에서 촬영 거리 기준으로 좁게 제한해서,
-        /// shootingStagePosition 주변에서만 빛이 미치고 원점 부근의 실제 게임 씬까지는 닿지 않게 한다.
-        /// </summary>
-        private void SetupIconLight(GameObject cameraObject)
-        {
-            iconLight = cameraObject.AddComponent<Light>();
-            iconLight.type = LightType.Point;
-            iconLight.color = iconLightColor;
-            iconLight.intensity = iconLightIntensity;
-            iconLight.shadows = LightShadows.None; // 촬영용 단일 라이트라 그림자는 끄고 밝기를 안정적으로 유지
-            iconLight.cullingMask = ~0;
         }
 
         /// <summary>RenderTexture를 생성한다. 빌드에서 드물게 생성이 실패하는 경우를 대비해 별도 메서드로
@@ -246,9 +196,7 @@ namespace HDY.Mem
 
         /// <summary>
         /// 안정적인 월드 바운드(CalculateWorldBounds)를 계산해서, 카메라가 "발끝 기준 verticalFocusRatio
-        /// 높이"의 지점을 cameraAzimuthDegrees/cameraElevationDegrees 각도로 바라보도록 위치/Orthographic
-        /// Size를 맞춘다. 촬영용 키라이트(iconLight)도 카메라와 같은 위치를 따라가므로, 여기서 모델 크기에
-        /// 맞춰 조명 range도 함께 갱신한다.
+        /// 높이"의 정면을 바라보도록 위치/Orthographic Size를 맞춘다.
         /// </summary>
         private void FrameCameraToBounds(GameObject instance)
         {
@@ -268,28 +216,9 @@ namespace HDY.Mem
             float focusHeight = bounds.min.y + bounds.size.y * verticalFocusRatio;
             Vector3 focusPoint = new Vector3(bounds.center.x, focusHeight, bounds.center.z);
 
-            // [정면 기준 구면 좌표 회전] 인스턴스는 Quaternion.identity로 생성되어 로컬 정면(+Z)이 곧 월드
-            // +Z이다. 회전이 전혀 없을 때(0, 0)의 오프셋은 정면(+Z)이고, cameraAzimuthDegrees만큼 오른쪽
-            // (+X 쪽)으로, cameraElevationDegrees만큼 위(+Y)로 들어올린다. distance(카메라~focusPoint 거리)는
-            // 각도와 무관하게 항상 동일하게 유지된다 - 방향 벡터를 단위 벡터로 만든 뒤 distance를 곱하기 때문.
-            float azimuthRad = cameraAzimuthDegrees * Mathf.Deg2Rad;
-            float elevationRad = cameraElevationDegrees * Mathf.Deg2Rad;
-            Vector3 offsetDirection = new Vector3(
-                Mathf.Sin(azimuthRad) * Mathf.Cos(elevationRad),
-                Mathf.Sin(elevationRad),
-                Mathf.Cos(azimuthRad) * Mathf.Cos(elevationRad));
-
-            float cameraDistance = maxExtent * 4f + 1f;
-            Vector3 cameraOffset = offsetDirection * cameraDistance;
+            Vector3 cameraOffset = new Vector3(0f, 0f, -(maxExtent * 4f + 1f));
             iconCamera.transform.position = focusPoint + cameraOffset;
             iconCamera.transform.LookAt(focusPoint);
-
-            // [조명 range 갱신] iconLight는 카메라의 자식이라 위치는 자동으로 따라가지만, 모델 크기에 따라
-            // 카메라~모델 거리가 달라지므로 range는 매번 다시 계산해야 한다. 다만 shootingStagePosition이
-            // 원점에서 아주 멀리 떨어져 있다는 점을 이용해, stage까지 거리의 절반을 넘지 않도록 안전 마진을
-            // 둬서 혹시 모델이 비정상적으로 클 때도 메인 씬까지 빛이 새어나가지 않게 한다.
-            float safeMaxRange = shootingStagePosition.magnitude * 0.5f;
-            iconLight.range = Mathf.Min(maxExtent * 7f + 1f, safeMaxRange);
         }
 
         /// <summary>

@@ -22,12 +22,6 @@ namespace HDY.UI
     /// ("라벨 : " + data) != null이 되어(문자열 이어붙이기 결과는 항상 null이 아니므로) 조건이 항상
     /// 참으로 평가되고, 그 결과 라벨 문구는 버려진 채 숫자만 표시되고 있었다(생산 줄은 추가로 farming이
     /// 아니라 transport를 잘못 참조하는 복사-붙여넣기 실수도 있었음). 이번에 두 문제 모두 고쳤다.
-    ///
-    /// [정보 없을 때 개별 요소 비활성화] 아직 아무 멤도 선택되지 않은 최초 상태(또는 이후 선택이 해제된
-    /// 상태)에는 패널 전체가 아니라, 데이터가 실제로 표시되는 아이콘/텍스트 각각의 GameObject만
-    /// 비활성화한다(패널 배경, 테두리 등 레이아웃 요소는 그대로 유지). Awake()에서 우선 모두 비활성화해두고,
-    /// ShowInfo가 유효한 entry/data와 함께 호출될 때만 다시 활성화한다. 아이콘은 sprite 유무에 따라
-    /// RenderInfo 안에서 한 번 더 개별 판단한다(모델은 있는데 아이콘 렌더링에 실패한 경우 등).
     /// </summary>
     public class MemStorageUI_Info : MonoBehaviour
     {
@@ -46,23 +40,11 @@ namespace HDY.UI
         [SerializeField] private TMP_Text infoFarmingText;
         [SerializeField] private TMP_Text infoExplorationText;
 
-        private void Awake()
-        {
-            // 아직 ShowInfo가 한 번도 호출되지 않은 최초 상태 - 보여줄 정보가 없으므로 데이터 표시용
-            // 아이콘/텍스트 요소들만 감춰둔다(패널 자체는 그대로 유지).
-            HideInfo();
-        }
-
         /// <summary>클릭된 멤(CapturedMemEntry + SO 데이터)을 화면에 표시한다. (멤창고에서 사용) 탐험 스탯은 그 개체의 실제 값.</summary>
         public void ShowInfo(CapturedMemEntry entry, MemData data)
         {
-            if (entry == null)
-            {
-                HideInfo();
-                return;
-            }
+            if (entry == null) return;
 
-            SetElementsActive(true);
             RenderInfo(data, entry.MemId, entry.ExplorationStat.ToString());
         }
 
@@ -72,35 +54,9 @@ namespace HDY.UI
         /// </summary>
         public void ShowInfo(MemData data)
         {
-            if (data == null)
-            {
-                HideInfo();
-                return;
-            }
+            if (data == null) return;
 
-            SetElementsActive(true);
             RenderInfo(data, data.memId, BuildExplorationRangeText(data));
-        }
-
-        /// <summary>표시할 정보가 없을 때(최초 상태, 또는 선택 해제) 데이터 표시용 아이콘/텍스트 요소들만 비활성화한다.</summary>
-        private void HideInfo()
-        {
-            SetElementsActive(false);
-        }
-
-        /// <summary>아이콘/텍스트 요소 전체의 활성 상태를 한 번에 바꾼다. 아이콘은 sprite 유무에 따라
-        /// RenderInfo에서 다시 한 번 개별 판단해 덮어쓴다(예: sprite가 없으면 활성화 후에도 다시 감춤).</summary>
-        private void SetElementsActive(bool active)
-        {
-            if (infoIconImage != null) infoIconImage.gameObject.SetActive(active);
-            if (infoNameText != null) infoNameText.gameObject.SetActive(active);
-            if (infoTierText != null) infoTierText.gameObject.SetActive(active);
-            if (infoCraftingText != null) infoCraftingText.gameObject.SetActive(active);
-            if (infoLoggingText != null) infoLoggingText.gameObject.SetActive(active);
-            if (infoMiningText != null) infoMiningText.gameObject.SetActive(active);
-            if (infoTransportText != null) infoTransportText.gameObject.SetActive(active);
-            if (infoFarmingText != null) infoFarmingText.gameObject.SetActive(active);
-            if (infoExplorationText != null) infoExplorationText.gameObject.SetActive(active);
         }
 
         /// <summary>MemTierTable에서 이 멤 등급의 탐험 스탯 범위를 찾아 "최소~최대" 형식으로 반환한다. 테이블/스펙이 없으면 MemData의 단일 값으로 대체(경고 로그 남김).</summary>

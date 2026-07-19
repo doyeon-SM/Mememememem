@@ -26,48 +26,29 @@ namespace HDY.UI
     ///
     /// [멤창고 업그레이드] 업그레이드 버튼을 누르면 공용 업그레이드 팝업(UpgradePopupUI)에 storageUpgrade(멤창고
     /// 페이지 확장을 IUpgradable로 감싼 어댑터)를 넘겨 보여준다. 실제 비용 확인/차감과 업그레이드 적용은 팝업과
-    /// storageUpgrade가 처리한다.
-    ///
-    /// [그리드 자동 갱신은 이제 Grid 자신의 책임] 예전에는 이 컨트롤러가 captureManager.OnCapturedMemsChanged /
-    /// OnStorageCapacityChanged를 구독해서 grid.NotifyDataChanged를 직접 호출해줬는데, 그러면 MemStorageUI_Grid를
-    /// 이 컨트롤러 없이 단독으로 쓰는 화면에서는 자동 갱신이 전혀 안 되는 문제가 있었다. 그래서 이제
-    /// MemStorageUI_Grid가 captureManager 이벤트를 직접 구독해서 스스로 다시 그리도록 바꿨고, 이 컨트롤러는
-    /// OnEnable에서 ShowInitial로 최초 1회 데이터/콜백만 넘겨주면 된다(findMemData, GetStatDisplayInfo는 아래
-    /// 참고처럼 항상 최신 상태를 즉석에서 읽는 안정적인 메서드라 Grid가 캐싱해서 계속 재사용해도 안전하다).
-    ///
-    /// [IsActive(시설 배치) 변경도 Grid가 직접 구독] 생산/제작 시설에 멤이 배치/해제되면 entry.IsActive만 직접
-    /// 바뀌고 captureManager의 위 두 이벤트는 발행되지 않는다. 예전에는 이걸 감지할 방법이 없어서(아래 TODO
-    /// 참고했던 예상 이벤트는 실제로 만들어지지 않았음) "창고에서 직접 해제" 흐름에서만 HandleReleaseRequested가
-    /// 수동으로 grid.NotifyDataChanged를 호출해 임시로 땜빵하고 있었다. 확인해보니 _Kyusoo 쪽에 이미
-    /// ProductionFacilityRuntime.OnMemDeploymentChanged / ProductionCraftRuntime.OnMemDeploymentChanged라는
-    /// 정적(static) 이벤트가 각각 존재해서(아래 TODO가 예상했던 것과는 다른 설계 - 시설별 인스턴스 이벤트가
-    /// 아니라 클래스 전체에 대한 정적 이벤트라 새로 지어진 시설도 자동으로 포함됨), MemStorageUI_Grid가 이
-    /// 두 이벤트를 직접 구독해서 자동으로 다시 그리도록 처리했다. 그래서 이 컨트롤러는 더 이상 이 부분을
-    /// 신경 쓸 필요가 없다.
+    /// storageUpgrade가 처리하고, 이 컨트롤러는 MemCaptureManager.OnStorageCapacityChanged를 구독해뒀다가
+    /// 언락된 페이지 수가 바뀌면 그리드를 다시 그려주기만 한다.
     ///
     /// [배치 해제] 그리드에서 활성 멤을 우클릭 -> 해제하기 버튼 클릭 시 grid.OnReleaseRequested가 발생한다.
-    /// 이 창고 UI는 그 멤이 어느 시설(_Kyusoo의 ProductionFacilityRuntime/ProductionCraftRuntime)에 배치되어
-    /// 있는지 전혀 모르므로, 씬에 있는 모든 BuildingRuntime을 훑어 이 entry를 갖고 있는 시설을 찾아
-    /// TryReleaseDeployedMem()을 호출한다. CapturedMemEntry는 참조 타입이라 시설 쪽 리스트와
-    /// MemCaptureManager 쪽 리스트가 같은 객체를 가리키므로, 해제 처리만으로 IsActive도 자동으로 false가
-    /// 된다(별도로 손댈 필요 없음). 그 다음 grid.NotifyDataChanged로 한 번 더 직접 갱신해주는데, 이는 Grid의
-    /// 자동 구독과 별개로 "어느 시설에도 등록되어 있지 않아 방어적으로 entry.IsActive만 직접 되돌리는" 예외
-    /// 상황(이 경우 시설 쪽 정적 이벤트가 발행되지 않음)까지 안전하게 커버하기 위한 것이다.
+    /// 이 창고 UI는 그 멤이 어느 시설(_Kyusoo의 ProductionFacilityRuntime)에 배치되어 있는지 전혀 모르므로,
+    /// 씬에 있는 모든 ProductionFacilityRuntime을 훑어 이 entry를 DeployedMemEntries로 갖고 있는 시설을 찾아
+    /// 그 시설의 RemoveMem()을 호출한다. CapturedMemEntry는 참조 타입이라 시설 쪽 리스트와 MemCaptureManager
+    /// 쪽 리스트가 같은 객체를 가리키므로, RemoveMem() 호출만으로 IsActive도 자동으로 false가 된다(별도로
+    /// 손댈 필요 없음). 다만 MemCaptureManager는 이 변경을 스스로 감지하지 못하므로, 그 다음 그리드를
+    /// NotifyDataChanged로 직접 다시 그려서 활성 표시(activeImage)를 갱신해준다.
     ///
-    /// [TODO - 남은 비대칭 문제 없음] 위에서 설명한 대로 ProductionFacilityRuntime/ProductionCraftRuntime의
-    /// 정적 이벤트를 MemStorageUI_Grid가 직접 구독하므로, 시설 쪽 UI(ProductionPanelUI/CraftingPanelUI)를
-    /// 통해 멤이 배치/해제될 때도 창고 그리드가 정상적으로 갱신된다. 예전에 이 자리에 있던 "이벤트가 아직
-    /// 없어서 전체 주석 처리" TODO 블록은 실제로 이벤트가 만들어지면서 더 이상 필요 없어져 제거했다.
+    /// [TODO - 시설 쪽 변경 감지 (Kyusoo 이벤트 필요)] 지금은 "창고에서 직접 해제"할 때만 그리드가 갱신되고,
+    /// 반대로 시설 쪽 UI(ProductionMemSlotUI/ProductionPanelUI)를 통해 멤이 배치/해제될 때는 창고 그리드의
+    /// 활성 표시가 갱신되지 않는 비대칭 문제가 있다. _Kyusoo/ProductionFacilityRuntime.cs에
+    /// `public event Action OnDeployedMemsChanged;`를 추가해서 TryAddMem/RemoveMem 끝에서 호출해주면,
+    /// 아래 SubscribeToFacilityChanges/UnsubscribeFromFacilityChanges/HandleFacilityDeployedMemsChanged
+    /// (현재 주석 처리됨)의 주석을 풀고 OnEnable/OnDisable의 호출부 주석도 풀어서 바로 쓸 수 있다.
     ///
     /// [Mem스탯/티어 표시] 현재 어떤 기준으로 정렬되어 있는지(activeSortCriteria)를 여기서 기억해두고,
     /// - Mem스탯(제작/벌목/채광/이동/생산/탐험) 기준이면 그 스탯의 아이콘 + 숫자를,
     /// - 티어 기준이면 티어 아이콘 + 등급 앞글자 대문자(R/E/U/L/M)를
-    /// 그리드의 각 슬롯에 표시하도록 GetStatDisplayInfo에서 계산해서 Grid에 넘겨준다.
+    /// 그리드의 각 슬롯에 표시하도록 MemStatDisplayInfo를 계산해서 Grid에 넘겨준다.
     /// MemId로 정렬 중이거나 아직 정렬한 적이 없으면 표시를 감춘다.
-    /// [항상-최신반영 콜백] GetStatDisplayInfo는 예전처럼 "호출 시점의 정렬 기준"을 클로저로 고정해서 새로
-    /// 만들어 넘기는 대신, 호출될 때마다 activeSortCriteria 필드를 그 자리에서 다시 읽는 안정적인(stable)
-    /// 메서드다. Grid가 이 메서드 참조 하나만 캐싱해두고 나중에(자체 이벤트 구독으로 자동 갱신할 때 등) 다시
-    /// 호출해도, 그 사이 정렬 기준이 바뀌었다면 항상 최신 기준이 반영된다.
     ///
     /// [씬 이동 대응] MemCaptureManager/MemCatalogManager는 파괴불가 싱글톤이라 씬을 이동해도 유지되지만,
     /// 이 컴포넌트는 씬에 배치된 오브젝트라서 씬이 다시 로드되면 인스펙터 참조가 끊길 수 있다.
@@ -145,14 +126,33 @@ namespace HDY.UI
             if (captureManager == null) captureManager = MemCaptureManager.Instance;
             if (catalogManager == null) catalogManager = MemCatalogManager.Instance;
 
+            if (captureManager != null)
+            {
+                captureManager.OnCapturedMemsChanged += HandleCapturedMemsChanged;
+                captureManager.OnStorageCapacityChanged += HandleStorageCapacityChanged;
+            }
+
+            // [TODO - Kyusoo 이벤트 필요] _Kyusoo/ProductionFacilityRuntime.cs에 OnDeployedMemsChanged가
+            // 추가되면 아래 주석을 풀어서, 시설 쪽에서 배치/해제가 일어날 때도 창고 그리드가 갱신되도록 한다.
+            // SubscribeToFacilityChanges();
+
             if (grid != null && captureManager != null)
             {
-                grid.ShowInitial(captureManager.CapturedMems, FindMemData, GetStatDisplayInfo, captureManager.UnlockedPageCount);
+                grid.ShowInitial(captureManager.CapturedMems, FindMemData, BuildStatDisplayProvider(), captureManager.UnlockedPageCount);
             }
         }
 
         private void OnDisable()
         {
+            if (captureManager != null)
+            {
+                captureManager.OnCapturedMemsChanged -= HandleCapturedMemsChanged;
+                captureManager.OnStorageCapacityChanged -= HandleStorageCapacityChanged;
+            }
+
+            // [TODO - Kyusoo 이벤트 필요] SubscribeToFacilityChanges()와 짝을 맞춰 구독 해제.
+            // UnsubscribeFromFacilityChanges();
+
             if (grid != null)
             {
                 grid.OnSlotClicked -= HandleSlotClicked;
@@ -170,6 +170,73 @@ namespace HDY.UI
                 upgradeButton.onClick.RemoveListener(HandleUpgradeButtonClicked);
             }
         }
+
+        /// <summary>새로 멤이 포획되거나 슬롯 위치/정렬 순서가 바뀌는 등 데이터가 바뀔 때마다 호출된다.</summary>
+        private void HandleCapturedMemsChanged()
+        {
+            Debug.Log("[MemStorageUI] OnCapturedMemsChanged 수신 -> 그리드 갱신 시도");
+
+            if (grid != null && captureManager != null)
+            {
+                grid.NotifyDataChanged(captureManager.CapturedMems, FindMemData, BuildStatDisplayProvider(), captureManager.UnlockedPageCount);
+            }
+        }
+
+        /// <summary>멤창고 페이지 언락(업그레이드)에 성공해서 사용 가능한 페이지 수가 바뀔 때 호출된다.</summary>
+        private void HandleStorageCapacityChanged()
+        {
+            Debug.Log("[MemStorageUI] OnStorageCapacityChanged 수신 -> 그리드 갱신 시도");
+
+            if (grid != null && captureManager != null)
+            {
+                grid.NotifyDataChanged(captureManager.CapturedMems, FindMemData, BuildStatDisplayProvider(), captureManager.UnlockedPageCount);
+            }
+        }
+
+        // ==========================================================================================
+        // [TODO - _Kyusoo/ProductionFacilityRuntime.cs 수정 필요, 현재 미구현이라 전체 주석 처리]
+        //
+        // _Kyusoo 쪽에 다음을 추가했다고 가정한 코드:
+        //   1) ProductionFacilityRuntime에 `public event Action OnDeployedMemsChanged;` 추가
+        //   2) TryAddMem(...)과 RemoveMem(...) 끝에서 OnDeployedMemsChanged?.Invoke() 호출
+        //
+        // 이 이벤트가 실제로 생기면, 창고에서 직접 해제할 때뿐 아니라 시설 쪽 UI(ProductionMemSlotUI/
+        // ProductionPanelUI)를 통해 멤이 배치/해제될 때도 창고 그리드의 활성 표시(activeImage)가 즉시
+        // 갱신되도록 씬의 모든 시설을 구독해둔다. 지금은 컴파일되지 않으므로(OnDeployedMemsChanged가 실제로
+        // 없음) 전체를 주석 처리해두고, 위 OnEnable/OnDisable의 호출부와 함께 이 블록의 주석을 풀면 바로
+        // 동작한다.
+        //
+        // [한계] 씬에 이미 있는 시설만 구독한다 - 이후 새로 지어지는 시설은 이 목록에 없으므로 구독되지 않는다.
+        // (시설이 "새로 지어졌다"를 알리는 이벤트도 아직 없어서, 필요하면 GridManager 쪽에 별도로 요청해야 한다.)
+        //
+        // private void SubscribeToFacilityChanges()
+        // {
+        //     var facilities = UnityEngine.Object.FindObjectsByType<ProductionFacilityRuntime>(FindObjectsSortMode.None);
+        //     foreach (var facility in facilities)
+        //     {
+        //         facility.OnDeployedMemsChanged += HandleFacilityDeployedMemsChanged;
+        //     }
+        // }
+        //
+        // private void UnsubscribeFromFacilityChanges()
+        // {
+        //     var facilities = UnityEngine.Object.FindObjectsByType<ProductionFacilityRuntime>(FindObjectsSortMode.None);
+        //     foreach (var facility in facilities)
+        //     {
+        //         facility.OnDeployedMemsChanged -= HandleFacilityDeployedMemsChanged;
+        //     }
+        // }
+        //
+        // private void HandleFacilityDeployedMemsChanged()
+        // {
+        //     Debug.Log("[MemStorageUI] 시설 쪽 배치 변경 감지 -> 그리드 갱신 시도");
+        //
+        //     if (grid != null && captureManager != null)
+        //     {
+        //         grid.NotifyDataChanged(captureManager.CapturedMems, FindMemData, BuildStatDisplayProvider(), captureManager.UnlockedPageCount);
+        //     }
+        // }
+        // ==========================================================================================
 
         /// <summary>업그레이드 버튼 클릭 처리. 공용 업그레이드 팝업에 멤창고 페이지 업그레이드 어댑터를 넘겨 보여준다.</summary>
         private void HandleUpgradeButtonClicked()
@@ -198,8 +265,7 @@ namespace HDY.UI
             }
         }
 
-        /// <summary>그리드에서 드래그앤드롭으로 슬롯 위치 교체가 요청되었을 때 호출. 실제 데이터(MemCaptureManager)에 반영한다.
-        /// captureManager.SwapEntries가 내부적으로 OnCapturedMemsChanged를 발행하므로, 그리드는 자체 구독으로 알아서 다시 그려진다.</summary>
+        /// <summary>그리드에서 드래그앤드롭으로 슬롯 위치 교체가 요청되었을 때 호출. 실제 데이터(MemCaptureManager)에 반영한다.</summary>
         private void HandleSwapRequested(int indexA, int indexB)
         {
             Debug.Log($"[MemStorageUI] 슬롯 교체 요청 수신: index {indexA} <-> {indexB}");
@@ -215,13 +281,11 @@ namespace HDY.UI
 
         /// <summary>
         /// 그리드에서 배치 해제(해제하기 버튼)가 요청되었을 때 호출된다. 이 창고 UI는 entry가 어느 시설에
-        /// 배치되어 있는지 모르므로, 씬의 모든 BuildingRuntime을 훑어 이 entry를 갖고 있는 시설을 찾는다.
-        /// CapturedMemEntry는 참조 타입이라 시설 쪽 리스트와 MemCaptureManager 쪽 리스트가 같은 객체를
-        /// 가리키므로, 시설의 해제 처리만으로 IsActive도 자동으로 false가 된다(그리고 이 경로는
-        /// ProductionFacilityRuntime/ProductionCraftRuntime의 정적 이벤트를 발행하므로 Grid도 자체 구독으로
-        /// 알아서 다시 그려진다). 다만 "어느 시설에도 등록되어 있지 않은데 IsActive만 true인" 방어 코드
-        /// 경로에서는 정적 이벤트가 발행되지 않으므로, 그 경우까지 안전하게 반영되도록 여기서 한 번 더
-        /// 직접 그리드를 갱신한다.
+        /// 배치되어 있는지 모르므로, 씬의 모든 ProductionFacilityRuntime을 훑어 DeployedMemEntries에 이
+        /// entry를 갖고 있는 시설을 찾는다. CapturedMemEntry는 참조 타입이라 시설 쪽 리스트와
+        /// MemCaptureManager 쪽 리스트가 같은 객체를 가리키므로, 시설의 RemoveMem() 호출만으로 IsActive도
+        /// 자동으로 false가 된다. 이후 MemCaptureManager는 이 변경을 스스로 감지하지 못하므로 그리드를
+        /// 직접 다시 그려서 활성 표시를 갱신한다.
         /// </summary>
         private void HandleReleaseRequested(CapturedMemEntry entry, MemData data)
         {
@@ -254,7 +318,7 @@ namespace HDY.UI
 
             if (grid != null && captureManager != null)
             {
-                grid.NotifyDataChanged(captureManager.CapturedMems, FindMemData, GetStatDisplayInfo, captureManager.UnlockedPageCount);
+                grid.NotifyDataChanged(captureManager.CapturedMems, FindMemData, BuildStatDisplayProvider(), captureManager.UnlockedPageCount);
             }
         }
 
@@ -263,9 +327,6 @@ namespace HDY.UI
         /// 정렬 버튼 클릭 요청을 받아 실제 정렬(카탈로그 조회 + 비교, MemSortHelper 재사용)을 수행하고,
         /// 결과를 MemCaptureManager에 반영한다. 빈 칸은 정렬 대상에서 제외한 뒤 ApplySortedOrder가 자동으로
         /// 뒤쪽에 채운다. 정렬 기준을 activeSortCriteria에 기억해서 이후 그리드 갱신 시 Mem스탯/티어 표시에 사용한다.
-        /// captureManager.ApplySortedOrder가 내부적으로 OnCapturedMemsChanged를 발행하므로, 그리드는 자체
-        /// 구독으로 알아서 다시 그려진다(이때 GetStatDisplayInfo가 방금 갱신한 activeSortCriteria를 즉석에서
-        /// 다시 읽으므로 최신 정렬 기준이 정확히 반영된다).
         /// </summary>
         private void HandleSortRequested(MemSortCriteria criteria)
         {
@@ -296,22 +357,16 @@ namespace HDY.UI
         }
 
         /// <summary>
-        /// 슬롯에 표시할 스탯/티어 아이콘+텍스트를 계산한다.
+        /// 현재 activeSortCriteria를 기준으로, 그리드에 넘겨줄 "슬롯마다 아이콘/텍스트를 계산하는 함수"를 만든다.
         /// - 정렬한 적이 없으면(null) 또는 MemId로 정렬 중이면: 전부 Hidden
         /// - 티어로 정렬 중이면: 티어 아이콘 + 앞글자 대문자(R/E/U/L/M)
         /// - 나머지 Mem스탯으로 정렬 중이면: 그 스탯 아이콘 + 숫자
-        /// [항상-최신반영] 예전에는 "지금 이 순간의 정렬 기준"을 클로저로 고정한 새 델리게이트를 매번
-        /// 만들어서(BuildStatDisplayProvider) Grid에 넘겼는데, 그러면 Grid가 그 델리게이트를 나중에
-        /// (자체 이벤트 구독 등으로) 다시 재사용할 때 정렬 기준이 이미 바뀌었어도 예전 값에 머물러 있는
-        /// 문제가 있었다. 그래서 클로저로 값을 고정하는 대신, 이 메서드 자체를 호출될 때마다
-        /// activeSortCriteria를 그 자리에서 다시 읽는 안정적인 메서드로 바꿨다 - Grid는 이 메서드 참조
-        /// 하나만 한 번 캐싱해두고 계속 재사용해도 항상 최신 정렬 기준이 반영된다.
         /// </summary>
-        private MemStatDisplayInfo GetStatDisplayInfo(CapturedMemEntry entry)
+        private Func<CapturedMemEntry, MemStatDisplayInfo> BuildStatDisplayProvider()
         {
             if (activeSortCriteria == null || activeSortCriteria.Value == MemSortCriteria.MemId)
             {
-                return MemStatDisplayInfo.Hidden;
+                return _ => MemStatDisplayInfo.Hidden;
             }
 
             var criteria = activeSortCriteria.Value;
@@ -319,11 +374,11 @@ namespace HDY.UI
 
             if (criteria == MemSortCriteria.Tier)
             {
-                return BuildTierDisplayInfoForEntry(entry, memDataLookup);
+                return entry => BuildTierDisplayInfoForEntry(entry, memDataLookup);
             }
 
             var icon = GetStatIcon(criteria);
-            return BuildStatDisplayInfoForEntry(entry, criteria, memDataLookup, icon);
+            return entry => BuildStatDisplayInfoForEntry(entry, criteria, memDataLookup, icon);
         }
 
         private MemStatDisplayInfo BuildStatDisplayInfoForEntry(CapturedMemEntry entry, MemSortCriteria criteria, Dictionary<string, MemData> lookup, Sprite icon)
