@@ -30,9 +30,25 @@ namespace HDY.UI
     /// 실제 교체(OnSlotSwapRequested) 시점에는 그 기억해둔 값을 사용한다 - 그래야 드래그 중 페이지가 바뀌어도
     /// 엉뚱한 항목이 교체되지 않는다.
     ///
-    /// [Mem스탯 표시] 슬롯에 표시할 스탯 아이콘/숫자(MemStatDisplayInfo)는 이 클래스가 직접 계산하지 않는다.
-    /// 카탈로그(MemData) 조회와 "현재 정렬 기준이 무엇인지" 판단은 MemStorageUI가 하고, 그 결과를
-    /// statDisplayProvider 콜백으로 받아 슬롯마다 그대로 넘겨주기만 한다(findMemData와 동일한 방식).
+    /// [Mem스탯 표시] 슬롯에 표시할 스탯 아이콘/숫자(MemStatDisplayInfo)는 원칙적으로 이 클래스가 직접
+    /// 계산하지 않는다. 카탈로그(MemData) 조회와 "현재 정렬 기준이 무엇인지" 판단은 MemStorageUI가 하고, 그
+    /// 결과를 statDisplayProvider 콜백으로 받아 슬롯마다 그대로 넘겨주기만 한다(findMemData와 동일한 방식).
+    /// 다만 MemStorageUI(컨트롤러) 없이 이 그리드만 단독으로 쓰이는 화면(예: 생산/제작 시설의 멤 배치용
+    /// 선택 그리드)에서는 statDisplayProvider 자체가 없으므로, 아래 [활성 멤 = 시설 아이콘 (독립 그리드 폴백)]
+    /// 을 대신 사용한다.
+    ///
+    /// [활성 멤 = 시설 아이콘 (독립 그리드 폴백)] statDisplayProvider가 없을 때(=MemStorageUI 없이 단독 사용),
+    /// 활성화(IsActive)된 멤은 배치된 시설이 요구하는 생산 스탯의 아이콘을 스탯 아이콘 자리에 대신 표시한다
+    /// (FacilityDeploymentLookup으로 배치된 시설을 찾아 필요 스탯 종류를 조회, 아이콘은 아래 필드에서 매핑).
+    /// 이 화면엔 정렬 기능이 없어 "정렬 전/후" 구분이 필요 없으므로 항상 이 규칙을 적용한다.
+    /// findMemData 콜백도 없어(cachedFindMemData가 null) 그 멤의 실제 스탯 숫자를 조회할 수 없는 경우가
+    /// 많으므로, 그럴 땐 아이콘만 표시하고 숫자는 생략한다.
+    ///
+    /// [스탯 아이콘 6종 중 탐험 아이콘은 아직 미사용] MemStorageUI의 정렬 기준 아이콘 세트와 맞춰 아이콘
+    /// 필드를 6종(제작/벌목/채광/이동/생산/탐험) 준비해두지만, "탐험 시설"에 멤을 배치하는 기능 자체가
+    /// 아직 게임에 없어서(ProductionStatType에도 Exploration 값이 없음) explorationStatIcon은 현재
+    /// GetStatIcon(ProductionStatType) 매핑에서 실제로 쓰이지는 않는다. 나중에 탐험 관련 배치 기능이
+    /// 추가되면 그때 매핑 로직만 이어붙이면 되도록 필드만 미리 만들어둔 것이다.
     ///
     /// [자동 갱신 - 데이터 변경 이벤트 직접 구독] 이 그리드는 MemStorageUI(컨트롤러) 없이 여러 화면(멤창고,
     /// 제작대/생산시설의 "멤 배치용 창고 선택 그리드" 등)에 독립적으로 배치되어 재사용된다. 그래서 이 그리드가
@@ -110,6 +126,16 @@ namespace HDY.UI
         [Header("데이터 참조 (이 그리드만 단독으로 사용할 때도 자동 갱신되도록 직접 구독)")]
         [Tooltip("비워두면 MemCaptureManager.Instance로 자동 보정한다. MemStorageUI(컨트롤러) 없이 이 그리드만 사용하는 화면에서도, 포획/스왑/정렬/업그레이드/시설 배치 등으로 데이터가 바뀌면 스스로 다시 그려지도록 여기서 직접 구독한다.")]
         [SerializeField] private MemCaptureManager captureManager;
+
+        [Header("스탯 아이콘 (MemStorageUI 없이 단독 사용 시 - 활성 멤이 배치된 시설의 필요 스탯 표시용)")]
+        [Tooltip("이 그리드가 MemStorageUI(정렬 기능 포함) 없이 단독으로 쓰일 때, 활성화된 멤이 배치된 시설이 요구하는 스탯의 아이콘을 여기서 매핑한다. MemStorageUI를 통해 쓰이는 화면에서는 MemStorageUI가 이미 자체적으로 처리하므로 이 필드들은 쓰이지 않는다.")]
+        [SerializeField] private Sprite craftingStatIcon;
+        [SerializeField] private Sprite loggingStatIcon;
+        [SerializeField] private Sprite miningStatIcon;
+        [SerializeField] private Sprite transportStatIcon;
+        [SerializeField] private Sprite farmingStatIcon;
+        [Tooltip("탐험(Exploration) 스탯 아이콘. '탐험 시설' 배치 기능 자체가 아직 없어(ProductionStatType에 Exploration이 없음) GetStatIcon(ProductionStatType) 매핑에서는 아직 쓰이지 않는다. 나중에 관련 기능이 생기면 이어붙일 수 있도록 필드만 미리 만들어둔다.")]
+        [SerializeField] private Sprite explorationStatIcon;
 
         private readonly List<MemSlotUI> slots = new List<MemSlotUI>();
         private readonly List<RectTransform> pageDots = new List<RectTransform>();
@@ -242,7 +268,7 @@ namespace HDY.UI
         /// 호출될 때마다 EnsureCaptureManager()로 한 번 더 확보를 시도한 뒤, 마지막으로 ShowInitial/
         /// NotifyDataChanged에 전달됐던 콜백(cachedFindMemData/cachedStatDisplayProvider)을 그대로
         /// 재사용해서 다시 그린다 - 아직 한 번도 호출된 적이 없으면(콜백이 null) Populate가 알아서 안전하게
-        /// 처리한다(findMemData/statDisplayProvider가 null이어도 각각 데이터 없음/Hidden으로 대체됨).
+        /// 처리한다(findMemData/statDisplayProvider가 null이어도 각각 데이터 없음/기본 폴백으로 대체됨).
         /// </summary>
         private void RefreshFromCaptureManager()
         {
@@ -508,7 +534,9 @@ namespace HDY.UI
                 {
                     var entry = capturedMems[globalIndex];
                     var data = findMemData != null ? findMemData(entry.MemId) : null;
-                    var statInfo = statDisplayProvider != null ? statDisplayProvider(entry) : MemStatDisplayInfo.Hidden;
+                    var statInfo = statDisplayProvider != null
+                        ? statDisplayProvider(entry)
+                        : ComputeDefaultActiveFacilityDisplay(entry);
                     slots[i].SetData(entry, data, statInfo);
                 }
                 else
@@ -523,6 +551,48 @@ namespace HDY.UI
             if (nextPageButton != null) nextPageButton.interactable = currentPageIndex < totalPages - 1;
 
             Debug.Log($"[MemStorageUI_Grid] Populate 완료: 슬롯={slots.Count}, 전체 칸수={capturedMems.Count}, 페이지={currentPageIndex + 1}/{totalPages} (언락={unlockedPageCount})");
+        }
+
+        /// <summary>
+        /// [독립 그리드 폴백] statDisplayProvider가 없을 때(=MemStorageUI 없이 단독 사용)만 쓰인다. 이 화면엔
+        /// 정렬 기능이 없어 "정렬 전/후" 구분이 필요 없으므로, 활성화(IsActive)된 멤은 항상 배치된 시설이
+        /// 요구하는 스탯의 아이콘을 보여준다(FacilityDeploymentLookup으로 조회). findMemData가 없어서
+        /// (cachedFindMemData가 null) 실제 스탯 숫자를 조회할 수 없으면 아이콘만 표시하고 숫자는 생략한다.
+        /// </summary>
+        private MemStatDisplayInfo ComputeDefaultActiveFacilityDisplay(CapturedMemEntry entry)
+        {
+            if (entry == null || entry.IsEmpty || !entry.IsActive) return MemStatDisplayInfo.Hidden;
+
+            if (!FacilityDeploymentLookup.TryGetRequiredStatType(entry, out var statType))
+            {
+                return MemStatDisplayInfo.Hidden;
+            }
+
+            var icon = GetStatIcon(statType);
+            if (icon == null) return MemStatDisplayInfo.Hidden;
+
+            var data = cachedFindMemData != null ? cachedFindMemData(entry.MemId) : null;
+            string displayText = data != null ? data.productionStats.GetStat(statType).ToString() : string.Empty;
+
+            return new MemStatDisplayInfo(true, icon, displayText);
+        }
+
+        /// <summary>
+        /// ProductionStatType -> 아이콘 매핑. ProductionStatType에는 Exploration이 없어(탐험 시설 배치 기능
+        /// 자체가 아직 없음) explorationStatIcon 필드는 여기서 참조되지 않는다 - 나중에 관련 기능이 생기면
+        /// 이어붙일 수 있도록 필드만 미리 만들어둔 상태다.
+        /// </summary>
+        private Sprite GetStatIcon(ProductionStatType statType)
+        {
+            switch (statType)
+            {
+                case ProductionStatType.Crafting: return craftingStatIcon;
+                case ProductionStatType.Logging: return loggingStatIcon;
+                case ProductionStatType.Mining: return miningStatIcon;
+                case ProductionStatType.Transport: return transportStatIcon;
+                case ProductionStatType.Farming: return farmingStatIcon;
+                default: return null;
+            }
         }
 
         /// <summary>
