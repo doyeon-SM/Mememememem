@@ -34,9 +34,44 @@ namespace HDY.UI
     /// 카탈로그(MemData) 조회와 "현재 정렬 기준이 무엇인지" 판단은 MemStorageUI가 하고, 그 결과를
     /// statDisplayProvider 콜백으로 받아 슬롯마다 그대로 넘겨주기만 한다(findMemData와 동일한 방식).
     ///
+    /// [자동 갱신 - 데이터 변경 이벤트 직접 구독] 이 그리드는 MemStorageUI(컨트롤러) 없이 여러 화면(멤창고,
+    /// 제작대/생산시설의 "멤 배치용 창고 선택 그리드" 등)에 독립적으로 배치되어 재사용된다. 그래서 이 그리드가
+    /// 아래 4개 이벤트를 전부 직접 구독한다(OnEnable/OnDisable):
+    /// - MemCaptureManager.OnCapturedMemsChanged (포획/스왑/정렬 등으로 목록 자체가 바뀔 때)
+    /// - MemCaptureManager.OnStorageCapacityChanged (멤창고 업그레이드로 언락 페이지 수가 바뀔 때)
+    /// - ProductionFacilityRuntime.OnMemDeploymentChanged (정적 이벤트 - 생산 시설에 멤이 배치/해제되어
+    ///   entry.IsActive가 바뀔 때. _Kyusoo 쪽 코드라 목록 자체는 안 바뀌므로 위 두 이벤트로는 감지되지 않는다)
+    /// - ProductionCraftRuntime.OnMemDeploymentChanged (정적 이벤트 - 제작 시설 버전. 클래스가 달라 별도 이벤트다)
+    /// 네 이벤트 모두 같은 방식(RefreshFromCaptureManager)으로 처리한다 - 캐싱해둔 findMemData/statDisplayProvider
+    /// (cachedFindMemData/cachedStatDisplayProvider)를 그대로 재사용해 captureManager.CapturedMems/
+    /// UnlockedPageCount를 다시 읽어와 다시 그린다. 이 캐싱이 안전하려면 findMemData/statDisplayProvider가
+    /// "호출될 때마다 최신 상태를 즉석에서 읽어오는" 안정적인(stable) 메서드여야 한다(예:
+    /// MemStorageUI.GetStatDisplayInfo는 정렬 기준을 매번 새로 읽으므로 안전하게 캐싱해도 된다).
+    ///
+    /// [captureManager 지연 확보 + 활성화 시 즉시 동기화] 이 그리드가 MemStorageUI 없이 씬에 항상 켜져 있는
+    /// 채로(예: 생산 패널 안의 멤 선택 그리드) 재사용되는 경우, OnEnable은 씬 시작 시 딱 한 번만 호출된다.
+    /// 그런데 Unity는 "모든 오브젝트의 Awake가 끝나야 어느 오브젝트든 Start가 호출된다"는 것만 보장하고,
+    /// 서로 다른 오브젝트 간 Awake/OnEnable의 실행 순서 자체는 보장하지 않는다 - 그래서 이 그리드의
+    /// Awake/OnEnable이 MemCaptureManager의 Awake보다 먼저 실행되면 MemCaptureManager.Instance가 아직
+    /// null이라 captureManager 확보 및 이벤트 구독에 실패할 수 있고, 이 그리드가 그 뒤로 다시는
+    /// 비활성화/재활성화되지 않으면 그 실패 상태가 영구히 남아 자동 갱신이 전혀 동작하지 않게 된다.
+    /// 이를 막기 위해 세 겹으로 방어한다:
+    /// 1) EnsureCaptureManager()를 OnEnable/Start/RefreshFromCaptureManager 세 곳 모두에서 호출해서, 아직
+    ///    확보 못 했으면 호출될 때마다 다시 시도한다.
+    /// 2) Start()(모든 오브젝트의 Awake가 끝난 뒤 호출되는 것이 보장됨)에서 구독을 한 번 더 시도한다 -
+    ///    이 시점이면 MemCaptureManager.Instance는 반드시 준비되어 있다. isSubscribedToCaptureEvents 플래그로
+    ///    이미 구독됐으면 중복 구독하지 않는다.
+    /// 3) OnEnable과 Start 마지막에 RefreshFromCaptureManager()를 즉시 한 번 호출해서, 이벤트를 기다리지 않고
+    ///    그 시점의 최신 데이터로 바로 동기화한다(놓친 변경사항이 있어도 즉시 따라잡는다).
+    /// ProductionFacilityRuntime/ProductionCraftRuntime의 정적 이벤트는 captureManager와 무관하게(클래스
+    /// 자체의 정적 이벤트라 인스턴스 타이밍 문제가 없음) OnEnable에서 항상 구독한다.
+    ///
     /// [배치 해제 버튼] 활성화(IsActive)된 멤을 우클릭하면 releaseButton 하나를 그 슬롯의 아이콘 위치로 옮겨
     /// 보여준다(슬롯마다 버튼을 두지 않고 하나를 재사용). 버튼을 클릭하면 OnReleaseRequested로 (entry, data)를
     /// 올리고, 실제로 어느 시설에서 해제할지/IsActive를 어떻게 되돌릴지는 MemStorageUI(컨트롤러)가 처리한다.
+    /// MemStorageUI 없이 이 그리드만 단독으로 배치된 화면에서는 OnReleaseRequested를 구독하는 쪽이 없다면
+    /// 해제하기 버튼을 눌러도 아무 효과가 없다(버튼 자체는 감춰지지만 실제 배치 해제는 일어나지 않는다) -
+    /// 그런 화면에서는 별도로 OnReleaseRequested를 구독해 처리해줘야 한다.
     /// 페이지 이동이나 다른 슬롯 좌클릭 시, 또는 해제 버튼 자체를 누른 뒤에는 버튼을 다시 숨긴다.
     /// releaseButton 프리팹의 pivot은 좌상단(0, 1)으로 설정해야 "멤 아이콘 중앙 = 버튼의 왼쪽 위 모서리"로
     /// 배치된다(에디터에서 설정 필요, 코드에서는 위치만 아이콘 중앙으로 맞춘다).
@@ -72,6 +107,10 @@ namespace HDY.UI
         [Header("배치 해제 버튼 (우클릭 시 활성 멤 위에 표시, 슬롯마다 두지 않고 하나를 재사용)")]
         [SerializeField] private Button releaseButton;
 
+        [Header("데이터 참조 (이 그리드만 단독으로 사용할 때도 자동 갱신되도록 직접 구독)")]
+        [Tooltip("비워두면 MemCaptureManager.Instance로 자동 보정한다. MemStorageUI(컨트롤러) 없이 이 그리드만 사용하는 화면에서도, 포획/스왑/정렬/업그레이드/시설 배치 등으로 데이터가 바뀌면 스스로 다시 그려지도록 여기서 직접 구독한다.")]
+        [SerializeField] private MemCaptureManager captureManager;
+
         private readonly List<MemSlotUI> slots = new List<MemSlotUI>();
         private readonly List<RectTransform> pageDots = new List<RectTransform>();
         private int currentPageIndex;
@@ -87,10 +126,15 @@ namespace HDY.UI
         private CapturedMemEntry pendingReleaseEntry;
         private MemData pendingReleaseData;
 
-        // 페이지 이동(이전/다음) 클릭 시 다시 그리기 위해 마지막으로 받은 데이터를 캐싱해둔다.
+        // 페이지 이동(이전/다음) 및 데이터 변경 이벤트로 인한 자동 갱신 시 다시 그리기 위해
+        // 마지막으로 받은 데이터/콜백을 캐싱해둔다.
         private IReadOnlyList<CapturedMemEntry> cachedCapturedMems;
         private Func<string, MemData> cachedFindMemData;
         private Func<CapturedMemEntry, MemStatDisplayInfo> cachedStatDisplayProvider;
+
+        // captureManager.OnCapturedMemsChanged/OnStorageCapacityChanged 구독 완료 여부. Start()에서 재시도할 때
+        // 이미 OnEnable에서 성공했다면 중복 구독하지 않기 위한 플래그.
+        private bool isSubscribedToCaptureEvents;
 
         /// <summary>슬롯이 클릭되었을 때 발생. MemStorageUI(컨트롤러)가 구독해서 정보 패널로 전달한다.</summary>
         public event Action<CapturedMemEntry, MemData> OnSlotClicked;
@@ -113,6 +157,8 @@ namespace HDY.UI
             if (pageDotsParent == null) Debug.LogWarning("[MemStorageUI_Grid] pageDotsParent가 비어있습니다. 페이지 점이 표시되지 않습니다.", this);
             if (releaseButton == null) Debug.LogWarning("[MemStorageUI_Grid] releaseButton이 비어있습니다. 배치 해제 버튼이 동작하지 않습니다.", this);
 
+            EnsureCaptureManager();
+
             CollectSlots();
             CollectPageDots();
 
@@ -124,6 +170,86 @@ namespace HDY.UI
                 releaseButton.onClick.AddListener(HandleReleaseButtonClicked);
                 releaseButton.gameObject.SetActive(false);
             }
+        }
+
+        private void OnEnable()
+        {
+            TrySubscribeToCaptureManagerEvents();
+
+            // [IsActive 변경 감지] 생산/제작 시설에 멤이 배치/해제되면 entry.IsActive만 직접 바뀌고
+            // captureManager의 두 이벤트는 발행되지 않으므로, 정적 이벤트를 별도로 구독해야 한다.
+            // 두 클래스(생산/제작)가 각자 독립된 정적 이벤트를 가지고 있어 둘 다 구독한다. 정적 이벤트라
+            // captureManager 확보 여부와 무관하게 항상 구독 가능하다.
+            ProductionFacilityRuntime.OnMemDeploymentChanged += RefreshFromCaptureManager;
+            ProductionCraftRuntime.OnMemDeploymentChanged += RefreshFromCaptureManager;
+
+            // 활성화되는 시점의 최신 데이터로 즉시 한 번 맞춘다 - 이벤트를 기다리지 않고 그 사이 놓친
+            // 변경사항(예: 이 그리드가 비활성 상태이던 동안 포획된 멤)까지 바로 반영한다.
+            RefreshFromCaptureManager();
+        }
+
+        private void OnDisable()
+        {
+            if (captureManager != null && isSubscribedToCaptureEvents)
+            {
+                captureManager.OnCapturedMemsChanged -= RefreshFromCaptureManager;
+                captureManager.OnStorageCapacityChanged -= RefreshFromCaptureManager;
+            }
+            isSubscribedToCaptureEvents = false;
+
+            ProductionFacilityRuntime.OnMemDeploymentChanged -= RefreshFromCaptureManager;
+            ProductionCraftRuntime.OnMemDeploymentChanged -= RefreshFromCaptureManager;
+        }
+
+        /// <summary>
+        /// 모든 오브젝트의 Awake가 끝난 뒤 반드시 호출되는 것이 보장되는 Start에서, 혹시 OnEnable 시점에
+        /// MemCaptureManager.Instance가 아직 준비되지 않아 captureManager 확보/구독에 실패했다면 한 번 더
+        /// 시도한다. isSubscribedToCaptureEvents 플래그 덕분에 OnEnable에서 이미 성공했다면 여기서는
+        /// 아무 일도 하지 않는다.
+        /// </summary>
+        private void Start()
+        {
+            TrySubscribeToCaptureManagerEvents();
+            RefreshFromCaptureManager();
+        }
+
+        /// <summary>captureManager가 비어있으면 파괴불가 싱글톤에서 다시 가져온다. 호출 시점과 무관하게 안전하게 여러 번 호출해도 된다.</summary>
+        private void EnsureCaptureManager()
+        {
+            if (captureManager == null) captureManager = MemCaptureManager.Instance;
+        }
+
+        /// <summary>captureManager를 확보한 뒤 아직 구독 전이면 OnCapturedMemsChanged/OnStorageCapacityChanged를 구독한다. 이미 구독했으면 아무 것도 하지 않는다(중복 구독 방지).</summary>
+        private void TrySubscribeToCaptureManagerEvents()
+        {
+            if (isSubscribedToCaptureEvents) return;
+
+            EnsureCaptureManager();
+            if (captureManager == null)
+            {
+                Debug.LogWarning("[MemStorageUI_Grid] captureManager를 찾을 수 없어 자동 갱신 구독을 하지 못했습니다. ShowInitial/NotifyDataChanged를 직접 호출해줘야 합니다.", this);
+                return;
+            }
+
+            captureManager.OnCapturedMemsChanged += RefreshFromCaptureManager;
+            captureManager.OnStorageCapacityChanged += RefreshFromCaptureManager;
+            isSubscribedToCaptureEvents = true;
+        }
+
+        /// <summary>
+        /// captureManager의 목록 변경, 언락 페이지 변경, 시설(생산/제작) 배치 변경 - 네 이벤트가 전부 이
+        /// 메서드 하나로 모인다(그리고 OnEnable/Start에서 활성화 시점 동기화용으로도 직접 호출된다).
+        /// 호출될 때마다 EnsureCaptureManager()로 한 번 더 확보를 시도한 뒤, 마지막으로 ShowInitial/
+        /// NotifyDataChanged에 전달됐던 콜백(cachedFindMemData/cachedStatDisplayProvider)을 그대로
+        /// 재사용해서 다시 그린다 - 아직 한 번도 호출된 적이 없으면(콜백이 null) Populate가 알아서 안전하게
+        /// 처리한다(findMemData/statDisplayProvider가 null이어도 각각 데이터 없음/Hidden으로 대체됨).
+        /// </summary>
+        private void RefreshFromCaptureManager()
+        {
+            EnsureCaptureManager();
+            if (captureManager == null) return;
+
+            NotifyDataChanged(captureManager.CapturedMems, cachedFindMemData, cachedStatDisplayProvider, captureManager.UnlockedPageCount);
         }
 
         /// <summary>씬(프리팹)에 미리 배치된 슬롯들을 gridParent 하위에서 찾아 수집한다(더 이상 런타임 Instantiate하지 않음). 이미 수집되어 있으면 바로 반환한다(여러 진입점에서 방어적으로 호출해도 안전).</summary>
