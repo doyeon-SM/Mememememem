@@ -12,7 +12,7 @@ namespace KMS.InventoryDuped
 /// isQuickSlot(bool) 대신 SlotGroup(enum)을 사용해서, InventoryUI(플레이어 전용)와 WarehouseUI(창고+인벤토리
 /// 통합) 양쪽 모두에서 이 컴포넌트를 그대로 재사용할 수 있게 했다.
 /// </summary>
-public class InventorySlotUI : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler, IPointerEnterHandler, IPointerExitHandler, IPointerMoveHandler
+public class InventorySlotUI : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler, IPointerClickHandler, IPointerEnterHandler, IPointerExitHandler, IPointerMoveHandler
 {
     public Image itemIcon;
     public TMP_Text amountText;
@@ -71,20 +71,32 @@ public class InventorySlotUI : MonoBehaviour, IBeginDragHandler, IDragHandler, I
 
     public void OnBeginDrag(PointerEventData eventData)
     {
+        if (owner is IInventorySlotClickOwner) return;
         owner?.BeginSlotDrag(this, currentStack, eventData.position);
     }
 
     public void OnDrag(PointerEventData eventData)
     {
+        if (owner is IInventorySlotClickOwner) return;
         owner?.MoveSlotDrag(eventData.position);
     }
 
     public void OnEndDrag(PointerEventData eventData)
     {
+        if (owner is IInventorySlotClickOwner) return;
+
         InventorySlotUI target = eventData.pointerCurrentRaycast.gameObject != null ?
             eventData.pointerCurrentRaycast.gameObject.GetComponentInParent<InventorySlotUI>() : null;
 
         owner?.EndSlotDrag(target);
+    }
+
+    public void OnPointerClick(PointerEventData eventData)
+    {
+        if (owner is IInventorySlotClickOwner clickOwner)
+        {
+            clickOwner.ClickSlot(this, eventData.button, eventData.position);
+        }
     }
 
     public void OnPointerEnter(PointerEventData eventData)

@@ -2,22 +2,24 @@ using HDY.Mem;
 using HDY.UI;
 using KMS.InventoryDuped;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
-using UnityEngine.UIElements;
 using GameCursor = UnityEngine.Cursor;
 using InputSystemKeyboard = UnityEngine.InputSystem.Keyboard;
-using UIToolkitButton = UnityEngine.UIElements.Button;
+using ToolkitButton = UnityEngine.UIElements.Button;
+using UIDocument = UnityEngine.UIElements.UIDocument;
 
 namespace KMS
 {
     /// <summary>
-    /// KMS UI Toolkit HUD의 도감 버튼과 HDY uGUI 멤 도감 프리팹을 연결한다.
+    /// KMS uGUI HUD의 도감 버튼과 HDY uGUI 멤 도감 프리팹을 연결한다.
     /// HDY UIManager가 있는 씬에서는 공용 패널 스택을 사용하고,
     /// 없는 KMS 테스트 씬에서는 자체 Canvas로 대체한다.
     /// </summary>
     public class KMSMemDexLauncher : MonoBehaviour
     {
         [Header("HUD Button")]
+        [SerializeField] private KMSPlayerHudView hudView;
         [SerializeField] private UIDocument uiDocument;
         [SerializeField] private string collectionButtonName = "collection-button";
 
@@ -32,7 +34,8 @@ namespace KMS
         [SerializeField] private PlayerCameraController cameraController;
         [SerializeField] private InventoryUI inventoryUi;
 
-        private UIToolkitButton collectionButton;
+        private Button collectionButton;
+        private ToolkitButton toolkitCollectionButton;
         private GameObject modalCanvasObject;
         private RectTransform modalRoot;
         private GameObject memDexInstance;
@@ -58,8 +61,9 @@ namespace KMS
             EnsureRuntimeServices();
         }
 
-        private void Start()
+        private void OnEnable()
         {
+            SceneManager.activeSceneChanged += HandleActiveSceneChanged;
             BindCollectionButton();
             BindPlayerInput();
         }
@@ -85,6 +89,7 @@ namespace KMS
 
         private void OnDisable()
         {
+            SceneManager.activeSceneChanged -= HandleActiveSceneChanged;
             UnbindCollectionButton();
             UnbindPlayerInput();
             Close();
@@ -136,6 +141,7 @@ namespace KMS
 
         private void ResolveReferences()
         {
+            if (hudView == null) hudView = FindFirstObjectByType<KMSPlayerHudView>(FindObjectsInactive.Include);
             if (uiDocument == null) uiDocument = GetComponent<UIDocument>();
             if (playerInput == null) playerInput = GetComponent<PlayerInput>();
             if (playerMovement == null) playerMovement = GetComponent<PlayerMovement>();
@@ -146,26 +152,54 @@ namespace KMS
         private void BindCollectionButton()
         {
             UnbindCollectionButton();
+            ResolveReferences();
 
-            if (uiDocument == null || uiDocument.rootVisualElement == null) return;
-
-            collectionButton = uiDocument.rootVisualElement.Q<UIToolkitButton>(collectionButtonName);
-            if (collectionButton == null)
+            if (uiDocument != null && uiDocument.enabled && uiDocument.rootVisualElement != null)
             {
-                Debug.LogWarning($"[KMSMemDexLauncher] '{collectionButtonName}' 버튼을 찾을 수 없습니다.", this);
+                toolkitCollectionButton = UnityEngine.UIElements.UQueryExtensions.Q<ToolkitButton>(
+                    uiDocument.rootVisualElement,
+                    collectionButtonName);
+                if (toolkitCollectionButton != null)
+                {
+                    toolkitCollectionButton.clicked += Toggle;
+                    return;
+                }
+
+                Debug.LogWarning($"[KMSMemDexLauncher] UI Toolkit의 '{collectionButtonName}' 버튼을 찾을 수 없습니다.", this);
                 return;
             }
 
-            collectionButton.clicked += Toggle;
+            collectionButton = hudView != null ? hudView.CollectionButton : null;
+            if (collectionButton == null)
+            {
+                Debug.LogWarning("[KMSMemDexLauncher] uGUI 도감 버튼을 찾을 수 없습니다.", this);
+                return;
+            }
+
+            collectionButton.onClick.AddListener(Toggle);
         }
 
         private void UnbindCollectionButton()
         {
             if (collectionButton != null)
             {
-                collectionButton.clicked -= Toggle;
+                collectionButton.onClick.RemoveListener(Toggle);
                 collectionButton = null;
             }
+
+            if (toolkitCollectionButton != null)
+            {
+                toolkitCollectionButton.clicked -= Toggle;
+                toolkitCollectionButton = null;
+            }
+        }
+
+        private void HandleActiveSceneChanged(Scene previousScene, Scene nextScene)
+        {
+            UnbindCollectionButton();
+            hudView = null;
+            inventoryUi = null;
+            BindCollectionButton();
         }
 
         private void BindPlayerInput()

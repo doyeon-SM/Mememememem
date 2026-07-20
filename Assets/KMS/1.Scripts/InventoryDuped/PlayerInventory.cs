@@ -271,6 +271,142 @@ public class PlayerInventory : MonoBehaviour
         return moved;
     }
 
+    /// <summary>
+    /// 클릭 이동용 API. 지정 슬롯에서 요청한 수량을 떼어 독립된 스택으로 반환한다.
+    /// UI가 ItemStack 참조를 직접 옮기지 않도록 데이터 변경과 알림을 여기서 함께 처리한다.
+    /// </summary>
+    public bool TryTakeSlot(SlotGroup group, int index, int amount, out ItemStack takenStack)
+    {
+        takenStack = null;
+
+        InventoryContainer container = GetContainer(group);
+        if (container == null || !container.IsValidIndex(index)) return false;
+        if (IsLockedQuickSlot(container, index)) return false;
+
+        ItemStack slot = container.slots[index];
+        if (slot == null || slot.IsEmpty || amount <= 0) return false;
+
+        int takenAmount = Mathf.Min(amount, slot.amount);
+        takenStack = new ItemStack { itemId = slot.itemId, amount = takenAmount };
+
+        slot.amount -= takenAmount;
+        if (slot.amount <= 0) slot.Clear();
+
+        NotifySlotChanged(group, index);
+        return true;
+    }
+
+    /// <summary>빈손 우클릭용. 홀수 스택은 플레이어가 더 많이 들도록 절반을 올림한다.</summary>
+    public bool TryTakeHalfSlot(SlotGroup group, int index, out ItemStack takenStack)
+    {
+        takenStack = null;
+
+        InventoryContainer container = GetContainer(group);
+        if (container == null || !container.IsValidIndex(index)) return false;
+
+        ItemStack slot = container.slots[index];
+        if (slot == null || slot.IsEmpty) return false;
+
+        int halfAmount = Mathf.CeilToInt(slot.amount * 0.5f);
+        return TryTakeSlot(group, index, halfAmount, out takenStack);
+    }
+
+    /// <summary>수량 팝업 표시용으로 슬롯 데이터의 복사본을 반환한다.</summary>
+    public bool TryGetSlotSnapshot(SlotGroup group, int index, out ItemStack snapshot)
+    {
+        snapshot = null;
+
+        InventoryContainer container = GetContainer(group);
+        if (container == null || !container.IsValidIndex(index)) return false;
+
+        ItemStack slot = container.slots[index];
+        if (slot == null || slot.IsEmpty) return false;
+
+        snapshot = new ItemStack { itemId = slot.itemId, amount = slot.amount };
+        return true;
+    }
+
+    public ItemData FindItemData(string itemId)
+    {
+        return catalogManager != null ? catalogManager.FindItemData(itemId) : null;
+    }
+
+    /// <summary>
+    /// 커서가 들고 있는 스택 전체를 대상 슬롯에 놓는다. 빈 슬롯에는 이동하고,
+    /// 같은 아이템에는 MaxStack까지 병합하며, 다른 아이템이면 두 스택을 교환한다.
+    /// heldStack은 남은 수량 또는 교환되어 새로 들게 된 스택으로 갱신된다.
+    /// </summary>
+    public bool TryPlaceHeldStack(SlotGroup group, int index, ItemStack heldStack)
+    {
+        return TryPlaceHeldAmount(group, index, heldStack, heldStack != null ? heldStack.amount : 0, true);
+    }
+
+    /// <summary>
+    /// 커서 스택에서 지정 수량만 대상 슬롯에 놓는다. 우클릭은 amount=1, allowSwap=false로 사용한다.
+    /// 다른 아이템과의 교환은 전체 스택을 놓는 좌클릭에서만 허용한다.
+    /// </summary>
+    public bool TryPlaceHeldAmount(SlotGroup group, int index, ItemStack heldStack, int amount, bool allowSwap = false)
+    {
+        if (heldStack == null || heldStack.IsEmpty || amount <= 0) return false;
+
+        InventoryContainer container = GetContainer(group);
+        if (container == null || !container.IsValidIndex(index)) return false;
+        if (IsLockedQuickSlot(container, index)) return false;
+
+        ItemStack target = container.slots[index];
+        int requestedAmount = Mathf.Min(amount, heldStack.amount);
+
+        if (target.IsEmpty)
+        {
+            int placed = Mathf.Min(GetMaxStack(heldStack.itemId), requestedAmount);
+            target.Set(heldStack.itemId, placed);
+            heldStack.amount -= placed;
+            if (heldStack.amount <= 0) heldStack.Clear();
+
+            NotifySlotChanged(group, index);
+            return true;
+        }
+
+        if (target.itemId == heldStack.itemId)
+        {
+            int space = GetMaxStack(target.itemId) - target.amount;
+            if (space <= 0) return false;
+
+            int placed = Mathf.Min(space, requestedAmount);
+            target.amount += placed;
+            heldStack.amount -= placed;
+            if (heldStack.amount <= 0) heldStack.Clear();
+
+            NotifySlotChanged(group, index);
+            return true;
+        }
+
+        if (!allowSwap || requestedAmount != heldStack.amount) return false;
+
+        string displacedItemId = target.itemId;
+        int displacedAmount = target.amount;
+        target.Set(heldStack.itemId, heldStack.amount);
+        heldStack.Set(displacedItemId, displacedAmount);
+
+        NotifySlotChanged(group, index);
+        return true;
+    }
+
+    /// <summary>
+    /// 인벤토리를 닫을 때 커서에 남은 아이템을 손실 없이 되돌린다.
+    /// 원래 슬롯을 먼저 시도하고, 이후 일반 인벤토리와 사용 가능 퀵슬롯의 같은 스택/빈 슬롯을 찾는다.
+    /// </summary>
+    public bool TryReturnHeldStack(ItemStack heldStack, SlotGroup preferredGroup, int preferredIndex)
+    {
+        if (heldStack == null || heldStack.IsEmpty) return true;
+
+        TryPlaceWithoutSwap(preferredGroup, preferredIndex, heldStack);
+        TryPlaceWithoutSwap(inventory, SlotGroup.Inventory, heldStack);
+        TryPlaceWithoutSwap(quickSlots, SlotGroup.QuickSlot, heldStack);
+
+        return heldStack.IsEmpty;
+    }
+
     // 퀵슬롯 아이템 선택. 사용중이면 마지막 입력 기록
     public void SelectQuickSlot(int index)
     {
@@ -579,6 +715,75 @@ public class PlayerInventory : MonoBehaviour
     private bool IsLockedQuickSlot(InventoryContainer container, int index)
     {
         return container == quickSlots && IsQuickSlotLocked(index);
+    }
+
+    private InventoryContainer GetContainer(SlotGroup group)
+    {
+        if (group == SlotGroup.Inventory) return inventory;
+        if (group == SlotGroup.QuickSlot) return quickSlots;
+        return null;
+    }
+
+    private int GetMaxStack(string itemId)
+    {
+        ItemData itemData = catalogManager != null ? catalogManager.FindItemData(itemId) : null;
+        return itemData != null ? Mathf.Max(1, itemData.MaxStack) : 1;
+    }
+
+    private void NotifySlotChanged(SlotGroup group, int index)
+    {
+        if (group == SlotGroup.Inventory)
+        {
+            OnInventoryChanged?.Invoke();
+        }
+        else if (group == SlotGroup.QuickSlot)
+        {
+            OnQuickSlotChanged?.Invoke(index);
+            NotifySelectedQuickSlotIfChanged(index);
+        }
+    }
+
+    private void TryPlaceWithoutSwap(SlotGroup group, int index, ItemStack heldStack)
+    {
+        InventoryContainer container = GetContainer(group);
+        if (container == null || !container.IsValidIndex(index)) return;
+        if (IsLockedQuickSlot(container, index)) return;
+
+        ItemStack target = container.slots[index];
+        if (!target.IsEmpty && target.itemId != heldStack.itemId) return;
+
+        int space = target.IsEmpty ? GetMaxStack(heldStack.itemId) : GetMaxStack(target.itemId) - target.amount;
+        if (space <= 0) return;
+
+        int placed = Mathf.Min(space, heldStack.amount);
+        if (target.IsEmpty) target.Set(heldStack.itemId, placed);
+        else target.amount += placed;
+
+        heldStack.amount -= placed;
+        if (heldStack.amount <= 0) heldStack.Clear();
+        NotifySlotChanged(group, index);
+    }
+
+    private void TryPlaceWithoutSwap(InventoryContainer container, SlotGroup group, ItemStack heldStack)
+    {
+        if (container == null || container.slots == null || heldStack == null || heldStack.IsEmpty) return;
+
+        for (int i = 0; i < container.slots.Length && !heldStack.IsEmpty; i++)
+        {
+            ItemStack slot = container.slots[i];
+            if (!slot.IsEmpty && slot.itemId == heldStack.itemId)
+            {
+                TryPlaceWithoutSwap(group, i, heldStack);
+            }
+        }
+
+        for (int i = 0; i < container.slots.Length && !heldStack.IsEmpty; i++)
+        {
+            if (container.slots[i].IsEmpty)
+            {
+                TryPlaceWithoutSwap(group, i, heldStack);
+            }
+        }
     }
 
     /// <summary>

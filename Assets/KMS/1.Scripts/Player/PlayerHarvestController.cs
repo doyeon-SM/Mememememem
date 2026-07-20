@@ -42,6 +42,7 @@ namespace KMS.Harvesting
         [SerializeField] private bool logHitTarget = true;
 
         private float cooldownTimer;
+        private bool isPrimaryActionHeld;
         private static readonly int SlashHash = Animator.StringToHash("Slash");
 
         private void Reset()
@@ -73,7 +74,8 @@ namespace KMS.Harvesting
         {
             if (input != null)
             {
-                input.PrimaryActionPressed += TryHarvest;
+                input.PrimaryActionPressed += HandlePrimaryActionPressed;
+                input.PrimaryActionReleased += HandlePrimaryActionReleased;
             }
         }
 
@@ -81,35 +83,83 @@ namespace KMS.Harvesting
         {
             if (input != null)
             {
-                input.PrimaryActionPressed -= TryHarvest;
+                input.PrimaryActionPressed -= HandlePrimaryActionPressed;
+                input.PrimaryActionReleased -= HandlePrimaryActionReleased;
             }
+
+            isPrimaryActionHeld = false;
         }
 
         private void Update()
         {
             if (cooldownTimer > 0f)
             {
-                cooldownTimer -= Time.deltaTime;
+                cooldownTimer = Mathf.Max(0f, cooldownTimer - Time.deltaTime);
+            }
+
+            if (!isPrimaryActionHeld) return;
+
+            if (!CanContinueHeldToolUse())
+            {
+                isPrimaryActionHeld = false;
+                return;
+            }
+
+            if (cooldownTimer <= 0f && TryGetSelectedTool(out ItemData selectedTool))
+            {
+                UseTool(selectedTool);
             }
         }
 
-        private void TryHarvest()
+        private void HandlePrimaryActionPressed()
         {
-            if (cooldownTimer > 0f) return;
-            if (inventory == null || cameraTransform == null) return;
+            if (!TryGetSelectedTool(out ItemData selectedTool)) return;
+
+            isPrimaryActionHeld = true;
+
+            if (cooldownTimer <= 0f)
+            {
+                UseTool(selectedTool);
+            }
+        }
+
+        private void HandlePrimaryActionReleased()
+        {
+            isPrimaryActionHeld = false;
+        }
+
+        private bool CanContinueHeldToolUse()
+        {
+            if (input == null || !input.isActiveAndEnabled) return false;
+            if (input.IsGameplayInputBlocked || input.IsCursorReleased) return false;
+
+            return TryGetSelectedTool(out _);
+        }
+
+        private bool TryGetSelectedTool(out ItemData selectedItem)
+        {
+            selectedItem = null;
+
+            if (inventory == null) return false;
+
+            if (catalogManager == null)
+            {
+                catalogManager = ItemCatalogManager.Resolve(catalogManager);
+            }
 
             KmsItemStack selectedSlot = inventory.GetSelectedQuickSlot();
-            if (selectedSlot == null || selectedSlot.IsEmpty) return;
+            if (selectedSlot == null || selectedSlot.IsEmpty || catalogManager == null) return false;
 
             // [HDY 요청] 슬롯에는 itemId(string)만 있으므로 카탈로그에서 실제 ItemData를 조회한다.
-            ItemData selectedItem = catalogManager != null ? catalogManager.FindItemData(selectedSlot.itemId) : null;
-            if (selectedItem == null || selectedItem.Category != HdyItemCategory.Tool) return;
+            selectedItem = catalogManager.FindItemData(selectedSlot.itemId);
+            return selectedItem != null && selectedItem.Category == HdyItemCategory.Tool;
+        }
+
+        private void UseTool(ItemData selectedItem)
+        {
+            if (selectedItem == null || cameraTransform == null || cooldownTimer > 0f) return;
 
             bool isMemMeleeAttempt = selectedItem.Item_ID == memMeleeItemId;
-            if (isMemMeleeAttempt && playerStats != null)
-            {
-                playerStats.ConsumeHunger(memMeleeHungerCost);
-            }
 
             cooldownTimer = Mathf.Max(harvestCooldown, toolUseCooldown);
             if (animator != null)
@@ -152,6 +202,11 @@ namespace KMS.Harvesting
             {
                 if (!isMemMeleeAttempt) return;
                 if (hit.distance > memMeleeDistance || memTarget.IsDead) return;
+
+                if (playerStats != null)
+                {
+                    playerStats.ConsumeHunger(memMeleeHungerCost);
+                }
 
                 memTarget.TakeDamage(Mathf.Max(1, selectedItem.Value));
                 return;

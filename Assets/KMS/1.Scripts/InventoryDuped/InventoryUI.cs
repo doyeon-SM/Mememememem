@@ -1,5 +1,7 @@
 using TMPro;
 using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 namespace KMS.InventoryDuped
@@ -9,7 +11,7 @@ namespace KMS.InventoryDuped
     /// 그대로 사용할 수 있게 했다(WarehouseUI와 동일한 인터페이스 계약). 기존 동작(인벤토리+퀵슬롯 전용
     /// 화면)은 변경 없음 - SlotGroup enum으로 bool(isQuickSlot)을 대체한 것뿐이다.
     /// </summary>
-    public class InventoryUI : MonoBehaviour, IInventorySlotOwner
+    public class InventoryUI : MonoBehaviour, IInventorySlotOwner, IInventorySlotClickOwner
     {
         public PlayerInventory playerInventory;
 
@@ -34,8 +36,12 @@ namespace KMS.InventoryDuped
 
         private InventorySlotUI[] inventorySlots;
         private InventorySlotUI[] quickSlots;
+        private InventoryQuantityPopupUI quantityPopup;
 
         private InventorySlotUI dragSource;
+        private ItemStack heldStack;
+        private SlotGroup heldOriginGroup;
+        private int heldOriginIndex = -1;
         private bool isInventoryOpen;
         private bool previousMovementEnabled = true;
         private bool previousGameplayInputBlocked;
@@ -60,6 +66,7 @@ namespace KMS.InventoryDuped
             }
 
             BindSlots();
+            EnsureQuantityPopup();
             SubscribeInventoryEvents();
             SubscribeInputEvents();
             SubscribeDebugGiveItemButton();
@@ -81,6 +88,53 @@ namespace KMS.InventoryDuped
         private void OnDisable()
         {
             if (isInventoryOpen) SetInventoryOpen(false);
+        }
+
+        private void Update()
+        {
+            if (heldStack == null || heldStack.IsEmpty || itemDragUI == null || Mouse.current == null) return;
+            itemDragUI.Move(Mouse.current.position.ReadValue());
+        }
+
+        public void ClickSlot(InventorySlotUI slot, PointerEventData.InputButton button, Vector2 position)
+        {
+            if (!isInventoryOpen || slot == null) return;
+            if (quantityPopup != null && quantityPopup.IsOpen) return;
+            if (button != PointerEventData.InputButton.Left &&
+                button != PointerEventData.InputButton.Right &&
+                button != PointerEventData.InputButton.Middle) return;
+            if (IsLockedQuickSlot(slot)) return;
+
+            HideItemTooltip();
+
+            if (button == PointerEventData.InputButton.Middle)
+            {
+                ShowQuantityPopup(slot, position);
+                return;
+            }
+
+            if (heldStack == null || heldStack.IsEmpty)
+            {
+                bool taken = button == PointerEventData.InputButton.Left
+                    ? playerInventory.TryTakeSlot(slot.group, slot.slotIndex, int.MaxValue, out ItemStack takenStack)
+                    : playerInventory.TryTakeHalfSlot(slot.group, slot.slotIndex, out takenStack);
+
+                if (!taken) return;
+
+                heldStack = takenStack;
+                heldOriginGroup = slot.group;
+                heldOriginIndex = slot.slotIndex;
+            }
+            else
+            {
+                bool placed = button == PointerEventData.InputButton.Left
+                    ? playerInventory.TryPlaceHeldStack(slot.group, slot.slotIndex, heldStack)
+                    : playerInventory.TryPlaceHeldAmount(slot.group, slot.slotIndex, heldStack, 1);
+
+                if (!placed) return;
+            }
+
+            RefreshHeldItem(position);
         }
 
         public void BeginSlotDrag(InventorySlotUI source, ItemStack stack, Vector2 position)
@@ -114,14 +168,20 @@ namespace KMS.InventoryDuped
 
         public void ShowItemTooltip(ItemStack stack, Vector2 position)
         {
-            if (dragSource != null || itemTooltipUI == null) return;
+            if (dragSource != null ||
+                (heldStack != null && !heldStack.IsEmpty) ||
+                (quantityPopup != null && quantityPopup.IsOpen) ||
+                itemTooltipUI == null) return;
 
             itemTooltipUI.Show(stack, position);
         }
 
         public void MoveItemTooltip(Vector2 position)
         {
-            if (dragSource != null || itemTooltipUI == null) return;
+            if (dragSource != null ||
+                (heldStack != null && !heldStack.IsEmpty) ||
+                (quantityPopup != null && quantityPopup.IsOpen) ||
+                itemTooltipUI == null) return;
 
             itemTooltipUI.Move(position);
         }
@@ -214,6 +274,22 @@ namespace KMS.InventoryDuped
 
             if (isInventoryOpen == open) return;
 
+            if (!open && quantityPopup != null && quantityPopup.IsOpen)
+            {
+                quantityPopup.Cancel();
+            }
+
+            if (!open && heldStack != null && !heldStack.IsEmpty)
+            {
+                if (playerInventory == null || !playerInventory.TryReturnHeldStack(heldStack, heldOriginGroup, heldOriginIndex))
+                {
+                    Debug.LogWarning("[InventoryUI] 커서에 든 아이템을 반환할 공간이 없어 인벤토리를 닫지 못했습니다.");
+                    return;
+                }
+
+                ClearHeldItem();
+            }
+
             if (open)
             {
                 previousMovementEnabled = playerMovement == null || playerMovement.IsMovementEnabled;
@@ -247,6 +323,77 @@ namespace KMS.InventoryDuped
                 if (itemDragUI != null) itemDragUI.Hide();
                 HideItemTooltip();
             }
+        }
+
+        private void RefreshHeldItem(Vector2 position)
+        {
+            if (heldStack == null || heldStack.IsEmpty)
+            {
+                ClearHeldItem();
+                return;
+            }
+
+            if (itemDragUI != null) itemDragUI.Show(heldStack, position);
+        }
+
+        private void ClearHeldItem()
+        {
+            heldStack = null;
+            heldOriginIndex = -1;
+            if (itemDragUI != null) itemDragUI.Hide();
+        }
+
+        private void EnsureQuantityPopup()
+        {
+            if (quantityPopup != null) return;
+
+            Canvas canvas = inventoryPanel != null ? inventoryPanel.GetComponentInParent<Canvas>() : GetComponentInParent<Canvas>();
+            TMP_FontAsset font = itemTooltipUI != null &&
+                                 itemTooltipUI.tagTemplate != null &&
+                                 itemTooltipUI.tagTemplate.labelText != null
+                ? itemTooltipUI.tagTemplate.labelText.font
+                : null;
+
+            for (int i = 0; i < inventorySlots.Length && font == null; i++)
+            {
+                if (inventorySlots[i] != null && inventorySlots[i].amountText != null)
+                {
+                    font = inventorySlots[i].amountText.font;
+                }
+            }
+
+            quantityPopup = InventoryQuantityPopupUI.Create(canvas, font);
+            if (quantityPopup == null)
+            {
+                Debug.LogWarning("[InventoryUI] 수량 선택 팝업을 생성할 Canvas를 찾지 못했습니다.");
+            }
+        }
+
+        private void ShowQuantityPopup(InventorySlotUI slot, Vector2 position)
+        {
+            if (heldStack != null && !heldStack.IsEmpty) return;
+            if (quantityPopup == null) EnsureQuantityPopup();
+            if (quantityPopup == null) return;
+            if (!playerInventory.TryGetSlotSnapshot(slot.group, slot.slotIndex, out ItemStack snapshot)) return;
+
+            HDY.Item.ItemData itemData = playerInventory.FindItemData(snapshot.itemId);
+            if (itemData == null) return;
+
+            SlotGroup group = slot.group;
+            int index = slot.slotIndex;
+            quantityPopup.Show(itemData, snapshot.amount, position,
+                amount => ConfirmQuantityPick(group, index, amount, position), null);
+        }
+
+        private void ConfirmQuantityPick(SlotGroup group, int index, int amount, Vector2 position)
+        {
+            if (!isInventoryOpen || heldStack != null && !heldStack.IsEmpty) return;
+            if (!playerInventory.TryTakeSlot(group, index, amount, out ItemStack takenStack)) return;
+
+            heldStack = takenStack;
+            heldOriginGroup = group;
+            heldOriginIndex = index;
+            RefreshHeldItem(position);
         }
 
         private void BindSlots()

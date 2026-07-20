@@ -30,4 +30,14 @@ namespace KMS.InventoryDuped
         void MoveItemTooltip(Vector2 position);
         void HideItemTooltip();
     }
+
+    /// <summary>
+    /// 클릭해서 아이템을 집고 다시 클릭해서 놓는 슬롯 상호작용을 선택적으로 제공한다.
+    /// InventorySlotUI는 창고에서도 재사용되므로 기존 드래그 계약은 유지하고,
+    /// 새 조작을 사용하는 KMS InventoryUI만 이 인터페이스를 추가 구현한다.
+    /// </summary>
+    public interface IInventorySlotClickOwner
+    {
+        void ClickSlot(InventorySlotUI slot, UnityEngine.EventSystems.PointerEventData.InputButton button, Vector2 position);
+    }
 }
