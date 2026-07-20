@@ -18,17 +18,24 @@ namespace HDY.UI
     ///
     /// [좌측 Grid / 우측 Info] 멤을 고르는 쪽(창고 그리드 + 정보 패널 + 정렬 버튼)은 기존 MemStorageUI +
     /// MemStorageUI_Grid/Info/Sort를 그대로 자식으로 붙여서 재사용한다 - 이 클래스는 그쪽과 직접 통신하지 않고,
-    /// 오직 MemSlotUI의 드래그앤드롭 이벤트로만 연결된다. [중요] MemStorageUI_Grid 단독으로는 정렬/이동/아이콘
-    /// 표시가 전부 동작하지 않는다 - 이 세 기능은 전부 MemStorageUI(컨트롤러)가 grid/sort의 이벤트를 구독해서
-    /// 실제로 처리해주기 때문이다(그리드는 이벤트만 올리고, 실제 데이터 반영은 항상 MemStorageUI가 담당).
-    /// 그래서 좌측에는 반드시 MemStorageUI_Grid만 단독으로 두지 말고, 기존 창고 UI와 동일하게 MemStorageUI가
-    /// grid/info/sort를 전부 자식으로 데리고 있는 구성 그대로 배치해야 한다.
+    /// 오직 MemSlotUI의 드래그앤드롭 이벤트로만 연결된다.
+    /// [중요 - MemStorageUI_Grid 단독 배치 금지] ProductionPanelUI.cs(Kyusoo)를 확인해보면, 그 패널은 애초에
+    /// 멤 선택용 그리드를 자체적으로 갖고 있지 않다 - targetFacility.DeployedMems/DeployedMemEntries(이미 배치된
+    /// 데이터)를 5개 슬롯에 그대로 표시할 뿐이고, 정렬/스왑/아이콘 조회 로직 자체가 그 파일에 존재하지 않는다.
+    /// 즉 "Grid만 단독으로 둬도 되는 참고할 만한 가벼운 패턴"은 프로젝트 어디에도 없고, 정렬(MemStorageUI_Sort의
+    /// OnSortRequested 처리)/이동(Grid의 OnSwapRequested 처리)/아이콘(findMemData 콜백 전달)은 전부
+    /// MemStorageUI 하나만 실제로 구현하고 있다. 그래서 좌측에는 반드시 기존 창고 UI와 동일하게 MemStorageUI가
+    /// grid/info/sort를 전부 자식으로 데리고 있는 구성 그대로 배치해야 한다(MemStorageUI_Grid만 따로 떼어
+    /// 붙이면 슬롯은 보여도 정렬/이동/아이콘이 전부 동작하지 않는다).
     /// 정렬 버튼은 Awake에서 MemStorageUI_Sort.HideSortButtonsExcept(MemStatClass.Exploration)를 호출해
     /// MemId/Tier/탐험 3개만 남긴다.
     ///
     /// [탐험대 5슬롯 재사용] 새 슬롯 클래스를 만들지 않고 창고 그리드와 동일한 HDY.UI.MemSlotUI를 그대로 쓴다.
     /// 이 패널은 자신의 memSlots 5개 이벤트만 별도로 구독해서 "탐험 배치"라는 다른 의미로 해석한다 - 창고
     /// 그리드(MemStorageUI_Grid)는 자신이 구독한 슬롯에서만 이벤트를 받으므로 서로 간섭하지 않는다.
+    /// 배치된 슬롯에는 항상(정렬 상태와 무관하게) 탐험 아이콘 + 그 멤의 실제 탐험레벨(CapturedMemEntry.ExplorationStat)
+    /// 숫자를 표시한다 - 창고 그리드처럼 "정렬 기준에 따라 표시가 바뀌는" 개념이 없고, 탐험 슬롯은 애초에
+    /// 탐험레벨을 보여주는 것 자체가 목적이므로 항상 고정으로 보여준다.
     ///
     /// [드래그로 배치/취소]
     /// - 창고 슬롯 -> 탐험 슬롯: 배치 시도(ExplorationRuntime.TryAssignMem)
@@ -81,6 +88,8 @@ namespace HDY.UI
         [Tooltip("진행 중/완료 대기 중일 때 5슬롯을 덮는 패널(남은 시간 표시 + 입력 차단).")]
         [SerializeField] private GameObject progressOverlay;
         [SerializeField] private TMP_Text remainingTimeText;
+        [Tooltip("탐험 슬롯에 멤이 배치되면 항상 표시할 탐험 아이콘(그 옆에 실제 탐험레벨 숫자도 함께 표시됨).")]
+        [SerializeField] private Sprite explorationStatIcon;
 
         [Header("하단 정보 / 액션 버튼")]
         [SerializeField] private TMP_Text explorationLevelSumText;
@@ -306,7 +315,10 @@ namespace HDY.UI
             list.Clear();
         }
 
-        /// <summary>현재 지역에 배치된 멤들로 5슬롯을 채운다. 배치된 멤이 5마리 미만이면 나머지는 빈 슬롯으로 둔다.</summary>
+        /// <summary>
+        /// 현재 지역에 배치된 멤들로 5슬롯을 채운다. 배치된 멤이 5마리 미만이면 나머지는 빈 슬롯으로 둔다.
+        /// 채워진 슬롯에는 항상 탐험 아이콘 + 그 멤의 실제 탐험레벨(ExplorationStat) 숫자를 함께 표시한다.
+        /// </summary>
         private void RefreshMemSlots(ExplorationZoneData zone)
         {
             if (memSlots == null) return;
@@ -321,7 +333,8 @@ namespace HDY.UI
                 {
                     var entry = assigned[i];
                     var data = memCatalogManager != null ? memCatalogManager.FindMemData(entry.MemId) : null;
-                    memSlots[i].SetData(entry, data, MemStatDisplayInfo.Hidden);
+                    var statInfo = new MemStatDisplayInfo(true, explorationStatIcon, entry.ExplorationStat.ToString());
+                    memSlots[i].SetData(entry, data, statInfo);
                 }
                 else
                 {
