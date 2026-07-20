@@ -7,6 +7,7 @@ using MemSystem.Data;
 using HDY.Capture;
 using HDY.Mem;
 using HDY.Upgrade;
+using HDY.Exploration;
 
 namespace HDY.UI
 {
@@ -39,7 +40,8 @@ namespace HDY.UI
     /// 바뀌고 captureManager의 위 두 이벤트는 발행되지 않는다. _Kyusoo 쪽에 이미
     /// ProductionFacilityRuntime.OnMemDeploymentChanged / ProductionCraftRuntime.OnMemDeploymentChanged라는
     /// 정적(static) 이벤트가 각각 존재해서, MemStorageUI_Grid가 이 두 이벤트를 직접 구독해서 자동으로 다시
-    /// 그리도록 처리했다. 그래서 이 컨트롤러는 더 이상 이 부분을 신경 쓸 필요가 없다.
+    /// 그리도록 처리했다. 탐험(ExplorationRuntime.OnMemDeploymentChanged)도 동일한 방식으로 Grid가 직접 구독한다.
+    /// 그래서 이 컨트롤러는 더 이상 이 부분을 신경 쓸 필요가 없다.
     ///
     /// [배치 해제] 그리드에서 활성 멤을 우클릭 -> 해제하기 버튼 클릭 시 grid.OnReleaseRequested가 발생한다.
     /// 이 창고 UI는 그 멤이 어느 시설(_Kyusoo의 ProductionFacilityRuntime/ProductionCraftRuntime)에 배치되어
@@ -50,31 +52,39 @@ namespace HDY.UI
     /// 자동 구독과 별개로 "어느 시설에도 등록되어 있지 않아 방어적으로 entry.IsActive만 직접 되돌리는" 예외
     /// 상황(이 경우 시설 쪽 정적 이벤트가 발행되지 않음)까지 안전하게 커버하기 위한 것이다.
     ///
+    /// [탐험 중인 멤은 이 해제 경로를 타지 않음] 탐험 중인 멤은 BuildingRuntime(생산/제작 전용, Kyusoo 소유) 어디에도
+    /// 등록되어 있지 않다. 그대로 두면 위 방어 코드가 "어느 시설에도 없다"고 오판해 IsActive만 강제로 false로
+    /// 되돌리는데, 실제로는 탐험 슬롯에서 빠지지 않아 창고 표시와 탐험 진행 상태가 어긋난다. 그래서
+    /// HandleReleaseRequested 맨 앞에서 ExplorationRuntime.TryGetExplorationInfo로 먼저 확인하고, 탐험 중이면
+    /// 경고 로그만 남기고 그대로 무시한다(탐험 취소/완료는 오직 탐험 패널의 버튼으로만 가능).
+    ///
     /// [Mem스탯/티어 표시] 현재 어떤 기준으로 정렬되어 있는지(activeSortCriteria)를 여기서 기억해두고,
     /// - Mem스탯(제작/벌목/채광/이동/생산/탐험) 기준이면 그 스탯의 아이콘 + 숫자를,
     /// - 티어 기준이면 티어 아이콘 + 등급 앞글자 대문자(R/E/U/L/M)를
     /// 그리드의 각 슬롯에 표시하도록 GetStatDisplayInfo에서 계산해서 Grid에 넘겨준다.
-    /// MemId로 정렬 중이거나 아직 정렬한 적이 없으면 표시를 감춘다 - 단, 아래 [활성 멤 = 시설 아이콘 우선]
+    /// MemId로 정렬 중이거나 아직 정렬한 적이 없으면 표시를 감춘다 - 단, 아래 [활성 멤 = 시설/탐험 아이콘 우선]
     /// 항목이 그보다 우선한다.
     ///
-    /// [활성 멤 = 시설 아이콘 우선] 아직 이번 세션에 정렬한 적이 없는(activeSortCriteria == null) 상태에서
-    /// 활성화(IsActive, 즉 생산/제작 시설에 배치됨)된 멤은, "지금 어디서 일하고 있는지"를 한눈에 보여주기
-    /// 위해 그 시설이 요구하는 생산 스탯의 아이콘+숫자를 스탯 아이콘 자리에 표시한다(FacilityDeploymentLookup으로
-    /// 배치된 시설을 찾아 필요 스탯 종류를 조회). 정렬 버튼을 누르는 순간(activeSortCriteria가 값을 갖는
-    /// 순간)부터는 활성 여부와 무관하게 전부 정렬 기준 아이콘으로 전환되고, 그리드를 다시 열면(OnEnable에서
-    /// activeSortCriteria를 다시 null로 리셋) 활성 멤은 다시 시설 아이콘으로 돌아간다. 활성 표시 자체
-    /// (MemSlotUI.activeImage)는 이 우선순위와 완전히 별개로 entry.IsActive만 보고 항상 켜지므로 영향받지 않는다.
+    /// [활성 멤 = 시설/탐험 아이콘 우선] 아직 이번 세션에 정렬한 적이 없는(activeSortCriteria == null) 상태에서
+    /// 활성화(IsActive)된 멤은, "지금 어디서 일하고 있는지"를 한눈에 보여주기 위해 아이콘을 우선 표시한다.
+    /// 먼저 탐험 중인지 확인해서(ExplorationRuntime) 맞으면 탐험 아이콘 + 실제 탐험레벨 숫자를 보여주고,
+    /// 아니면 기존처럼 생산/제작 시설이 요구하는 스탯의 아이콘(FacilityDeploymentLookup)을 보여준다. 정렬
+    /// 버튼을 누르는 순간(activeSortCriteria가 값을 갖는 순간)부터는 활성 여부와 무관하게 전부 정렬 기준
+    /// 아이콘으로 전환되고, 그리드를 다시 열면(OnEnable에서 activeSortCriteria를 다시 null로 리셋) 활성 멤은
+    /// 다시 시설/탐험 아이콘으로 돌아간다. 활성 표시 자체(MemSlotUI.activeImage)는 이 우선순위와 완전히
+    /// 별개로 entry.IsActive만 보고 항상 켜지므로 영향받지 않는다.
     ///
-    /// [씬 이동 대응] MemCaptureManager/MemCatalogManager는 파괴불가 싱글톤이라 씬을 이동해도 유지되지만,
-    /// 이 컴포넌트는 씬에 배치된 오브젝트라서 씬이 다시 로드되면 인스펙터 참조가 끊길 수 있다.
-    /// (씬 파일에 같이 저장된 매니저 오브젝트는 재로드 시 새로 생기지만, 싱글톤 중복 검사로 즉시 파괴되기 때문)
-    /// Awake/OnEnable에서 참조가 끊겨 있으면(null) 싱글톤 Instance로 자동 재할당한다.
+    /// [씬 이동 대응] MemCaptureManager/MemCatalogManager/ExplorationRuntime은 파괴불가 싱글톤이라 씬을
+    /// 이동해도 유지되지만, 이 컴포넌트는 씬에 배치된 오브젝트라서 씬이 다시 로드되면 인스펙터 참조가 끊길 수
+    /// 있다. (씬 파일에 같이 저장된 매니저 오브젝트는 재로드 시 새로 생기지만, 싱글톤 중복 검사로 즉시
+    /// 파괴되기 때문) Awake/OnEnable에서 참조가 끊겨 있으면(null) 싱글톤 Instance로 자동 재할당한다.
     /// </summary>
     public class MemStorageUI : MonoBehaviour
     {
         [Header("데이터 참조")]
         [SerializeField] private MemCaptureManager captureManager;
         [SerializeField] private MemCatalogManager catalogManager;
+        [SerializeField] private ExplorationRuntime explorationRuntime;
 
         [Header("하위 UI (그리드 / 정보 패널 / 정렬 버튼)")]
         [SerializeField] private MemStorageUI_Grid grid;
@@ -101,7 +111,7 @@ namespace HDY.UI
         [SerializeField] private Sprite mythicTierIcon;
 
         // 현재 창고가 어떤 기준으로 정렬되어 있는지. 아직 한 번도 정렬하지 않았으면 null(스탯/티어 표시 없음,
-        // 대신 활성 멤은 시설 아이콘 표시). OnEnable마다(그리드를 다시 열 때마다) null로 리셋된다.
+        // 대신 활성 멤은 시설/탐험 아이콘 표시). OnEnable마다(그리드를 다시 열 때마다) null로 리셋된다.
         private MemSortCriteria? activeSortCriteria;
 
         private void Awake()
@@ -109,6 +119,7 @@ namespace HDY.UI
             // 씬 재로드 등으로 인스펙터 참조가 끊겼으면 파괴불가 싱글톤에서 다시 가져온다.
             if (captureManager == null) captureManager = MemCaptureManager.Instance;
             if (catalogManager == null) catalogManager = MemCatalogManager.Instance;
+            explorationRuntime = ExplorationRuntime.Resolve(explorationRuntime);
 
             if (captureManager == null) Debug.LogWarning("[MemStorageUI] captureManager가 비어있습니다. 포획 데이터를 읽어올 수 없습니다.", this);
             if (catalogManager == null) Debug.LogWarning("[MemStorageUI] catalogManager가 비어있습니다. 멤 SO 정보를 찾을 수 없습니다.", this);
@@ -141,8 +152,9 @@ namespace HDY.UI
             // Awake 이후에도 혹시 끊겨 있다면(실행 순서 문제 등) 한 번 더 보정.
             if (captureManager == null) captureManager = MemCaptureManager.Instance;
             if (catalogManager == null) catalogManager = MemCatalogManager.Instance;
+            explorationRuntime = ExplorationRuntime.Resolve(explorationRuntime);
 
-            // [그리드를 다시 열면 활성 멤은 다시 시설 아이콘으로] 이전에 골라뒀던 정렬 기준은 이 화면을
+            // [그리드를 다시 열면 활성 멤은 다시 시설/탐험 아이콘으로] 이전에 골라뒀던 정렬 기준은 이 화면을
             // 닫았다 다시 열면 더 이상 유지하지 않는다 - 그래야 활성 멤이 다시 "어디서 일하는지" 아이콘부터
             // 보여준다. 정렬 버튼을 눌러야만(HandleSortRequested) 정렬 기준 아이콘으로 다시 전환된다.
             activeSortCriteria = null;
@@ -231,6 +243,16 @@ namespace HDY.UI
 
             Debug.Log($"[MemStorageUI] 배치 해제 요청 수신: MemId={entry.MemId}");
 
+            // [탐험 우선 확인] 탐험 중인 멤은 BuildingRuntime(생산/제작 전용, Kyusoo 소유) 어디에도 등록되어
+            // 있지 않다. 아래 로직을 그대로 타면 "어느 시설에도 없다"고 오판해 방어 코드가 IsActive만 강제로
+            // false로 되돌리는데, 실제 탐험 슬롯에서는 빠지지 않아 데이터가 어긋난다. 탐험 취소/완료는 오직
+            // 탐험 패널의 버튼으로만 가능하므로, 여기서는 경고만 남기고 IsActive를 건드리지 않은 채 무시한다.
+            if (explorationRuntime != null && explorationRuntime.TryGetExplorationInfo(entry, out var exploringZone))
+            {
+                Debug.LogWarning($"[MemStorageUI] {entry.MemId}은(는) 현재 '{exploringZone.zoneName}' 탐험 중이라 창고에서 바로 해제할 수 없습니다. 탐험 패널의 취소 버튼을 이용해주세요.");
+                return;
+            }
+
             // 바꾼 코드: 시설이늘어나도 BuildingRuntime에서 각각의 Runtime으로 보내 배치제거처리를 시도
             // 성공하면 isClearedFromFacility = true처리하는데 만약 시설에 문제가있어 배치제거처리가 안되어도 IsActive는 안전하게 false처리하기
             bool isClearedFromFacility = false;
@@ -265,7 +287,7 @@ namespace HDY.UI
         /// 정렬 버튼 클릭 요청을 받아 실제 정렬(카탈로그 조회 + 비교, MemSortHelper 재사용)을 수행하고,
         /// 결과를 MemCaptureManager에 반영한다. 빈 칸은 정렬 대상에서 제외한 뒤 ApplySortedOrder가 자동으로
         /// 뒤쪽에 채운다. 정렬 기준을 activeSortCriteria에 기억해서 이후 그리드 갱신 시 Mem스탯/티어 표시에 사용한다
-        /// (이 순간부터 활성 멤의 "시설 아이콘 우선 표시"는 꺼지고 전부 정렬 기준 아이콘으로 전환된다).
+        /// (이 순간부터 활성 멤의 "시설/탐험 아이콘 우선 표시"는 꺼지고 전부 정렬 기준 아이콘으로 전환된다).
         /// captureManager.ApplySortedOrder가 내부적으로 OnCapturedMemsChanged를 발행하므로, 그리드는 자체
         /// 구독으로 알아서 다시 그려진다(이때 GetStatDisplayInfo가 방금 갱신한 activeSortCriteria를 즉석에서
         /// 다시 읽으므로 최신 정렬 기준이 정확히 반영된다).
@@ -301,8 +323,9 @@ namespace HDY.UI
         /// <summary>
         /// 슬롯에 표시할 스탯/티어 아이콘+텍스트를 계산한다.
         /// - [최우선] 아직 이번 세션에 정렬한 적이 없고(activeSortCriteria == null) entry가 활성화(IsActive)돼
-        ///   있으면: 배치된 시설이 요구하는 생산 스탯의 아이콘 + 그 멤의 실제 스탯 숫자를 표시한다
-        ///   (FacilityDeploymentLookup으로 조회). 시설을 찾지 못하면(방어 코드로 IsActive만 true인 비정상
+        ///   있으면: 먼저 탐험 중인지 확인해서(ExplorationRuntime) 맞으면 탐험 아이콘 + 실제 탐험레벨 숫자를,
+        ///   아니면 배치된 시설이 요구하는 생산 스탯의 아이콘 + 그 멤의 실제 스탯 숫자를 표시한다
+        ///   (FacilityDeploymentLookup으로 조회). 둘 다 찾지 못하면(방어 코드로 IsActive만 true인 비정상
         ///   상태 등) 아래 일반 로직으로 폴백한다.
         /// - 정렬한 적이 없으면(null) 또는 MemId로 정렬 중이면: 전부 Hidden
         /// - 티어로 정렬 중이면: 티어 아이콘 + 앞글자 대문자(R/E/U/L/M)
@@ -315,12 +338,18 @@ namespace HDY.UI
         {
             if (activeSortCriteria == null && entry != null && entry.IsActive)
             {
+                var explorationDisplayInfo = TryGetActiveExplorationDisplayInfo(entry);
+                if (explorationDisplayInfo.HasValue)
+                {
+                    return explorationDisplayInfo.Value;
+                }
+
                 var facilityDisplayInfo = TryGetActiveFacilityDisplayInfo(entry);
                 if (facilityDisplayInfo.HasValue)
                 {
                     return facilityDisplayInfo.Value;
                 }
-                // 시설을 찾지 못하면(방어 코드 경로 등) 아래 일반 로직으로 계속 진행한다.
+                // 둘 다 찾지 못하면(방어 코드 경로 등) 아래 일반 로직으로 계속 진행한다.
             }
 
             if (activeSortCriteria == null || activeSortCriteria.Value == MemSortCriteria.MemId)
@@ -338,6 +367,15 @@ namespace HDY.UI
 
             var icon = GetStatIcon(criteria);
             return BuildStatDisplayInfoForEntry(entry, criteria, memDataLookup, icon);
+        }
+
+        /// <summary>entry가 지금 탐험 중인지 확인해서, 맞다면 탐험 아이콘 + 실제 탐험레벨(CapturedMemEntry.ExplorationStat) 숫자를 계산한다. 탐험 중이 아니면 null(호출 쪽에서 다음 로직으로 폴백).</summary>
+        private MemStatDisplayInfo? TryGetActiveExplorationDisplayInfo(CapturedMemEntry entry)
+        {
+            if (explorationRuntime == null) return null;
+            if (!explorationRuntime.TryGetExplorationInfo(entry, out _)) return null;
+
+            return new MemStatDisplayInfo(true, explorationStatIcon, entry.ExplorationStat.ToString());
         }
 
         /// <summary>

@@ -5,6 +5,7 @@ using UnityEngine.UI;
 using UnityEngine.EventSystems;
 using MemSystem.Data;
 using HDY.Capture;
+using HDY.Exploration;
 
 namespace HDY.UI
 {
@@ -34,31 +35,27 @@ namespace HDY.UI
     /// 계산하지 않는다. 카탈로그(MemData) 조회와 "현재 정렬 기준이 무엇인지" 판단은 MemStorageUI가 하고, 그
     /// 결과를 statDisplayProvider 콜백으로 받아 슬롯마다 그대로 넘겨주기만 한다(findMemData와 동일한 방식).
     /// 다만 MemStorageUI(컨트롤러) 없이 이 그리드만 단독으로 쓰이는 화면(예: 생산/제작 시설의 멤 배치용
-    /// 선택 그리드)에서는 statDisplayProvider 자체가 없으므로, 아래 [활성 멤 = 시설 아이콘 (독립 그리드 폴백)]
+    /// 선택 그리드)에서는 statDisplayProvider 자체가 없으므로, 아래 [활성 멤 = 시설/탐험 아이콘 (독립 그리드 폴백)]
     /// 을 대신 사용한다.
     ///
-    /// [활성 멤 = 시설 아이콘 (독립 그리드 폴백)] statDisplayProvider가 없을 때(=MemStorageUI 없이 단독 사용),
-    /// 활성화(IsActive)된 멤은 배치된 시설이 요구하는 생산 스탯의 아이콘을 스탯 아이콘 자리에 대신 표시한다
-    /// (FacilityDeploymentLookup으로 배치된 시설을 찾아 필요 스탯 종류를 조회, 아이콘은 아래 필드에서 매핑).
-    /// 이 화면엔 정렬 기능이 없어 "정렬 전/후" 구분이 필요 없으므로 항상 이 규칙을 적용한다.
-    /// findMemData 콜백도 없어(cachedFindMemData가 null) 그 멤의 실제 스탯 숫자를 조회할 수 없는 경우가
-    /// 많으므로, 그럴 땐 아이콘만 표시하고 숫자는 생략한다.
-    ///
-    /// [스탯 아이콘 6종 중 탐험 아이콘은 아직 미사용] MemStorageUI의 정렬 기준 아이콘 세트와 맞춰 아이콘
-    /// 필드를 6종(제작/벌목/채광/이동/생산/탐험) 준비해두지만, "탐험 시설"에 멤을 배치하는 기능 자체가
-    /// 아직 게임에 없어서(ProductionStatType에도 Exploration 값이 없음) explorationStatIcon은 현재
-    /// GetStatIcon(ProductionStatType) 매핑에서 실제로 쓰이지는 않는다. 나중에 탐험 관련 배치 기능이
-    /// 추가되면 그때 매핑 로직만 이어붙이면 되도록 필드만 미리 만들어둔 것이다.
+    /// [활성 멤 = 시설/탐험 아이콘 (독립 그리드 폴백)] statDisplayProvider가 없을 때(=MemStorageUI 없이 단독 사용),
+    /// 활성화(IsActive)된 멤은 먼저 탐험 중인지 확인해서(ExplorationRuntime) 맞으면 탐험 아이콘을, 아니면 배치된
+    /// 시설이 요구하는 생산 스탯의 아이콘을 스탯 아이콘 자리에 대신 표시한다(FacilityDeploymentLookup으로 배치된
+    /// 시설을 찾아 필요 스탯 종류를 조회, 아이콘은 아래 필드에서 매핑). 이 화면엔 정렬 기능이 없어 "정렬 전/후"
+    /// 구분이 필요 없으므로 항상 이 규칙을 적용한다. findMemData 콜백도 없어(cachedFindMemData가 null) 시설
+    /// 케이스에서는 그 멤의 실제 스탯 숫자를 조회할 수 없는 경우가 많아 아이콘만 표시하고 숫자는 생략하지만,
+    /// 탐험 케이스는 CapturedMemEntry.ExplorationStat을 직접 갖고 있어 findMemData 없이도 숫자를 표시할 수 있다.
     ///
     /// [자동 갱신 - 데이터 변경 이벤트 직접 구독] 이 그리드는 MemStorageUI(컨트롤러) 없이 여러 화면(멤창고,
     /// 제작대/생산시설의 "멤 배치용 창고 선택 그리드" 등)에 독립적으로 배치되어 재사용된다. 그래서 이 그리드가
-    /// 아래 4개 이벤트를 전부 직접 구독한다(OnEnable/OnDisable):
+    /// 아래 5개 이벤트를 전부 직접 구독한다(OnEnable/OnDisable):
     /// - MemCaptureManager.OnCapturedMemsChanged (포획/스왑/정렬 등으로 목록 자체가 바뀔 때)
     /// - MemCaptureManager.OnStorageCapacityChanged (멤창고 업그레이드로 언락 페이지 수가 바뀔 때)
     /// - ProductionFacilityRuntime.OnMemDeploymentChanged (정적 이벤트 - 생산 시설에 멤이 배치/해제되어
     ///   entry.IsActive가 바뀔 때. _Kyusoo 쪽 코드라 목록 자체는 안 바뀌므로 위 두 이벤트로는 감지되지 않는다)
     /// - ProductionCraftRuntime.OnMemDeploymentChanged (정적 이벤트 - 제작 시설 버전. 클래스가 달라 별도 이벤트다)
-    /// 네 이벤트 모두 같은 방식(RefreshFromCaptureManager)으로 처리한다 - 캐싱해둔 findMemData/statDisplayProvider
+    /// - ExplorationRuntime.OnMemDeploymentChanged (정적 이벤트 - 탐험 배치/시작/취소/완료로 entry.IsActive가 바뀔 때)
+    /// 다섯 이벤트 모두 같은 방식(RefreshFromCaptureManager)으로 처리한다 - 캐싱해둔 findMemData/statDisplayProvider
     /// (cachedFindMemData/cachedStatDisplayProvider)를 그대로 재사용해 captureManager.CapturedMems/
     /// UnlockedPageCount를 다시 읽어와 다시 그린다. 이 캐싱이 안전하려면 findMemData/statDisplayProvider가
     /// "호출될 때마다 최신 상태를 즉석에서 읽어오는" 안정적인(stable) 메서드여야 한다(예:
@@ -79,8 +76,8 @@ namespace HDY.UI
     ///    이미 구독됐으면 중복 구독하지 않는다.
     /// 3) OnEnable과 Start 마지막에 RefreshFromCaptureManager()를 즉시 한 번 호출해서, 이벤트를 기다리지 않고
     ///    그 시점의 최신 데이터로 바로 동기화한다(놓친 변경사항이 있어도 즉시 따라잡는다).
-    /// ProductionFacilityRuntime/ProductionCraftRuntime의 정적 이벤트는 captureManager와 무관하게(클래스
-    /// 자체의 정적 이벤트라 인스턴스 타이밍 문제가 없음) OnEnable에서 항상 구독한다.
+    /// ProductionFacilityRuntime/ProductionCraftRuntime/ExplorationRuntime의 정적 이벤트는 captureManager와
+    /// 무관하게(각 클래스 자체의 정적 이벤트라 인스턴스 타이밍 문제가 없음) OnEnable에서 항상 구독한다.
     ///
     /// [배치 해제 버튼] 활성화(IsActive)된 멤을 우클릭하면 releaseButton 하나를 그 슬롯의 아이콘 위치로 옮겨
     /// 보여준다(슬롯마다 버튼을 두지 않고 하나를 재사용). 버튼을 클릭하면 OnReleaseRequested로 (entry, data)를
@@ -127,6 +124,10 @@ namespace HDY.UI
         [Tooltip("비워두면 MemCaptureManager.Instance로 자동 보정한다. MemStorageUI(컨트롤러) 없이 이 그리드만 사용하는 화면에서도, 포획/스왑/정렬/업그레이드/시설 배치 등으로 데이터가 바뀌면 스스로 다시 그려지도록 여기서 직접 구독한다.")]
         [SerializeField] private MemCaptureManager captureManager;
 
+        [Header("탐험 배치 조회 (독립 그리드 폴백에서 활성 멤이 탐험 중인지 확인할 때 사용)")]
+        [Tooltip("비워두면 ExplorationRuntime.Resolve로 자동 보정한다.")]
+        [SerializeField] private ExplorationRuntime explorationRuntime;
+
         [Header("스탯 아이콘 (MemStorageUI 없이 단독 사용 시 - 활성 멤이 배치된 시설의 필요 스탯 표시용)")]
         [Tooltip("이 그리드가 MemStorageUI(정렬 기능 포함) 없이 단독으로 쓰일 때, 활성화된 멤이 배치된 시설이 요구하는 스탯의 아이콘을 여기서 매핑한다. MemStorageUI를 통해 쓰이는 화면에서는 MemStorageUI가 이미 자체적으로 처리하므로 이 필드들은 쓰이지 않는다.")]
         [SerializeField] private Sprite craftingStatIcon;
@@ -134,7 +135,7 @@ namespace HDY.UI
         [SerializeField] private Sprite miningStatIcon;
         [SerializeField] private Sprite transportStatIcon;
         [SerializeField] private Sprite farmingStatIcon;
-        [Tooltip("탐험(Exploration) 스탯 아이콘. '탐험 시설' 배치 기능 자체가 아직 없어(ProductionStatType에 Exploration이 없음) GetStatIcon(ProductionStatType) 매핑에서는 아직 쓰이지 않는다. 나중에 관련 기능이 생기면 이어붙일 수 있도록 필드만 미리 만들어둔다.")]
+        [Tooltip("탐험(Exploration) 스탯 아이콘. MemStorageUI 없이 이 그리드만 단독 사용될 때, 활성 멤이 탐험 중이면(ExplorationRuntime) 이 아이콘을 표시한다.")]
         [SerializeField] private Sprite explorationStatIcon;
 
         private readonly List<MemSlotUI> slots = new List<MemSlotUI>();
@@ -184,6 +185,7 @@ namespace HDY.UI
             if (releaseButton == null) Debug.LogWarning("[MemStorageUI_Grid] releaseButton이 비어있습니다. 배치 해제 버튼이 동작하지 않습니다.", this);
 
             EnsureCaptureManager();
+            explorationRuntime = ExplorationRuntime.Resolve(explorationRuntime);
 
             CollectSlots();
             CollectPageDots();
@@ -201,13 +203,15 @@ namespace HDY.UI
         private void OnEnable()
         {
             TrySubscribeToCaptureManagerEvents();
+            explorationRuntime = ExplorationRuntime.Resolve(explorationRuntime);
 
-            // [IsActive 변경 감지] 생산/제작 시설에 멤이 배치/해제되면 entry.IsActive만 직접 바뀌고
+            // [IsActive 변경 감지] 생산/제작/탐험에 멤이 배치/해제되면 entry.IsActive만 직접 바뀌고
             // captureManager의 두 이벤트는 발행되지 않으므로, 정적 이벤트를 별도로 구독해야 한다.
-            // 두 클래스(생산/제작)가 각자 독립된 정적 이벤트를 가지고 있어 둘 다 구독한다. 정적 이벤트라
+            // 각 시스템이 독립된 정적 이벤트를 가지고 있어 전부 구독한다. 정적 이벤트라
             // captureManager 확보 여부와 무관하게 항상 구독 가능하다.
             ProductionFacilityRuntime.OnMemDeploymentChanged += RefreshFromCaptureManager;
             ProductionCraftRuntime.OnMemDeploymentChanged += RefreshFromCaptureManager;
+            ExplorationRuntime.OnMemDeploymentChanged += RefreshFromCaptureManager;
 
             // 활성화되는 시점의 최신 데이터로 즉시 한 번 맞춘다 - 이벤트를 기다리지 않고 그 사이 놓친
             // 변경사항(예: 이 그리드가 비활성 상태이던 동안 포획된 멤)까지 바로 반영한다.
@@ -225,6 +229,7 @@ namespace HDY.UI
 
             ProductionFacilityRuntime.OnMemDeploymentChanged -= RefreshFromCaptureManager;
             ProductionCraftRuntime.OnMemDeploymentChanged -= RefreshFromCaptureManager;
+            ExplorationRuntime.OnMemDeploymentChanged -= RefreshFromCaptureManager;
         }
 
         /// <summary>
@@ -263,7 +268,7 @@ namespace HDY.UI
         }
 
         /// <summary>
-        /// captureManager의 목록 변경, 언락 페이지 변경, 시설(생산/제작) 배치 변경 - 네 이벤트가 전부 이
+        /// captureManager의 목록 변경, 언락 페이지 변경, 시설(생산/제작/탐험) 배치 변경 - 다섯 이벤트가 전부 이
         /// 메서드 하나로 모인다(그리고 OnEnable/Start에서 활성화 시점 동기화용으로도 직접 호출된다).
         /// 호출될 때마다 EnsureCaptureManager()로 한 번 더 확보를 시도한 뒤, 마지막으로 ShowInitial/
         /// NotifyDataChanged에 전달됐던 콜백(cachedFindMemData/cachedStatDisplayProvider)을 그대로
@@ -555,13 +560,21 @@ namespace HDY.UI
 
         /// <summary>
         /// [독립 그리드 폴백] statDisplayProvider가 없을 때(=MemStorageUI 없이 단독 사용)만 쓰인다. 이 화면엔
-        /// 정렬 기능이 없어 "정렬 전/후" 구분이 필요 없으므로, 활성화(IsActive)된 멤은 항상 배치된 시설이
-        /// 요구하는 스탯의 아이콘을 보여준다(FacilityDeploymentLookup으로 조회). findMemData가 없어서
-        /// (cachedFindMemData가 null) 실제 스탯 숫자를 조회할 수 없으면 아이콘만 표시하고 숫자는 생략한다.
+        /// 정렬 기능이 없어 "정렬 전/후" 구분이 필요 없으므로, 활성화(IsActive)된 멤은 항상 아이콘을 보여준다.
+        /// 먼저 탐험 중인지 확인해서(ExplorationRuntime) 맞으면 탐험 아이콘 + 실제 탐험레벨 숫자를 보여주고,
+        /// 아니면 배치된 시설이 요구하는 스탯의 아이콘을 보여준다(FacilityDeploymentLookup으로 조회). findMemData가
+        /// 없어서(cachedFindMemData가 null) 시설 케이스의 실제 스탯 숫자를 조회할 수 없으면 아이콘만 표시하고
+        /// 숫자는 생략한다(탐험 케이스는 entry.ExplorationStat을 직접 갖고 있어 항상 숫자를 표시할 수 있다).
         /// </summary>
         private MemStatDisplayInfo ComputeDefaultActiveFacilityDisplay(CapturedMemEntry entry)
         {
             if (entry == null || entry.IsEmpty || !entry.IsActive) return MemStatDisplayInfo.Hidden;
+
+            if (explorationRuntime == null) explorationRuntime = ExplorationRuntime.Resolve(explorationRuntime);
+            if (explorationRuntime != null && explorationRuntime.TryGetExplorationInfo(entry, out _))
+            {
+                return new MemStatDisplayInfo(true, explorationStatIcon, entry.ExplorationStat.ToString());
+            }
 
             if (!FacilityDeploymentLookup.TryGetRequiredStatType(entry, out var statType))
             {
@@ -578,9 +591,7 @@ namespace HDY.UI
         }
 
         /// <summary>
-        /// ProductionStatType -> 아이콘 매핑. ProductionStatType에는 Exploration이 없어(탐험 시설 배치 기능
-        /// 자체가 아직 없음) explorationStatIcon 필드는 여기서 참조되지 않는다 - 나중에 관련 기능이 생기면
-        /// 이어붙일 수 있도록 필드만 미리 만들어둔 상태다.
+        /// ProductionStatType -> 아이콘 매핑(생산/제작 시설 배치용).
         /// </summary>
         private Sprite GetStatIcon(ProductionStatType statType)
         {

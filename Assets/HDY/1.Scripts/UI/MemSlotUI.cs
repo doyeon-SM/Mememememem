@@ -48,6 +48,11 @@ namespace HDY.UI
     /// [우클릭 - 배치 해제] 활성화(IsActive)된 멤을 우클릭하면 "해제하기" 버튼을 띄우는 기능의 시작점이다.
     /// 이 클래스는 우클릭이 들어왔다는 사실과 현재 entry/data만 이벤트로 올리고(OnSlotRightClicked), 실제로
     /// 버튼을 어디에 띄울지/활성 상태인지 판단하는 것은 상위(Grid)가 담당한다 - 다른 이벤트들과 동일한 방식.
+    ///
+    /// [범용 재사용 - CachedEntry/CachedData 공개] 이 슬롯은 멤 창고 그리드뿐 아니라, 탐험 패널(ExplorationPanelUI)의
+    /// 탐험대 5슬롯에서도 그대로 재사용된다. 드롭을 받는 쪽(예: 탐험 슬롯)이 드래그해온 슬롯이 어떤 멤을 담고
+    /// 있었는지 알아야 하므로, private 필드를 리플렉션으로 뜯어보게 하는 대신(Kyusoo의 기존 MemSlotUI가 쓰는 방식)
+    /// 여기서는 읽기 전용 프로퍼티로 깔끔하게 공개한다.
     /// </summary>
     public class MemSlotUI : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler, IDropHandler, IPointerClickHandler
     {
@@ -91,6 +96,15 @@ namespace HDY.UI
 
         /// <summary>이 슬롯에 포획된 멤이 채워져 있는지 여부.</summary>
         public bool HasData => cachedEntry != null;
+
+        /// <summary>
+        /// 이 슬롯에 현재 채워진 CapturedMemEntry (없으면 null). 드래그 소스로 쓰일 때 드롭을 받는 쪽이
+        /// 리플렉션 없이 바로 읽을 수 있도록 공개하는 읽기 전용 프로퍼티.
+        /// </summary>
+        public CapturedMemEntry CachedEntry => cachedEntry;
+
+        /// <summary>이 슬롯에 현재 채워진 MemData(카탈로그 조회 결과, 없으면 null). CachedEntry와 동일한 용도.</summary>
+        public MemData CachedData => cachedData;
 
         /// <summary>
         /// 아이콘 이미지의 RectTransform. 우클릭 시 "해제하기" 버튼을 이 아이콘의 위치를 기준으로
