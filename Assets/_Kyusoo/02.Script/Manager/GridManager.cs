@@ -83,7 +83,6 @@ public class GridManager : MonoBehaviour
 
     // 이벤트 발행(UI 연결용)
     public static event Action<bool, List<BuildingData>> OnPlacementModeChanged;
-
     public static event Action OnGridDataChanged;
 
     // Test전역변수
@@ -92,17 +91,17 @@ public class GridManager : MonoBehaviour
     private void Awake()
     {
         if (buildRecordManager == null) buildRecordManager = FindFirstObjectByType<BuildRecordManager>();
+
+        InitGridMaterials();
     }
 
     private void Start()
     {
-        // 프리팹 원본 머티리얼을 먼저 캐싱합니다.
-        if (tilePrefab != null && tilePrefab.TryGetComponent<MeshRenderer>(out MeshRenderer prefabRenderer))
-        {
-            defaultModeMaterial = prefabRenderer.sharedMaterial;
-        }
+        int targetWidth = currentWidth > 0 ? currentWidth : 5;
+        int targetHeight = currentHeight > 0 ? currentHeight : 5;
 
-        // 프리팹에 머티리얼이 비어있다면 프로젝트 내부 리소스를 수색하여 Green_Mat를 주입합니다.
+        InitializeGrid(targetWidth, targetHeight);
+
         if (defaultModeMaterial == null)
         {
             defaultModeMaterial = Resources.Load<Material>("Green_Mat");
@@ -113,7 +112,6 @@ public class GridManager : MonoBehaviour
         }
 
         placeModeMaterial = CreateGridMaterial(true);
-        InitializeGrid(5, 5);
     }
 
     private void OnEnable()
@@ -189,21 +187,54 @@ public class GridManager : MonoBehaviour
         }
     }
 
+    private void InitGridMaterials()
+    {
+        if (defaultModeMaterial != null) return; 
+
+        if (tilePrefab != null && tilePrefab.TryGetComponent<MeshRenderer>(out MeshRenderer prefabRenderer))
+        {
+            defaultModeMaterial = prefabRenderer.sharedMaterial;
+        }
+
+        if (defaultModeMaterial == null)
+        {
+            defaultModeMaterial = Resources.Load<Material>("Green_Mat");
+        }
+        if (defaultModeMaterial == null)
+        {
+            defaultModeMaterial = Resources.FindObjectsOfTypeAll<Material>().FirstOrDefault(m => m != null && m.name == "Green_Mat");
+        }
+
+        if (placeModeMaterial == null)
+        {
+            placeModeMaterial = CreateGridMaterial(true);
+        }
+    }
+
     public void InitializeGrid(int width, int height)
     {
         currentWidth = width;
         currentHeight = height;
-        tileGrid = new GameObject[currentWidth, currentHeight];
-        occupiedCells = new bool[currentWidth, currentHeight];
+        if (tileGrid == null || tileGrid.Length == 0)
+            tileGrid = new GameObject[currentWidth, currentHeight];
 
-        buildingObjectsGrid = new GameObject[currentWidth, currentHeight];
-        buildingDataGrid = new BuildingData[currentWidth, currentHeight];
+        if (occupiedCells == null || occupiedCells.Length == 0)
+            occupiedCells = new bool[currentWidth, currentHeight];
+
+        if (buildingObjectsGrid == null || buildingObjectsGrid.Length == 0)
+            buildingObjectsGrid = new GameObject[currentWidth, currentHeight];
+
+        if (buildingDataGrid == null || buildingDataGrid.Length == 0)
+            buildingDataGrid = new BuildingData[currentWidth, currentHeight];
 
         for (int i = 0; i < currentWidth; i++)
         {
             for (int j = 0; j < currentHeight; j++)
             {
-                tileGrid[i, j] = SpawnTile(i, j);
+                if (tileGrid[i, j] == null)
+                {
+                    tileGrid[i, j] = SpawnTile(i, j);
+                }
             }
         }
     }
@@ -430,14 +461,12 @@ public class GridManager : MonoBehaviour
 
         Material mat = null;
 
-        // 🌟 [안전 복사 트랜잭션]: 머티리얼 에셋 프리댑이 꽂혀있다면 그것을 복사 인스턴스화하여 무결성 확보
         if (gridMaterialPrefab != null)
         {
             mat = new Material(gridMaterialPrefab);
         }
         else
         {
-            // 만약 비어있을 때의 자동 안전 장치 (Fallback 백업)
             Shader targetShader = Shader.Find("Universal Render Pipeline/Unlit");
             mat = new Material(targetShader);
             mat.SetFloat("_Surface", 1f);
@@ -448,7 +477,6 @@ public class GridManager : MonoBehaviour
             mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
         }
 
-        // 🌟 빌트인과 URP 프로퍼티에 전부 안전하게 동시 텍스처 사상 주입
         if (mat.HasProperty("_BaseMap")) mat.SetTexture("_BaseMap", texture);
         if (mat.HasProperty("_MainTex")) mat.SetTexture("_MainTex", texture);
         if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", Color.white);
@@ -728,7 +756,8 @@ public class GridManager : MonoBehaviour
             string uniqueId = $"{snap.data.buildingName}_{snap.startX}_{snap.startZ}";
             if (RecordManager.Instance != null)
             {
-                PlantJSONSaveData entry = RecordManager.Instance.GetFacilityData(uniqueId);
+                // 🌟 [교정완동]: 모놀리식 규격(PlantJSONSaveData)을 버리고 새로운 분산형 가방 규격인 FacilityData 주입 매칭 완료
+                FacilityData entry = RecordManager.Instance.GetFacilityData(uniqueId);
                 if (entry != null)
                 {
                     List<CapturedMemEntry> matchedEntries = new List<CapturedMemEntry>();

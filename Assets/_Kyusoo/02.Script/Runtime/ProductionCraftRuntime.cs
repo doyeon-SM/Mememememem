@@ -136,6 +136,13 @@ public class ProductionCraftRuntime : MonoBehaviour
     {
         if (targetMem == null || buildingData == null) return false;
 
+        // 🌟 [제작대 슬롯 용량 제한 가드 정식 추가]: 제작대는 1레벨 1칸 고정이므로 기존 배치가 있다면 추가 배입을 완전히 차단합니다.
+        if (addMems.Count >= 1)
+        {
+            Debug.LogWarning("[ProductionCraftRuntime] 제작대의 멤 배치 슬롯이 이미 가득 찼습니다.");
+            return false;
+        }
+
         if (addMems.Contains(targetMem)) return false;
 
         if (!ProductionCalculator.CanDeployToFacility(targetMem, buildingData.buildingType))

@@ -186,16 +186,20 @@ public class ConsumeFoodSystem : MonoBehaviour
 
         if (foodStorageContainer == null || foodStorageContainer.slots == null) return 0;
 
-        // UI창이 꺼져있을 때에도 에러 없이 백과사전 스캔 에셋 데이터를 찾아올 수 있도록 안전 방어 분기를 설계합니다.
         ItemCatalogManager catalog = foodWarehouseUI != null ? foodWarehouseUI.CatalogManager : FindFirstObjectByType<ItemCatalogManager>();
-        if (catalog == null) return 0;
 
         for (int i = 0; i < foodStorageContainer.slots.Length; i++)
         {
             ItemStack slot = foodStorageContainer.slots[i];
             if (slot == null || slot.IsEmpty) continue;
 
-            ItemData itemData = catalog.FindItemData(slot.itemId);
+            ItemData itemData = catalog != null ? catalog.FindItemData(slot.itemId) : null;
+
+            if (itemData == null && RecordManager.Instance != null)
+            {
+                itemData = RecordManager.Instance.FindItemDataInProject(slot.itemId);
+            }
+
             if (itemData == null || itemData.EatEffects == null) continue;
 
             foreach (ItemEffect effect in itemData.EatEffects)
@@ -211,41 +215,47 @@ public class ConsumeFoodSystem : MonoBehaviour
         return sumSatiety;
     }
 
+    /// <summary>
+    /// 왼쪽 위(0번 슬롯)부터 필요 허기량을 채우기 위해 정수 개수 단위로 음식을 소모합니다.
+    /// </summary>
     private void ConsumeFoodFromStorage(int hungerToConsume, List<int> foodIndices)
     {
-        int remainingHunger = hungerToConsume;
+        if (foodStorageContainer == null || foodStorageContainer.slots == null) return;
+
         ItemCatalogManager catalog = foodWarehouseUI != null ? foodWarehouseUI.CatalogManager : FindFirstObjectByType<ItemCatalogManager>();
+        int neededHunger = hungerToConsume;
 
-        foreach (int index in foodIndices)
+        for (int i = 0; i < foodStorageContainer.slots.Length; i++)
         {
-            ItemStack slot = foodStorageContainer.slots[index];
-            ItemData itemData = catalog != null ? catalog.FindItemData(slot.itemId) : null;
-            if (itemData == null) continue;
+            if (neededHunger <= 0) break;
 
-            int singleSatiety = 0;
-            if (itemData.EatEffects != null)
+            ItemStack slot = foodStorageContainer.slots[i];
+            if (slot == null || slot.IsEmpty) continue;
+
+            ItemData itemData = catalog != null ? catalog.FindItemData(slot.itemId) : null;
+            if (itemData == null && RecordManager.Instance != null)
             {
-                foreach (ItemEffect effect in itemData.EatEffects)
-                {
-                    if (effect != null && effect.Effect == EffectType.Satiety)
-                    {
-                        singleSatiety = (int)effect.Value;
-                        break;
-                    }
-                }
+                itemData = RecordManager.Instance.FindItemDataInProject(slot.itemId);
             }
 
+            int singleSatiety = GetSatietyValue(itemData);
             if (singleSatiety <= 0) continue;
 
-            while (slot.amount > 0 && remainingHunger > 0)
-            {
-                slot.amount--;
-                remainingHunger -= singleSatiety;
-            }
+            int itemsNeeded = Mathf.CeilToInt((float)neededHunger / singleSatiety);
 
-            if (slot.amount <= 0) slot.Clear();
-            if (remainingHunger <= 0) break;
+            int itemsToConsume = Mathf.Min(slot.amount, itemsNeeded);
+
+            slot.amount -= itemsToConsume;
+            neededHunger -= (itemsToConsume * singleSatiety);
+
+            if (slot.amount <= 0)
+            {
+                slot.Clear();
+            }
         }
+
+        currentSatiety = CalculateTotalStorageSatiety(out _);
+        NotifyFoodStatusChanged();
 
         if (foodWarehouseUI != null) foodWarehouseUI.RefreshAllPanelsAndSlots();
     }
