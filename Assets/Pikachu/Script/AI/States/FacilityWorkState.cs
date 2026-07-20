@@ -179,7 +179,6 @@ namespace MemSystem.AI.States
         // 애니메이션 헬퍼
         // ---------------------------------------------------------------
 
-        /// <summary>시설별 작업 애니메이션 재생.</summary>
         private void PlayWorkAnimation(MemAI ai)
         {
             if (ai.Visual == null) return;
@@ -192,13 +191,24 @@ namespace MemSystem.AI.States
                     ai.Visual.PlayWalk();
                     break;
 
-                case BuildingType.Workshop:    // 제작대: 무언가를 만드는 동작
-                case BuildingType.LoggingCamp: // 벌목장: 나무를 베는 동작
-                case BuildingType.MiningCamp:  // 채굴장: 광석을 캐는 동작
-                case BuildingType.Farm:        // 밭: 밭을 관리하는 동작
-                case BuildingType.Generator:   // 발전기: 전기를 생산하는 동작
+                case BuildingType.Workshop:    // 제작대: 망치질
+                    ai.Visual.PlayCraft();
+                    break;
+                case BuildingType.LoggingCamp: // 벌목장: 도끼질
+                    ai.Visual.PlayChop();
+                    break;
+                case BuildingType.Farm:        // 밭: 낫질
+                    ai.Visual.PlayFarm();
+                    break;
+                case BuildingType.Generator:   // 발전기: 바람개비 돌리기
+                    ai.Visual.PlayGenerate();
+                    break;
+                case BuildingType.MiningCamp:  // 채굴장: 곡괭이질
+                    ai.Visual.PlayMine();
+                    break;
+
                 default:
-                    // [임시] Interact 애니 사용. 전용 리소스 추가 후 교체 예정.
+                    // 요리 등 아직 추가 안된 시설들
                     ai.Visual.PlayInteract();
                     break;
             }

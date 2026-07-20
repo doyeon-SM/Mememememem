@@ -60,6 +60,12 @@ namespace MemSystem.Visual
             public const int Interact = 3;
             public const int Hungry   = 4;
             public const int Happy    = 5;
+            public const int Chop     = 6;  // 벌목 (axe)
+            public const int Craft    = 7;  // 제작 (hammer)
+            public const int Farm     = 8;  // 밭 (handsickle)
+            public const int Cook     = 9;  // 요리 (pan)
+            public const int Generate = 10; // 발전기 (windmill)
+            public const int Mine     = 11; // 채굴 (pickaxe)
             // Attack 중 Any State -> Idle 강제 전환을 막기 위한 방어용 임시 값
             public const int Attack   = 99;
         }
@@ -92,6 +98,45 @@ namespace MemSystem.Visual
         [SerializeField] private float runClipSpeed  = 1.5f;
 
         // =================================================================
+        // 도구 프랍(Prop) 설정
+        // =================================================================
+
+        [System.Serializable]
+        public class PropSetting
+        {
+            [Tooltip("장착할 3D 모델 (FBX 또는 프리팹)")]
+            public GameObject prefab;
+            
+            [Tooltip("손 기준 위치 오프셋")]
+            public Vector3 positionOffset = Vector3.zero;
+            
+            [Tooltip("손 기준 회전 오프셋 (Euler Angles)")]
+            public Vector3 rotationOffset = Vector3.zero;
+        }
+
+        [Header("도구 프랍 설정 (작업 시 장착)")]
+        [Tooltip("벌목 도끼 설정")]
+        [SerializeField] private PropSetting propAxe = new PropSetting();
+
+        [Tooltip("제작 망치 설정")]
+        [SerializeField] private PropSetting propHammer = new PropSetting();
+
+        [Tooltip("밭 낫 설정")]
+        [SerializeField] private PropSetting propHandSickle = new PropSetting();
+
+        [Tooltip("요리 팬 설정")]
+        [SerializeField] private PropSetting propPan = new PropSetting();
+
+        [Tooltip("채굴 곡괭이 설정")]
+        [SerializeField] private PropSetting propPickaxe = new PropSetting();
+
+        [Tooltip("발전기 바람개비 설정")]
+        [SerializeField] private PropSetting propWindmill = new PropSetting();
+
+        [Tooltip("도구를 부착할 뼈 이름 (기본: LowerArm.L)")]
+        [SerializeField] private string mountBoneName = "LowerArm.L";
+
+        // =================================================================
         // 현재 애니메이션 상태 (외부 참조용)
         // =================================================================
 
@@ -108,7 +153,13 @@ namespace MemSystem.Visual
             Attack,
             Interact,
             Hungry,
-            Happy
+            Happy,
+            Chop,
+            Craft,
+            Farm,
+            Cook,
+            Generate,
+            Mine
         }
 
         public AnimState CurrentAnimState { get; private set; } = AnimState.None;
@@ -129,6 +180,9 @@ namespace MemSystem.Visual
 
         /// <summary>PlayCaptureEject 실행 중인 코루틴 핸들 (ResetVisual에서 중단용)</summary>
         private Coroutine captureEjectCoroutine;
+
+        private Transform propMountPoint;
+        private GameObject currentPropInstance;
 
         // Animator 파라미터 해시 (성능 최적화: 문자열 → int 해시)
         private int hashAnimState;
@@ -183,6 +237,13 @@ namespace MemSystem.Visual
                                   $"모델 프리팹({modelPrefab.name})에 Animator 컴포넌트가 있는지 확인하세요.");
             }
 
+            // 도구 장착점 찾기
+            propMountPoint = FindMountPoint(currentModel.transform, mountBoneName);
+            if (propMountPoint == null)
+            {
+                Debug.LogWarning($"[MemVisual] 도구 장착점 '{mountBoneName}'을(를) 찾을 수 없습니다.");
+            }
+
             // 렌더러와 원래 색상 캐싱 (피격 플래시 용도)
             modelRenderers = currentModel.GetComponentsInChildren<Renderer>();
 
@@ -234,6 +295,7 @@ namespace MemSystem.Visual
             }
 
             RestoreColors();
+            UnequipProp();
 
             // Animator를 Idle 상태로 리셋
             if (animator != null)
@@ -253,58 +315,41 @@ namespace MemSystem.Visual
         public void PlayIdle()
         {
             if (CurrentAnimState == AnimState.Attack) return;
+            UnequipProp();
             CurrentAnimState = AnimState.Idle;
             SetAnimState(AnimStateId.Idle);
         }
 
-        /// <summary>
-        /// Walk — 걷기 (Ani_Mem_Walk 클립 재생).
-        /// Wander 상태에서 사용합니다.
-        /// </summary>
         public void PlayWalk()
         {
             if (CurrentAnimState == AnimState.Attack) return;
+            UnequipProp();
             CurrentAnimState = AnimState.Walk;
             SetAnimState(AnimStateId.Walk);
         }
 
-        /// <summary>
-        /// Run — 뛰기 (Ani_Mem_Run 클립 재생).
-        /// 추적(Combat) 또는 도주(Flee) 상태에서 사용합니다.
-        /// </summary>
         public void PlayRun()
         {
             if (CurrentAnimState == AnimState.Attack) return;
+            UnequipProp();
             CurrentAnimState = AnimState.Run;
             SetAnimState(AnimStateId.Run);
         }
 
-        /// <summary>
-        /// Attack — 박치기 공격 (Ani_Mem_Attack 클립 재생).
-        /// Trigger 파라미터를 사용합니다.
-        /// Animator Controller에서 Has Exit Time: true로 설정하면 클립 완료 후 자동 복귀합니다.
-        /// </summary>
         public void PlayAttack()
         {
             CurrentAnimState = AnimState.Attack;
+            UnequipProp();
 
             if (animator != null)
             {
                 animator.SetTrigger(hashAttack);
-                // [핵심 방어 코드] 
-                // Any State -> Idle 전환 조건(AnimState == 0)이 Attack 도중 만족되어 
-                // 강제로 모션이 뚝 끊기고 Idle로 넘어가는 현상(유니티 고질적 버그) 방지
                 SetAnimState(AnimStateId.Attack);
             }
 
-            // 공격 클립이 끝나면 Animator가 자동으로 Idle로 복귀합니다.
-            // (Animator Controller: Attack State → Has Exit Time true → Idle 전환)
             StartCoroutine(WaitForAttackEnd());
         }
 
-        /// <summary>
-        /// 공격 모션 중 상태가 강제로 변경될 때(예: 피격, 도주, 포획) Attack 락을 해제합니다.
-        /// </summary>
         public void CancelAttack()
         {
             if (CurrentAnimState == AnimState.Attack)
@@ -313,35 +358,75 @@ namespace MemSystem.Visual
             }
         }
 
-        /// <summary>
-        /// Interact — 상호작용 (Ani_Mem_Interact 클립 재생).
-        /// </summary>
         public void PlayInteract()
         {
             if (CurrentAnimState == AnimState.Attack) return;
+            UnequipProp();
             CurrentAnimState = AnimState.Interact;
             SetAnimState(AnimStateId.Interact);
         }
 
-        /// <summary>
-        /// Hungry — 허기 고갈 (Ani_Mem_Hungry 클립 재생).
-        /// MemStats.IsStarving == true 일 때 HungryState에서 호출됩니다.
-        /// </summary>
         public void PlayHungry()
         {
+            UnequipProp();
             CurrentAnimState = AnimState.Hungry;
             SetAnimState(AnimStateId.Hungry);
         }
 
-        /// <summary>
-        /// Happy — 행복 모션 (Ani_Mem_Happy 클립 재생).
-        /// TriggerHappy() 또는 HappyState에서 호출됩니다.
-        /// </summary>
         public void PlayHappy()
         {
             if (CurrentAnimState == AnimState.Attack) return;
+            UnequipProp();
             CurrentAnimState = AnimState.Happy;
             SetAnimState(AnimStateId.Happy);
+        }
+
+        public void PlayChop()
+        {
+            if (CurrentAnimState == AnimState.Attack) return;
+            EquipProp(propAxe);
+            CurrentAnimState = AnimState.Chop;
+            SetAnimState(AnimStateId.Chop);
+        }
+
+        public void PlayCraft()
+        {
+            if (CurrentAnimState == AnimState.Attack) return;
+            EquipProp(propHammer);
+            CurrentAnimState = AnimState.Craft;
+            SetAnimState(AnimStateId.Craft);
+        }
+
+        public void PlayFarm()
+        {
+            if (CurrentAnimState == AnimState.Attack) return;
+            EquipProp(propHandSickle);
+            CurrentAnimState = AnimState.Farm;
+            SetAnimState(AnimStateId.Farm);
+        }
+
+        public void PlayCook()
+        {
+            if (CurrentAnimState == AnimState.Attack) return;
+            EquipProp(propPan);
+            CurrentAnimState = AnimState.Cook;
+            SetAnimState(AnimStateId.Cook);
+        }
+
+        public void PlayGenerate()
+        {
+            if (CurrentAnimState == AnimState.Attack) return;
+            EquipProp(propWindmill);
+            CurrentAnimState = AnimState.Generate;
+            SetAnimState(AnimStateId.Generate);
+        }
+
+        public void PlayMine()
+        {
+            if (CurrentAnimState == AnimState.Attack) return;
+            EquipProp(propPickaxe);
+            CurrentAnimState = AnimState.Mine;
+            SetAnimState(AnimStateId.Mine);
         }
 
         /// <summary>
@@ -418,7 +503,7 @@ namespace MemSystem.Visual
 
             if (clipRef > 0f && speed > 0.05f)
             {
-                // 실제 속도 / 클립 설계 속도 = 애니메이션 폰시 폐사 배율
+                // 실제 속도 / 클립 설계 속도 = 애니메이션 재생 배속
                 float normalizedSpeed = speed / clipRef;
                 animator.SetFloat(hashSpeed, normalizedSpeed);
             }
@@ -427,6 +512,42 @@ namespace MemSystem.Visual
                 // 정지 상태: 속도 1.0 (클립은 실행되나 State가 Idle이므로 상관없음)
                 animator.SetFloat(hashSpeed, 1.0f);
             }
+        }
+
+        // =================================================================
+        // 도구 프랍(Prop) 제어
+        // =================================================================
+
+        private void EquipProp(PropSetting setting)
+        {
+            UnequipProp();
+
+            if (setting == null || setting.prefab == null || propMountPoint == null) return;
+
+            currentPropInstance = Instantiate(setting.prefab, propMountPoint);
+            currentPropInstance.transform.localPosition = setting.positionOffset;
+            currentPropInstance.transform.localRotation = Quaternion.Euler(setting.rotationOffset);
+        }
+
+        private void UnequipProp()
+        {
+            if (currentPropInstance != null)
+            {
+                Destroy(currentPropInstance);
+                currentPropInstance = null;
+            }
+        }
+
+        private Transform FindMountPoint(Transform root, string boneName)
+        {
+            if (root.name.Contains(boneName)) return root;
+
+            foreach (Transform child in root)
+            {
+                Transform found = FindMountPoint(child, boneName);
+                if (found != null) return found;
+            }
+            return null;
         }
 
         /// <summary>
