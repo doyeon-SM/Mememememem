@@ -56,10 +56,28 @@ namespace MemSystem.Movement
         private enum MovementMode { None, Wander, Chase, Flee }
         private MovementMode currentMode = MovementMode.None;
 
+        /// <summary>영지 배회 경계. SetWanderBounds()로 설정, ClearWanderBounds()로 해제.</summary>
+        private bool hasBounds = false;
+        private Bounds wanderBounds;
+
         public float FleeDistance => fleeDistance;
 
         /// <summary>NavMeshAgent의 현재 실제 이동 속도 (m/s). 애니메이션 동기화에 사용합니다.</summary>
         public float CurrentSpeed => agent != null && agent.isOnNavMesh ? agent.velocity.magnitude : 0f;
+
+        /// <summary>[디버그] NavMeshAgent가 현재 NavMesh 위에 있는지. 배회가 안 될 때 진단용.</summary>
+        public bool IsOnNavMesh => agent != null && agent.isOnNavMesh;
+
+        /// <summary>[디버그] NavMeshAgent 상태 요약 문자열 (테스트/진단용).</summary>
+        public string DebugAgentStatus()
+        {
+            if (agent == null) return "agent=null";
+            if (!agent.isOnNavMesh)
+                return $"onNavMesh=FALSE ⚠ (pos={transform.position}) — 스폰 위치가 NavMesh 밖입니다";
+            return $"onNavMesh=true, pathStatus={agent.pathStatus}, hasPath={agent.hasPath}, " +
+                   $"pathPending={agent.pathPending}, remain={agent.remainingDistance:F2}, " +
+                   $"vel={agent.velocity.magnitude:F2}, isStopped={agent.isStopped}";
+        }
 
         // =================================================================
         // Unity Lifecycle
@@ -126,6 +144,7 @@ namespace MemSystem.Movement
 
         /// <summary>
         /// 랜덤한 위치로 배회를 시작합니다.
+        /// SetWanderBounds()로 경계가 설정된 경우, 그 영역 안에서만 목적지를 선택합니다.
         /// </summary>
         public void Wander()
         {
@@ -135,11 +154,25 @@ namespace MemSystem.Movement
             agent.speed = walkSpeed;
             agent.isStopped = false;
 
-            // 랜덤 목적지 계산
-            Vector3 randomDirection = Random.insideUnitSphere * wanderRadius;
-            randomDirection += transform.position;
-            
-            if (NavMesh.SamplePosition(randomDirection, out NavMeshHit hit, wanderRadius, NavMesh.AllAreas))
+            // 랜덤 목적지 계산 (경계 설정 여부에 따라 분기)
+            Vector3 candidatePos;
+            if (hasBounds)
+            {
+                // 경계 영역 안의 랜덤 점을 골라 NavMesh 위 유효 위치 탐색
+                candidatePos = new Vector3(
+                    Random.Range(wanderBounds.min.x, wanderBounds.max.x),
+                    transform.position.y,
+                    Random.Range(wanderBounds.min.z, wanderBounds.max.z)
+                );
+            }
+            else
+            {
+                // 기존 방식: 현재 위치 기준 wanderRadius 반경
+                Vector3 randomDirection = Random.insideUnitSphere * wanderRadius;
+                candidatePos = randomDirection + transform.position;
+            }
+
+            if (NavMesh.SamplePosition(candidatePos, out NavMeshHit hit, wanderRadius, NavMesh.AllAreas))
             {
                 agent.SetDestination(hit.position);
             }
@@ -148,6 +181,43 @@ namespace MemSystem.Movement
                 // NavMesh 위가 아니면 현재 위치 유지 (Stuck 방지용 타이머가 다시 처리함)
                 agent.SetDestination(transform.position);
             }
+        }
+
+        /// <summary>
+        /// 영지 배회 경계를 설정합니다.
+        /// 이후 Wander() 호출 시 이 Bounds 안에서만 목적지를 선택합니다.
+        /// </summary>
+        /// <param name="bounds">배회를 제한할 영역 (Box Collider 등에서 가져오세요)</param>
+        public void SetWanderBounds(Bounds bounds)
+        {
+            hasBounds   = true;
+            wanderBounds = bounds;
+        }
+
+        /// <summary>
+        /// 영지 배회 경계를 해제합니다. 이후 Wander()는 기본 wanderRadius 방식으로 동작합니다.
+        /// </summary>
+        public void ClearWanderBounds()
+        {
+            hasBounds = false;
+        }
+
+        /// <summary>
+        /// 지정한 위치로 걷기 속도로 이동합니다. (일회성 — 지속 추적 아님)
+        /// 시설 근처로 걸어가 작업할 때 사용합니다.
+        /// </summary>
+        public void MoveTo(Vector3 destination)
+        {
+            if (agent == null || !agent.isOnNavMesh) return;
+
+            currentMode = MovementMode.None; // Update의 지속 재추적 로직이 개입하지 않도록
+            agent.speed = walkSpeed;
+            agent.isStopped = false;
+
+            if (NavMesh.SamplePosition(destination, out NavMeshHit hit, 3f, NavMesh.AllAreas))
+                agent.SetDestination(hit.position);
+            else
+                agent.SetDestination(destination);
         }
 
         /// <summary>
