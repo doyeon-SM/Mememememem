@@ -105,10 +105,7 @@ public class PanelManager : MonoBehaviour
             craftingPanel.SetActive(true); 
             craftingPanelUI.OpenPanel(facility);
 
-            if (SortButtonManagement.Instance != null)
-            {
-                SortButtonManagement.Instance.UpdateSortFiltersByFacility(facility.gameObject);
-            }
+            SortButtonManagement.Instance?.UpdateSortFilters(facility.gameObject);
         }
     }
 
@@ -129,12 +126,9 @@ public class PanelManager : MonoBehaviour
 
             UIPanel.SetActive(true);
             productionPanel.SetActive(true); 
-            productionPanelUI.OpenPanel(facility); 
+            productionPanelUI.OpenPanel(facility);
 
-            if (SortButtonManagement.Instance != null)
-            {
-                SortButtonManagement.Instance.UpdateSortFiltersByFacility(facility.gameObject);
-            }
+            SortButtonManagement.Instance?.UpdateSortFilters(facility.gameObject);
         }
     }
 
@@ -191,6 +185,17 @@ public class PanelManager : MonoBehaviour
 
         SetCommonGroupActive(true);
         SetCameraControllersEnabled(false);
+
+        var activeExplorationUI = FindFirstObjectByType<HDY.UI.ExplorationPanelUI>();
+        Debug.Log($"<color=yellow><b>[PanelManager]</b></color> NotifyHUDPanelOpened 호출됨 | activeExplorationUI 존재 여부: {(activeExplorationUI != null)}");
+
+        if (activeExplorationUI != null && activeExplorationUI.gameObject.activeInHierarchy)
+        {
+            if (SortButtonManagement.Instance != null)
+            {
+                SortButtonManagement.Instance.UpdateSortFilters(activeExplorationUI.gameObject);
+            }
+        }
     }
 
     /// <summary>

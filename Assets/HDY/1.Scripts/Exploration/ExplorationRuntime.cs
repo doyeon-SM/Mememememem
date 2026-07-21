@@ -224,6 +224,12 @@ namespace HDY.Exploration
                 return false;
             }
 
+            if (entry.IsActive)
+            {
+                Debug.LogWarning($"이미 다른 시설이나 탐험대에 배치되어 있습니다.");
+                return false;
+            }
+
             if (progress.assignedEntries.Count >= MaxSlotCount)
             {
                 Debug.LogWarning($"[ExplorationRuntime] '{zone.zoneName}' 탐험대 슬롯이 가득 찼습니다({MaxSlotCount}마리).");
