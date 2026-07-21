@@ -88,6 +88,9 @@ namespace MemSystem.AI
         /// <summary>행복 상태</summary>
         public HappyState HappyState { get; private set; }
 
+        /// <summary>시설 작업 상태 (영지 생산 시설 배치 시 사용)</summary>
+        public FacilityWorkState FacilityWorkState { get; private set; }
+
         // =================================================================
         // 현재 상태
         // =================================================================
@@ -153,13 +156,14 @@ namespace MemSystem.AI
             // 상태 인스턴스 생성 (최초 1회만, 이후 재사용)
             if (IdleState == null)
             {
-                IdleState     = new IdleState();
-                WanderState   = new WanderState();
-                FleeState     = new FleeState();
-                CombatState   = new CombatState();
-                CapturedState = new CapturedState();
-                HungryState   = new HungryState();
-                HappyState    = new HappyState();
+                IdleState         = new IdleState();
+                WanderState       = new WanderState();
+                FleeState         = new FleeState();
+                CombatState       = new CombatState();
+                CapturedState     = new CapturedState();
+                HungryState       = new HungryState();
+                HappyState        = new HappyState();
+                FacilityWorkState = new FacilityWorkState();
             }
 
             // 초기 상태: Idle
