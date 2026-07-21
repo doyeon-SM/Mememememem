@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: df82ecc6463c42f48bc55a8ae82d9753, type: 3}
+  m_Name: ExplorationZone_DawnIsland
+  m_EditorClassIdentifier: Assembly-CSharp::HDY.Exploration.ExplorationZoneData
+  zoneId: dawn_island
+  zoneName: "\uC5EC\uBA85\uC758 \uC12C"
+  zoneImage: {fileID: 21300000, guid: a31b034a22ad7974abb9c44568dcae0c, type: 3}
+  requiredExplorationLevel: 50
+  explorationDuration: 60
+  rewards:
+  - itemId: item_wood
+    minAmount: 10
+    maxAmount: 100

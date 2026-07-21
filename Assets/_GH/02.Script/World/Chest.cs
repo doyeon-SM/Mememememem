@@ -2,6 +2,7 @@
 using KGH.Data;
 using KMS;
 using KMS.InventoryDuped;
+using System;
 using UnityEngine;
 
 
@@ -19,7 +20,8 @@ public class Chest : MonoBehaviour, KMS.IInteractable
     public string DisplayName => string.IsNullOrWhiteSpace(displayName) ? gameObject.name : displayName;
 
     public string InteractionPrompt => interactionPrompt;
-
+    public event Action OpenChest;
+    public event Action<string> OpenChestId;
     public bool CanInteract(PlayerInteraction interactor)
     {
         if (interactor == null)
@@ -68,6 +70,8 @@ public class Chest : MonoBehaviour, KMS.IInteractable
                 inventory.AddItem(dropItem[i].itemData.Item_ID, count);
             }
         }
+        OpenChest?.Invoke();
+        OpenChestId?.Invoke(chestId);
         Destroy(this.gameObject);
     }
 }

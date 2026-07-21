@@ -45,6 +45,14 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
     [SerializeField] private LayerMask groundLayer = ~0;
     [SerializeField] private float dropSpawnHeight = 0.02f;
     [SerializeField] private float dropSpreadRadius = 1.1f;
+    [Tooltip("유효한 바닥 위치를 찾기 위해 시도할 횟수입니다.")]
+    [Min(1)] [SerializeField] private int dropPositionAttempts = 12;
+    [Tooltip("드롭 위치 주변에 다른 오브젝트가 없어야 하는 반경입니다.")]
+    [Min(0.01f)] [SerializeField] private float dropClearanceRadius = 0.25f;
+    [Tooltip("바닥부터 이 높이까지 다른 오브젝트가 있으면 해당 위치를 사용하지 않습니다.")]
+    [Min(0.01f)] [SerializeField] private float dropClearanceHeight = 0.9f;
+    [Tooltip("드롭을 놓을 수 있는 바닥의 최대 경사각입니다.")]
+    [Range(0f, 89f)] [SerializeField] private float maxGroundSlope = 50f;
 
     [Header("Drop Spawn Gizmo")]
     [Tooltip("오브젝트를 선택했을 때 드롭 중심과 확산 반경을 Scene 뷰에 표시합니다.")]
@@ -62,6 +70,7 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
     private const float GroundRaycastHeight = 3f;
     private const float GroundRaycastDistance = 8f;
     private const int MaxDropVisualCount = 8;
+    private const int MaxClearanceHits = 32;
 
     /// <summary>이름, 체력 또는 상호작용 상태가 바뀌었을 때 발생합니다.</summary>
     public event System.Action<WorldObject> StateChanged;
@@ -92,6 +101,7 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
     private float respawnAtTime = float.PositiveInfinity;
     private bool[] rendererInitialStates;
     private bool[] colliderInitialStates;
+    private readonly Collider[] clearanceHits = new Collider[MaxClearanceHits];
 
     private void Awake()
     {
@@ -269,7 +279,12 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
 
             for (int i = 0; i < visualCount; i++)
             {
-                Vector3 spawnPosition = GetDropSpawnPosition();
+                if (!TryGetDropSpawnPosition(out Vector3 spawnPosition))
+                {
+                    Debug.LogWarning($"[{name}] 주변에서 안전한 바닥 드롭 위치를 찾지 못해 드롭 생성을 건너뜁니다.", this);
+                    continue;
+                }
+
                 Quaternion spawnRotation = Quaternion.Euler(0f, UnityEngine.Random.Range(0f, 360f), 0f);
 
                 WorldDropPool.Spawn(dropPrefab, spawnPosition, spawnRotation, autoReturnToPoolSeconds);
@@ -287,19 +302,119 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
         }
     }
 
-    private Vector3 GetDropSpawnPosition()
+    private bool TryGetDropSpawnPosition(out Vector3 spawnPosition)
     {
         Vector3 origin = dropSpawnPoint != null ? dropSpawnPoint.position : transform.position;
-        Vector2 randomCircle = UnityEngine.Random.insideUnitCircle * dropSpreadRadius;
-        Vector3 dropPosition = origin + new Vector3(randomCircle.x, 0f, randomCircle.y);
-        Vector3 rayStart = dropPosition + Vector3.up * GroundRaycastHeight;
+        int attempts = Mathf.Max(1, dropPositionAttempts);
 
-        if (Physics.Raycast(rayStart, Vector3.down, out RaycastHit hit, GroundRaycastDistance, groundLayer, QueryTriggerInteraction.Ignore))
+        for (int attempt = 0; attempt < attempts; attempt++)
         {
-            return hit.point + Vector3.up * dropSpawnHeight;
+            Vector2 randomCircle = UnityEngine.Random.insideUnitCircle * Mathf.Max(0f, dropSpreadRadius);
+            Vector3 samplePosition = origin + new Vector3(randomCircle.x, 0f, randomCircle.y);
+            Vector3 rayStart = samplePosition + Vector3.up * GroundRaycastHeight;
+
+            if (!TryFindGround(rayStart, out RaycastHit groundHit))
+            {
+                continue;
+            }
+
+            Vector3 groundPosition = groundHit.point;
+            if (!IsDropSpaceClear(groundPosition, groundHit.collider))
+            {
+                continue;
+            }
+
+            spawnPosition = groundPosition + Vector3.up * Mathf.Max(0f, dropSpawnHeight);
+            return true;
         }
 
-        return dropPosition + Vector3.up * dropSpawnHeight;
+        spawnPosition = default;
+        return false;
+    }
+
+    /// <summary>
+    /// 가장 먼저 맞은 오브젝트 윗면이 아니라, 장애물 아래의 실제 바닥 후보를 선택합니다.
+    /// groundLayer를 바닥 전용 레이어로 설정하면 해당 레이어 안에서만 탐색합니다.
+    /// </summary>
+    private bool TryFindGround(Vector3 rayStart, out RaycastHit groundHit)
+    {
+        RaycastHit[] hits = Physics.RaycastAll(
+            rayStart,
+            Vector3.down,
+            GroundRaycastDistance,
+            groundLayer,
+            QueryTriggerInteraction.Ignore);
+
+        groundHit = default;
+        bool found = false;
+
+        for (int i = 0; i < hits.Length; i++)
+        {
+            RaycastHit hit = hits[i];
+            if (!IsValidGroundHit(hit))
+            {
+                continue;
+            }
+
+            // 같은 수직선에 오브젝트와 바닥이 함께 있으면 가장 낮은 표면을 바닥으로 사용한다.
+            if (!found || hit.point.y < groundHit.point.y)
+            {
+                groundHit = hit;
+                found = true;
+            }
+        }
+
+        return found;
+    }
+
+    private bool IsValidGroundHit(RaycastHit hit)
+    {
+        Collider hitCollider = hit.collider;
+        if (hitCollider == null
+            || Vector3.Angle(hit.normal, Vector3.up) > maxGroundSlope
+            || PlayerReferenceResolver.IsInPlayerHierarchy(hitCollider.gameObject)
+            || hitCollider.GetComponentInParent<WorldItem>() != null
+            || hitCollider.GetComponentInParent<WorldObject>() != null)
+        {
+            return false;
+        }
+
+        Rigidbody attachedBody = hitCollider.attachedRigidbody;
+        return attachedBody == null || attachedBody.isKinematic;
+    }
+
+    private bool IsDropSpaceClear(Vector3 groundPosition, Collider groundCollider)
+    {
+        float radius = Mathf.Max(0.01f, dropClearanceRadius);
+        float height = Mathf.Max(radius * 2f, dropClearanceHeight);
+        Vector3 bottom = groundPosition + Vector3.up * (radius + 0.01f);
+        Vector3 top = groundPosition + Vector3.up * Mathf.Max(radius + 0.01f, height - radius);
+        int hitCount = Physics.OverlapCapsuleNonAlloc(
+            bottom,
+            top,
+            radius,
+            clearanceHits,
+            ~0,
+            QueryTriggerInteraction.Ignore);
+
+        for (int i = 0; i < hitCount; i++)
+        {
+            Collider hitCollider = clearanceHits[i];
+            clearanceHits[i] = null;
+            if (hitCollider == null || hitCollider == groundCollider || IsOwnResourceCollider(hitCollider))
+            {
+                continue;
+            }
+
+            return false;
+        }
+
+        return true;
+    }
+
+    private bool IsOwnResourceCollider(Collider candidate)
+    {
+        return candidate != null && candidate.GetComponentInParent<WorldObject>() == this;
     }
 
     private void BeginRespawnCooldown()

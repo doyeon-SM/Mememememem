@@ -87,6 +87,57 @@ namespace HDY.Inventory
             return AddItem(itemData, amount);
         }
 
+        /// <summary>
+        /// [HDY 요청 아님 - 탐험 시스템용 신규 추가] 여러 아이템(ItemData, 수량) 묶음 전부가 실제로 창고에
+        /// 들어갈 수 있는지 사전 확인한다(실제로 추가하지 않는다). AddItem을 순서대로 호출했을 때와 동일하게
+        /// (기존 스택 우선 채움 -> 빈 슬롯 사용) 시뮬레이션하며, 여러 아이템이 같은 빈 슬롯을 나눠 쓰는 경쟁까지
+        /// 반영한다(항목별로 따로 HasSpaceFor를 부르면 이 경쟁을 놓쳐서 과대평가할 수 있다).
+        /// 탐험 보상처럼 "전부 들어갈 수 있을 때만 일괄 지급"하는 상황(ExplorationRuntime.TryComplete)에서 사용한다.
+        /// </summary>
+        public bool CanFitAll(IReadOnlyList<(ItemData item, int amount)> requests)
+        {
+            if (requests == null || requests.Count == 0) return true;
+
+            var existingAmounts = new Dictionary<string, int>();
+            int freeEmptySlots = 0;
+
+            foreach (var slot in storage.slots)
+            {
+                if (slot.IsEmpty) { freeEmptySlots++; continue; }
+                existingAmounts.TryGetValue(slot.itemId, out int cur);
+                existingAmounts[slot.itemId] = cur + slot.amount;
+            }
+
+            foreach (var (item, amount) in requests)
+            {
+                if (item == null || amount <= 0) continue;
+
+                int maxStack = Mathf.Max(1, item.MaxStack);
+                int remaining = amount;
+
+                existingAmounts.TryGetValue(item.Item_ID, out int currentTotal);
+                int usedStacks = currentTotal > 0 ? Mathf.CeilToInt(currentTotal / (float)maxStack) : 0;
+                int lastStackSpace = usedStacks > 0 ? (usedStacks * maxStack - currentTotal) : 0;
+
+                int fittedIntoExisting = Mathf.Min(lastStackSpace, remaining);
+                remaining -= fittedIntoExisting;
+                currentTotal += fittedIntoExisting;
+
+                if (remaining > 0)
+                {
+                    int neededSlots = Mathf.CeilToInt(remaining / (float)maxStack);
+                    if (neededSlots > freeEmptySlots) return false;
+
+                    freeEmptySlots -= neededSlots;
+                    currentTotal += remaining;
+                }
+
+                existingAmounts[item.Item_ID] = currentTotal;
+            }
+
+            return true;
+        }
+
         /// <summary>ID가 일치하는 아이템의 전체 수량을 확인한다.</summary>
         public int GetItemAmount(string itemId)
         {
@@ -299,5 +350,11 @@ namespace HDY.Inventory
 
             return remaining;
         }
+
+        public void PublishWarehouseChanged()
+        {
+            OnStorageChanged?.Invoke();
+        }
     }
+
 }

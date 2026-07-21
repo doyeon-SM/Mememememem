@@ -12,15 +12,7 @@ public class FoodAmountUI : MonoBehaviour
 
     private void Start()
     {
-        if (ConsumeFoodSystem.Instance != null)
-        {
-            RefreshUI(ConsumeFoodSystem.Instance.CurrentSatiety, ConsumeFoodSystem.Instance.MaxSatiety);
-        }
-
-        if (foodAmountText != null)
-        {
-            foodAmountText.text = $"0";
-        }
+        RefreshFromSystem();
     }
 
     private void OnEnable()
@@ -70,6 +62,14 @@ public class FoodAmountUI : MonoBehaviour
         {
             foodSlider.maxValue = maxSatiety;
             foodSlider.value = currentSatiety;
+        }
+    }
+
+    public void RefreshFromSystem()
+    {
+        if (ConsumeFoodSystem.Instance != null)
+        {
+            RefreshUI(ConsumeFoodSystem.Instance.CurrentSatiety, ConsumeFoodSystem.Instance.MaxSatiety);
         }
     }
 }

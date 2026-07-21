@@ -23,7 +23,6 @@ public class GridManager : MonoBehaviour
     [SerializeField] private List<BuildingData> buildings = new List<BuildingData>();
     [SerializeField] private Material previewMaterial;
 
-    // 🌟 [빌드 쉴드 강화]: Shader 대신 규격이 완벽히 잡힌 머티리얼 프리댑 에셋을 직접 주입받습니다.
     [Tooltip("URP/Unlit 기반의 Surface Type: Transparent로 설정된 머티리얼 에셋을 여기에 넣어주세요.")]
     [SerializeField] private Material gridMaterialPrefab;
 
@@ -77,13 +76,21 @@ public class GridManager : MonoBehaviour
     private List<ItemData> sessionRemovedBlueprints = new List<ItemData>();
     private List<ItemData> sessionAddedBlueprints = new List<ItemData>();
 
+    // 프리뷰 이동 시 기존 시설의 작업 데이터를 임시 보존하는 캐시 구조체
+    private class PickedUpBuildingRuntimeState
+    {
+        public FacilityData facilityData;
+        public List<MemData> deployedMems = new List<MemData>();
+        public List<CapturedMemEntry> deployedMemEntries = new List<CapturedMemEntry>();
+    }
+    private PickedUpBuildingRuntimeState cachedPickedUpState = null;
+
     public int MouseGridX { get; private set; }
     public int MouseGridZ { get; private set; }
     public bool IsMouseOnGrid { get; private set; }
 
     // 이벤트 발행(UI 연결용)
     public static event Action<bool, List<BuildingData>> OnPlacementModeChanged;
-
     public static event Action OnGridDataChanged;
 
     // Test전역변수
@@ -92,17 +99,17 @@ public class GridManager : MonoBehaviour
     private void Awake()
     {
         if (buildRecordManager == null) buildRecordManager = FindFirstObjectByType<BuildRecordManager>();
+
+        InitGridMaterials();
     }
 
     private void Start()
     {
-        // 프리팹 원본 머티리얼을 먼저 캐싱합니다.
-        if (tilePrefab != null && tilePrefab.TryGetComponent<MeshRenderer>(out MeshRenderer prefabRenderer))
-        {
-            defaultModeMaterial = prefabRenderer.sharedMaterial;
-        }
+        int targetWidth = currentWidth > 0 ? currentWidth : 5;
+        int targetHeight = currentHeight > 0 ? currentHeight : 5;
 
-        // 프리팹에 머티리얼이 비어있다면 프로젝트 내부 리소스를 수색하여 Green_Mat를 주입합니다.
+        InitializeGrid(targetWidth, targetHeight);
+
         if (defaultModeMaterial == null)
         {
             defaultModeMaterial = Resources.Load<Material>("Green_Mat");
@@ -113,7 +120,6 @@ public class GridManager : MonoBehaviour
         }
 
         placeModeMaterial = CreateGridMaterial(true);
-        InitializeGrid(5, 5);
     }
 
     private void OnEnable()
@@ -189,21 +195,54 @@ public class GridManager : MonoBehaviour
         }
     }
 
+    private void InitGridMaterials()
+    {
+        if (defaultModeMaterial != null) return;
+
+        if (tilePrefab != null && tilePrefab.TryGetComponent<MeshRenderer>(out MeshRenderer prefabRenderer))
+        {
+            defaultModeMaterial = prefabRenderer.sharedMaterial;
+        }
+
+        if (defaultModeMaterial == null)
+        {
+            defaultModeMaterial = Resources.Load<Material>("Green_Mat");
+        }
+        if (defaultModeMaterial == null)
+        {
+            defaultModeMaterial = Resources.FindObjectsOfTypeAll<Material>().FirstOrDefault(m => m != null && m.name == "Green_Mat");
+        }
+
+        if (placeModeMaterial == null)
+        {
+            placeModeMaterial = CreateGridMaterial(true);
+        }
+    }
+
     public void InitializeGrid(int width, int height)
     {
         currentWidth = width;
         currentHeight = height;
-        tileGrid = new GameObject[currentWidth, currentHeight];
-        occupiedCells = new bool[currentWidth, currentHeight];
+        if (tileGrid == null || tileGrid.Length == 0)
+            tileGrid = new GameObject[currentWidth, currentHeight];
 
-        buildingObjectsGrid = new GameObject[currentWidth, currentHeight];
-        buildingDataGrid = new BuildingData[currentWidth, currentHeight];
+        if (occupiedCells == null || occupiedCells.Length == 0)
+            occupiedCells = new bool[currentWidth, currentHeight];
+
+        if (buildingObjectsGrid == null || buildingObjectsGrid.Length == 0)
+            buildingObjectsGrid = new GameObject[currentWidth, currentHeight];
+
+        if (buildingDataGrid == null || buildingDataGrid.Length == 0)
+            buildingDataGrid = new BuildingData[currentWidth, currentHeight];
 
         for (int i = 0; i < currentWidth; i++)
         {
             for (int j = 0; j < currentHeight; j++)
             {
-                tileGrid[i, j] = SpawnTile(i, j);
+                if (tileGrid[i, j] == null)
+                {
+                    tileGrid[i, j] = SpawnTile(i, j);
+                }
             }
         }
     }
@@ -329,6 +368,9 @@ public class GridManager : MonoBehaviour
             previewRenderers = null;
             canPlaceCurrent = false;
             isShaking = false;
+
+            
+            cachedPickedUpState = null;
         }
     }
 
@@ -430,14 +472,12 @@ public class GridManager : MonoBehaviour
 
         Material mat = null;
 
-        // 🌟 [안전 복사 트랜잭션]: 머티리얼 에셋 프리댑이 꽂혀있다면 그것을 복사 인스턴스화하여 무결성 확보
         if (gridMaterialPrefab != null)
         {
             mat = new Material(gridMaterialPrefab);
         }
         else
         {
-            // 만약 비어있을 때의 자동 안전 장치 (Fallback 백업)
             Shader targetShader = Shader.Find("Universal Render Pipeline/Unlit");
             mat = new Material(targetShader);
             mat.SetFloat("_Surface", 1f);
@@ -448,7 +488,6 @@ public class GridManager : MonoBehaviour
             mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
         }
 
-        // 🌟 빌트인과 URP 프로퍼티에 전부 안전하게 동시 텍스처 사상 주입
         if (mat.HasProperty("_BaseMap")) mat.SetTexture("_BaseMap", texture);
         if (mat.HasProperty("_MainTex")) mat.SetTexture("_MainTex", texture);
         if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", Color.white);
@@ -487,10 +526,64 @@ public class GridManager : MonoBehaviour
             buildingRuntime.Initialize(selectedBuildingData, currentStartGridX, currentStartGridZ);
         }
 
-        if (realBuilding.TryGetComponent<ProductionFacilityRuntime>(out ProductionFacilityRuntime prodRuntime))
+        string newUniqueId = $"{selectedBuildingData.buildingName}_{currentStartGridX}_{currentStartGridZ}";
+
+        // 이전 이동(PickUp) 상태에서 집어 올린 작업 데이터가 있다면 새 위치에 이식
+        if (cachedPickedUpState != null && cachedPickedUpState.facilityData != null)
         {
-            prodRuntime.buildingData = selectedBuildingData;
-            prodRuntime.UpdateMaxStorage();
+            cachedPickedUpState.facilityData.Building_ID = newUniqueId;
+
+            if (realBuilding.TryGetComponent<ProductionFacilityRuntime>(out ProductionFacilityRuntime prodRuntime))
+            {
+                prodRuntime.buildingData = selectedBuildingData;
+                prodRuntime.isProducing = cachedPickedUpState.facilityData.isActive;
+                prodRuntime.currentProgressTime = cachedPickedUpState.facilityData.currentProgressTime;
+                prodRuntime.currentStorageCount = cachedPickedUpState.facilityData.currentStorageCount;
+                prodRuntime.craftingItem = FindItemDataInProject(cachedPickedUpState.facilityData.currentCraftingItemId);
+                prodRuntime.UpdateMaxStorage();
+
+                if (prodRuntime.DeployedMems != null && prodRuntime.DeployedMemEntries != null)
+                {
+                    prodRuntime.DeployedMems.Clear();
+                    prodRuntime.DeployedMemEntries.Clear();
+                    prodRuntime.DeployedMems.AddRange(cachedPickedUpState.deployedMems);
+                    prodRuntime.DeployedMemEntries.AddRange(cachedPickedUpState.deployedMemEntries);
+                }
+                prodRuntime.CheckProductionCondition();
+            }
+            else if (realBuilding.TryGetComponent<ProductionCraftRuntime>(out ProductionCraftRuntime craftRuntime))
+            {
+                craftRuntime.buildingData = selectedBuildingData;
+                craftRuntime.isProducing = cachedPickedUpState.facilityData.isActive;
+                craftRuntime.targetQuantity = cachedPickedUpState.facilityData.targetQuantity;
+                craftRuntime.remainingQuantity = cachedPickedUpState.facilityData.remainingQuantity;
+                craftRuntime.currentProgressTime = cachedPickedUpState.facilityData.currentProgressTime;
+                craftRuntime.currentStorageCount = cachedPickedUpState.facilityData.currentStorageCount;
+                craftRuntime.currentCraftingItem = FindItemDataInProject(cachedPickedUpState.facilityData.currentCraftingItemId);
+
+                if (craftRuntime.DeployedMems != null && craftRuntime.DeployedMemEntries != null)
+                {
+                    craftRuntime.DeployedMems.Clear();
+                    craftRuntime.DeployedMemEntries.Clear();
+                    craftRuntime.DeployedMems.AddRange(cachedPickedUpState.deployedMems);
+                    craftRuntime.DeployedMemEntries.AddRange(cachedPickedUpState.deployedMemEntries);
+                }
+            }
+
+            if (RecordManager.Instance != null)
+            {
+                RecordManager.Instance.UpdateFacilityData(newUniqueId, cachedPickedUpState.facilityData);
+            }
+
+            cachedPickedUpState = null;
+        }
+        else
+        {
+            if (realBuilding.TryGetComponent<ProductionFacilityRuntime>(out ProductionFacilityRuntime prodRuntime))
+            {
+                prodRuntime.buildingData = selectedBuildingData;
+                prodRuntime.UpdateMaxStorage();
+            }
         }
 
         for (int i = currentStartGridX; i < currentStartGridX + currentTargetWidth; i++)
@@ -513,7 +606,7 @@ public class GridManager : MonoBehaviour
             }
         }
 
-        Debug.Log($"[Build] {selectedBuildingData.buildingName} 건설 성공!");
+        Debug.Log($"[Build] {selectedBuildingData.buildingName} 건설 및 데이터 보존 재배치 성공!");
 
         ClearPreview();
 
@@ -521,6 +614,7 @@ public class GridManager : MonoBehaviour
         OnPlacementModeChanged?.Invoke(isPlacementMode, currentAvailableBuildings);
 
         OnGridDataChanged?.Invoke();
+        TotalHungerManager.Instance?.RecalculateTotalHunger();
     }
 
     private void TryPickUpBuilding(int x, int z)
@@ -532,6 +626,50 @@ public class GridManager : MonoBehaviour
         BuildingData retrievedData = buildingDataGrid[x, z];
         Quaternion targetRotation = targetBuilding.transform.rotation;
 
+        // 건물을 지우기 전 실물 컴포넌트에서 작업 데이터 및 멤 배치 정보 캡처
+        cachedPickedUpState = new PickedUpBuildingRuntimeState();
+        cachedPickedUpState.facilityData = new FacilityData();
+
+        if (targetBuilding.TryGetComponent<ProductionFacilityRuntime>(out var facility))
+        {
+            cachedPickedUpState.facilityData.isActive = facility.isProducing;
+            cachedPickedUpState.facilityData.currentProgressTime = facility.currentProgressTime;
+            cachedPickedUpState.facilityData.currentStorageCount = facility.currentStorageCount;
+            cachedPickedUpState.facilityData.currentCraftingItemId = facility.craftingItem != null ? facility.craftingItem.Item_ID : "";
+
+            if (facility.DeployedMems != null)
+                cachedPickedUpState.deployedMems.AddRange(facility.DeployedMems);
+            if (facility.DeployedMemEntries != null)
+            {
+                cachedPickedUpState.deployedMemEntries.AddRange(facility.DeployedMemEntries);
+                foreach (var entry in facility.DeployedMemEntries)
+                {
+                    if (entry != null) cachedPickedUpState.facilityData.DeployedMemIDs.Add(entry.KeyId);
+                }
+            }
+        }
+        else if (targetBuilding.TryGetComponent<ProductionCraftRuntime>(out var craft))
+        {
+            cachedPickedUpState.facilityData.isActive = craft.isProducing;
+            cachedPickedUpState.facilityData.targetQuantity = craft.targetQuantity;
+            cachedPickedUpState.facilityData.remainingQuantity = craft.remainingQuantity;
+            cachedPickedUpState.facilityData.currentProgressTime = craft.currentProgressTime;
+            cachedPickedUpState.facilityData.currentStorageCount = craft.currentStorageCount;
+            cachedPickedUpState.facilityData.currentCraftingItemId = craft.currentCraftingItem != null ? craft.currentCraftingItem.Item_ID : "";
+
+            if (craft.DeployedMems != null)
+                cachedPickedUpState.deployedMems.AddRange(craft.DeployedMems);
+            if (craft.DeployedMemEntries != null)
+            {
+                cachedPickedUpState.deployedMemEntries.AddRange(craft.DeployedMemEntries);
+                foreach (var entry in craft.DeployedMemEntries)
+                {
+                    if (entry != null) cachedPickedUpState.facilityData.DeployedMemIDs.Add(entry.KeyId);
+                }
+            }
+        }
+
+        // 2. 그리드 격자 정보에서 해당 건물 제거 및 실물 GameObject 파괴
         for (int i = 0; i < currentWidth; i++)
         {
             for (int j = 0; j < currentHeight; j++)
@@ -547,6 +685,7 @@ public class GridManager : MonoBehaviour
 
         Destroy(targetBuilding);
 
+        // 3. 설계도 세션 원복 (인벤토리 추가)
         if (retrievedData != null && retrievedData.requireBlueprint != null)
         {
             var inventory = FindFirstObjectByType<PlayerInventory>();
@@ -561,7 +700,9 @@ public class GridManager : MonoBehaviour
         OnPlacementModeChanged?.Invoke(isPlacementMode, currentAvailableBuildings);
 
         OnGridDataChanged?.Invoke();
+        TotalHungerManager.Instance?.RecalculateTotalHunger();
 
+        // 4. 프리뷰 생성
         int availableIndex = currentAvailableBuildings.IndexOf(retrievedData);
         if (availableIndex >= 0)
         {
@@ -728,7 +869,7 @@ public class GridManager : MonoBehaviour
             string uniqueId = $"{snap.data.buildingName}_{snap.startX}_{snap.startZ}";
             if (RecordManager.Instance != null)
             {
-                PlantJSONSaveData entry = RecordManager.Instance.GetFacilityData(uniqueId);
+                FacilityData entry = RecordManager.Instance.GetFacilityData(uniqueId);
                 if (entry != null)
                 {
                     List<CapturedMemEntry> matchedEntries = new List<CapturedMemEntry>();
