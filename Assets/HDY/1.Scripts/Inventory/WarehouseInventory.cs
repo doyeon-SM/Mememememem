@@ -14,6 +14,11 @@ namespace HDY.Inventory
     /// [재사용] ItemStack/InventoryContainer(KMS.InventoryDuped)와 InventorySlotMoveHelper(슬롯 이동/병합
     /// 공용 로직)를 그대로 가져다 쓴다. 새로 만든 건 창고 전용 정렬(ApplySort)과 행 추가(AddRow)뿐이다.
     ///
+    /// [클릭 기반 집기/놓기 API] WarehouseUI가 InventoryUI와 동일한 "클릭 앤 캐리 + 분할" 조작을 쓰기 위해,
+    /// PlayerInventory의 TryTakeSlot/TryTakeHalfSlot/TryGetSlotSnapshot/TryPlaceHeldStack/TryPlaceHeldAmount와
+    /// 완전히 동일한 알고리즘을 여기에도 추가했다. 창고는 컨테이너가 storage 하나뿐이라 SlotGroup 파라미터가
+    /// 없다는 점만 다르다. TryReturnStack은 안전장치(ESC 닫기 시 커서에 남은 아이템 반환)용이다.
+    ///
     /// [정렬] 같은 Item_ID 스택이 여러 칸에 나뉘어 있으면(예: MaxStack 99인데 99+51로 흩어짐) 먼저 합쳐서
     /// MaxStack 기준으로 다시 압축한 뒤(99, 51 형태로), 기준(Item_ID 또는 카테고리)으로 정렬하고 동순위는
     /// 수량이 많은 순으로 배치한다.
@@ -187,37 +192,144 @@ namespace HDY.Inventory
             return moved;
         }
 
-        /// <summary>
-        /// 창고에 한 줄(가로 폭만큼, 10칸)을 추가한다. 기존 아이템 배치는 그대로 유지된다.
-        /// 비용 확인/차감은 이 클래스의 책임이 아니다 - WarehouseUpgrade(IUpgradable 구현체)가 계산하고,
-        /// 공용 업그레이드 팝업(UpgradePopupUI)이 비용을 다 낸 뒤에만 이 메서드를 호출해준다.
-        ///
-        /// [KMS 파일 미수정] InventoryContainer.Initialize()는 배열이 바뀌면 통째로 새로 만들어서 기존 데이터를
-        /// 잃어버리므로, 여기서는 그 메서드를 쓰지 않고 public 필드만으로 직접 배열을 늘려 기존 값을 복사한다.
-        /// </summary>
-        public void AddRow()
+        // ===================== 클릭 기반 집기/놓기 API (PlayerInventory와 동일 알고리즘) =====================
+
+        /// <summary>클릭 이동용 API. 지정 슬롯에서 요청한 수량을 떼어 독립된 스택으로 반환한다.</summary>
+        public bool TryTakeSlot(int index, int amount, out ItemStack takenStack)
         {
-            int oldLength = storage.slots != null ? storage.slots.Length : 0;
+            takenStack = null;
+            if (!storage.IsValidIndex(index)) return false;
 
-            storage.height += 1;
-            int newLength = storage.width * storage.height;
+            ItemStack slot = storage.slots[index];
+            if (slot == null || slot.IsEmpty || amount <= 0) return false;
 
-            var newSlots = new KMS.InventoryDuped.ItemStack[newLength];
+            int takenAmount = Mathf.Min(amount, slot.amount);
+            takenStack = new ItemStack { itemId = slot.itemId, amount = takenAmount };
 
-            for (int i = 0; i < newLength; i++)
-            {
-                newSlots[i] = (i < oldLength && storage.slots[i] != null) ? storage.slots[i] : new KMS.InventoryDuped.ItemStack();
-            }
+            slot.amount -= takenAmount;
+            if (slot.amount <= 0) slot.Clear();
 
-            storage.slots = newSlots;
+            OnStorageChanged?.Invoke();
+            return true;
+        }
 
-            Debug.Log($"[WarehouseInventory] 창고 행 추가: 현재 {storage.height}줄 ({storage.slots.Length}칸)");
+        /// <summary>빈손 우클릭용. 홀수 스택은 플레이어가 더 많이 들도록 절반을 올림한다.</summary>
+        public bool TryTakeHalfSlot(int index, out ItemStack takenStack)
+        {
+            takenStack = null;
+            if (!storage.IsValidIndex(index)) return false;
 
-            OnRowCountChanged?.Invoke();
+            ItemStack slot = storage.slots[index];
+            if (slot == null || slot.IsEmpty) return false;
+
+            int halfAmount = Mathf.CeilToInt(slot.amount * 0.5f);
+            return TryTakeSlot(index, halfAmount, out takenStack);
+        }
+
+        /// <summary>수량 팝업 표시용으로 슬롯 데이터의 복사본을 반환한다.</summary>
+        public bool TryGetSlotSnapshot(int index, out ItemStack snapshot)
+        {
+            snapshot = null;
+            if (!storage.IsValidIndex(index)) return false;
+
+            ItemStack slot = storage.slots[index];
+            if (slot == null || slot.IsEmpty) return false;
+
+            snapshot = new ItemStack { itemId = slot.itemId, amount = slot.amount };
+            return true;
         }
 
         /// <summary>
-        /// 창고를 정렬한다. 1) 같은 Item_ID 스택을 전부 합산한 뒤 MaxStack 기준으로 다시 압축(가능한 한 꽉 채운
+        /// 커서가 들고 있는 스택 전체를 대상 슬롯에 놓는다. 빈 슬롯에는 이동하고,
+        /// 같은 아이템에는 MaxStack까지 병합하며, 다른 아이템이면 두 스택을 교환한다.
+        /// </summary>
+        public bool TryPlaceHeldStack(int index, ItemStack heldStack)
+        {
+            return TryPlaceHeldAmount(index, heldStack, heldStack != null ? heldStack.amount : 0, true);
+        }
+
+        /// <summary>
+        /// 커서 스택에서 지정 수량만 대상 슬롯에 놓는다. 우클릭은 amount=1, allowSwap=false로 사용한다.
+        /// 다른 아이템과의 교환은 전체 스택을 놓는 좌클릭에서만 허용한다.
+        /// </summary>
+        public bool TryPlaceHeldAmount(int index, ItemStack heldStack, int amount, bool allowSwap = false)
+        {
+            if (heldStack == null || heldStack.IsEmpty || amount <= 0) return false;
+            if (!storage.IsValidIndex(index)) return false;
+
+            ItemStack target = storage.slots[index];
+            int requestedAmount = Mathf.Min(amount, heldStack.amount);
+
+            if (target.IsEmpty)
+            {
+                int placed = Mathf.Min(GetMaxStack(heldStack.itemId), requestedAmount);
+                target.Set(heldStack.itemId, placed);
+                heldStack.amount -= placed;
+                if (heldStack.amount <= 0) heldStack.Clear();
+
+                OnStorageChanged?.Invoke();
+                return true;
+            }
+
+            if (target.itemId == heldStack.itemId)
+            {
+                int space = GetMaxStack(target.itemId) - target.amount;
+                if (space <= 0) return false;
+
+                int placed = Mathf.Min(space, requestedAmount);
+                target.amount += placed;
+                heldStack.amount -= placed;
+                if (heldStack.amount <= 0) heldStack.Clear();
+
+                OnStorageChanged?.Invoke();
+                return true;
+            }
+
+            if (!allowSwap || requestedAmount != heldStack.amount) return false;
+
+            string displacedItemId = target.itemId;
+            int displacedAmount = target.amount;
+            target.Set(heldStack.itemId, heldStack.amount);
+            heldStack.Set(displacedItemId, displacedAmount);
+
+            OnStorageChanged?.Invoke();
+            return true;
+        }
+
+        /// <summary>
+        /// [안전장치용] 커서에 남은 아이템을 손실 없이 되돌린다. 선호 슬롯(있으면) 우선, 그다음 병합 가능한
+        /// 슬롯, 그다음 빈 슬롯 순서로 채워 넣는다. 다 채우지 못하면 heldStack에 남은 수량이 그대로 남으므로
+        /// 호출부(WarehouseUI)가 그 경우 트래시 슬롯 등으로 추가 처리해야 한다.
+        /// </summary>
+        public void TryReturnStack(ItemStack heldStack, int preferredIndex)
+        {
+            if (heldStack == null || heldStack.IsEmpty) return;
+
+            if (storage.IsValidIndex(preferredIndex))
+            {
+                TryPlaceHeldAmount(preferredIndex, heldStack, heldStack.amount, false);
+                if (heldStack.IsEmpty) return;
+            }
+
+            for (int i = 0; i < storage.slots.Length && !heldStack.IsEmpty; i++)
+            {
+                ItemStack slot = storage.slots[i];
+                if (!slot.IsEmpty && slot.itemId == heldStack.itemId)
+                {
+                    TryPlaceHeldAmount(i, heldStack, heldStack.amount, false);
+                }
+            }
+
+            for (int i = 0; i < storage.slots.Length && !heldStack.IsEmpty; i++)
+            {
+                if (storage.slots[i].IsEmpty)
+                {
+                    TryPlaceHeldAmount(i, heldStack, heldStack.amount, false);
+                }
+            }
+        }
+
+        /// <summary>창고를 정렬한다. 1) 같은 Item_ID 스택을 전부 합산한 뒤 MaxStack 기준으로 다시 압축(가능한 한 꽉 채운
         /// 스택 + 나머지 하나)하고, 2) 기준(Item_ID/카테고리)으로 정렬하며 동순위는 수량 내림차순으로 배치한다.
         /// </summary>
         public void ApplySort(ItemSortCriteria criteria)
@@ -349,6 +461,35 @@ namespace HDY.Inventory
             }
 
             return remaining;
+        }
+
+        /// <summary>
+        /// 창고에 한 줄(가로 폭만큼, 10칸)을 추가한다. 기존 아이템 배치는 그대로 유지된다.
+        /// 비용 확인/차감은 이 클래스의 책임이 아니다 - WarehouseUpgrade(IUpgradable 구현체)가 계산하고,
+        /// 공용 업그레이드 팝업(UpgradePopupUI)이 비용을 다 낸 뒤에만 이 메서드를 호출해준다.
+        ///
+        /// [KMS 파일 미수정] InventoryContainer.Initialize()는 배열이 바뀌면 통째로 새로 만들어서 기존 데이터를
+        /// 잃어버리므로, 여기서는 그 메서드를 쓰지 않고 public 필드만으로 직접 배열을 늘려 기존 값을 복사한다.
+        /// </summary>
+        public void AddRow()
+        {
+            int oldLength = storage.slots != null ? storage.slots.Length : 0;
+
+            storage.height += 1;
+            int newLength = storage.width * storage.height;
+
+            var newSlots = new KMS.InventoryDuped.ItemStack[newLength];
+
+            for (int i = 0; i < newLength; i++)
+            {
+                newSlots[i] = (i < oldLength && storage.slots[i] != null) ? storage.slots[i] : new KMS.InventoryDuped.ItemStack();
+            }
+
+            storage.slots = newSlots;
+
+            Debug.Log($"[WarehouseInventory] 창고 행 추가: 현재 {storage.height}줄 ({storage.slots.Length}칸)");
+
+            OnRowCountChanged?.Invoke();
         }
 
         public void PublishWarehouseChanged()
