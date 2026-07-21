@@ -145,6 +145,12 @@ public class ProductionCraftRuntime : MonoBehaviour
 
         if (addMems.Contains(targetMem)) return false;
 
+        if (targetEntry.IsActive)
+        {
+            Debug.LogWarning($"{targetMem.memName}(은/는) 이미 다른 시설이나 탐험대에 배치되어 있습니다.");
+            return false;
+        }
+
         if (!ProductionCalculator.CanDeployToFacility(targetMem, buildingData.buildingType))
         {
             ProductionStatType requiredStat = ProductionCalculator.GetRequiredStatType(buildingData.buildingType);

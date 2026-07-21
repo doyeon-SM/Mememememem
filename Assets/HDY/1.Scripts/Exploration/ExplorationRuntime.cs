@@ -9,7 +9,7 @@ namespace HDY.Exploration
     /// <summary>
     /// 지역(ExplorationZoneData) 하나의 진행 상태.
     /// "탐험 시설을 여러 채 짓는" 방식이 아니라 "지역마다 독립된 탐험대"를 두는 방식이라, 이 진행 상태는
-    /// 특정 씬 오브젝트가 아니라 지역 SO 자체를 키로 ExplorationRuntime이 들고 있다.
+    /// 특정 씬 오브젝트나 SO 인스턴스가 아니라 변경되지 않는 zoneId를 키로 ExplorationRuntime이 들고 있다.
     /// </summary>
     public enum ExplorationState
     {
@@ -23,9 +23,16 @@ namespace HDY.Exploration
     /// </summary>
     internal class ExplorationProgress
     {
+        public readonly ExplorationZoneData zone;
         public readonly List<CapturedMemEntry> assignedEntries = new List<CapturedMemEntry>();
         public ExplorationState state = ExplorationState.Idle;
         public float elapsedTime;
+
+        /// <summary>지정 지역 정의를 사용하는 초기 탐험 진행 데이터를 생성한다.</summary>
+        public ExplorationProgress(ExplorationZoneData zone)
+        {
+            this.zone = zone;
+        }
     }
 
     /// <summary>
@@ -52,14 +59,18 @@ namespace HDY.Exploration
         public static ExplorationRuntime Instance { get; private set; }
 
         /// <summary>
-        /// 지역(SO) 단위로 배치/시작/취소/완료 등 진행 상태가 바뀔 때마다 발행. 창고 그리드(MemStorageUI_Grid)가
+        /// 지역 zoneId 단위로 배치/시작/취소/완료 등 진행 상태가 바뀔 때마다 발행. 창고 그리드(MemStorageUI_Grid)가
         /// 구독해서 활성 멤 아이콘을 자동 갱신하고, ExplorationPanelUI도 구독해서 현재 보고 있는 페이지를 다시 그린다.
         /// (ProductionFacilityRuntime.OnMemDeploymentChanged와 동일한 역할의 정적 이벤트)
         /// </summary>
         public static event System.Action OnMemDeploymentChanged;
 
-        private readonly Dictionary<ExplorationZoneData, ExplorationProgress> progressByZone
-            = new Dictionary<ExplorationZoneData, ExplorationProgress>();
+        private readonly Dictionary<string, ExplorationProgress> progressByZoneId
+            = new Dictionary<string, ExplorationProgress>(System.StringComparer.Ordinal);
+        private readonly HashSet<ExplorationZoneData> invalidZoneIdWarnings
+            = new HashSet<ExplorationZoneData>();
+        private readonly HashSet<string> duplicateZoneIdWarnings
+            = new HashSet<string>(System.StringComparer.Ordinal);
 
         private WarehouseInventory cachedWarehouse;
         private ItemCatalogManager cachedItemCatalog;
@@ -78,10 +89,9 @@ namespace HDY.Exploration
 
         private void Update()
         {
-            foreach (var kvp in progressByZone)
+            foreach (var progress in progressByZoneId.Values)
             {
-                var zone = kvp.Key;
-                var progress = kvp.Value;
+                var zone = progress.zone;
 
                 if (progress.state != ExplorationState.InProgress) continue;
 
@@ -113,14 +123,37 @@ namespace HDY.Exploration
             return found;
         }
 
+        /// <summary>
+        /// 지역의 zoneId를 기준으로 기존 진행 데이터를 가져오거나 새로 생성한다.
+        /// zoneId는 저장과 시스템 간 식별에 사용하는 영구 키이므로 비어 있으면 진행 데이터를 만들지 않는다.
+        /// 서로 다른 SO가 같은 zoneId를 사용하면 동일 지역으로 취급하되 최초로 등록된 지역 정의를 유지한다.
+        /// </summary>
         private ExplorationProgress GetOrCreateProgress(ExplorationZoneData zone)
         {
             if (zone == null) return null;
 
-            if (!progressByZone.TryGetValue(zone, out var progress))
+            string zoneId = zone.zoneId != null ? zone.zoneId.Trim() : string.Empty;
+            if (string.IsNullOrEmpty(zoneId))
             {
-                progress = new ExplorationProgress();
-                progressByZone[zone] = progress;
+                if (invalidZoneIdWarnings.Add(zone))
+                {
+                    Debug.LogWarning($"[ExplorationRuntime] '{zone.name}'의 zoneId가 비어 있어 탐험 진행 상태를 만들 수 없습니다.", zone);
+                }
+
+                return null;
+            }
+
+            if (!progressByZoneId.TryGetValue(zoneId, out var progress))
+            {
+                progress = new ExplorationProgress(zone);
+                progressByZoneId[zoneId] = progress;
+            }
+            else if (progress.zone != zone && duplicateZoneIdWarnings.Add(zoneId))
+            {
+                Debug.LogWarning(
+                    $"[ExplorationRuntime] 서로 다른 ExplorationZoneData가 같은 zoneId '{zoneId}'를 사용합니다. " +
+                    $"'{progress.zone.name}'과 '{zone.name}'은 동일 지역 진행 상태를 공유합니다.",
+                    zone);
             }
 
             return progress;
@@ -185,12 +218,31 @@ namespace HDY.Exploration
             return Mathf.Max(1f, (float)sum / zone.requiredExplorationLevel);
         }
 
-        /// <summary>지금 탐험을 시작할 수 있는 상태인지. Idle이고, 1마리 이상 배치돼 있고, 탐험레벨 합이 요구치 이상이어야 한다.</summary>
+        /// <summary>
+        /// 지역에 연결된 맵의 모든 웨이포인트가 해금되어 현재 탐험 가능한지 확인한다.
+        /// requiredCompletedMap이 비어 있으면 웨이포인트 조건이 없는 지역으로 취급한다.
+        /// 조건 맵이 있는데 WayPointManager가 없으면 해금 상태를 확인할 수 없으므로 탐험 불가로 처리한다.
+        /// </summary>
+        public bool IsZoneAvailable(ExplorationZoneData zone)
+        {
+            if (zone == null) return false;
+            if (zone.requiredCompletedMap == null) return true;
+            if (WayPointManager.Instance == null) return false;
+
+            return WayPointManager.Instance.AreAllWayPointsUnlockedInMap(zone.requiredCompletedMap);
+        }
+
+        /// <summary>
+        /// 지금 탐험을 시작할 수 있는 상태인지 확인한다. 연결 맵의 웨이포인트가 모두 해금되어 있고,
+        /// 진행 상태가 Idle이며, 1마리 이상 배치돼 있고, 탐험레벨 합이 요구치 이상이어야 한다.
+        /// </summary>
         public bool CanStart(ExplorationZoneData zone)
         {
             if (zone == null) return false;
 
             var progress = GetOrCreateProgress(zone);
+            if (progress == null) return false;
+            if (!IsZoneAvailable(zone)) return false;
             if (progress.state != ExplorationState.Idle) return false;
             if (progress.assignedEntries.Count == 0) return false;
 
@@ -200,7 +252,7 @@ namespace HDY.Exploration
         /// <summary>이 멤이 이미 어느 지역엔가(상태 무관) 배치돼 있는지 확인한다. 한 멤을 여러 지역에 동시에 배치하는 것을 막기 위함.</summary>
         private bool IsAssignedToAnyZone(CapturedMemEntry entry)
         {
-            foreach (var progress in progressByZone.Values)
+            foreach (var progress in progressByZoneId.Values)
             {
                 if (progress.assignedEntries.Contains(entry)) return true;
             }
@@ -209,18 +261,31 @@ namespace HDY.Exploration
         }
 
         /// <summary>
-        /// 창고에서 드래그해온 멤을 이 지역의 탐험대 슬롯에 배치한다. Idle 상태에서만 가능하고,
-        /// 슬롯이 가득 찼거나(5마리) 이미 다른 지역에 배치돼 있으면 실패한다.
+        /// 창고에서 드래그해온 멤을 이 지역의 탐험대 슬롯에 배치한다. 연결 맵의 웨이포인트가 모두 해금되고
+        /// Idle 상태일 때만 가능하며, 슬롯이 가득 찼거나(5마리) 이미 다른 지역에 배치돼 있으면 실패한다.
         /// </summary>
         public bool TryAssignMem(ExplorationZoneData zone, CapturedMemEntry entry)
         {
             if (zone == null || entry == null) return false;
 
             var progress = GetOrCreateProgress(zone);
+            if (progress == null) return false;
+
+            if (!IsZoneAvailable(zone))
+            {
+                Debug.LogWarning($"[ExplorationRuntime] '{zone.zoneName}' 지역의 웨이포인트 해금 조건을 충족하지 않아 멤을 배치할 수 없습니다.");
+                return false;
+            }
 
             if (progress.state != ExplorationState.Idle)
             {
                 Debug.LogWarning($"[ExplorationRuntime] '{zone.zoneName}'은(는) 이미 탐험이 진행 중이라 멤을 배치할 수 없습니다.");
+                return false;
+            }
+
+            if (entry.IsActive)
+            {
+                Debug.LogWarning($"이미 다른 시설이나 탐험대에 배치되어 있습니다.");
                 return false;
             }
 
@@ -249,6 +314,7 @@ namespace HDY.Exploration
             if (zone == null || entry == null) return false;
 
             var progress = GetOrCreateProgress(zone);
+            if (progress == null) return false;
 
             if (progress.state != ExplorationState.Idle)
             {
@@ -268,6 +334,7 @@ namespace HDY.Exploration
             if (zone == null) return false;
 
             var progress = GetOrCreateProgress(zone);
+            if (progress == null) return false;
             if (progress.state != ExplorationState.Idle) return false;
 
             var entries = progress.assignedEntries;
@@ -285,6 +352,7 @@ namespace HDY.Exploration
             if (!CanStart(zone)) return false;
 
             var progress = GetOrCreateProgress(zone);
+            if (progress == null) return false;
             progress.state = ExplorationState.InProgress;
             progress.elapsedTime = 0f;
 
@@ -308,6 +376,7 @@ namespace HDY.Exploration
             if (zone == null) return false;
 
             var progress = GetOrCreateProgress(zone);
+            if (progress == null) return false;
             if (progress.state == ExplorationState.Idle) return false;
 
             progress.state = ExplorationState.Idle;
@@ -335,6 +404,7 @@ namespace HDY.Exploration
             if (zone == null) return false;
 
             var progress = GetOrCreateProgress(zone);
+            if (progress == null) return false;
 
             if (progress.state != ExplorationState.ReadyToComplete)
             {
@@ -404,12 +474,12 @@ namespace HDY.Exploration
             zone = null;
             if (entry == null) return false;
 
-            foreach (var kvp in progressByZone)
+            foreach (var progress in progressByZoneId.Values)
             {
-                if (kvp.Value.state == ExplorationState.Idle) continue;
-                if (!kvp.Value.assignedEntries.Contains(entry)) continue;
+                if (progress.state == ExplorationState.Idle) continue;
+                if (!progress.assignedEntries.Contains(entry)) continue;
 
-                zone = kvp.Key;
+                zone = progress.zone;
                 return true;
             }
 

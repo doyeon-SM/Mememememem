@@ -149,6 +149,11 @@ namespace HDY.UI
 
         private void OnEnable()
         {
+            if (SortButtonManagement.Instance != null)
+            {
+                SortButtonManagement.Instance.UpdateSortFilters(gameObject);
+            }
+
             runtime = ExplorationRuntime.Resolve(runtime);
             ExplorationRuntime.OnMemDeploymentChanged += HandleExplorationChanged;
 

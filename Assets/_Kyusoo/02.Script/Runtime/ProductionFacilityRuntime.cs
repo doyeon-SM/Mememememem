@@ -125,6 +125,13 @@ public class ProductionFacilityRuntime : MonoBehaviour
             Debug.LogWarning($"{targetMem.memName}은 이미 이 시설에 투입되어 있습니다.");
             return false;
         }
+
+        if (targetEntry.IsActive)
+        {
+            Debug.LogWarning($"{targetMem.memName}(은/는) 이미 다른 시설이나 탐험대에 배치되어 있습니다.");
+            return false;
+        }
+
         if (addMems.Count >= maxCapacity)
         {
             // 배치교체 필요
