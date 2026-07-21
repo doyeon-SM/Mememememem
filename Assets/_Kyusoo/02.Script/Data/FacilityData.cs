@@ -2,7 +2,7 @@
 using UnityEngine;
 
 [System.Serializable]
-public class PlantJSONSaveData
+public class FacilityData
 {
     [Header("시설ID. 이 아이디로 시설별 데이터 구분")]
     public string Building_ID;
@@ -24,5 +24,5 @@ public class PlantJSONSaveData
 public class PlantSaveWrapper
 {
     public string lastSaveTime;
-    public List<PlantJSONSaveData> SaveDataList = new List<PlantJSONSaveData>();
+    public List<FacilityData> SaveDataList = new List<FacilityData>();
 }
