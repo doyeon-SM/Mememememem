@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using HDY.Forge;
 using UnityEngine;
 
 namespace HDY.Item
@@ -7,6 +8,11 @@ namespace HDY.Item
     /// 아이템 데이터(ItemData)를 보관하는 매니저.
     /// Item_ID를 키로 하는 딕셔너리 탐색을 전제로 함.
     /// 씬에 배치되어 DontDestroyOnLoad로 유지되는 파괴불가 싱글톤 (ItemCatalogManager는 계속 싱글톤 유지).
+    ///
+    /// [대장간 연동] Item_ID가 "{BaseItemId}@{InstanceId}" 형태의 합성 ID(강화 개체)이면
+    /// 일반 딕셔너리 탐색 대신 ForgeInstanceItemDataProvider에 위임해 강화 보너스가 반영된
+    /// 런타임 전용 ItemData를 받아온다. 이 분기 덕분에 WorldObject/PlayerHarvestController 등
+    /// 다른 팀 코드는 지금처럼 FindItemData(itemId) → Value만 읽어도 강화가 자동 반영된다.
     /// </summary>
     public class ItemCatalogManager : MonoBehaviour
     {
@@ -57,10 +63,26 @@ namespace HDY.Item
             }
         }
 
-        /// <summary>Item_ID로 ItemData를 찾는다. 목록에 없으면 null.</summary>
+        /// <summary>
+        /// Item_ID로 ItemData를 찾는다. 목록에 없으면 null.
+        /// 합성 ID(강화 개체)면 ForgeInstanceItemDataProvider를 통해 런타임 ItemData를 반환한다.
+        /// </summary>
         public ItemData FindItemData(string itemId)
         {
             if (string.IsNullOrEmpty(itemId)) return null;
+
+            if (ForgeInstanceRegistry.IsCompositeId(itemId))
+            {
+                var provider = ForgeInstanceItemDataProvider.Instance;
+                if (provider != null)
+                {
+                    return provider.ResolveRuntimeItemData(itemId);
+                }
+
+                Debug.LogWarning($"[ItemCatalogManager] 강화 개체 ID이지만 ForgeInstanceItemDataProvider를 찾을 수 없습니다: {itemId}");
+                return null;
+            }
+
             return itemDictionary.TryGetValue(itemId, out var data) ? data : null;
         }
 
