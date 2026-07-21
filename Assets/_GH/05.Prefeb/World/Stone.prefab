@@ -142,8 +142,12 @@ MonoBehaviour:
   groundLayer:
     serializedVersion: 2
     m_Bits: 4294967295
-  dropSpawnHeight: 0.6
+  dropSpawnHeight: 0.02
   dropSpreadRadius: 4
+  dropPositionAttempts: 12
+  dropClearanceRadius: 0.25
+  dropClearanceHeight: 0.9
+  maxGroundSlope: 50
   showDropSpawnGizmo: 1
   dropSpawnGizmoColor: {r: 1, g: 0.72, b: 0.1, a: 0.9}
   poolPrewarmCount: 0

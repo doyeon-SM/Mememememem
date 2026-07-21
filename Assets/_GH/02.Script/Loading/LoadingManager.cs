@@ -127,6 +127,15 @@ namespace GH.Loading
                 return false;
             }
 
+            if (WayPointManager.Instance != null
+                && !WayPointManager.Instance.IsSceneLoadAuthorized(sceneName))
+            {
+                Debug.LogWarning(
+                    $"[LoadingManager] 영지 씬 직접 로딩 요청을 차단했습니다. 활성화된 웨이포인트 스톤에서 이동해야 합니다: {sceneName}",
+                    this);
+                return false;
+            }
+
             if (!Application.CanStreamedLevelBeLoaded(sceneName))
             {
                 Debug.LogError($"[LoadingManager] Build Settings에서 씬을 찾을 수 없습니다: {sceneName}", this);

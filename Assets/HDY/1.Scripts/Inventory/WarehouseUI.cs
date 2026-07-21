@@ -69,8 +69,6 @@ namespace HDY.Inventory
 
         private InventorySlotUI dragSource;
 
-        public static event Action ItemSlotChanged;
-
         private void Awake()
         {
             if (playerInventory == null) playerInventory = FindFirstObjectByType<PlayerInventory>();
@@ -265,6 +263,9 @@ namespace HDY.Inventory
             {
                 RefreshSlotByGroup(from.group, from.slotIndex);
                 RefreshSlotByGroup(to.group, to.slotIndex);
+
+                warehouseInventory.PublishWarehouseChanged();
+                playerInventory.PublishInventoryChanged();
             }
         }
 
@@ -435,7 +436,6 @@ namespace HDY.Inventory
                         storageSlots[index]?.SetStack(warehouseInventory.storage.slots[index]);
                     break;
             }
-            ItemSlotChanged?.Invoke();
         }
     }
 }

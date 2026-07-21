@@ -32,6 +32,10 @@ public class WayPointManager : MonoBehaviour
     [Tooltip("등록된 씬에서는 단축키 지도를 웨이포인트 이동 모드로 엽니다.")]
     [SerializeField] private List<string> shortcutTravelSceneNames = new List<string> { "Territory" };
 
+    [Header("Territory Travel")]
+    [Tooltip("활성화된 웨이포인트 스톤에서 연 지도의 전용 버튼으로만 진입할 수 있는 영지 씬 이름입니다.")]
+    [SerializeField] private string territorySceneName = "Territory";
+
     [Header("Map Input And Cursor")]
     [SerializeField] private bool notifyInputManager = true;
     [SerializeField] private bool blockKmsPlayerInput = true;
@@ -58,6 +62,8 @@ public class WayPointManager : MonoBehaviour
     private GameObject targetUI;
     private bool isMapOpen;
     private bool manageCursorForOpenMap;
+    private string openedFromWayPointId;
+    private bool authorizingTerritoryLoad;
     private int lastShortcutToggleFrame = -1;
     private Coroutine cursorPolicyRefreshCoroutine;
 
@@ -209,6 +215,8 @@ public class WayPointManager : MonoBehaviour
             return false;
         }
 
+        // 단축키나 일반 지도 버튼으로 연 경우에는 스톤 출발 권한을 남기지 않는다.
+        openedFromWayPointId = string.Empty;
         manageCursorForOpenMap = !IsAlwaysVisibleCursorScene();
         isMapOpen = true;
         SetSceneMapVisible(true);
@@ -224,6 +232,7 @@ public class WayPointManager : MonoBehaviour
         bool opened = OpenMap(WayPointMapOpenMode.Travel, targetMap);
         if (opened && mapUI != null)
         {
+            openedFromWayPointId = sourceWayPoint != null ? sourceWayPoint.id : string.Empty;
             mapUI.SetOpenedFromWayPoint(sourceWayPoint);
         }
 
@@ -243,6 +252,7 @@ public class WayPointManager : MonoBehaviour
         bool shouldManageCursor = manageCursorForOpenMap;
         isMapOpen = false;
         manageCursorForOpenMap = false;
+        openedFromWayPointId = string.Empty;
 
         if (wasOpen)
         {
@@ -554,6 +564,99 @@ public class WayPointManager : MonoBehaviour
     public bool IsUnlocked(string id)
     {
         return statesById.TryGetValue(id, out WayPointRunTime state) && state.IsActive;
+    }
+
+    /// <summary>현재까지 하나 이상의 웨이포인트가 활성화되었는지 확인합니다.</summary>
+    public bool HasAnyActiveWayPoint()
+    {
+        foreach (WayPointRunTime state in statesById.Values)
+        {
+            if (state != null && state.IsActive)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>지정한 씬 이름이 영지 씬인지 확인합니다.</summary>
+    public bool IsTerritorySceneName(string sceneName)
+    {
+        return !string.IsNullOrWhiteSpace(sceneName)
+            && !string.IsNullOrWhiteSpace(territorySceneName)
+            && string.Equals(sceneName.Trim(), territorySceneName.Trim(), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 현재 지도가 실제 스톤에서 열렸고 그 스톤이 활성 상태일 때만 영지 이동을 허용합니다.
+    /// 일반 지도 열기, 잠긴 스톤, 활성 웨이포인트가 하나도 없는 상태에서는 거짓입니다.
+    /// </summary>
+    public bool CanTravelToTerritoryFromOpenedStone()
+    {
+        if (!isMapOpen
+            || IsTerritorySceneName(SceneManager.GetActiveScene().name)
+            || string.IsNullOrWhiteSpace(openedFromWayPointId)
+            || !HasAnyActiveWayPoint()
+            || LoadingManager.Instance == null
+            || LoadingManager.Instance.IsLoading)
+        {
+            return false;
+        }
+
+        return statesById.TryGetValue(openedFromWayPointId, out WayPointRunTime sourceState)
+            && sourceState != null
+            && sourceState.IsActive
+            && sourceState.Stone != null
+            && sourceState.Stone.IsUnlocked;
+    }
+
+    /// <summary>활성 웨이포인트 스톤에서 연 지도의 영지 이동 버튼 요청을 처리합니다.</summary>
+    public bool TryTravelToTerritory()
+    {
+        statesById.TryGetValue(openedFromWayPointId, out WayPointRunTime sourceState);
+
+        if (!HasAnyActiveWayPoint())
+        {
+            NotifyTravelFailed(sourceState, "활성화된 웨이포인트가 없어 영지로 이동할 수 없습니다.");
+            return false;
+        }
+
+        if (!CanTravelToTerritoryFromOpenedStone())
+        {
+            NotifyTravelFailed(sourceState, "영지는 활성화된 웨이포인트 스톤에서 연 지도를 통해서만 이동할 수 있습니다.");
+            return false;
+        }
+
+        authorizingTerritoryLoad = true;
+        bool started;
+        try
+        {
+            started = LoadingManager.Instance.LoadScene(territorySceneName.Trim(), string.Empty);
+        }
+        finally
+        {
+            authorizingTerritoryLoad = false;
+        }
+
+        if (!started)
+        {
+            NotifyTravelFailed(sourceState, $"영지 씬 로딩 요청에 실패했습니다: {territorySceneName}");
+            return false;
+        }
+
+        OnWayPointTravelStarted?.Invoke(sourceState);
+        CloseMap();
+        return true;
+    }
+
+    /// <summary>
+    /// LoadingManager가 영지 씬 직접 로딩 요청을 받았을 때 전용 스톤 이동 흐름에서 시작된 요청인지 검증합니다.
+    /// 영지 외 씬은 기존 로딩 흐름을 그대로 허용합니다.
+    /// </summary>
+    public bool IsSceneLoadAuthorized(string sceneName)
+    {
+        return !IsTerritorySceneName(sceneName) || authorizingTerritoryLoad;
     }
 
     /// <summary>
@@ -882,6 +985,12 @@ public class WayPointManager : MonoBehaviour
         }
 
         string targetSceneName = state.Definition.mapDefinition.sceneName;
+        if (IsTerritorySceneName(targetSceneName))
+        {
+            NotifyTravelFailed(state, "지도 웨이포인트 아이콘으로는 영지로 이동할 수 없습니다.");
+            return false;
+        }
+
         if (LoadingManager.Instance == null)
         {
             NotifyTravelFailed(state, "LoadingManager is missing.");
@@ -1000,6 +1109,7 @@ public class WayPointManager : MonoBehaviour
 
         isMapOpen = false;
         manageCursorForOpenMap = false;
+        openedFromWayPointId = string.Empty;
         mapUI = null;
         targetUI = null;
         player = null;

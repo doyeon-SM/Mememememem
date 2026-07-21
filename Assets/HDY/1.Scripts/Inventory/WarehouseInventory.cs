@@ -350,5 +350,11 @@ namespace HDY.Inventory
 
             return remaining;
         }
+
+        public void PublishWarehouseChanged()
+        {
+            OnStorageChanged?.Invoke();
+        }
     }
+
 }

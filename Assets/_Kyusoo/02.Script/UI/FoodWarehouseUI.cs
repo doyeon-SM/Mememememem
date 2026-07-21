@@ -97,9 +97,11 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner
         if (TotalHungerManager.Instance != null)
         {
             TotalHungerManager.Instance.OnTotalHungerChanged += UpdateHungerText;
+
+            TotalHungerManager.Instance.RecalculateTotalHunger();
+            UpdateHungerText(TotalHungerManager.Instance.TotalHungerPerMinute);
         }
 
-        // 🌟 [요구사항 1]: 음식 보급고 UI 창이 열릴 때마다 가방 및 일반 보관 창고에 새로 들어온 음식을 전부 수거 캡처 처리합니다.
         FetchFoodFromInventories();
         RefreshAll();
     }
