@@ -19,10 +19,14 @@ public class WorldItem : MonoBehaviour
     [Min(0f)] [SerializeField] private float groundClearance = 0.03f;
 
     [Header("Visual Motion")]
+    [Tooltip("활성화하면 회전 없이 위아래 부유 애니메이션만 재생합니다.")]
     [SerializeField] private bool animateVisual = true;
-    [SerializeField] private float rotationSpeed = 45f;
     [Min(0f)] [SerializeField] private float bobHeight = 0.06f;
     [Min(0f)] [SerializeField] private float bobFrequency = 1.5f;
+
+    [Header("Player Billboard")]
+    [Tooltip("비워 두면 현재 플레이어를 자동으로 찾습니다.")]
+    [SerializeField] private Transform playerTarget;
 
     [Header("Pickup Collider")]
     [Tooltip("비워 두면 이 오브젝트의 BoxCollider를 자동으로 사용합니다.")]
@@ -39,6 +43,7 @@ public class WorldItem : MonoBehaviour
     private Vector3 initialColliderSize;
     private float animationTime;
     private Vector3 visualBaseLocalPosition;
+    private float nextPlayerResolveTime;
 
     private void Awake()
     {
@@ -52,20 +57,61 @@ public class WorldItem : MonoBehaviour
         // 풀에서 다시 사용될 때 프리팹에 설정된 원래 수량으로 복구한다.
         amount = initialAmount;
         animationTime = Random.Range(0f, Mathf.PI * 2f);
+        ResolvePlayerTarget();
         RefreshVisual();
     }
 
-    private void Update()
+    private void LateUpdate()
     {
-        if (!animateVisual || visualRoot == null || !visualRoot.gameObject.activeSelf)
+        if (visualRoot == null || !visualRoot.gameObject.activeSelf)
         {
             return;
         }
 
-        animationTime += Time.deltaTime;
-        float bobOffset = Mathf.Sin(animationTime * bobFrequency * Mathf.PI * 2f) * bobHeight;
-        visualRoot.localPosition = visualBaseLocalPosition + Vector3.up * bobOffset;
-        visualRoot.Rotate(Vector3.up, rotationSpeed * Time.deltaTime, Space.Self);
+        if (animateVisual)
+        {
+            animationTime += Time.deltaTime;
+            float bobOffset = Mathf.Sin(animationTime * bobFrequency * Mathf.PI * 2f) * bobHeight;
+            visualRoot.localPosition = visualBaseLocalPosition + Vector3.up * bobOffset;
+        }
+        else
+        {
+            visualRoot.localPosition = visualBaseLocalPosition;
+        }
+
+        FacePlayer();
+    }
+
+    /// <summary>
+    /// 스프라이트의 앞면(-Z)이 플레이어를 향하도록 Y축만 회전합니다.
+    /// 플레이어의 높이와 무관하게 스프라이트가 항상 수직으로 서 있도록 피치는 적용하지 않습니다.
+    /// </summary>
+    private void FacePlayer()
+    {
+        if (playerTarget == null && Time.unscaledTime >= nextPlayerResolveTime)
+        {
+            ResolvePlayerTarget();
+        }
+
+        if (playerTarget == null)
+        {
+            return;
+        }
+
+        Vector3 awayFromPlayer = visualRoot.position - playerTarget.position;
+        awayFromPlayer.y = 0f;
+        if (awayFromPlayer.sqrMagnitude <= 0.0001f)
+        {
+            return;
+        }
+
+        visualRoot.rotation = Quaternion.LookRotation(awayFromPlayer.normalized, Vector3.up);
+    }
+
+    private void ResolvePlayerTarget()
+    {
+        playerTarget = PlayerReferenceResolver.ResolveTransform(playerTarget);
+        nextPlayerResolveTime = Time.unscaledTime + 0.5f;
     }
 
     /// <summary>
