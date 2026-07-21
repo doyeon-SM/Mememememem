@@ -30,6 +30,13 @@ public class WayPointMapUI : MonoBehaviour
     [SerializeField] private Color normalMapButtonTextColor = new Color(1f, 1f, 1f, 1f);
     [SerializeField] private Color lockedMapButtonTextColor = new Color(0.55f, 0.55f, 0.55f, 1f);
 
+    [Header("Territory Travel")]
+    [Tooltip("별도로 만든 영지 이동 버튼을 연결합니다. 일반 지도에서는 숨기고, 스톤에서 연 지도에서만 표시합니다.")]
+    [SerializeField] private Button territoryTravelButton;
+    [Tooltip("비워 두면 Territory Travel Button의 자식 TMP_Text를 자동으로 찾습니다.")]
+    [SerializeField] private TMP_Text territoryTravelButtonText;
+    [SerializeField] private string territoryTravelUnavailableSuffix = " (이동불가)";
+
     [Header("Close")]
     [SerializeField] private bool closeAfterTravel = true;
 
@@ -72,6 +79,8 @@ public class WayPointMapUI : MonoBehaviour
     private Canvas cachedCanvas;
     private bool cachedCanvasOriginalOverrideSorting;
     private int cachedCanvasOriginalSortingOrder;
+    private Text territoryTravelLegacyText;
+    private string territoryTravelButtonBaseText;
 
     /// <summary>현재 지도를 열 때 적용된 보기 전용 또는 이동 모드입니다.</summary>
     public WayPointMapOpenMode CurrentOpenMode => currentOpenMode;
@@ -107,12 +116,14 @@ public class WayPointMapUI : MonoBehaviour
 
         CacheCanvasState();
         EnsureTooltip();
+        BindTerritoryTravelButton();
     }
 
     private void OnEnable()
     {
         TrySubscribe();
         RefreshMapView();
+        RefreshTerritoryTravelButton();
     }
 
     private void Start()
@@ -134,6 +145,8 @@ public class WayPointMapUI : MonoBehaviour
         {
             Instance = null;
         }
+
+        UnbindTerritoryTravelButton();
     }
 
     private void OnValidate()
@@ -152,6 +165,7 @@ public class WayPointMapUI : MonoBehaviour
         openedFromWayPointId = string.Empty;
         currentMap = ResolveMap(mapOverride);
         RefreshMapView();
+        RefreshTerritoryTravelButton();
     }
 
     /// <summary>지도 표시가 꺼지기 전에 툴팁과 Canvas 정렬 상태를 정리합니다.</summary>
@@ -165,6 +179,19 @@ public class WayPointMapUI : MonoBehaviour
     internal void SetOpenedFromWayPoint(WayPointDefinition sourceWayPoint)
     {
         openedFromWayPointId = sourceWayPoint != null ? sourceWayPoint.id : string.Empty;
+        RefreshTerritoryTravelButton();
+    }
+
+    /// <summary>런타임 또는 인스펙터에서 만든 영지 이동 버튼 참조를 교체합니다.</summary>
+    public void SetTerritoryTravelButton(Button button)
+    {
+        UnbindTerritoryTravelButton();
+        territoryTravelButton = button;
+        territoryTravelButtonText = null;
+        territoryTravelLegacyText = null;
+        territoryTravelButtonBaseText = string.Empty;
+        BindTerritoryTravelButton();
+        RefreshTerritoryTravelButton();
     }
 
     // Stone에서 직접 지도 이동 모드를 열고 싶을 때 호출한다.
@@ -629,12 +656,94 @@ public class WayPointMapUI : MonoBehaviour
         {
             RefreshTooltipText(state);
         }
+
+        RefreshTerritoryTravelButton();
     }
 
     // 맵 해금 조건이 바뀌면 현재 맵 선택과 아이콘 목록을 다시 확인한다.
     private void HandleMapAvailabilityChanged(WayPointMapDefinition mapDefinition)
     {
         RefreshMapView();
+        RefreshTerritoryTravelButton();
+    }
+
+    private void BindTerritoryTravelButton()
+    {
+        if (territoryTravelButton == null)
+        {
+            return;
+        }
+
+        territoryTravelButton.onClick.RemoveListener(HandleTerritoryTravelButtonClicked);
+        territoryTravelButton.onClick.AddListener(HandleTerritoryTravelButtonClicked);
+
+        if (territoryTravelButtonText == null)
+        {
+            territoryTravelButtonText = territoryTravelButton.GetComponentInChildren<TMP_Text>(true);
+        }
+
+        territoryTravelLegacyText = territoryTravelButton.GetComponentInChildren<Text>(true);
+        if (string.IsNullOrEmpty(territoryTravelButtonBaseText))
+        {
+            territoryTravelButtonBaseText = territoryTravelButtonText != null
+                ? territoryTravelButtonText.text
+                : territoryTravelLegacyText != null
+                    ? territoryTravelLegacyText.text
+                    : "영지로 이동";
+        }
+    }
+
+    private void UnbindTerritoryTravelButton()
+    {
+        if (territoryTravelButton != null)
+        {
+            territoryTravelButton.onClick.RemoveListener(HandleTerritoryTravelButtonClicked);
+        }
+    }
+
+    private void HandleTerritoryTravelButtonClicked()
+    {
+        if (WayPointManager.Instance == null || !WayPointManager.Instance.TryTravelToTerritory())
+        {
+            RefreshTerritoryTravelButton();
+        }
+    }
+
+    /// <summary>
+    /// 일반 지도에서는 영지 버튼을 숨기고, 스톤 지도에서는 이동 가능 여부와 문구를 갱신합니다.
+    /// </summary>
+    private void RefreshTerritoryTravelButton()
+    {
+        if (territoryTravelButton == null)
+        {
+            return;
+        }
+
+        bool openedFromStone = currentOpenMode == WayPointMapOpenMode.Travel
+            && !string.IsNullOrWhiteSpace(openedFromWayPointId);
+        territoryTravelButton.gameObject.SetActive(openedFromStone);
+        if (!openedFromStone)
+        {
+            return;
+        }
+
+        bool canTravel = WayPointManager.Instance != null
+            && WayPointManager.Instance.CanTravelToTerritoryFromOpenedStone();
+        territoryTravelButton.interactable = canTravel;
+
+        string label = canTravel
+            ? territoryTravelButtonBaseText
+            : territoryTravelButtonBaseText + territoryTravelUnavailableSuffix;
+
+        if (territoryTravelButtonText != null)
+        {
+            territoryTravelButtonText.text = label;
+        }
+
+        if (territoryTravelLegacyText != null)
+        {
+            territoryTravelLegacyText.text = label;
+        }
     }
 
     // 프리팹이 있으면 프리팹을 쓰고, 없으면 기본 Image/Button 아이콘을 런타임에 만든다.
