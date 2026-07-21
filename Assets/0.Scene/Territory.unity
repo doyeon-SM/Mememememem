@@ -4953,6 +4953,30 @@ PrefabInstance:
       propertyPath: m_AnchoredPosition.y
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 1058511220197670078, guid: 3d5fa83ef86d6174e971a99b34d52881, type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1058511220197670078, guid: 3d5fa83ef86d6174e971a99b34d52881, type: 3}
+      propertyPath: m_AnchorMin.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1058511220197670078, guid: 3d5fa83ef86d6174e971a99b34d52881, type: 3}
+      propertyPath: m_SizeDelta.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1058511220197670078, guid: 3d5fa83ef86d6174e971a99b34d52881, type: 3}
+      propertyPath: m_SizeDelta.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1058511220197670078, guid: 3d5fa83ef86d6174e971a99b34d52881, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1058511220197670078, guid: 3d5fa83ef86d6174e971a99b34d52881, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 1156671358763419778, guid: 3d5fa83ef86d6174e971a99b34d52881, type: 3}
       propertyPath: m_AnchorMax.y
       value: 0
@@ -6810,6 +6834,18 @@ PrefabInstance:
       propertyPath: m_AnchoredPosition.y
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 1117636168812845880, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1117636168812845880, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
+      propertyPath: m_AnchorMin.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1117636168812845880, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 1628737145189263073, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
       propertyPath: m_AnchorMax.y
       value: 0
@@ -6863,6 +6899,18 @@ PrefabInstance:
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 4962541421081146795, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4978216391922469539, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4978216391922469539, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
+      propertyPath: m_AnchorMin.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4978216391922469539, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
       propertyPath: m_AnchoredPosition.x
       value: 0
       objectReference: {fileID: 0}
@@ -11416,15 +11464,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3635583779656764659, guid: 22cfcc1771d31944e8ecaca85ad160ef, type: 3}
       propertyPath: m_Name
-      value: PlayerInventoryManager_test
-      objectReference: {fileID: 0}
-    - target: {fileID: 4795320524851318954, guid: 22cfcc1771d31944e8ecaca85ad160ef, type: 3}
-      propertyPath: catalogManager
-      value: 
-      objectReference: {fileID: 1565471476}
-    - target: {fileID: 4795320524851318954, guid: 22cfcc1771d31944e8ecaca85ad160ef, type: 3}
-      propertyPath: inventory.slots.Array.size
-      value: 60
+      value: PlayerInventoryManager
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -27900,6 +27940,9 @@ MonoBehaviour:
   normalMapButtonBackgroundColor: {r: 0.08, g: 0.11, b: 0.14, a: 0.92}
   normalMapButtonTextColor: {r: 1, g: 1, b: 1, a: 1}
   lockedMapButtonTextColor: {r: 0.55, g: 0.55, b: 0.55, a: 1}
+  territoryTravelButton: {fileID: 0}
+  territoryTravelButtonText: {fileID: 0}
+  territoryTravelUnavailableSuffix: " (\uC774\uB3D9\uBD88\uAC00)"
   closeAfterTravel: 1
   bringCanvasToFrontOnOpen: 1
   openSortingOrder: 1000
