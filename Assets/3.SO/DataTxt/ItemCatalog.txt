@@ -1,24 +1,59 @@
 Item_ID	ItemName	Value	MaxStack	Category	UseAction	ObjectType	ItemClass	EatEffects
-item_wood	나무 원목	1	100	Material	Default	None	Rare	
-item_irongemstone	철 원석	1	100	Material	Default	None	Rare	
-item_berry	달콤한 열매	1	50	Food	Eat	None	Rare	Satiety:10
-item_berryseed	달콤한 열매 씨앗	1	100	Material	Default	None	Rare	
-item_woodplank	나무 판자	1	100	Material	Default	None	Rare	
-item_iron	철 주괴	1	100	Material	Default	None	Rare	
+blueprint_amber_quarry	호박 채석장 설계도	1	10	BluePrint	Default	None	Epic	
 blueprint_berry_farm	달콤한 열매 밭	1	10	BluePrint	Default	None	Epic	
+blueprint_birch_logging_farm	자작나무 벌목장 설계도	1	10	BluePrint	Default	None	Epic	
+blueprint_campfire	모닥불 설계도	1	10	BluePrint	Default	None	Epic	
+blueprint_diamond_quarry	다이아몬드 채석장 설계도	1	10	BluePrint	Default	None	Epic	
 blueprint_iron_ore_quarry	철 채석장 설계도	1	10	BluePrint	Default	None	Epic	
+blueprint_livestock_farm	목장 설계도	1	10	BluePrint	Default	None	Epic	
 blueprint_logging_farm	나무 벌목장 설계도	1	10	BluePrint	Default	None	Epic	
 blueprint_production_stand	제작대 설계도	1	10	BluePrint	Default	None	Epic	
+blueprint_wheat_farm	밀 밭 설계도	1	10	BluePrint	Default	None	Epic	
+blueprint_generator	발전기 설계도	1	10	BluePrint	Default	None	Unique	
+blueprint_kitchen	주방 설계도	1	10	BluePrint	Default	None	Unique	
+blueprint_transport_facility	운반시설 설계도	1	10	BluePrint	Default	None	Unique	
+tool_decent_capsule	쓸만한 캡슐	1	10	Capsule	Use	None	Epic	
+tool_shabby_capsule	허름한 캡슐	1	10	Capsule	Use	None	Rare	
+item_sandwich	샌드위치	1	50	Food	Eat	None	Epic	Satiety:30;Speed:60
+item_baguette	바게트	1	50	Food	Eat	None	Rare	Satiety:20
+item_berry	달콤한 열매	1	50	Food	Eat	None	Rare	Satiety:10
+item_berry_juice	달콤한 열매 주스	1	50	Food	Eat	None	Rare	Satiety:20
+item_berry_preserve	달콤한 열매 절임	1	50	Food	Eat	None	Rare	Satiety:20
+item_oatmeal	오트밀	1	50	Food	Eat	None	Rare	Satiety:20
+item_wheat	밀	1	50	Food	Eat	None	Rare	Satiety:10
 item_baseblueprint	기초 토대	1	10	Material	Default	None	Epic	
+item_plated_plank	도금된 판자	1	100	Material	Default	None	Epic	
+item_plated_white_plank	도금된 백판자	1	100	Material	Default	None	Epic	
+item_amber	호박석	1	100	Material	Default	None	Rare	
+item_berryseed	달콤한 열매 씨앗	1	100	Material	Default	None	Rare	
+item_birchwood	자작나무 원목	1	100	Material	Default	None	Rare	
+item_birchwoodplank	자작나무 판자	1	100	Material	Default	None	Rare	
+item_cabbage	양배추	1	100	Material	Default	None	Rare	
+item_diamond	다이아몬드	1	100	Material	Default	None	Rare	
+item_iron	철 주괴	1	100	Material	Default	None	Rare	
+item_irongemstone	철 원석	1	100	Material	Default	None	Rare	
+item_processed_diamond	가공된 다이아몬드	1	100	Material	Default	None	Rare	
+item_processed_plank	가공된 판자	1	100	Material	Default	None	Rare	
+item_processed_white_plank	가공된 백판자	1	100	Material	Default	None	Rare	
+item_raw_amber	호박 원석	1	100	Material	Default	None	Rare	
+item_rough_fur	거친 털	1	100	Material	Default	None	Rare	
 item_salt	소금	1	100	Material	Default	None	Rare	
 item_sugar	설탕	1	100	Material	Default	None	Rare	
-item_sandwich	샌드위치	1	50	Food	Eat	None	Rare	Satiety:30
+item_whaetseed	밀 씨앗	1	100	Material	Default	None	Rare	
+item_wood	나무 원목	1	100	Material	Default	None	Rare	
+item_woodplank	나무 판자	1	100	Material	Default	None	Rare	
+item_abrasive_stone_dawn	여명의 연마석	1	100	Material	Default	None	Unique	
+item_intermediate_blueprint	중급 토대	1	100	Material	Default	None	Unique	
+item_temperedstone_dawn	여명의 강화석	1	100	Material	Default	None	Unique	
+tool_decent_axe	쓸만한 도끼	1	1	Tool	Use	Tree	Epic	
+tool_decent_club	쓸만한 몽둥이	1	1	Tool	Use	Stone	Epic	
+tool_decent_hoe	쓸만한 괭이	1	1	Tool	Use	None	Epic	
+tool_decent_pickax	쓸만한 곡괭이	1	1	Tool	Use	Bush	Epic	
+tool_axe	도끼	1	1	Tool	Use	Tree	Rare	
+tool_club	몽둥이	1	1	Tool	Use	Stone	Rare	
+tool_hoe	괭이	1	1	Tool	Use	None	Rare	
+tool_pickax	곡괭이	1	1	Tool	Use	Bush	Rare	
 tool_shabby_axe	허름한 도끼	1	1	Tool	Use	Tree	Rare	
 tool_shabby_club	허름한 몽둥이	1	1	Tool	Use	None	Rare	
 tool_shabby_hoe	허름한 괭이	1	1	Tool	Use	Bush	Rare	
 tool_shabby_pickax	허름한 곡괭이	1	1	Tool	Use	Stone	Rare	
-tool_shabby_capsule	허름한 캡슐	1	10	Capsule	Use	None	Rare	
-item_abrasive_stone	연마석	1	100	Material	Default	None	Unique	
-item_temperedstone_dawn	여명의 강화석	1	100	Material	Default	None	Unique	
-tool_axe	도끼	1	1	Tool	Use	Tree	Rare	
-item_diamond	다이아몬드	1	100	Material	Default	None	Rare	

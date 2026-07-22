@@ -238,8 +238,8 @@ namespace HDY.Item
 
         /// <summary>
         /// 상점 품목 시트 한 줄(컬럼 배열)을 런타임 ShopItemData로 변환한다.
-        /// 컬럼 순서: Item_ID, Selling_Price, Purchase_Price_Golds, Purchase_Material_ID,
-        /// Purchase_Material_Amount, Purchase_MaxAmount, Selling_MaxAmount.
+        /// [HDY 요청 - 컬럼 순서 변경] 컬럼 순서: Item_ID, Selling_Price, Selling_MaxAmount,
+        /// Purchase_Price_Golds, Purchase_Material_ID, Purchase_Material_Amount, Purchase_MaxAmount.
         /// Purchase_Material_ID가 비어있으면 골드 구매(Purchase_Price_Material = null)로 처리한다.
         /// </summary>
         private HDY.Shop.ShopItemData ParseShopItemRow(string[] cols)
@@ -248,15 +248,15 @@ namespace HDY.Item
 
             shopItem.Item_ID = cols[0].Trim();
             shopItem.Selling_Price = ParseInt(cols[1]);
-            shopItem.Purchase_Price_Golds = ParseInt(cols[2]);
+            shopItem.Selling_MaxAmount = ParseInt(cols[2]);
+            shopItem.Purchase_Price_Golds = ParseInt(cols[3]);
 
-            var materialId = cols[3].Trim();
+            var materialId = cols[4].Trim();
             shopItem.Purchase_Price_Material = string.IsNullOrEmpty(materialId)
                 ? null
-                : new HDY.Shop.MaterialCost { Item_ID = materialId, Amount = ParseInt(cols[4]) };
+                : new HDY.Shop.MaterialCost { Item_ID = materialId, Amount = ParseInt(cols[5]) };
 
-            shopItem.Purchase_MaxAmount = ParseInt(cols[5]);
-            shopItem.Selling_MaxAmount = ParseInt(cols[6]);
+            shopItem.Purchase_MaxAmount = ParseInt(cols[6]);
 
             return shopItem;
         }
