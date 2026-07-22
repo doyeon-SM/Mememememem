@@ -49,8 +49,34 @@ MonoBehaviour:
   paramSpeed: Speed
   hitColor: {r: 1, g: 0, b: 0, a: 1}
   hitDuration: 0.2
+  hitPushbackDistance: 0.1
   walkClipSpeed: 0.4
   runClipSpeed: 0.8
+  propAxe:
+    prefab: {fileID: 3483948541674283737, guid: 7d15bc495f1b8274fbdc95399a70ec7e, type: 3}
+    positionOffset: {x: 0.02, y: 0.168, z: 0.14}
+    rotationOffset: {x: 20, y: -110, z: 100}
+  propHammer:
+    prefab: {fileID: 4052036393952266755, guid: c0f8fa0488875fd49a0c9aa26c7b1390, type: 3}
+    positionOffset: {x: 0.05, y: 0.1, z: 0.08}
+    rotationOffset: {x: -20, y: -100, z: 90}
+  propHandSickle:
+    prefab: {fileID: 261149684329746856, guid: 917ab771508d50f47a148c4bb9357e84, type: 3}
+    positionOffset: {x: 0.12, y: 0.1, z: 0.05}
+    rotationOffset: {x: -30, y: 0, z: -80}
+  propPan:
+    prefab: {fileID: 3225008516525892539, guid: 8db31a5453480fb4992a65500dedae15, type: 3}
+    positionOffset: {x: 0, y: 0, z: 0}
+    rotationOffset: {x: 0, y: 0, z: 0}
+  propPickaxe:
+    prefab: {fileID: 2240698276804136818, guid: ba09674064ed9c745afccc19dfc83366, type: 3}
+    positionOffset: {x: 0.05, y: 0.1, z: 0.04}
+    rotationOffset: {x: -10, y: -90, z: 0}
+  propWindmill:
+    prefab: {fileID: 2516069856416811061, guid: ae2f0bc4ef712314690bfd5c8d58e001, type: 3}
+    positionOffset: {x: -0.03, y: 0.1, z: 0.1}
+    rotationOffset: {x: -30, y: -130, z: 180}
+  mountBoneName: LowerArm.L
 --- !u!1 &3233825511572421704
 GameObject:
   m_ObjectHideFlags: 0
@@ -115,18 +141,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: dde75d2bd4e1dd7418b5570ceb211e5f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MemSystem.Core.Mem
---- !u!114 &8097715938167601234
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3233825511572421704}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 1e25f34d50fa4d4a9cc0406e9a8bb585, type: 3}
-  m_Name:
-  m_EditorClassIdentifier: Assembly-CSharp::KMS.Combat.KMSMemDamageableAdapter
 --- !u!114 &7774338300222526950
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -204,6 +218,18 @@ CapsuleCollider:
   m_Height: 1
   m_Direction: 1
   m_Center: {x: 0, y: 0.5, z: 0}
+--- !u!114 &8097715938167601234
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3233825511572421704}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1e25f34d50fa4d4a9cc0406e9a8bb585, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::KMS.Combat.KMSMemDamageableAdapter
 --- !u!1 &4560270631468096954
 GameObject:
   m_ObjectHideFlags: 0

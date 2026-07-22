@@ -8,11 +8,34 @@
 // - ICapturable 인터페이스를 구현하여 플레이어 시스템과 연동합니다.
 // - TakeDamage(), OnCaptureSuccess() 등이 외부 시스템의 진입점입니다.
 //
-// [플레이어 담당자]
-// - ICapturable로 캐스팅하여 포획 로직을 수행하세요.
-// - TakeDamage(int)로 멤에게 데미지를 줄 수 있습니다.
-//
 // [HDY 요청으로 수정됨] GetCaptureRate(): 최소 포획확률 1% 보장 + 캡슐이 최고 등급(Mythic)이면 무조건 성공
+//
+// ─────────────────────────────────────────────────────────────────────────────
+// [플레이어 담당자 — 포획 흐름 전체 가이드]
+//
+// 포획 연출은 아래 순서로 진행됩니다:
+//
+// 1. [조준 중] 포획 확률 UI 실시간 표시
+//    float rate = (capturable as ICapturable).GetCaptureRate(myCapsuleTier);
+//    // rate를 기준으로 조준 UI에 그라데이션/파샘트 표시
+//
+// 2. [캡슐 명중 시] ICapturable.NotifyCaptureBallHit(캡슐의 월드좌표)
+//    ⇒ 멤 빛남+축소+이동 연출 자동 시작
+//    ⇒ MemEvents.OnMemCaptureStarted 자동 발행
+//       → 이 이벤트를 구독하여 캡슐 흔들림 연출 시작
+//
+// 3-A. [포획 성공 시] ICapturable.OnCaptureSuccess()
+//    ⇒ MemEvents.OnMemCaptured 자동 발행
+//       → 이 이벤트를 구독하여 캡슐 반짜임+사라짐 연출 구현
+//
+// 3-B. [포획 실패 시] ICapturable.OnCaptureFail(shouldFlee)
+//    ⇒ 멤 튀어나는 연출(빛남+팝업) 자동 재생
+//    ⇒ MemEvents.OnMemCaptureFailed 자동 발행
+//       → 이 이벤트를 구독하여 캡슐 파열 이펙트 구현
+//
+// ⚠️ 2번 NotifyCaptureBallHit을 호출하지 않으면 캡슐 위치를 파악할 수 없어
+//    3-A/3-B의 연출 시작 위치가 월드원점(0,0,0)이 됩니다.
+// ─────────────────────────────────────────────────────────────────────────────
 // ============================================================================
 using UnityEngine;
 using MemSystem.Data;
@@ -176,7 +199,13 @@ namespace MemSystem.Core
         // =================================================================
         // ICapturable 구현
         // [플레이어 담당자] 포획 시 이 인터페이스 메서드들을 사용하세요.
+        // 자세한 사용법은 ICapturable.cs 파일 상단 주석을 참고하세요.
         // =================================================================
+
+        /// <summary>당 멤이 빨려 들어갈 캡슐의 월드 좌표.
+        /// NotifyCaptureBallHit()에서 설정되며, 포획 실패 시 PlayCaptureEject 연출에 사용됩니다.
+        /// </summary>
+        private Vector3 lastCapsulePosition;
 
         /// <summary>현재 등급</summary>
         public MemTier Tier => Stats.Tier;
@@ -200,6 +229,41 @@ namespace MemSystem.Core
         /// [플레이어 담당자]
         /// 조준 중 UI에 이 값을 실시간으로 표시합니다.
         /// </summary>
+        /// <summary>
+        /// 캡슐이 멤에 명중했을 때 호출됩니다.
+        ///
+        /// 내부에서 자동 처리되는 사항:
+        /// 1. CapturedState에 캡슐 월드좌표 저장 (PlayCaptureAbsorb 참조용)
+        /// 2. 멤 빛남+축소 연출 시작 (MemVisual.PlayCaptureAbsorb)
+        /// 3. AI를 CapturedState로 전환 (이동 정지)
+        /// 4. MemEvents.OnMemCaptureStarted 이벤트 발행
+        ///
+        /// [플레이어 담당자]
+        /// 캡슐이 멤에 히트된 직후 이 메서드를 호출하세요.
+        /// 이 호출 전후로 OnCaptureSuccess() 또는 OnCaptureFail()을 호출하세요.
+        /// </summary>
+        /// <param name="capsulePosition">캡슐이 명중한 순간의 월드 좌표</param>
+        public void NotifyCaptureBallHit(Vector3 capsulePosition)
+        {
+            if (!IsActive) return;
+
+            // 캡슐 위치 저장 (포획 실패 시 탈출 연출 시작점에 사용)
+            lastCapsulePosition = capsulePosition;
+
+            // CapturedState에 캡슐 위치 전달 (PlayCaptureAbsorb 목표 위치)
+            if (AI != null)
+                AI.CapturedState.SetCaptureTarget(capsulePosition);
+
+            // AI를 CapturedState로 전환 → Enter()에서 PlayCaptureAbsorb() 자동 호출
+            if (AI != null)
+                AI.TransitionTo(AI.CapturedState);
+
+            // 포획 흡수 시작 이벤트 발행 → 플레이어 담당자가 수신하여 캡슐 흔들림 연출
+            MemEvents.OnMemCaptureStarted?.Invoke(this, capsulePosition);
+
+            Debug.Log($"[Mem] {Stats.MemName} 포획 흡수 시작 (캡슐 위치: {capsulePosition})");
+        }
+
         public float GetCaptureRate(int capsuleTier)
         {
             // [HDY 요청] 캡슐이 최고 등급(Mythic)이면 무조건 포획 성공
@@ -252,19 +316,89 @@ namespace MemSystem.Core
         /// <summary>
         /// 포획 실패 처리.
         /// shouldFlee가 true면 도망(디스폰), false면 전투 속행.
+        ///
+        /// 내부에서 자동 처리되는 사항:
+        /// - MemVisual.PlayCaptureEject(): 캡슐에서 멤이 튀어나오는 연출 (빛남+팝업+바운스)
+        /// - MemEvents.OnMemCaptureFailed 이벤트 발행
+        ///
+        /// [플레이어 담당자]
+        /// 이 메서드 호출 후 MemEvents.OnMemCaptureFailed 이벤트를 수신하여
+        /// 캡슐 파열 이펙트를 재생하세요.
         /// </summary>
-        public void OnCaptureFail(bool shouldFlee)
+        public void OnCaptureFail()
         {
             if (!IsActive) return;
 
-            Debug.Log($"[Mem] {Stats.MemName} 포획 실패! 도주: {shouldFlee}");
+            // 도망 여부 결정
+            bool shouldFlee = false;
 
+            // 1. HP가 0이면 무조건 도망 (디스폰)
+            if (Stats.ShouldFlee)
+            {
+                shouldFlee = true;
+            }
+            // 2. 그 외의 경우 등급(Tier)에 따라 확률적으로 도망
+            else
+            {
+                switch (Stats.Tier)
+                {
+                    case MemTier.Rare:
+                        shouldFlee = Random.value < 0.20f; // 20%
+                        break;
+                    case MemTier.Epic:
+                        shouldFlee = Random.value < 0.40f; // 40%
+                        break;
+                    case MemTier.Unique:
+                        shouldFlee = Random.value < 0.60f; // 60%
+                        break;
+                    case MemTier.Legendary:
+                        shouldFlee = Random.value < 0.80f; // 80%
+                        break;
+                    case MemTier.Mythic:
+                        shouldFlee = Random.value < 0.95f; // 95%
+                        break;
+                }
+            }
+
+            Debug.Log($"[Mem] {Stats.MemName} 포획 실패! 도주 여부(자체판단): {shouldFlee}");
+
+            // 캡슐에서 멤이 튀어나오는 연출 (빛남+팝업+바운스)
+            // lastCapsulePosition: NotifyCaptureBallHit()에서 저장된 캡슐 위치
+            if (Visual != null)
+                Visual.PlayCaptureEject(lastCapsulePosition);
+
+            // 포획 실패 이벤트 발행 → 플레이어 담당자가 수신하여 캡슐 파열 이펙트 재생
             MemEvents.OnMemCaptureFailed?.Invoke(this);
 
             if (shouldFlee && AI != null)
             {
+                // 도망 성공
                 AI.TransitionTo(AI.FleeState);
             }
+            else if (!shouldFlee && AI != null)
+            {
+                // 도망 실패 (탈출)
+                if (Stats.Personality == MemPersonality.Docile)
+                {
+                    // 온순한 멤은 공격하지 않고 배회 상태로 돌아감
+                    AI.TransitionTo(AI.WanderState);
+                }
+                else
+                {
+                    // 전투 속행: 플레이어에게 반격 (CombatState로 복귀)
+                    AI.TransitionTo(AI.CombatState);
+                }
+            }
+        }
+
+        // =================================================================
+        // [하위 호환성] 타 파트에서 아직 수정하지 않은 코드가 깨지지 않도록 유지
+        // =================================================================
+        [System.Obsolete("도망 여부는 멤이 자체 판단합니다. 매개변수 없는 OnCaptureFail()을 사용하세요.")]
+        public void OnCaptureFail(bool shouldFlee)
+        {
+            Debug.LogWarning("[Mem] OnCaptureFail(bool)은 더 이상 사용되지 않습니다. 멤의 자체 판단 로직으로 자동 전환됩니다.");
+            OnCaptureFail();
         }
 
         // =================================================================
