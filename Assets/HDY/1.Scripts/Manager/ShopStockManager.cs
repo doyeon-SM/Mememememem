@@ -2,12 +2,13 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using HDY.Territory;
+using HDY.Item;
 
 namespace HDY.Shop
 {
     /// <summary>
     /// 모든 상점의 "현재 재고"와 "다음 재입고까지 남은 인게임 하루 수"를 관리하는 런타임 매니저.
-    /// ShopData(SO)는 정적 설정(품목 목록, 재입고 주기)만 갖고, 실제로 몇 개 남았는지 같은
+    /// ShopData(SO)는 정적 설정(품목 ID 목록, 재입고 주기)만 갖고, 실제로 몇 개 남았는지 같은
     /// 가변 상태는 이 컴포넌트가 메모리에 들고 있는다.
     ///
     /// [구매 재고 vs 판매 재고 - 별도 관리] 상점이 플레이어에게 파는 재고(구매 탭)와 플레이어에게서
@@ -15,6 +16,14 @@ namespace HDY.Shop
     /// ShopItemData의 Purchase_MaxAmount와 Selling_MaxAmount도 각각 별개의 상한이다.
     ///
     /// [씬 배치 싱글톤] ItemCatalogManager와 동일한 패턴 - 씬에 하나 배치, Resolve()로 폴백 탐색.
+    ///
+    /// [HDY 요청 - 시트 마이그레이션] ShopData.Items(ShopItemData SO 리스트)가 ShopData.ItemIds
+    /// (문자열 목록)로 바뀌면서, 이 매니저가 Start 시점에 한 번 ItemCatalogManager.FindShopItemData(id)로
+    /// 실제 ShopItemData 인스턴스를 resolve해서 상점별로 캐싱해둔다(resolvedShopItems). 아래
+    /// currentPurchaseStock/currentSellStock 딕셔너리는 여전히 ShopItemData 객체 자체를 키로 쓰기 때문에,
+    /// 매번 새로 resolve하지 않고 이 캐싱된 같은 인스턴스를 계속 재사용하는 게 중요하다(그렇지 않으면
+    /// 딕셔너리 조회가 항상 실패한다). ShopUI 등 외부에서 "이 상점의 품목 목록"이 필요하면
+    /// shop.ItemIds를 직접 순회하지 말고 반드시 GetShopItems(shop)을 사용해야 한다.
     ///
     /// [인게임 시간 기반 재입고] 예전에는 DateTime.UtcNow(리얼타임)로 다음 재입고 시각을 직접 계산해서
     /// 매 프레임 비교했지만, 이제는 GameTimeManager의 인게임 하루(기본 20분 = TerritoryData.ElapsedTime
@@ -38,9 +47,14 @@ namespace HDY.Shop
 
         [Header("데이터 참조 (비어있으면 자동 탐색)")]
         [SerializeField] private GameTimeManager gameTimeManager;
+        [SerializeField] private ItemCatalogManager itemCatalogManager;
 
         [Header("상점 목록 (인스펙터에서 등록)")]
         [SerializeField] private List<ShopData> allShops = new List<ShopData>();
+
+        /// <summary>상점별로 ItemIds를 카탈로그에서 resolve해 캐싱해둔 실제 ShopItemData 목록.</summary>
+        private readonly Dictionary<ShopData, List<ShopItemData>> resolvedShopItems = new Dictionary<ShopData, List<ShopItemData>>();
+        private static readonly List<ShopItemData> EmptyShopItems = new List<ShopItemData>();
 
         private readonly Dictionary<ShopItemData, int> currentPurchaseStock = new Dictionary<ShopItemData, int>();
         private readonly Dictionary<ShopItemData, int> currentSellStock = new Dictionary<ShopItemData, int>();
@@ -70,6 +84,9 @@ namespace HDY.Shop
 
             gameTimeManager = GameTimeManager.Resolve(gameTimeManager);
             if (gameTimeManager == null) Debug.LogWarning("[ShopStockManager] gameTimeManager를 찾을 수 없습니다. 인게임 시간 기반 재입고가 동작하지 않습니다.", this);
+
+            itemCatalogManager = ItemCatalogManager.Resolve(itemCatalogManager);
+            if (itemCatalogManager == null) Debug.LogWarning("[ShopStockManager] itemCatalogManager를 찾을 수 없습니다. 상점 품목을 resolve할 수 없습니다.", this);
         }
 
         private void Start()
@@ -90,6 +107,46 @@ namespace HDY.Shop
             if (gameTimeManager != null) gameTimeManager.OnInGameDayChanged -= HandleInGameDayChanged;
         }
 
+        /// <summary>
+        /// 상점의 ItemIds를 카탈로그에서 resolve해 실제 ShopItemData 목록을 만들고 캐싱한다.
+        /// 이미 resolve된 상점이면 캐싱된 목록을 그대로 반환한다.
+        /// </summary>
+        private List<ShopItemData> ResolveShopItems(ShopData shop)
+        {
+            if (resolvedShopItems.TryGetValue(shop, out var cached)) return cached;
+
+            var resolved = new List<ShopItemData>();
+            if (itemCatalogManager != null && shop.ItemIds != null)
+            {
+                foreach (var itemId in shop.ItemIds)
+                {
+                    var shopItem = itemCatalogManager.FindShopItemData(itemId);
+                    if (shopItem == null)
+                    {
+                        Debug.LogWarning($"[ShopStockManager] 상점 '{shop.ShopName}'의 Item_ID '{itemId}'를 카탈로그에서 찾을 수 없습니다.");
+                        continue;
+                    }
+
+                    resolved.Add(shopItem);
+                }
+            }
+
+            resolvedShopItems[shop] = resolved;
+            return resolved;
+        }
+
+        /// <summary>
+        /// 상점(ShopData)이 실제로 취급하는 ShopItemData 목록을 반환한다(ItemIds가 카탈로그에서 resolve된 결과).
+        /// ShopUI 등 외부 코드는 shop.ItemIds를 직접 순회하지 말고 이 메서드를 사용해야 한다 - 여기서 반환하는
+        /// 객체가 currentPurchaseStock/currentSellStock 딕셔너리의 키와 동일한 인스턴스이기 때문이다.
+        /// </summary>
+        public IReadOnlyList<ShopItemData> GetShopItems(ShopData shop)
+        {
+            if (shop == null) return EmptyShopItems;
+
+            return resolvedShopItems.TryGetValue(shop, out var resolved) ? resolved : ResolveShopItems(shop);
+        }
+
         /// <summary>시작 시 모든 상점의 품목 구매/판매 재고를 각자의 최대치로 채우고, RestockIntervalMinutes를
         /// 인게임 하루 수로 환산해두고, "지금 막 재입고한 것"으로 기준일을 맞춰둔다.</summary>
         private void InitializeAllShops()
@@ -101,7 +158,8 @@ namespace HDY.Shop
             {
                 if (shop == null) continue;
 
-                foreach (var item in shop.Items)
+                var items = ResolveShopItems(shop);
+                foreach (var item in items)
                 {
                     if (item == null) continue;
                     currentPurchaseStock[item] = item.Purchase_MaxAmount;
@@ -137,7 +195,7 @@ namespace HDY.Shop
 
         private void RestockShop(ShopData shop, int currentDay)
         {
-            foreach (var item in shop.Items)
+            foreach (var item in GetShopItems(shop))
             {
                 if (item == null) continue;
 

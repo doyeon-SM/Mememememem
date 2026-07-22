@@ -7,15 +7,19 @@ using UnityEngine;
 namespace HDY.Item
 {
     /// <summary>
-    /// 아이템 데이터(ItemData)와 제작 레시피(RecipeData)를 보관하는 매니저.
+    /// 아이템 데이터(ItemData), 제작 레시피(RecipeData), 상점 품목(ShopItemData)을 보관하는 매니저.
     /// Item_ID / Recipe_Item_ID를 키로 하는 딕셔너리 탐색을 전제로 함.
     /// 씬에 배치되어 DontDestroyOnLoad로 유지되는 파괴불가 싱글톤 (ItemCatalogManager는 계속 싱글톤 유지).
     ///
-    /// [HDY 요청 - 시트 마이그레이션] 개별 ItemData/RecipeData SO를 Inspector에 하나씩 드래그하던
-    /// 방식에서 시트(TextAsset, 탭 구분) 기반으로 전환했다. Awake 시 각 시트를 파싱해 행마다
-    /// ScriptableObject.CreateInstance&lt;T&gt;()로 런타임 인스턴스를 만들어 채운다.
+    /// [HDY 요청 - 시트 마이그레이션] 개별 ItemData/RecipeData/ShopItemData SO를 Inspector에 하나씩
+    /// 드래그하던 방식에서 시트(TextAsset, 탭 구분) 기반으로 전환했다. Awake 시 각 시트를 파싱해
+    /// 행마다 ScriptableObject.CreateInstance&lt;T&gt;()로 런타임 인스턴스를 만들어 채운다.
     /// (강화 개체용 ForgeInstanceItemDataProvider가 이미 쓰던 것과 동일한 패턴.)
     /// 아이콘(Sprite)은 시트에 담을 수 없어 ItemIconTable로 따로 분리해 관리한다.
+    ///
+    /// [ShopItemData 참고] ShopStockManager가 재고를 Dictionary&lt;ShopItemData, int&gt;로(=객체 동일성
+    /// 기준) 관리하기 때문에, FindShopItemData(id)는 매번 새 인스턴스를 만들지 않고 Awake 시 한 번만
+    /// 만들어 캐싱한 같은 인스턴스를 계속 반환한다 - ItemData/RecipeData와 동일한 원칙.
     ///
     /// [대장간 연동] Item_ID가 "{BaseItemId}@{InstanceId}" 형태의 합성 ID(강화 개체)이면
     /// 일반 딕셔너리 탐색 대신 ForgeInstanceItemDataProvider에 위임해 강화 보너스가 반영된
@@ -39,6 +43,7 @@ namespace HDY.Item
 
             BuildDictionary();
             BuildRecipeDictionary();
+            BuildShopItemDictionary();
         }
 
         [Header("아이템 데이터 시트 (탭 구분 텍스트, Item_ID 기준으로 파싱)")]
@@ -49,6 +54,9 @@ namespace HDY.Item
 
         [Header("제작 레시피 시트 (탭 구분 텍스트, Recipe_Item_ID 기준으로 파싱)")]
         [SerializeField] private TextAsset recipeCatalogSheet;
+
+        [Header("상점 품목 시트 (탭 구분 텍스트, Item_ID 기준으로 파싱)")]
+        [SerializeField] private TextAsset shopItemCatalogSheet;
 
         private readonly List<ItemData> itemDataList = new List<ItemData>();
         public IReadOnlyList<ItemData> ItemDataList => itemDataList;
@@ -61,6 +69,12 @@ namespace HDY.Item
 
         [Header("Recipe_Item_ID -> RecipeData 딕셔너리")]
         private Dictionary<string, HDY.Recipe.RecipeData> recipeDictionary = new Dictionary<string, HDY.Recipe.RecipeData>();
+
+        private readonly List<HDY.Shop.ShopItemData> shopItemDataList = new List<HDY.Shop.ShopItemData>();
+        public IReadOnlyList<HDY.Shop.ShopItemData> ShopItemDataList => shopItemDataList;
+
+        [Header("Item_ID -> ShopItemData 딕셔너리")]
+        private Dictionary<string, HDY.Shop.ShopItemData> shopItemDictionary = new Dictionary<string, HDY.Shop.ShopItemData>();
 
         /// <summary>
         /// 시트를 파싱해 행마다 런타임 ItemData 인스턴스를 만들고 Item_ID 기준으로 딕셔너리에 채운다.
@@ -148,6 +162,49 @@ namespace HDY.Item
             }
         }
 
+        /// <summary>
+        /// 상점 품목 시트를 파싱해 행마다 런타임 ShopItemData 인스턴스를 만들고 Item_ID 기준으로 딕셔너리에 채운다.
+        /// Item_ID가 중복되면 먼저 등록된 항목을 유지한다.
+        /// </summary>
+        private void BuildShopItemDictionary()
+        {
+            shopItemDictionary.Clear();
+            shopItemDataList.Clear();
+
+            if (shopItemCatalogSheet == null)
+            {
+                Debug.LogWarning("[ItemCatalogManager] shopItemCatalogSheet가 비어있습니다.");
+                return;
+            }
+
+            var lines = shopItemCatalogSheet.text.Split('\n');
+            for (int i = 1; i < lines.Length; i++) // 0번째 줄은 헤더라 건너뜀
+            {
+                var line = lines[i].TrimEnd('\r');
+                if (string.IsNullOrWhiteSpace(line)) continue;
+
+                var cols = line.Split('\t');
+                if (cols.Length < 7)
+                {
+                    Debug.LogWarning($"[ItemCatalogManager] 상점 품목 시트 {i + 1}번째 줄 컬럼 수가 부족합니다: {line}");
+                    continue;
+                }
+
+                var shopItem = ParseShopItemRow(cols);
+                if (shopItem == null || string.IsNullOrEmpty(shopItem.Item_ID)) continue;
+
+                if (!shopItemDictionary.ContainsKey(shopItem.Item_ID))
+                {
+                    shopItemDictionary.Add(shopItem.Item_ID, shopItem);
+                    shopItemDataList.Add(shopItem);
+                }
+                else
+                {
+                    Debug.LogWarning($"[ItemCatalogManager] 상점 품목 Item_ID가 중복되었습니다: {shopItem.Item_ID} (먼저 등록된 항목을 유지합니다)");
+                }
+            }
+        }
+
         /// <summary>시트 한 줄(컬럼 배열)을 런타임 ItemData로 변환한다.</summary>
         private ItemData ParseItemRow(string[] cols)
         {
@@ -177,6 +234,31 @@ namespace HDY.Item
             recipe.Requset_Items_ID = ParseMaterials(cols[2]);
 
             return recipe;
+        }
+
+        /// <summary>
+        /// 상점 품목 시트 한 줄(컬럼 배열)을 런타임 ShopItemData로 변환한다.
+        /// 컬럼 순서: Item_ID, Selling_Price, Purchase_Price_Golds, Purchase_Material_ID,
+        /// Purchase_Material_Amount, Purchase_MaxAmount, Selling_MaxAmount.
+        /// Purchase_Material_ID가 비어있으면 골드 구매(Purchase_Price_Material = null)로 처리한다.
+        /// </summary>
+        private HDY.Shop.ShopItemData ParseShopItemRow(string[] cols)
+        {
+            var shopItem = ScriptableObject.CreateInstance<HDY.Shop.ShopItemData>();
+
+            shopItem.Item_ID = cols[0].Trim();
+            shopItem.Selling_Price = ParseInt(cols[1]);
+            shopItem.Purchase_Price_Golds = ParseInt(cols[2]);
+
+            var materialId = cols[3].Trim();
+            shopItem.Purchase_Price_Material = string.IsNullOrEmpty(materialId)
+                ? null
+                : new HDY.Shop.MaterialCost { Item_ID = materialId, Amount = ParseInt(cols[4]) };
+
+            shopItem.Purchase_MaxAmount = ParseInt(cols[5]);
+            shopItem.Selling_MaxAmount = ParseInt(cols[6]);
+
+            return shopItem;
         }
 
         private static int ParseInt(string s)
@@ -273,6 +355,18 @@ namespace HDY.Item
             if (string.IsNullOrEmpty(recipeItemId)) return null;
 
             return recipeDictionary.TryGetValue(recipeItemId, out var recipe) ? recipe : null;
+        }
+
+        /// <summary>
+        /// Item_ID로 ShopItemData를 찾는다. 목록에 없으면 null.
+        /// Awake 시 한 번만 만들어 캐싱한 인스턴스를 그대로 반환한다(ShopStockManager의
+        /// Dictionary&lt;ShopItemData,int&gt; 키가 같은 객체를 유지해야 하기 때문).
+        /// </summary>
+        public HDY.Shop.ShopItemData FindShopItemData(string itemId)
+        {
+            if (string.IsNullOrEmpty(itemId)) return null;
+
+            return shopItemDictionary.TryGetValue(itemId, out var shopItem) ? shopItem : null;
         }
 
         /// <summary>
