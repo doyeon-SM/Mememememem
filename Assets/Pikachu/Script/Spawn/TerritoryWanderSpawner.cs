@@ -71,7 +71,10 @@ public class TerritoryWanderSpawner : MonoBehaviour
     // 내부 상태
     // =================================================================
 
-    /// <summary>현재 영지에서 배회 중인 멤. Key: MemData.memId</summary>
+    /// <summary>
+    /// 현재 영지에서 배회 중인 멤. Key: 배회 멤 고유키(창고 개체 KeyId 우선, 없으면 MemData.memId).
+    /// 같은 종족(memId)이라도 창고에 여러 마리 있으면 각각 KeyId로 구분해 동시에 배회시킬 수 있다.
+    /// </summary>
     private readonly Dictionary<string, Mem> wandererRegistry = new Dictionary<string, Mem>();
 
     /// <summary>영지에서 배회 중인 멤 읽기 전용 뷰.</summary>
@@ -79,6 +82,13 @@ public class TerritoryWanderSpawner : MonoBehaviour
 
     /// <summary>현재 영지에 소환된 배회 멤 수.</summary>
     public int WandererCount => wandererRegistry.Count;
+
+    /// <summary>동시에 배회할 수 있는 최대 멤 수(안전 상한). 레벨별 최대치에 맞춰 TerritoryAutoSummoner가 설정.</summary>
+    public int MaxWanderers
+    {
+        get => maxWanderers;
+        set => maxWanderers = Mathf.Max(0, value);
+    }
 
     // =================================================================
     // Unity 생명주기
@@ -114,11 +124,9 @@ public class TerritoryWanderSpawner : MonoBehaviour
     // =================================================================
 
     /// <summary>
-    /// 창고에서 멤을 영지에 소환하여 자유 배회시킵니다.
+    /// 창고에서 멤을 영지에 소환하여 자유 배회시킵니다. (종족 memId를 키로 사용 - 같은 종족 중복 불가)
+    /// 창고의 여러 개체를 각각 소환하려면 SpawnWanderer(memData, wandererKey, ...) 오버로드를 사용하세요.
     /// </summary>
-    /// <param name="memData">소환할 멤의 MemData SO</param>
-    /// <param name="spawnPosition">소환 위치. default이면 defaultSpawnPoint 사용.</param>
-    /// <returns>소환된 Mem 인스턴스. 실패 시 null.</returns>
     public Mem SpawnWanderer(MemData memData, Vector3 spawnPosition = default)
     {
         if (memData == null)
@@ -126,16 +134,24 @@ public class TerritoryWanderSpawner : MonoBehaviour
             Debug.LogWarning("[TerritoryWanderSpawner] memData가 null입니다.");
             return null;
         }
+        return SpawnWanderer(memData, memData.memId, spawnPosition);
+    }
 
-        if (memPool == null)
-        {
-            Debug.LogWarning("[TerritoryWanderSpawner] MemPool이 없습니다. Inspector에서 연결하거나 씬에 배치해주세요.");
-            return null;
-        }
+    /// <summary>
+    /// 창고 개체 하나를 고유키(wandererKey, 보통 CapturedMemEntry.KeyId)로 영지에 소환해 배회시킵니다.
+    /// 같은 종족(memId)이라도 wandererKey가 다르면 각각 소환됩니다.
+    /// </summary>
+    /// <param name="memData">소환할 멤의 MemData SO</param>
+    /// <param name="wandererKey">이 개체를 구분하는 고유키(창고 KeyId). 회수/중복검사의 기준.</param>
+    /// <param name="spawnPosition">소환 위치. default이면 defaultSpawnPoint 사용.</param>
+    public Mem SpawnWanderer(MemData memData, string wandererKey, Vector3 spawnPosition = default)
+    {
+        if (memData == null) { Debug.LogWarning("[TerritoryWanderSpawner] memData가 null입니다."); return null; }
+        if (string.IsNullOrEmpty(wandererKey)) wandererKey = memData.memId;
 
-        if (wandererRegistry.ContainsKey(memData.memId))
+        if (wandererRegistry.ContainsKey(wandererKey))
         {
-            Debug.LogWarning($"[TerritoryWanderSpawner] '{memData.memName}'은(는) 이미 영지에 소환되어 있습니다.");
+            Debug.LogWarning($"[TerritoryWanderSpawner] 키 '{wandererKey}'({memData.memName})는 이미 영지에 소환되어 있습니다.");
             return null;
         }
 
@@ -145,13 +161,42 @@ public class TerritoryWanderSpawner : MonoBehaviour
             return null;
         }
 
-        // 소환 위치 결정
+        Mem mem = SpawnMemInternal(memData, spawnPosition);
+        if (mem == null) return null;
+
+        // 배회 경계 설정 (BoxCollider가 있는 경우)
+        ApplyWanderBoundsIfNeeded(mem);
+
+        wandererRegistry[wandererKey] = mem;
+
+        Debug.Log($"[TerritoryWanderSpawner] '{memData.memName}' 영지 소환 완료(key={wandererKey}). 현재 배회 멤: {wandererRegistry.Count}/{maxWanderers}");
+        return mem;
+    }
+
+    /// <summary>
+    /// 시설 근무용 멤을 소환합니다(배회 레지스트리/경계에 넣지 않음). 근무 상태 구동은 호출자가 담당.
+    /// 위치는 시설 좌표 등을 넘기며, 내부적으로 크기 배율 적용 + NavMesh 스냅을 수행합니다.
+    /// </summary>
+    public Mem SpawnWorker(MemData memData, Vector3 spawnPosition)
+    {
+        if (memData == null) { Debug.LogWarning("[TerritoryWanderSpawner] SpawnWorker: memData가 null입니다."); return null; }
+        return SpawnMemInternal(memData, spawnPosition);
+    }
+
+    /// <summary>
+    /// 공통 스폰 로직: 위치 결정 → NavMesh 스냅 → 풀 스폰 → 영지 크기 배율 적용. 실패 시 null.
+    /// </summary>
+    private Mem SpawnMemInternal(MemData memData, Vector3 spawnPosition)
+    {
+        if (memPool == null)
+        {
+            Debug.LogWarning("[TerritoryWanderSpawner] MemPool이 없습니다. Inspector에서 연결하거나 씬에 배치해주세요.");
+            return null;
+        }
+
         Vector3 pos = ResolveSpawnPosition(spawnPosition);
 
-        // NavMesh 표면에 스냅.
-        // NavMesh는 복셀화 때문에 실제 바닥(y=0)보다 살짝 위(예: y≈0.08)에 생성됩니다.
-        // 스냅하지 않고 바닥 좌표로 스폰하면 NavMeshAgent가
-        // "not close enough to the NavMesh" 오류로 생성에 실패하고 이동하지 못합니다.
+        // NavMesh 표면에 스냅. (복셀화로 NavMesh가 바닥보다 살짝 위에 생기므로 스냅 안 하면 Agent 생성 실패)
         if (NavMesh.SamplePosition(pos, out NavMeshHit navHit, navMeshSnapRadius, NavMesh.AllAreas))
         {
             pos = navHit.position;
@@ -163,7 +208,6 @@ public class TerritoryWanderSpawner : MonoBehaviour
             return null;
         }
 
-        // 스폰 (MemAI.Initialize → IdleState → 2~5초 후 WanderState 자동 진입)
         Mem mem = memPool.Spawn(memData, pos);
         if (mem == null)
         {
@@ -171,16 +215,8 @@ public class TerritoryWanderSpawner : MonoBehaviour
             return null;
         }
 
-        // 영지 소환 크기 적용 (풀 재사용 시를 대비해 매 소환마다 명시적으로 설정)
+        // 영지 소환 크기 적용 (풀 재사용 대비 매 소환마다 명시적으로 설정)
         mem.transform.localScale = Vector3.one * memScale;
-
-        // 배회 경계 설정 (BoxCollider가 있는 경우)
-        ApplyWanderBoundsIfNeeded(mem);
-
-        // 레지스트리 등록
-        wandererRegistry[memData.memId] = mem;
-
-        Debug.Log($"[TerritoryWanderSpawner] '{memData.memName}' 영지 소환 완료. 현재 배회 멤: {wandererRegistry.Count}/{maxWanderers}");
         return mem;
     }
 

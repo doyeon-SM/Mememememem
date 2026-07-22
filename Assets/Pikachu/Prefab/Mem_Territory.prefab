@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 4878679141300887675}
   - component: {fileID: 5180835071472135414}
   - component: {fileID: 4417636859219606971}
+  - component: {fileID: 8055889932947571558}
   m_Layer: 0
   m_Name: Mem_Territory
   m_TagString: Untagged
@@ -88,6 +89,24 @@ MonoBehaviour:
   agentClimb: 0.4
   agentSlope: 45
   rebakeKey: 98
+--- !u!114 &8055889932947571558
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 488716904280677668}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b324c7bc90c21634db03b5ea9dc57b9e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::TerritoryAutoSummoner
+  wanderSpawner: {fileID: 4878679141300887675}
+  facilityBridge: {fileID: 5180835071472135414}
+  navMeshBaker: {fileID: 4417636859219606971}
+  maxWanderersPerLevel: 0300000004000000050000000600000007000000
+  initialDelay: 1
+  summonFacilityWorkers: 1
 --- !u!1001 &5865255882407249098
 PrefabInstance:
   m_ObjectHideFlags: 0

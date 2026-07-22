@@ -212,6 +212,9 @@ namespace Pikachu.Test
                 Bake();
         }
 
+        /// <summary>현재 그리드의 월드 범위(중심/크기). 소환·배회 경계 정렬에 사용. (그리드는 월드 원점 기준 생성)</summary>
+        public Bounds GridWorldBounds => ComputeGridBounds();
+
         /// <summary>
         /// 그리드 범위를 계산합니다. FloorContainer의 타일들에서 구하고, 없으면 기본 정사각형.
         /// </summary>

@@ -178,6 +178,35 @@ public class FacilityEventBridge : MonoBehaviour
         Debug.Log($"[FacilityEventBridge] FacilityStopped: {buildingType}, 이유: {reason}, 대상 {deployedMems.Count}마리");
     }
 
+    /// <summary>
+    /// [영지 입장 시 배치 멤 복원용] 이미 스폰된 Mem을 해당 시설의 근무 멤으로 등록하고 즉시 근무 상태로 만듭니다.
+    /// 영지에 재입장하면 시설에 배치돼 있던 멤(IsActive)을 시설 위치에 다시 소환한 뒤 이 메서드로 근무를 이어갑니다.
+    /// (이벤트로 배치되는 일반 흐름은 OnMemAdded가 처리하며, 이 메서드는 그 스폰-후-등록 부분만 노출한 것)
+    /// </summary>
+    public void RegisterExistingWorker(Mem mem, BuildingType buildingType, Transform facilityTransform = null)
+    {
+        if (mem == null) { Debug.LogWarning("[FacilityEventBridge] RegisterExistingWorker: mem이 null입니다."); return; }
+
+        MemAI ai = mem.AI;
+        if (ai == null || mem.Stats == null)
+        {
+            Debug.LogWarning("[FacilityEventBridge] RegisterExistingWorker: MemAI/Stats가 없습니다.");
+            return;
+        }
+
+        facilityMemRegistry[mem.Stats.MemId] = mem;
+
+        // 특정 시설 Transform을 넘겨받으면 그것을 쓰고(같은 타입 시설이 여러 개일 때 정확), 없으면 타입으로 탐색.
+        Transform facilityTrans = facilityTransform != null ? facilityTransform : FindFacilityTransform(buildingType);
+        SetupAndTransitionToFacilityWork(ai, buildingType, facilityTrans);
+
+        // 시설이 이미 가동 중이면 바로 작업 애니 시작(아니면 FacilityWorkState에서 Idle 대기).
+        if (IsFacilityProducing(buildingType))
+            ai.FacilityWorkState.OnFacilityStarted(ai);
+
+        Debug.Log($"[FacilityEventBridge] 입장 복원: '{mem.Stats.MemName}' → {buildingType} 근무 상태로 등록.");
+    }
+
     // ---------------------------------------------------------------
     // 핵심 처리 메서드
     // ---------------------------------------------------------------
