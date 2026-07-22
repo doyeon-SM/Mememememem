@@ -1,4 +1,4 @@
-﻿using HDY.Item;
+using HDY.Item;
 using KGH.Data;
 using KMS;
 using KMS.InventoryDuped;
@@ -57,17 +57,18 @@ public class Chest : MonoBehaviour, KMS.IInteractable
 
     private void ChestItem(PlayerInventory inventory)
     {
+        // [HDY 요청] dropItem[i].itemData.Item_ID(직접 참조) 대신 dropItem[i].itemId(문자열)를 그대로 사용.
         if(!isOverlap)
         {
             int count = UnityEngine.Random.Range(dropItem[0].minDrop, dropItem[0].maxDrop +1);
-            inventory.AddItem(dropItem[0].itemData.Item_ID, count);
+            inventory.AddItem(dropItem[0].itemId, count);
         }
         else
         {
             for(int i = 0; i < dropItem.Length; i++)
             {
                 int count = UnityEngine.Random.Range(dropItem[i].minDrop, dropItem[i].maxDrop + 1);
-                inventory.AddItem(dropItem[i].itemData.Item_ID, count);
+                inventory.AddItem(dropItem[i].itemId, count);
             }
         }
         OpenChest?.Invoke();

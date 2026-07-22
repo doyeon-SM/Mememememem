@@ -1,4 +1,4 @@
-﻿using HDY.Item;
+using HDY.Item;
 using KMS.InventoryDuped;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -8,8 +8,14 @@ public class WorldItem : MonoBehaviour
     private const string VisualRootName = "World Item Sprite Visual";
     private const string SpriteObjectName = "Double Sided Sprite";
 
+    // [HDY 요청] ItemData 직접 참조 대신 Item_ID 문자열로 변경.
+    // ItemCatalogManager가 시트 기반으로 바뀌면서 런타임에 매번 새 ItemData 인스턴스를
+    // 만들기 때문에, 여기서 특정 ItemData 애셋을 직접 들고 있으면 같은 Item_ID를 가진
+    // 두 개의 서로 다른 객체가 메모리에 동시에 존재하게 되어 다른 곳(GridManager 등)의
+    // Resources.FindObjectsOfTypeAll<ItemData>() 조회가 꼬일 수 있다. ID 문자열만 들고
+    // 있다가 ItemCatalogManager.FindItemData(itemId)로 조회하는 방식으로 통일했다.
     [Header("Ref")]
-    [SerializeField] private ItemData itemdata;
+    [SerializeField] private string itemId;
     [SerializeField] private int amount = 1;
 
     [Header("Sprite Visual")]
@@ -122,6 +128,7 @@ public class WorldItem : MonoBehaviour
     {
         CacheLegacyComponents();
 
+        ItemData itemdata = ResolveItemData();
         Sprite itemSprite = itemdata != null ? itemdata.ItemIcon : null;
         if (itemSprite == null)
         {
@@ -160,6 +167,20 @@ public class WorldItem : MonoBehaviour
         visualRoot.gameObject.SetActive(true);
 
         ResizePickupCollider(width, height);
+    }
+
+    /// <summary>itemId로 ItemCatalogManager에서 ItemData를 조회한다. 못 찾으면 null.</summary>
+    private ItemData ResolveItemData()
+    {
+        if (string.IsNullOrEmpty(itemId)) return null;
+
+        ItemCatalogManager catalogManager = ItemCatalogManager.Instance;
+        if (catalogManager == null)
+        {
+            catalogManager = FindFirstObjectByType<ItemCatalogManager>();
+        }
+
+        return catalogManager != null ? catalogManager.FindItemData(itemId) : null;
     }
 
     private void CacheLegacyComponents()
@@ -272,7 +293,7 @@ public class WorldItem : MonoBehaviour
 
     private void OnTriggerEnter(Collider collision)
     {
-        if (itemdata == null || amount <= 0)
+        if (string.IsNullOrEmpty(itemId) || amount <= 0)
         {
             return;
         }
@@ -294,7 +315,7 @@ public class WorldItem : MonoBehaviour
             return;
         }
 
-        int remaining = inventory.AddItem(itemdata.Item_ID, amount);
+        int remaining = inventory.AddItem(itemId, amount);
         if (remaining > 0)
         {
             // 일부만 들어갔다면 남은 수량은 월드에 유지한다.
