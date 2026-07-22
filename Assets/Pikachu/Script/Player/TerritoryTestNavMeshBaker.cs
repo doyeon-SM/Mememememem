@@ -22,6 +22,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
 using UnityEngine.InputSystem;
+using MemSystem.Movement; // MemMovement.FacilityNavMeshArea
 
 namespace Pikachu.Test
 {
@@ -68,6 +69,16 @@ namespace Pikachu.Test
         private NavMeshData navData;
         private NavMeshDataInstance navInstance;
         private bool baked = false;
+
+        /// <summary>
+        /// 시설이 설치된 칸의 중심 좌표들. 이 칸들은 시설 Area(MemMovement.FacilityNavMeshArea)로 구워져
+        /// 순찰 멤의 areaMask에서 제외됩니다(=순찰이 시설 칸을 통과하지 못함). 배치 멤만 밟을 수 있습니다.
+        /// TerritoryFacilityTestDriver가 시설 생성 후 SetFacilityCells()로 채워줍니다.
+        /// </summary>
+        private readonly List<Vector3> facilityCellCenters = new List<Vector3>();
+
+        /// <summary>시설 칸 한 변 크기(m). 그리드 셀 = 1m.</summary>
+        private const float FacilityCellSize = 1f;
 
         /// <summary>NavMesh 생성 성공 여부.</summary>
         public bool IsReady => baked;
@@ -129,6 +140,26 @@ namespace Pikachu.Test
                 }
             };
 
+            // 시설 칸: 같은 자리에 시설 Area 박스를 겹쳐 얹는다.
+            // → 이 칸들은 순찰 멤 areaMask에서 제외되어 통과 불가, 배치 멤만 진입 가능.
+            //   구멍을 뚫지 않으므로 navmesh는 계속 연결됨(배회 멤이 갇히지 않음).
+            // Area가 확실히 시설 Area로 칠해지도록 두 가지를 함께 보장한다:
+            //   (1) 지형 박스보다 뒤에 추가(겹칠 때 나중 소스가 Area를 덮어씀),
+            //   (2) 살짝 띄워(FacilityLift) 이 칸에서 "가장 위 표면"이 되게 함(복셀화가 위 표면 Area 채택).
+            //   0.05m 띄움은 지형 박스와 Y로 겹쳐(두께 0.2) 하나의 연결된 표면으로 합쳐지고,
+            //   agentClimb(0.4) 안이라 단차 없이 이어진다.
+            const float FacilityLift = 0.05f;
+            foreach (var c in facilityCellCenters)
+            {
+                sources.Add(new NavMeshBuildSource
+                {
+                    shape     = NavMeshBuildSourceShape.Box,
+                    size      = new Vector3(FacilityCellSize, boxSize.y, FacilityCellSize),
+                    transform = Matrix4x4.TRS(new Vector3(c.x, center.y + FacilityLift, c.z), Quaternion.identity, Vector3.one),
+                    area      = MemMovement.FacilityNavMeshArea
+                });
+            }
+
             var settings = new NavMeshBuildSettings
             {
                 agentTypeID   = 0,           // Humanoid (멤 NavMeshAgent와 동일)
@@ -166,6 +197,19 @@ namespace Pikachu.Test
 
             Debug.LogWarning($"[TerritoryTestNavMeshBaker] NavMesh 생성 결과 부족: 정점 {verts}개, onGrid={onGrid}");
             return false;
+        }
+
+        /// <summary>
+        /// 시설이 설치된 칸 중심 좌표들을 갱신하고 NavMesh를 다시 굽습니다.
+        /// (TerritoryFacilityTestDriver가 시설 생성 후 호출)
+        /// </summary>
+        public void SetFacilityCells(IEnumerable<Vector3> centers)
+        {
+            facilityCellCenters.Clear();
+            if (centers != null) facilityCellCenters.AddRange(centers);
+
+            if (Application.isPlaying)
+                Bake();
         }
 
         /// <summary>

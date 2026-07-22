@@ -154,7 +154,6 @@ namespace Pikachu.Test
 
                 var go = Instantiate(spec.prefab, spec.position, Quaternion.identity);
                 go.name = spec.prefab.name + " (TestDriver)";
-                AddCarveObstacle(go);
 
                 instances.Add(new FacInst
                 {
@@ -164,45 +163,32 @@ namespace Pikachu.Test
                 });
             }
 
+            // 시설 칸들을 NavMesh 베이커에 알려 그 칸만 "시설 Area"로 다시 굽는다.
+            // → 순찰 멤은 시설 칸을 통과 못 하고, 배치 멤만 진입 가능. (구멍을 안 뚫어 navmesh는 연결 유지)
+            NotifyBakerFacilityCells();
+
             lastEvent = $"🏭 시설 {instances.Count}개 생성";
             Debug.Log($"[TerritoryFacilityTestDriver] 시설 {instances.Count}개 생성 완료.");
         }
 
         /// <summary>
-        /// 시설에 카빙 NavMeshObstacle을 붙여 멤이 시설 위/안으로 못 가게 합니다.
-        /// 크기는 시설의 실제 격자 footprint(BuildingData.width×height, 보통 1×1)로만 —
-        /// 시각 모델(tripo) 전체 바운드로 카빙하면 좁은 그리드가 뭉텅 잘려 멤이 갇히므로.
-        /// 카빙(구멍)은 길찾기가 애초에 우회하게 만들어 진동 없이 깔끔합니다.
+        /// 현재 시설 칸 중심 좌표들을 NavMesh 베이커에 전달하고 리베이크시킵니다.
         /// </summary>
-        private void AddCarveObstacle(GameObject go)
+        private void NotifyBakerFacilityCells()
         {
-            // 시설 격자 footprint 가져오기 (없으면 1×1)
-            BuildingData bd = null;
-            var c = go.GetComponent<ProductionCraftRuntime>();
-            if (c != null) bd = c.buildingData;
-            if (bd == null)
+            var baker = FindFirstObjectByType<TerritoryTestNavMeshBaker>();
+            if (baker == null)
             {
-                var f = go.GetComponent<ProductionFacilityRuntime>();
-                if (f != null) bd = f.buildingData;
+                Debug.LogWarning("[TerritoryFacilityTestDriver] TerritoryTestNavMeshBaker를 찾지 못해 " +
+                                 "시설 칸을 NavMesh Area로 표시하지 못했습니다. (순찰 차단 미적용)");
+                return;
             }
-            float w = (bd != null && bd.width  > 0) ? bd.width  : 1f;
-            float h = (bd != null && bd.height > 0) ? bd.height : 1f;
 
-            var obs = go.GetComponent<NavMeshObstacle>();
-            if (obs == null) obs = go.AddComponent<NavMeshObstacle>();
-            obs.shape = NavMeshObstacleShape.Box;
-            obs.carving = true;
-            obs.carveOnlyStationary = true;
+            var centers = new List<Vector3>();
+            foreach (var inst in instances)
+                if (inst.go != null) centers.Add(inst.go.transform.position);
 
-            // 카빙을 아주 작게(중앙 코어만) → 멤이 시설에 바짝 붙어 작업 가능.
-            // (한가운데 관통만 막고, 접근은 최대한 허용)
-            const float carveScale = 0.3f;
-            Vector3 ls = go.transform.lossyScale;
-            obs.center = new Vector3(0f, 0.5f, 0f);
-            obs.size   = new Vector3(
-                w * carveScale / Mathf.Max(ls.x, 0.0001f),
-                1.5f          / Mathf.Max(ls.y, 0.0001f),
-                h * carveScale / Mathf.Max(ls.z, 0.0001f));
+            baker.SetFacilityCells(centers);
         }
 
         // =================================================================

@@ -19848,61 +19848,6 @@ RectTransform:
   m_CorrespondingSourceObject: {fileID: 5184948352188630742, guid: 7d47d694a1fa95b4990850eacd0c9aa2, type: 3}
   m_PrefabInstance: {fileID: 2361871385813743592}
   m_PrefabAsset: {fileID: 0}
---- !u!1 &1659856179
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1659856181}
-  - component: {fileID: 1659856180}
-  m_Layer: 0
-  m_Name: TerritoryGridRuntimeDrawer
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &1659856180
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1659856179}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 62562fd44b13ea44cbaf97d65183354d, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Pikachu.Test.TerritoryGridRuntimeDrawer
-  cellSize: 1
-  autoDetectFromTiles: 1
-  fallbackGridSize: 5
-  fallbackOrigin: {x: 0, y: 0, z: 0}
-  detectTimeout: 5
-  autoRefreshSeconds: 2
-  lineColor: {r: 0.2, g: 0.9, b: 1, a: 0.9}
-  lineWidth: 0.03
-  yOffset: 0.03
-  showCellCenters: 1
-  cellCenterColor: {r: 1, g: 0.9, b: 0.2, a: 1}
---- !u!4 &1659856181
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1659856179}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 1.99931, y: 0.58295, z: -0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!224 &1669568236 stripped
 RectTransform:
   m_CorrespondingSourceObject: {fileID: 5184948352188630742, guid: 7d47d694a1fa95b4990850eacd0c9aa2, type: 3}
@@ -36432,4 +36377,3 @@ SceneRoots:
   - {fileID: 694350211}
   - {fileID: 1171788960}
   - {fileID: 1251155294}
-  - {fileID: 1659856181}

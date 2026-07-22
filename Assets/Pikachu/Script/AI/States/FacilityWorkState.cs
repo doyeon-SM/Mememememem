@@ -76,8 +76,14 @@ namespace MemSystem.AI.States
         /// <summary>시설로 이동 시작 후 경과 시간(도착 판정 실패 대비 타임아웃용).</summary>
         private float moveToFacilityTimer;
 
-        private const float WorkArriveThreshold = 0.6f;  // 작업 지점 도착 판정 거리
+        private const float WorkArriveThreshold = 0.2f;  // 작업 지점 도착 판정 거리(칸 안까지 들어가도록 좁게)
         private const float MoveToFacilityTimeout = 4f;   // 도착 못해도 이 시간 후 작업 시작
+
+        /// <summary>시설 칸 안까지 파고들도록 접근 시 정지 거리를 거의 0으로.</summary>
+        private const float FacilityApproachStopDistance = 0.05f;
+
+        /// <summary>시설 칸 중심에서 작업 지점을 흩뿌릴 최대 반경(1×1 칸을 벗어나지 않게 작게).</summary>
+        private const float CellInsetRadius = 0.2f;
 
         // ---------------------------------------------------------------
         // Public API
@@ -118,15 +124,20 @@ namespace MemSystem.AI.States
                 return;
             }
 
-            // 제자리 작업 시설: 시설 근처로 걸어간 뒤 작업 애니메이션을 재생한다.
+            // 제자리 작업 시설: 시설 칸(Area)으로 걸어 들어간 뒤 작업 애니메이션을 재생한다.
             if (facilityTransform != null && ai.Movement != null)
             {
                 workSpot = ComputeWorkSpot();
                 arrivedAtWorkSpot = false;
                 moveToFacilityTimer = 0f;
-                ai.Movement.MoveTo(workSpot);
+
+                // 이 멤만 시설 칸(Area)을 밟을 수 있게 허용한 뒤 칸 중심으로 이동.
+                // (순찰 멤은 이 Area가 areaMask에서 제외돼 있어 시설 칸을 통과하지 못함)
+                ai.Movement.SetFacilityAreaAllowed(true);
+                ai.Movement.MoveTo(workSpot, FacilityApproachStopDistance);
                 ai.Visual?.PlayWalk();
-                Debug.Log($"[FacilityWorkState] {ai.Owner?.Stats?.MemName} 시설로 이동 → 작업 예정 ({facilityType})");
+
+                Debug.Log($"[FacilityWorkState] {ai.Owner?.Stats?.MemName} 시설 칸으로 이동 → 작업 예정 ({facilityType})");
             }
             else
             {
@@ -138,47 +149,22 @@ namespace MemSystem.AI.States
         }
 
         /// <summary>
-        /// 시설의 "실제 콜라이더 바운드" 중심을 기준으로, 그 박스 가장자리에 바짝 붙는 작업 지점을 계산합니다.
-        /// 모델 메쉬가 칸 중심에서 치우쳐 있어도, 실제 바운드 중심을 쓰므로 모든 방향에서 간격이 균일합니다.
+        /// 시설이 설치된 "그리드 칸 내부"의 작업 지점을 계산합니다.
+        /// 시설 메쉬는 무시하고(추후 교체 예정), 시설 pivot = 칸 중심(1×1 칸에 배치)이므로
+        /// 그 중심 근처(칸을 벗어나지 않는 작은 오프셋)로 들어가 작업하게 합니다.
+        /// 여러 멤이 같은 시설에 배치돼도 완전히 겹치지 않도록 소량 분산합니다.
         /// </summary>
         private Vector3 ComputeWorkSpot()
         {
-            Bounds b = GetFacilityBounds();
+            Vector3 cellCenter = facilityTransform.position;
 
-            float angle = Random.value * Mathf.PI * 2f;
-            float dx = Mathf.Cos(angle);
-            float dz = Mathf.Sin(angle);
-
-            float ex = Mathf.Max(b.extents.x, 0.1f);
-            float ez = Mathf.Max(b.extents.z, 0.1f);
-
-            // 바운드 중심에서 그 방향의 박스 경계까지 거리 + 작은 여유(바짝 붙게)
-            float edgeDist = 1f / Mathf.Max(Mathf.Abs(dx) / ex, Mathf.Abs(dz) / ez);
-            float dist = edgeDist + Random.Range(0.1f, 0.25f);
+            // 1×1 칸(반칸=0.5m) 안에 머무르도록 중심에서 살짝만 흩뿌린다.
+            Vector2 offset = Random.insideUnitCircle * CellInsetRadius;
 
             return new Vector3(
-                b.center.x + dx * dist,
-                facilityTransform.position.y,
-                b.center.z + dz * dist);
-        }
-
-        /// <summary>
-        /// 시설의 실제 XZ 바운드를 구합니다. 콜라이더(솔리드 본체) 우선, 없으면 렌더러.
-        /// pivot이나 그리드 칸이 아니라 "실제 모델 위치"를 기준으로 삼기 위함.
-        /// </summary>
-        private Bounds GetFacilityBounds()
-        {
-            var col = facilityTransform.GetComponentInChildren<Collider>();
-            if (col != null) return col.bounds;
-
-            var rends = facilityTransform.GetComponentsInChildren<Renderer>();
-            if (rends.Length > 0)
-            {
-                Bounds rb = rends[0].bounds;
-                for (int i = 1; i < rends.Length; i++) rb.Encapsulate(rends[i].bounds);
-                return rb;
-            }
-            return new Bounds(facilityTransform.position, Vector3.one);
+                cellCenter.x + offset.x,
+                cellCenter.y,
+                cellCenter.z + offset.y);
         }
 
         /// <summary>
@@ -243,14 +229,14 @@ namespace MemSystem.AI.States
                     UpdateTransportMove(ai);
                     break;
 
-                // 제자리 작업 시설: 시설로 이동 중이면 도착 판정 후 작업 시작
+                // 제자리 작업 시설: 시설 칸으로 이동 중이면 도착 판정 후 작업 시작
                 default:
                     UpdateMoveToFacility(ai);
                     break;
             }
         }
 
-        /// <summary>시설로 걸어가는 중이면 도착을 감지해 작업 애니메이션을 시작합니다.</summary>
+        /// <summary>시설 칸으로 걸어가는 중이면 도착을 감지해 작업 애니메이션을 시작합니다.</summary>
         private void UpdateMoveToFacility(MemAI ai)
         {
             if (arrivedAtWorkSpot) return; // 이미 작업 중
@@ -269,6 +255,7 @@ namespace MemSystem.AI.States
                 if (facilityTransform != null)
                     ai.Movement?.LookAt(facilityTransform.position); // 시설을 바라보게
                 PlayWorkAnimation(ai);
+
                 Debug.Log($"[FacilityWorkState] {ai.Owner?.Stats?.MemName} 시설 도착 → 작업 시작 ({facilityType})");
             }
         }
@@ -278,7 +265,13 @@ namespace MemSystem.AI.States
             isWorking = false;
 
             if (ai.Movement != null)
+            {
+                // 시설 칸(Area) 위에 서 있었다면 일반 칸으로 옮긴 뒤, 시설 칸 진입 권한을 회수한다.
+                // → 이 멤도 이제 순찰 멤처럼 시설 칸을 통과하지 못하게 되고, 정상 배회가 가능해진다.
+                ai.Movement.WarpToNonFacilityArea();
+                ai.Movement.SetFacilityAreaAllowed(false);
                 ai.Movement.Stop();
+            }
 
             Debug.Log($"[FacilityWorkState] {ai.Owner?.Stats?.MemName} 시설 상태 종료 ({facilityType})");
         }

@@ -23,6 +23,21 @@ namespace MemSystem.Movement
         // 설정값
         // =================================================================
 
+        /// <summary>기본 정지 거리(배회/추격 간격 조율용). 시설 진입 시에만 MoveTo에서 좁힙니다.</summary>
+        private const float DefaultStoppingDistance = 0.5f;
+
+        /// <summary>
+        /// 생산 시설이 설치된 그리드 칸에 부여하는 NavMesh Area 인덱스.
+        /// 순찰(배회) 멤의 areaMask에서 이 Area를 제외해 시설 칸을 밟거나 통과하지 못하게 하고,
+        /// 배치된 작업 멤만 이 Area를 areaMask에 포함시켜 칸 안으로 들어가 작업하게 합니다.
+        /// NavMesh에 구멍(카빙)을 뚫지 않으므로 navmesh는 항상 연결된 상태 → 배회 멤이 갇히지 않습니다.
+        /// (TerritoryTestNavMeshBaker가 시설 칸을 이 Area로 굽습니다.)
+        /// </summary>
+        public const int FacilityNavMeshArea = 3;
+
+        /// <summary>FacilityNavMeshArea의 비트마스크.</summary>
+        public static int FacilityAreaMask => 1 << FacilityNavMeshArea;
+
         [Header("이동 속도 설정")]
         [Tooltip("배회 시 이동 속도")]
         [SerializeField] private float walkSpeed = 1.0f;
@@ -89,8 +104,12 @@ namespace MemSystem.Movement
             
             // 초기 세팅
             agent.speed = walkSpeed;
-            agent.stoppingDistance = 0.5f;
+            agent.stoppingDistance = DefaultStoppingDistance;
             agent.autoBraking = true;
+
+            // 기본값: 시설 칸(Area)은 밟지 않는다(순찰 멤이 시설을 통과하지 않도록).
+            // 배치된 작업 멤만 FacilityWorkState에서 SetFacilityAreaAllowed(true)로 허용.
+            agent.areaMask = NavMesh.AllAreas & ~FacilityAreaMask;
         }
 
         private void OnEnable()
@@ -124,7 +143,24 @@ namespace MemSystem.Movement
 
             currentMode = MovementMode.None;
             agent.isStopped = true;
+            agent.stoppingDistance = DefaultStoppingDistance; // 시설 접근용으로 좁혔던 값 복구
             agent.ResetPath(); // 진행 중인 경로 초기화
+        }
+
+        /// <summary>
+        /// 에이전트가 NavMesh 밖(시설 카빙 구멍/여백 등)에 놓였으면 가장 가까운 NavMesh 지점으로
+        /// 복귀시킵니다. 배회 중 시설 칸이 카빙돼 갇히는 경우를 자가 복구합니다.
+        /// 이미 위에 있거나 복구에 성공하면 true.
+        /// </summary>
+        public bool TryRecoverToNavMesh(float searchRadius = 3f)
+        {
+            if (agent == null || !agent.isActiveAndEnabled) return false;
+            if (agent.isOnNavMesh) return true;
+
+            if (NavMesh.SamplePosition(transform.position, out NavMeshHit hit, searchRadius, NavMesh.AllAreas))
+                return agent.Warp(hit.position);
+
+            return false;
         }
 
         /// <summary>
@@ -148,10 +184,15 @@ namespace MemSystem.Movement
         /// </summary>
         public void Wander()
         {
-            if (agent == null || !agent.isOnNavMesh) return;
+            if (agent == null) return;
+
+            // 시설 카빙 등으로 NavMesh 밖(구멍 안)에 갇혔으면 먼저 복귀를 시도한다.
+            // (복귀 못 하면 이번 프레임은 대기 — 다음 호출에서 재시도)
+            if (!agent.isOnNavMesh && !TryRecoverToNavMesh()) return;
 
             currentMode = MovementMode.Wander;
             agent.speed = walkSpeed;
+            agent.stoppingDistance = DefaultStoppingDistance;
             agent.isStopped = false;
 
             // 랜덤 목적지 계산 (경계 설정 여부에 따라 분기)
@@ -172,7 +213,8 @@ namespace MemSystem.Movement
                 candidatePos = randomDirection + transform.position;
             }
 
-            if (NavMesh.SamplePosition(candidatePos, out NavMeshHit hit, wanderRadius, NavMesh.AllAreas))
+            // 이 멤이 갈 수 있는 Area(순찰이면 시설 칸 제외) 안에서만 목적지를 고른다.
+            if (NavMesh.SamplePosition(candidatePos, out NavMeshHit hit, wanderRadius, agent.areaMask))
             {
                 agent.SetDestination(hit.position);
             }
@@ -181,6 +223,34 @@ namespace MemSystem.Movement
                 // NavMesh 위가 아니면 현재 위치 유지 (Stuck 방지용 타이머가 다시 처리함)
                 agent.SetDestination(transform.position);
             }
+        }
+
+        // =================================================================
+        // 시설 칸(Area) 통행 제어
+        // =================================================================
+
+        /// <summary>
+        /// 이 멤이 시설 칸(FacilityNavMeshArea)을 밟을 수 있는지 설정합니다.
+        /// 배치된 작업 멤은 true(칸 진입 허용), 순찰 멤은 false(진입 차단).
+        /// </summary>
+        public void SetFacilityAreaAllowed(bool allowed)
+        {
+            if (agent == null) return;
+            if (allowed) agent.areaMask |= FacilityAreaMask;
+            else         agent.areaMask &= ~FacilityAreaMask;
+        }
+
+        /// <summary>
+        /// 시설 칸 위에 서 있던 작업 멤을, 시설 칸을 제외한 가장 가까운 일반 칸으로 옮겨 세웁니다.
+        /// 시설을 떠날 때 시설 칸 진입 권한을 회수하기 전에 호출해, 이후 정상 배회가 가능하게 합니다.
+        /// </summary>
+        public void WarpToNonFacilityArea(float searchRadius = 3f)
+        {
+            if (agent == null || !agent.isActiveAndEnabled) return;
+
+            int nonFacility = NavMesh.AllAreas & ~FacilityAreaMask;
+            if (NavMesh.SamplePosition(transform.position, out NavMeshHit hit, searchRadius, nonFacility))
+                agent.Warp(hit.position);
         }
 
         /// <summary>
@@ -206,12 +276,18 @@ namespace MemSystem.Movement
         /// 지정한 위치로 걷기 속도로 이동합니다. (일회성 — 지속 추적 아님)
         /// 시설 근처로 걸어가 작업할 때 사용합니다.
         /// </summary>
-        public void MoveTo(Vector3 destination)
+        /// <param name="destination">이동 목표 지점.</param>
+        /// <param name="stopDistance">
+        /// 목표에서 이만큼 앞에서 정지합니다. 음수면 기본값(DefaultStoppingDistance)을 사용합니다.
+        /// 시설 칸 "안"까지 들어가야 할 때는 0에 가까운 값을 넘기세요.
+        /// </param>
+        public void MoveTo(Vector3 destination, float stopDistance = -1f)
         {
             if (agent == null || !agent.isOnNavMesh) return;
 
             currentMode = MovementMode.None; // Update의 지속 재추적 로직이 개입하지 않도록
             agent.speed = walkSpeed;
+            agent.stoppingDistance = stopDistance < 0f ? DefaultStoppingDistance : stopDistance;
             agent.isStopped = false;
 
             if (NavMesh.SamplePosition(destination, out NavMeshHit hit, 3f, NavMesh.AllAreas))
@@ -239,6 +315,7 @@ namespace MemSystem.Movement
             currentMode = MovementMode.Chase;
             chaseTarget = target;
             agent.speed = runSpeed;
+            agent.stoppingDistance = DefaultStoppingDistance;
             agent.isStopped = false;
 
             RandomizeStaggerOffset();
@@ -259,6 +336,7 @@ namespace MemSystem.Movement
             currentMode = MovementMode.Flee;
             fleeSourcePosition = sourcePos;
             agent.speed = runSpeed;
+            agent.stoppingDistance = DefaultStoppingDistance;
             agent.isStopped = false;
 
             RandomizeStaggerOffset();
