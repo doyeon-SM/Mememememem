@@ -33,6 +33,13 @@ namespace MemSystem.AI.States
 
         public void Update(MemAI ai)
         {
+            // 시설 카빙에 갇혀 NavMesh 밖에 놓였으면 즉시 Wander로 전환해 복구한다.
+            if (ai.Movement != null && !ai.Movement.IsOnNavMesh)
+            {
+                ai.TransitionTo(ai.WanderState);
+                return;
+            }
+
             idleTimer += Time.deltaTime;
 
             // 대기 시간 경과 → Wander로 전환
