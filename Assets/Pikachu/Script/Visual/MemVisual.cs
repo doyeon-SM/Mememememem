@@ -97,6 +97,9 @@ namespace MemSystem.Visual
         [Tooltip("Run 클립이 설계된 이동 속도 (m/s).")]
         [SerializeField] private float runClipSpeed  = 1.5f;
 
+        [Tooltip("제자리 달리기(런닝머신 등) 시 애니메이션 재생 배속")]
+        [SerializeField] private float stationaryRunSpeedMultiplier = 1.5f;
+
         // =================================================================
         // 도구 프랍(Prop) 설정
         // =================================================================
@@ -509,8 +512,15 @@ namespace MemSystem.Visual
             }
             else
             {
-                // 정지 상태: 속도 1.0 (클립은 실행되나 State가 Idle이므로 상관없음)
-                animator.SetFloat(hashSpeed, 1.0f);
+                // 정지 상태: 제자리 달리기(런닝머신)인 경우 전용 배속 적용
+                if (CurrentAnimState == AnimState.Run)
+                {
+                    animator.SetFloat(hashSpeed, stationaryRunSpeedMultiplier);
+                }
+                else
+                {
+                    animator.SetFloat(hashSpeed, 1.0f);
+                }
             }
         }
 
