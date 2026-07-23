@@ -5,8 +5,8 @@ namespace HDY.Forge
 {
     /// <summary>
     /// RefinementOptionRow 목록을 등급별로 묶어, 등급이 이미 결정된 상태에서
-    /// "종류+수치" 조합을 확률(가중치) 기반으로 랜덤 추첨하는 테이블.
-    /// RefinementConfig가 CSV를 파싱한 결과를 넘겨받아 내부에서 구성한다.
+    /// "종류+수치+표시명" 조합을 확률(가중치) 기반으로 랜덤 추첨하는 테이블.
+    /// RefinementConfig가 txt를 파싱한 결과를 넘겨받아 내부에서 구성한다.
     /// </summary>
     public class RefinementOptionTable
     {
@@ -42,12 +42,13 @@ namespace HDY.Forge
         }
 
         /// <summary>
-        /// 주어진 등급 내에서 확률 가중치로 (종류, 수치) 조합을 하나 뽑는다.
+        /// 주어진 등급 내에서 확률 가중치로 (종류, 표시명, 수치) 조합을 하나 뽑는다.
         /// 해당 등급에 정의된 행이 없으면 false.
         /// </summary>
-        public bool TryPickRandom(CommonClass grade, out string optionType, out float value)
+        public bool TryPickRandom(CommonClass grade, out string optionType, out string displayName, out float value)
         {
             optionType = null;
+            displayName = null;
             value = 0f;
 
             if (!rowsByGrade.TryGetValue(grade, out var list) || list.Count == 0) return false;
@@ -56,6 +57,7 @@ namespace HDY.Forge
                 // 확률 컬럼이 전부 0이면 균등 확률로 폴백한다.
                 var fallback = list[Random.Range(0, list.Count)];
                 optionType = fallback.OptionType;
+                displayName = fallback.DisplayName;
                 value = fallback.Value;
                 return true;
             }
@@ -69,6 +71,7 @@ namespace HDY.Forge
                 if (roll <= cumulative)
                 {
                     optionType = row.OptionType;
+                    displayName = row.DisplayName;
                     value = row.Value;
                     return true;
                 }
@@ -77,6 +80,7 @@ namespace HDY.Forge
             // 부동소수점 오차로 못 걸렸을 경우 마지막 행으로 폴백.
             var last = list[list.Count - 1];
             optionType = last.OptionType;
+            displayName = last.DisplayName;
             value = last.Value;
             return true;
         }

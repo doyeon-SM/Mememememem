@@ -472,26 +472,7 @@ namespace HDY.Forge
             if (!ValidateDependencies() || refinementConfig == null) return false;
             if (stack == null || stack.IsEmpty) return false;
 
-            bool alreadyComposite = ForgeInstanceRegistry.IsCompositeId(stack.itemId);
-
-            if (!TryGetOrCreateInstance(stack, out var instance, out _))
-            {
-                return false;
-            }
-
-            bool slotsWereMissing = instance.RefinementSlots == null || instance.RefinementSlots.Length == 0;
-
-            if (slotsWereMissing)
-            {
-                AssignInitialRefinementSlots(instance);
-            }
-
-            if (!alreadyComposite)
-            {
-                ApplyInstanceToSlot(stack, instance);
-            }
-
-            return !alreadyComposite || slotsWereMissing;
+            return TryGetInstanceForRefinement(stack, out _, out _);
         }
 
         /// <summary>
@@ -521,17 +502,36 @@ namespace HDY.Forge
             for (int i = 0; i < slotCount; i++)
             {
                 string optionType = null;
+                string displayName = null;
                 float value = 0f;
-                optionTable?.TryPickRandom(CommonClass.Rare, out optionType, out value);
-                slots[i] = new ForgeRefinementSlotData(CommonClass.Rare, optionType, value);
+                optionTable?.TryPickRandom(CommonClass.Rare, out optionType, out displayName, out value);
+                slots[i] = new ForgeRefinementSlotData(CommonClass.Rare, optionType, displayName, value);
             }
 
             instance.RefinementSlots = slots;
         }
 
-        /// <summary>강화 시스템과 동일한 인스턴스를 재사용하되, 연마 슬롯이 비어있으면 방어적으로 채워준다.</summary>
+        /// <summary>
+        /// 강화 시스템과 동일한 인스턴스를 재사용하되, 연마 슬롯이 비어있으면 방어적으로 채워준다.
+        ///
+        /// [버그 수정] 이 stack이 아직 합성 ID가 아니었다면(일반 아이템), TryGetOrCreateInstance는 매번
+        /// "새" ForgeInstanceData를 만들어 레지스트리에 등록만 하고 stack.itemId는 그대로 둔다. 그래서 이
+        /// 메서드가 커밋(ApplyInstanceToSlot) 없이 끝나면, 같은 아이템을 다시 조회할 때마다(예: UI가 매
+        /// 프레임/매 갱신마다 TryPeekRefinementSlots를 부르는 경우) 매번 새 인스턴스가 또 만들어지고 이전
+        /// 인스턴스는 레지스트리에 고아로 남아 계속 쌓이는 문제("연마 인스턴스 복제")가 있었다.
+        /// 새로 만든 인스턴스는 이 메서드 안에서 즉시 합성 ID로 커밋해서, 다음 조회부터는 항상 같은
+        /// 인스턴스를 재사용하도록 고정한다 - 그래서 이 메서드는 이름과 달리 "완전한 읽기 전용"은 아니고,
+        /// 최초 1회에 한해 상태를 확정짓는(materialize) 부수효과를 갖는다.
+        /// </summary>
         private bool TryGetInstanceForRefinement(ItemStack stack, out ForgeInstanceData instance, out ForgeToolTypeData toolTypeData)
         {
+            instance = null;
+            toolTypeData = null;
+
+            if (stack == null || stack.IsEmpty) return false;
+
+            bool alreadyComposite = ForgeInstanceRegistry.IsCompositeId(stack.itemId);
+
             if (!TryGetOrCreateInstance(stack, out instance, out toolTypeData))
             {
                 return false;
@@ -540,6 +540,11 @@ namespace HDY.Forge
             if (instance.RefinementSlots == null || instance.RefinementSlots.Length == 0)
             {
                 AssignInitialRefinementSlots(instance);
+            }
+
+            if (!alreadyComposite)
+            {
+                ApplyInstanceToSlot(stack, instance);
             }
 
             return true;
@@ -665,9 +670,10 @@ namespace HDY.Forge
                 }
 
                 // 2단계: 결정된 등급 내에서 종류+수치 재판정 (등급이 그대로여도 항상 재판정됨)
-                if (optionTable != null && optionTable.TryPickRandom(slot.Grade, out var optionType, out var value))
+                if (optionTable != null && optionTable.TryPickRandom(slot.Grade, out var optionType, out var displayName, out var value))
                 {
                     slot.OptionType = optionType;
+                    slot.DisplayName = displayName;
                     slot.Value = value;
                 }
             }
