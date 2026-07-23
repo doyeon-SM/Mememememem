@@ -38,6 +38,10 @@ public class WayPointStone : MonoBehaviour, IInteractable
     [Header("State")]
     [SerializeField] private bool isUnlocked;
 
+    [Header("Unlocked Visual")]
+    [Tooltip("웨이포인트가 등록된 동안에만 표시할 하위 오브젝트입니다.")]
+    [SerializeField] private GameObject unlockedVisualObject;
+
     [Header("Interaction")]
     [SerializeField] private string interactionPrompt = "웨이포인트 지도 열기";
 
@@ -45,6 +49,13 @@ public class WayPointStone : MonoBehaviour, IInteractable
     public string Id => definition != null ? definition.id : string.Empty;
     public bool IsUnlocked => isUnlocked;
     public string InteractionPrompt => interactionPrompt;
+
+    private void Awake()
+    {
+        // 매니저가 아직 생성되지 않은 실행 순서에서도 초기 표시가 잠깐 노출되지 않게 한다.
+        isUnlocked = definition != null && definition.IsUnlockedOnInitialize;
+        RefreshUnlockedVisual();
+    }
 
     /// <summary>이 웨이포인트로 이동했을 때 플레이어를 배치할 월드 좌표입니다.</summary>
     public Vector3 SpawnPosition
@@ -106,6 +117,7 @@ public class WayPointStone : MonoBehaviour, IInteractable
     public void SetUnlockedState(bool unlocked)
     {
         isUnlocked = unlocked;
+        RefreshUnlockedVisual();
     }
 
     // 이전 코드 호환용으로 활성 상태 설정을 유지한다.
@@ -119,6 +131,20 @@ public class WayPointStone : MonoBehaviour, IInteractable
     public void SetDefinition(WayPointDefinition newDefinition)
     {
         definition = newDefinition;
+
+        bool unlocked = definition != null
+            && WayPointManager.Instance != null
+            && WayPointManager.Instance.IsUnlocked(definition.id);
+        SetUnlockedState(unlocked);
+    }
+
+    // 등록 여부에 따라 인스펙터에서 지정한 하위 오브젝트만 표시하거나 숨긴다.
+    private void RefreshUnlockedVisual()
+    {
+        if (unlockedVisualObject != null && unlockedVisualObject.activeSelf != isUnlocked)
+        {
+            unlockedVisualObject.SetActive(isUnlocked);
+        }
     }
 
     // 런타임에서 도착 위치 Transform을 바꿀 때 사용한다.

@@ -13,7 +13,10 @@
 /[Bb]uilds/
 /[Ll]ogs/
 /[Uu]ser[Ss]ettings/
-/[Aa]ssets/[Ii]gnore/
+# Keep Assets/Ignore excluded, except for the complete SoStylized asset pack.
+/[Aa]ssets/[Ii]gnore/*
+!/[Aa]ssets/[Ii]gnore/[Ss]o[Ss]tylized/
+!/[Aa]ssets/[Ii]gnore/[Ss]o[Ss]tylized/**
 *.log
 
 # By default unity supports Blender asset imports, *.blend1 blender files do not need to be commited to version control.
