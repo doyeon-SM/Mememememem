@@ -122,7 +122,7 @@ GameObject:
   m_Component:
   - component: {fileID: 8413867593421061679}
   - component: {fileID: 3937221372743820164}
-  - component: {fileID: 4895742578971187360}
+  - component: {fileID: 4234193349117011750}
   m_Layer: 0
   m_Name: Logging Camp
   m_TagString: Untagged
@@ -163,7 +163,7 @@ MonoBehaviour:
   maxStorageCount: 0
   gridX: 0
   gridZ: 0
---- !u!114 &4895742578971187360
+--- !u!114 &4234193349117011750
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -178,7 +178,7 @@ MonoBehaviour:
   buildingData: {fileID: 11400000, guid: 77b52e4d931bc084e8dc47ea580b885c, type: 2}
   currentLevel: 1
   isProducing: 0
-  craftingItem: {fileID: 11400000, guid: 5503da901c4edc748acb64023df2918c, type: 2}
+  craftingItem: item_wood
   totalRequiredTime: 0
   currentProgressTime: 0
   baseProductionTime: 30
