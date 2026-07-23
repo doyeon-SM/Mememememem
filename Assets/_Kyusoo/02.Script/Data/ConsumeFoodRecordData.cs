@@ -25,14 +25,14 @@ public class ConsumeFoodRecordData : MonoBehaviour, IRecord
 
     public void InitDefaultData(ref SaveData saveData)
     {
+        // 🌟 좌측 음식 창고 초기값만 설정 (5x2 크기)
         saveData.foodWarehouseStorageData = new ContainerData { width = 5, height = 2 };
-        saveData.foodBagStorageData = new ContainerData { width = 10, height = 7 };
         saveData.maxSatiety = 100;
         saveData.currentSatiety = 100;
         saveData.isWorkStoppedDueToStarvation = false;
 
-        for (int i = 0; i < 10; i++) saveData.foodWarehouseStorageData.slots.Add(new ItemStackData { itemId = "", amount = 0 });
-        for (int i = 0; i < 70; i++) saveData.foodBagStorageData.slots.Add(new ItemStackData { itemId = "", amount = 0 });
+        for (int i = 0; i < 10; i++)
+            saveData.foodWarehouseStorageData.slots.Add(new ItemStackData { itemId = "", amount = 0 });
     }
 
     public void SaveData(string saveFilePath)
@@ -42,16 +42,18 @@ public class ConsumeFoodRecordData : MonoBehaviour, IRecord
         SaveData currentData = RecordManager.Instance.ReadRawSaveFileOnly();
         if (currentData == null) currentData = new SaveData();
 
+        // 1. 🌟 좌측 음식 창고 데이터 저장
         if (ConsumeFoodSystem.Instance.FoodStorageContainer != null)
+        {
             currentData.foodWarehouseStorageData = RecordManager.Instance.PackContainerData(ConsumeFoodSystem.Instance.FoodStorageContainer);
+        }
 
-        if (ConsumeFoodSystem.Instance.FoodBagContainer != null)
-            currentData.foodBagStorageData = RecordManager.Instance.PackContainerData(ConsumeFoodSystem.Instance.FoodBagContainer);
-
+        // 2. 🌟 포만감 및 아사 상태 데이터 저장
         currentData.maxSatiety = ConsumeFoodSystem.Instance.MaxSatiety;
         currentData.currentSatiety = ConsumeFoodSystem.Instance.CurrentSatiety;
         currentData.isWorkStoppedDueToStarvation = ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation;
 
+        // 3. 우측 영역에 연결된 인벤토리/일반 창고 최신 데이터 동기화 보장
         var livePlayerInventory = FindFirstObjectByType<KMS.InventoryDuped.PlayerInventory>();
         if (livePlayerInventory != null && livePlayerInventory.inventory != null)
         {
@@ -73,17 +75,21 @@ public class ConsumeFoodRecordData : MonoBehaviour, IRecord
         if (sceneType == SceneType.Exploration) return;
         if (ConsumeFoodSystem.Instance == null) return;
 
-        if (saveData.foodWarehouseStorageData != null)
+        // 1. 🌟 좌측 음식 창고 데이터 복원
+        if (saveData.foodWarehouseStorageData != null && ConsumeFoodSystem.Instance.FoodStorageContainer != null)
+        {
             RecordManager.Instance.UnpackContainerData(saveData.foodWarehouseStorageData, ConsumeFoodSystem.Instance.FoodStorageContainer);
+        }
 
-        if (saveData.foodBagStorageData != null)
-            RecordManager.Instance.UnpackContainerData(saveData.foodBagStorageData, ConsumeFoodSystem.Instance.FoodBagContainer);
-
+        // 2. 🌟 포만감 및 상태 복원
         ConsumeFoodSystem.Instance.ForceSyncManualState(saveData.currentSatiety, saveData.maxSatiety, saveData.isWorkStoppedDueToStarvation);
 
-        if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
+        if (TotalHungerManager.Instance != null)
+            TotalHungerManager.Instance.RecalculateTotalHunger();
 
+        // 3. 🌟 UI 갱신 (우측 인벤토리/창고 및 좌측 음식창고 슬롯들 일괄 갱신)
         var warehouseUI = FindFirstObjectByType<FoodWarehouseUI>();
-        if (warehouseUI != null) warehouseUI.RefreshAllPanelsAndSlots();
+        if (warehouseUI != null)
+            warehouseUI.RefreshAllPanelsAndSlots();
     }
 }

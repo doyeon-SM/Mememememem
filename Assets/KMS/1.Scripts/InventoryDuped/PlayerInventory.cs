@@ -216,6 +216,71 @@ public class PlayerInventory : MonoBehaviour
         return AddItem(itemData, amount);
     }
 
+    /// <summary>
+    /// 일반 인벤토리만 같은 아이템끼리 압축한 뒤 지정 기준으로 정렬한다.
+    /// 장착 순서 의미가 있는 퀵슬롯은 변경하지 않는다.
+    /// </summary>
+    public bool ApplyInventorySort(InventorySortCriteria criteria)
+    {
+        bool sorted = InventorySortUtility.SortAndCompact(inventory, criteria, catalogManager);
+        if (!sorted) return false;
+
+        OnInventoryChanged?.Invoke();
+        return true;
+    }
+
+    /// <summary>
+    /// 사망 시 보호 대상인 도구를 제외한 일반/퀵슬롯 아이템을 모두 제거한다.
+    /// 슬롯 위치는 유지하며, 전체 처리가 끝난 뒤 변경 이벤트를 한 번만 발행한다.
+    /// </summary>
+    public int ApplyDeathPenalty()
+    {
+        // 사용 도중 임시 차감된 퀵슬롯 아이템을 먼저 원상 복구한 뒤 사망 손실을 판정한다.
+        // 이 순서를 지키지 않으면 사용 취소 롤백으로 제거된 아이템이 다시 생길 수 있다.
+        EndQuickSlotUse();
+
+        int lostAmount = 0;
+        bool inventoryChanged = ClearDeathLossItems(inventory, ref lostAmount);
+        bool quickSlotsChanged = ClearDeathLossItems(quickSlots, ref lostAmount);
+
+        // 실제 손실이 0이어도 사용 예약 종료 결과와 현재 사망 스냅샷을 파일 저장 계층에 전달한다.
+        OnInventoryChanged?.Invoke();
+        if (inventoryChanged || quickSlotsChanged) NotifyAllQuickSlotsChanged();
+        return lostAmount;
+    }
+
+    private bool ClearDeathLossItems(InventoryContainer container, ref int lostAmount)
+    {
+        if (container == null || container.slots == null) return false;
+
+        bool changed = false;
+        for (int i = 0; i < container.slots.Length; i++)
+        {
+            ItemStack stack = container.slots[i];
+            if (stack == null || stack.IsEmpty) continue;
+
+            ItemData item = FindItemData(stack.itemId);
+            if (item == null)
+            {
+                // 카탈로그 누락 때문에 복구 불가능한 데이터 손실이 생기지 않도록 알 수 없는 아이템은 유지한다.
+                Debug.LogWarning($"[PlayerInventory] 사망 손실 판정 중 Item_ID '{stack.itemId}'를 찾지 못해 유지합니다.", this);
+                continue;
+            }
+
+            // TODO: ItemCategory.Armor가 추가되면 아래 보호 조건에
+            //       || item.Category == ItemCategory.Armor 를 추가한다.
+            // 현재 프로젝트에는 Armor 카테고리가 없으므로 Tool만 도구/방어구 보호 대상으로 취급한다.
+            bool keepOnDeath = item.Category == ItemCategory.Tool;
+            if (keepOnDeath) continue;
+
+            lostAmount += stack.amount;
+            stack.Clear();
+            changed = true;
+        }
+
+        return changed;
+    }
+
     // 인벤토리 내에서 아이템 이동
     public bool MoveInventorySlot(int fromIndex, int toIndex)
     {

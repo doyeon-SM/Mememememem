@@ -214,7 +214,34 @@ public class FacilityEventBridge : MonoBehaviour
 
         SetupAndTransitionToFacilityWork(ai, buildingType, facilityTrans);
 
+        // 이미 가동 중인 시설에 배정된 경우: FacilityStarted는 false→true 전환 시에만
+        // 발동하므로 이 멤은 이벤트를 놓친다. 시설이 이미 가동 중이면 즉시 작업을 시작한다.
+        if (IsFacilityProducing(buildingType))
+        {
+            ai.FacilityWorkState.OnFacilityStarted(ai);
+            Debug.Log($"[FacilityEventBridge] '{memData.memName}' → {buildingType} 이미 가동 중 → 즉시 작업 시작.");
+        }
+
         Debug.Log($"[FacilityEventBridge] '{memData.memName}' → {buildingType} 배치 완료, FacilityWorkState 진입.");
+    }
+
+    /// <summary>
+    /// 해당 BuildingType의 시설이 현재 가동(isProducing) 중인지 확인합니다.
+    /// 일반 생산시설(ProductionFacilityRuntime)과 제작대(ProductionCraftRuntime) 모두 검사.
+    /// </summary>
+    private bool IsFacilityProducing(BuildingType buildingType)
+    {
+        foreach (var f in FindObjectsByType<ProductionFacilityRuntime>(FindObjectsSortMode.None))
+            if (f != null && f.buildingData != null &&
+                f.buildingData.buildingType == buildingType && f.isProducing)
+                return true;
+
+        foreach (var c in FindObjectsByType<ProductionCraftRuntime>(FindObjectsSortMode.None))
+            if (c != null && c.buildingData != null &&
+                c.buildingData.buildingType == buildingType && c.isProducing)
+                return true;
+
+        return false;
     }
 
     /// <summary>

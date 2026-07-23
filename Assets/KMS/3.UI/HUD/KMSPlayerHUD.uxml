@@ -2,13 +2,13 @@
     <Style src="project://database/Assets/KMS/3.UI/HUD/KMSPlayerHUD.uss?fileID=7433441132597879392&amp;guid=b34f9df46e144cbf9ce508e1e11861a8&amp;type=3#KMSPlayerHUD"/>
     <ui:VisualElement name="hud-root">
         <ui:VisualElement name="top-right-menu">
-            <ui:Label name="real-time-label" text="현재 시간 --:--:--"/>
+            <ui:Label name="real-time-label" text="00시 00분"/>
             <ui:VisualElement name="top-right-button-row">
                 <ui:Button name="collection-button" text="도감" class="top-right-menu-button"/>
                 <ui:Button name="inventory-button" text="가방" class="top-right-menu-button"/>
                 <ui:Button name="map-button" text="지도" class="top-right-menu-button"/>
             </ui:VisualElement>
-            <ui:Label name="gold-label" text="보유 골드 0"/>
+            <ui:Label name="gold-label" text="Gold: 0 "/>
         </ui:VisualElement>
         <ui:VisualElement name="health-info-container">
             <ui:ProgressBar value="63.8" title="Health" name="player-health-bar" class="blocks-progress-bar"/>
@@ -20,9 +20,8 @@
             <ui:Label text="숫자키 또는 휠로 취소" class="throw-guide__cancel"/>
         </ui:VisualElement>
         <ui:VisualElement name="message-overlay" style="display: none;">
-            <ui:Label name="message-label" text="RESPAWN IN"/>
-            <ui:VisualElement name="message-divider"/>
-            <ui:Label name="countdown-label" text="5"/>
+            <ui:Label name="message-label" text="사망했습니다"/>
+            <ui:Button name="respawn-button" text="Respawn"/>
         </ui:VisualElement>
     </ui:VisualElement>
 </ui:UXML>

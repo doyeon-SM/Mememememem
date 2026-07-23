@@ -60,7 +60,6 @@ public class SaveData
     public ContainerData playerInventoryData;
     public ContainerData warehouseStorageData;
     public ContainerData foodWarehouseStorageData;
-    public ContainerData foodBagStorageData;
 
     // 퀵슬롯 영구 보존 규격 바인딩
     public ContainerData playerQuickSlotsData;

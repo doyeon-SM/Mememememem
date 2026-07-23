@@ -31,6 +31,15 @@ namespace MemSystem.AI.States
         {
             if (ai.Movement == null) return;
 
+            // 시설 카빙에 갇혀 NavMesh 밖에 놓였으면 즉시 복구 후 재배회.
+            // (Wander()가 내부에서 가장 가까운 NavMesh로 복귀시킨다)
+            if (!ai.Movement.IsOnNavMesh)
+            {
+                ai.Movement.Wander();
+                stuckTimer = 0f;
+                return;
+            }
+
             // 실제 이동 속도가 낮으면(막힘, 경로 대기 중) 대기 모션, 이동 중이면 걷기 모션
             if (ai.Movement.CurrentSpeed > 0.1f)
             {

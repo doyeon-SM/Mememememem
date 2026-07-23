@@ -14,10 +14,29 @@ using UnityEngine.InputSystem;
 
 public class GridManager : MonoBehaviour
 {
-    [Header("타일 생성 관련 정보: Prefab, 생성될 위치, Grid Layer")]
-    [SerializeField] private GameObject tilePrefab;
+    [Header("타일 생성 관련 정보: Prefabs, 생성될 위치, Grid Layer")]
+    [Tooltip("영지 외곽(테두리/절벽)에 생성될 타일 프리팹 (A)")]
+    [SerializeField] private GameObject outerTilePrefab;
+
+    [Tooltip("영지 내부(평면)에 생성될 타일 프리팹 (B)")]
+    [SerializeField] private GameObject innerTilePrefab;
+
     [SerializeField] private Transform floorContainer;
     [SerializeField] private LayerMask gridLayerMask;
+
+    [Header("내부 상단 Plane 설정")]
+    [Tooltip("타일 상단에 올려둘 Green Plane 오브젝트")]
+    [SerializeField] private GameObject innerSurfacePlane;
+
+    [Tooltip("외곽 타일 테두리 여백 (값이 크면 Plane이 더 작아집니다)")]
+    [SerializeField] private float planeInsetMargin = 1.2f;
+
+    [Tooltip("Green Plane의 Y축 높이 (기본값: 0.501f)")]
+    [SerializeField] private float innerPlaneY = 0.501f;
+
+    // 🌟 [추가]: 배치 모드 격자의 Y축 높이 (Plane 직상단 밀착: 0.502f)
+    [Tooltip("배치 모드 격자판의 Y축 높이 (기본값: 0.502f)")]
+    [SerializeField] private float gridOverlayY = 0.502f;
 
     [Header("시설 데이터 정보: SO, 프리뷰")]
     [SerializeField] private List<BuildingData> buildings = new List<BuildingData>();
@@ -45,6 +64,9 @@ public class GridManager : MonoBehaviour
     private Vector3 raycastHitPoint;
     private bool[,] occupiedCells;
 
+    // 영지 전체를 덮는 단일 격자 오버레이 판
+    private GameObject globalGridOverlay;
+
     // 타일에 배치된 시설 정보
     private GameObject[,] buildingObjectsGrid;
     private BuildingData[,] buildingDataGrid;
@@ -61,8 +83,7 @@ public class GridManager : MonoBehaviour
     private bool canPlaceCurrent = false;
     private bool isShaking = false;
 
-    // 기본모드, 배치모드에 따른 경계선 처리
-    private Material defaultModeMaterial;
+    // 배치 모드 머티리얼 및 상태
     private Material placeModeMaterial;
     private bool isPlacementMode = false;
 
@@ -100,6 +121,8 @@ public class GridManager : MonoBehaviour
     {
         if (buildRecordManager == null) buildRecordManager = FindFirstObjectByType<BuildRecordManager>();
 
+        if (Mathf.Approximately(innerPlaneY, 1.0f)) innerPlaneY = 0.5f;
+
         InitGridMaterials();
     }
 
@@ -109,17 +132,6 @@ public class GridManager : MonoBehaviour
         int targetHeight = currentHeight > 0 ? currentHeight : 5;
 
         InitializeGrid(targetWidth, targetHeight);
-
-        if (defaultModeMaterial == null)
-        {
-            defaultModeMaterial = Resources.Load<Material>("Green_Mat");
-        }
-        if (defaultModeMaterial == null)
-        {
-            defaultModeMaterial = Resources.FindObjectsOfTypeAll<Material>().FirstOrDefault(m => m != null && m.name == "Green_Mat");
-        }
-
-        placeModeMaterial = CreateGridMaterial(true);
     }
 
     private void OnEnable()
@@ -197,22 +209,6 @@ public class GridManager : MonoBehaviour
 
     private void InitGridMaterials()
     {
-        if (defaultModeMaterial != null) return;
-
-        if (tilePrefab != null && tilePrefab.TryGetComponent<MeshRenderer>(out MeshRenderer prefabRenderer))
-        {
-            defaultModeMaterial = prefabRenderer.sharedMaterial;
-        }
-
-        if (defaultModeMaterial == null)
-        {
-            defaultModeMaterial = Resources.Load<Material>("Green_Mat");
-        }
-        if (defaultModeMaterial == null)
-        {
-            defaultModeMaterial = Resources.FindObjectsOfTypeAll<Material>().FirstOrDefault(m => m != null && m.name == "Green_Mat");
-        }
-
         if (placeModeMaterial == null)
         {
             placeModeMaterial = CreateGridMaterial(true);
@@ -223,6 +219,7 @@ public class GridManager : MonoBehaviour
     {
         currentWidth = width;
         currentHeight = height;
+
         if (tileGrid == null || tileGrid.Length == 0)
             tileGrid = new GameObject[currentWidth, currentHeight];
 
@@ -241,15 +238,18 @@ public class GridManager : MonoBehaviour
             {
                 if (tileGrid[i, j] == null)
                 {
-                    tileGrid[i, j] = SpawnTile(i, j);
+                    tileGrid[i, j] = SpawnTile(i, j, currentWidth, currentHeight);
                 }
             }
         }
+
+        UpdateInnerSurfacePlane();
+        UpdateGlobalGridOverlay();
     }
 
     public void ExpandGrid(int newWidth, int newHeight)
     {
-        if (newWidth == currentWidth || newHeight == currentHeight) return;
+        if (newWidth == currentWidth && newHeight == currentHeight) return;
 
         GameObject[,] newTileGrid = new GameObject[newWidth, newHeight];
         bool[,] newOccupiedCells = new bool[newWidth, newHeight];
@@ -261,10 +261,25 @@ public class GridManager : MonoBehaviour
         {
             for (int j = 0; j < currentHeight; j++)
             {
-                newTileGrid[i, j] = tileGrid[i, j];
                 newOccupiedCells[i, j] = occupiedCells[i, j];
                 newBuildingObjectsGrid[i, j] = buildingObjectsGrid[i, j];
                 newBuildingDataGrid[i, j] = buildingDataGrid[i, j];
+
+                bool wasOuter = IsOuterTile(i, j, currentWidth, currentHeight);
+                bool isNowOuter = IsOuterTile(i, j, newWidth, newHeight);
+
+                if (wasOuter != isNowOuter)
+                {
+                    if (tileGrid[i, j] != null)
+                    {
+                        Destroy(tileGrid[i, j]);
+                    }
+                    newTileGrid[i, j] = SpawnTile(i, j, newWidth, newHeight);
+                }
+                else
+                {
+                    newTileGrid[i, j] = tileGrid[i, j];
+                }
             }
         }
 
@@ -274,7 +289,7 @@ public class GridManager : MonoBehaviour
             {
                 if (i >= currentWidth || j >= currentHeight)
                 {
-                    newTileGrid[i, j] = SpawnTile(i, j);
+                    newTileGrid[i, j] = SpawnTile(i, j, newWidth, newHeight);
                 }
             }
         }
@@ -285,37 +300,93 @@ public class GridManager : MonoBehaviour
         buildingDataGrid = newBuildingDataGrid;
         currentWidth = newWidth;
         currentHeight = newHeight;
+
+        UpdateInnerSurfacePlane();
+        UpdateGlobalGridOverlay();
     }
 
-    private GameObject SpawnTile(int x, int z)
+    private bool IsOuterTile(int x, int z, int width, int height)
+    {
+        return x == 0 || x == width - 1 || z == 0 || z == height - 1;
+    }
+
+    private GameObject SpawnTile(int x, int z, int width, int height)
     {
         Vector3 spawnPosition = new Vector3(x + 0.5f, 0f, z + 0.5f);
 
-        GameObject newTile = Instantiate(tilePrefab, spawnPosition, Quaternion.Euler(90, 0, 0), floorContainer);
+        bool isOuter = IsOuterTile(x, z, width, height);
+        GameObject targetPrefab = isOuter ? outerTilePrefab : innerTilePrefab;
+
+        if (targetPrefab == null)
+        {
+            targetPrefab = outerTilePrefab != null ? outerTilePrefab : innerTilePrefab;
+        }
+
+        GameObject newTile = Instantiate(targetPrefab, spawnPosition, Quaternion.identity, floorContainer);
         newTile.name = $"Tile_({x},{z})";
 
-        if (newTile.TryGetComponent<MeshRenderer>(out MeshRenderer meshRenderer))
+        int maskLayer = GetFirstLayerFromMask(gridLayerMask);
+        if (maskLayer >= 0)
         {
-            meshRenderer.material = defaultModeMaterial;
+            SetLayerRecursively(newTile, maskLayer);
         }
 
-        GameObject gridOverlay = GameObject.CreatePrimitive(PrimitiveType.Quad);
-        if (gridOverlay.TryGetComponent<Collider>(out var col)) DestroyImmediate(col);
-
-        gridOverlay.name = "GridOverlay";
-        gridOverlay.transform.SetParent(newTile.transform);
-        gridOverlay.transform.localPosition = new Vector3(0f, 0f, -0.001f);
-        gridOverlay.transform.localRotation = Quaternion.identity;
-        gridOverlay.transform.localScale = Vector3.one;
-
-        if (gridOverlay.TryGetComponent<MeshRenderer>(out MeshRenderer overlayRenderer))
+        var colliders = newTile.GetComponentsInChildren<Collider>();
+        if (colliders == null || colliders.Length == 0)
         {
-            overlayRenderer.material = placeModeMaterial;
+            BoxCollider boxCol = newTile.AddComponent<BoxCollider>();
+            boxCol.center = new Vector3(0f, 0.5f, 0f);
+            boxCol.size = Vector3.one;
         }
-
-        gridOverlay.SetActive(isPlacementMode);
 
         return newTile;
+    }
+
+    private void UpdateInnerSurfacePlane()
+    {
+        if (innerSurfacePlane == null) return;
+
+        float centerX = currentWidth / 2.0f;
+        float centerZ = currentHeight / 2.0f;
+
+        innerSurfacePlane.transform.position = new Vector3(centerX, innerPlaneY, centerZ);
+
+        float targetWidth = Mathf.Max(0.1f, currentWidth - planeInsetMargin);
+        float targetHeight = Mathf.Max(0.1f, currentHeight - planeInsetMargin);
+
+        innerSurfacePlane.transform.localScale = new Vector3(targetWidth / 10.0f, 1.0f, targetHeight / 10.0f);
+    }
+
+    private void UpdateGlobalGridOverlay()
+    {
+        if (globalGridOverlay == null)
+        {
+            globalGridOverlay = GameObject.CreatePrimitive(PrimitiveType.Quad);
+
+            if (globalGridOverlay.TryGetComponent<Collider>(out var col)) DestroyImmediate(col);
+
+            globalGridOverlay.name = "GlobalGridOverlay";
+            globalGridOverlay.transform.SetParent(floorContainer != null ? floorContainer : transform);
+            globalGridOverlay.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+
+            if (globalGridOverlay.TryGetComponent<MeshRenderer>(out MeshRenderer overlayRenderer))
+            {
+                overlayRenderer.material = placeModeMaterial;
+            }
+        }
+
+        // 🌟 [수정]: Y축 위치를 Green Plane 바로 위(0.501f)로 밀착 배치
+        globalGridOverlay.transform.position = new Vector3(currentWidth / 2.0f, gridOverlayY, currentHeight / 2.0f);
+        globalGridOverlay.transform.localScale = new Vector3(currentWidth, currentHeight, 1f);
+
+        if (globalGridOverlay.TryGetComponent<MeshRenderer>(out MeshRenderer renderer) && renderer.material != null)
+        {
+            Vector2 tiling = new Vector2(currentWidth, currentHeight);
+            if (renderer.material.HasProperty("_BaseMap")) renderer.material.SetTextureScale("_BaseMap", tiling);
+            if (renderer.material.HasProperty("_MainTex")) renderer.material.SetTextureScale("_MainTex", tiling);
+        }
+
+        globalGridOverlay.SetActive(isPlacementMode);
     }
 
     public void ChangePlacementMode()
@@ -337,21 +408,9 @@ public class GridManager : MonoBehaviour
         currentAvailableBuildings = GetAvailableBuildingsFromInventory();
         OnPlacementModeChanged?.Invoke(isPlacementMode, currentAvailableBuildings);
 
-        if (tileGrid == null) return;
-
-        for (int i = 0; i < currentWidth; i++)
+        if (globalGridOverlay != null)
         {
-            for (int j = 0; j < currentHeight; j++)
-            {
-                if (tileGrid[i, j] != null)
-                {
-                    Transform overlay = tileGrid[i, j].transform.Find("GridOverlay");
-                    if (overlay != null)
-                    {
-                        overlay.gameObject.SetActive(isPlacementMode);
-                    }
-                }
-            }
+            globalGridOverlay.SetActive(isPlacementMode);
         }
 
         Debug.Log($"배치 모드 상태 변경: {isPlacementMode} | 배치 가능 건물 수: {currentAvailableBuildings.Count}개");
@@ -369,7 +428,6 @@ public class GridManager : MonoBehaviour
             canPlaceCurrent = false;
             isShaking = false;
 
-            
             cachedPickedUpState = null;
         }
     }
@@ -381,7 +439,9 @@ public class GridManager : MonoBehaviour
         Vector2 mousePosition = Mouse.current.position.ReadValue();
         Ray ray = Camera.main.ScreenPointToRay(mousePosition);
 
-        if (Physics.Raycast(ray, out RaycastHit hit, Mathf.Infinity, gridLayerMask))
+        LayerMask maskToUse = gridLayerMask.value != 0 ? gridLayerMask : (LayerMask)(~0);
+
+        if (Physics.Raycast(ray, out RaycastHit hit, Mathf.Infinity, maskToUse))
         {
             raycastHitPoint = hit.point;
 
@@ -411,7 +471,9 @@ public class GridManager : MonoBehaviour
 
         float offsetX = currentStartGridX + (currentTargetWidth / 2.0f);
         float offsetZ = currentStartGridZ + (currentTargetHeight / 2.0f);
-        currentPreviewInstance.transform.position = new Vector3(offsetX, 0f, offsetZ);
+
+        // 프리뷰 Y축 높이를 0.5f로 설정
+        currentPreviewInstance.transform.position = new Vector3(offsetX, 0.5f, offsetZ);
 
         canPlaceCurrent = CheckPlacement(currentStartGridX, currentStartGridZ, currentTargetWidth, currentTargetHeight);
 
@@ -451,8 +513,9 @@ public class GridManager : MonoBehaviour
     {
         Texture2D texture = new Texture2D(64, 64);
         texture.filterMode = FilterMode.Point;
+        texture.wrapMode = TextureWrapMode.Repeat;
 
-        Color gridBorderColor = new Color(0.5f, 0.5f, 0.5f, 0.4f);
+        Color gridBorderColor = new Color(0.4f, 0.4f, 0.4f, 0.35f);
 
         for (int y = 0; y < 64; y++)
         {
@@ -485,7 +548,7 @@ public class GridManager : MonoBehaviour
             mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
             mat.SetInt("_ZWrite", 0);
             mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-            mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+            mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent + 10;
         }
 
         if (mat.HasProperty("_BaseMap")) mat.SetTexture("_BaseMap", texture);
@@ -528,7 +591,6 @@ public class GridManager : MonoBehaviour
 
         string newUniqueId = $"{selectedBuildingData.buildingName}_{currentStartGridX}_{currentStartGridZ}";
 
-        // 이전 이동(PickUp) 상태에서 집어 올린 작업 데이터가 있다면 새 위치에 이식
         if (cachedPickedUpState != null && cachedPickedUpState.facilityData != null)
         {
             cachedPickedUpState.facilityData.Building_ID = newUniqueId;
@@ -626,7 +688,6 @@ public class GridManager : MonoBehaviour
         BuildingData retrievedData = buildingDataGrid[x, z];
         Quaternion targetRotation = targetBuilding.transform.rotation;
 
-        // 건물을 지우기 전 실물 컴포넌트에서 작업 데이터 및 멤 배치 정보 캡처
         cachedPickedUpState = new PickedUpBuildingRuntimeState();
         cachedPickedUpState.facilityData = new FacilityData();
 
@@ -669,7 +730,6 @@ public class GridManager : MonoBehaviour
             }
         }
 
-        // 2. 그리드 격자 정보에서 해당 건물 제거 및 실물 GameObject 파괴
         for (int i = 0; i < currentWidth; i++)
         {
             for (int j = 0; j < currentHeight; j++)
@@ -685,7 +745,6 @@ public class GridManager : MonoBehaviour
 
         Destroy(targetBuilding);
 
-        // 3. 설계도 세션 원복 (인벤토리 추가)
         if (retrievedData != null && retrievedData.requireBlueprint != null)
         {
             var inventory = FindFirstObjectByType<PlayerInventory>();
@@ -702,7 +761,6 @@ public class GridManager : MonoBehaviour
         OnGridDataChanged?.Invoke();
         TotalHungerManager.Instance?.RecalculateTotalHunger();
 
-        // 4. 프리뷰 생성
         int availableIndex = currentAvailableBuildings.IndexOf(retrievedData);
         if (availableIndex >= 0)
         {
@@ -856,7 +914,8 @@ public class GridManager : MonoBehaviour
 
             float offsetX = snap.startX + (bWidth / 2.0f);
             float offsetZ = snap.startZ + (bHeight / 2.0f);
-            Vector3 spawnPos = new Vector3(offsetX, 0f, offsetZ);
+
+            Vector3 spawnPos = new Vector3(offsetX, 0.5f, offsetZ);
 
             GameObject restoredBuilding = Instantiate(snap.data.buildingPrefab, spawnPos, snap.rotation, floorContainer);
 
@@ -1048,6 +1107,27 @@ public class GridManager : MonoBehaviour
         }
 
         return filteredList;
+    }
+
+    private int GetFirstLayerFromMask(LayerMask mask)
+    {
+        int maskVal = mask.value;
+        if (maskVal == 0) return -1;
+        for (int i = 0; i < 32; i++)
+        {
+            if ((maskVal & (1 << i)) != 0) return i;
+        }
+        return -1;
+    }
+
+    private void SetLayerRecursively(GameObject obj, int newLayer)
+    {
+        if (obj == null) return;
+        obj.layer = newLayer;
+        foreach (Transform child in obj.transform)
+        {
+            SetLayerRecursively(child.gameObject, newLayer);
+        }
     }
 
     [ContextMenu("Function: Expand to Test")]

@@ -1,0 +1,38 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ede67bb28744d3b44bc6e1f8ee4f9678, type: 3}
+  m_Name: Mem_Test_05
+  m_EditorClassIdentifier: Assembly-CSharp::MemSystem.Data.MemData
+  memId: Mem_Test_05
+  memName: TestMem_05
+  tier: 0
+  personality: 0
+  modelPrefab: {fileID: 5406700249823493747, guid: 0fd74a5171bba5443aea6b703bb7f988, type: 3}
+  maxHp: 10
+  maxHunger: 10
+  productionStats:
+    crafting: 2
+    logging: 2
+    mining: 2
+    transport: 2
+    farming: 2
+  explorationStat: 0
+  attackDamage: 1
+  attackRange: 2
+  attackCooldown: 1.5
+  detectionRange: 10
+  fleeHpThreshold: 0.3
+  spawnCondition:
+    allowedZoneIds: []
+    canSpawnDay: 1
+    canSpawnNight: 1
+    spawnWeight: 1

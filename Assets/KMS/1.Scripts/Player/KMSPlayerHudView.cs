@@ -30,6 +30,7 @@ namespace KMS
         [SerializeField] private GameObject throwGuide;
         [SerializeField] private GameObject defeatOverlay;
         [SerializeField] private TMP_Text defeatMessageText;
+        [SerializeField] private Button respawnButton;
 
         [Header("Responsive Layout")]
         [SerializeField, Range(0.1f, 1f)] private float survivalWidthRatio = 0.42f;
@@ -39,6 +40,7 @@ namespace KMS
         public Button CollectionButton => collectionButton;
         public Button InventoryButton => inventoryButton;
         public Button MapButton => mapButton;
+        public Button RespawnButton => respawnButton;
 
         private void Awake()
         {
@@ -48,6 +50,7 @@ namespace KMS
             }
 
             SetThrowGuideVisible(false);
+            EnsureRespawnButton();
             SetDefeatOverlayVisible(false, string.Empty);
             UpdateResponsiveLayout();
         }
@@ -128,7 +131,48 @@ namespace KMS
                    && notificationTemplate != null
                    && throwGuide != null
                    && defeatOverlay != null
-                   && defeatMessageText != null;
+                   && defeatMessageText != null
+                   && respawnButton != null;
+        }
+
+        private void EnsureRespawnButton()
+        {
+            if (respawnButton != null || defeatOverlay == null) return;
+
+            // 기존 임시 카운트다운 UI는 버튼 방식 리스폰으로 교체한다.
+            Transform countdown = defeatOverlay.transform.Find("CountdownText");
+            if (countdown != null) countdown.gameObject.SetActive(false);
+            Transform divider = defeatOverlay.transform.Find("MessageDivider");
+            if (divider != null) divider.gameObject.SetActive(false);
+
+            GameObject buttonObject = new GameObject("RespawnButton", typeof(RectTransform), typeof(Image), typeof(Button));
+            buttonObject.transform.SetParent(defeatOverlay.transform, false);
+
+            RectTransform buttonRect = buttonObject.GetComponent<RectTransform>();
+            buttonRect.anchorMin = new Vector2(0.5f, 0.5f);
+            buttonRect.anchorMax = new Vector2(0.5f, 0.5f);
+            buttonRect.pivot = new Vector2(0.5f, 0.5f);
+            buttonRect.anchoredPosition = new Vector2(0f, -35f);
+            buttonRect.sizeDelta = new Vector2(220f, 64f);
+
+            Image image = buttonObject.GetComponent<Image>();
+            image.color = new Color32(245, 245, 245, 255);
+            respawnButton = buttonObject.GetComponent<Button>();
+            respawnButton.targetGraphic = image;
+
+            GameObject labelObject = new GameObject("Label", typeof(RectTransform), typeof(TextMeshProUGUI));
+            labelObject.transform.SetParent(buttonObject.transform, false);
+            RectTransform labelRect = labelObject.GetComponent<RectTransform>();
+            labelRect.anchorMin = Vector2.zero;
+            labelRect.anchorMax = Vector2.one;
+            labelRect.offsetMin = Vector2.zero;
+            labelRect.offsetMax = Vector2.zero;
+
+            TextMeshProUGUI label = labelObject.GetComponent<TextMeshProUGUI>();
+            label.text = "Respawn";
+            label.fontSize = 26f;
+            label.alignment = TextAlignmentOptions.Center;
+            label.color = new Color32(25, 25, 25, 255);
         }
 
         private void UpdateResponsiveLayout()

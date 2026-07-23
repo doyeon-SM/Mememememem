@@ -16,7 +16,7 @@
 //   Farm              (밭)       → PlayInteract()
 //   Ranch             (목장)     → Wander() + PlayWalk()
 //   TransportFacility (운반시설) → ChaseTo(warehouseTarget) + PlayWalk()
-//   Generator         (발전기)   → PlayInteract()
+//   Generator         (발전기)   → PlayRun() (제자리 뛰기)
 // ============================================================================
 
 using UnityEngine;
@@ -64,6 +64,28 @@ namespace MemSystem.AI.States
         private const float ReachThreshold = 1.5f;
 
         // ---------------------------------------------------------------
+        // 제자리 작업 시설(제작대·밭·채굴장·발전기 등): 시설로 이동 후 작업
+        // ---------------------------------------------------------------
+
+        /// <summary>시설 근처 작업 지점에 도착했는지 여부.</summary>
+        private bool arrivedAtWorkSpot = false;
+
+        /// <summary>시설 근처의 실제 작업 지점(멤이 서서 작업할 위치).</summary>
+        private Vector3 workSpot;
+
+        /// <summary>시설로 이동 시작 후 경과 시간(도착 판정 실패 대비 타임아웃용).</summary>
+        private float moveToFacilityTimer;
+
+        private const float WorkArriveThreshold = 0.2f;  // 작업 지점 도착 판정 거리(칸 안까지 들어가도록 좁게)
+        private const float MoveToFacilityTimeout = 4f;   // 도착 못해도 이 시간 후 작업 시작
+
+        /// <summary>시설 칸 안까지 파고들도록 접근 시 정지 거리를 거의 0으로.</summary>
+        private const float FacilityApproachStopDistance = 0.05f;
+
+        /// <summary>시설 칸 중심에서 작업 지점을 흩뿌릴 최대 반경(1×1 칸을 벗어나지 않게 작게).</summary>
+        private const float CellInsetRadius = 0.2f;
+
+        // ---------------------------------------------------------------
         // Public API
         // ---------------------------------------------------------------
 
@@ -94,8 +116,55 @@ namespace MemSystem.AI.States
             wanderInterval = Random.Range(3f, 7f);
             isHeadingToWarehouse = false;
 
-            PlayWorkAnimation(ai);
-            Debug.Log($"[FacilityWorkState] {ai.Owner?.Stats?.MemName} 작업 시작 ({facilityType})");
+            // 이동 기반 시설(목장·운반)은 기존 로직 그대로 (Update에서 처리)
+            if (facilityType == BuildingType.Ranch || facilityType == BuildingType.TransportFacility)
+            {
+                PlayWorkAnimation(ai);
+                Debug.Log($"[FacilityWorkState] {ai.Owner?.Stats?.MemName} 작업 시작 ({facilityType})");
+                return;
+            }
+
+            // 제자리 작업 시설: 시설 칸(Area)으로 걸어 들어간 뒤 작업 애니메이션을 재생한다.
+            if (facilityTransform != null && ai.Movement != null)
+            {
+                workSpot = ComputeWorkSpot();
+                arrivedAtWorkSpot = false;
+                moveToFacilityTimer = 0f;
+
+                // 이 멤만 시설 칸(Area)을 밟을 수 있게 허용한 뒤 칸 중심으로 이동.
+                // (순찰 멤은 이 Area가 areaMask에서 제외돼 있어 시설 칸을 통과하지 못함)
+                ai.Movement.SetFacilityAreaAllowed(true);
+                ai.Movement.MoveTo(workSpot, FacilityApproachStopDistance);
+                ai.Visual?.PlayWalk();
+
+                Debug.Log($"[FacilityWorkState] {ai.Owner?.Stats?.MemName} 시설 칸으로 이동 → 작업 예정 ({facilityType})");
+            }
+            else
+            {
+                // 시설 위치를 모르면 제자리에서 바로 작업 (기존 동작)
+                arrivedAtWorkSpot = true;
+                PlayWorkAnimation(ai);
+                Debug.Log($"[FacilityWorkState] {ai.Owner?.Stats?.MemName} 작업 시작 ({facilityType})");
+            }
+        }
+
+        /// <summary>
+        /// 시설이 설치된 "그리드 칸 내부"의 작업 지점을 계산합니다.
+        /// 시설 메쉬는 무시하고(추후 교체 예정), 시설 pivot = 칸 중심(1×1 칸에 배치)이므로
+        /// 그 중심 근처(칸을 벗어나지 않는 작은 오프셋)로 들어가 작업하게 합니다.
+        /// 여러 멤이 같은 시설에 배치돼도 완전히 겹치지 않도록 소량 분산합니다.
+        /// </summary>
+        private Vector3 ComputeWorkSpot()
+        {
+            Vector3 cellCenter = facilityTransform.position;
+
+            // 1×1 칸(반칸=0.5m) 안에 머무르도록 중심에서 살짝만 흩뿌린다.
+            Vector2 offset = Random.insideUnitCircle * CellInsetRadius;
+
+            return new Vector3(
+                cellCenter.x + offset.x,
+                cellCenter.y,
+                cellCenter.z + offset.y);
         }
 
         /// <summary>
@@ -139,6 +208,7 @@ namespace MemSystem.AI.States
             wanderTimer  = 0f;
             wanderInterval = Random.Range(3f, 7f);
             isHeadingToWarehouse = false;
+            arrivedAtWorkSpot = false;
 
             ReturnToIdleAnim(ai);
 
@@ -159,9 +229,34 @@ namespace MemSystem.AI.States
                     UpdateTransportMove(ai);
                     break;
 
-                // 나머지 시설: 제자리 애니메이션 → Update에서 별도 처리 없음
+                // 제자리 작업 시설: 시설 칸으로 이동 중이면 도착 판정 후 작업 시작
                 default:
+                    UpdateMoveToFacility(ai);
                     break;
+            }
+        }
+
+        /// <summary>시설 칸으로 걸어가는 중이면 도착을 감지해 작업 애니메이션을 시작합니다.</summary>
+        private void UpdateMoveToFacility(MemAI ai)
+        {
+            if (arrivedAtWorkSpot) return; // 이미 작업 중
+
+            moveToFacilityTimer += Time.deltaTime;
+
+            float dist = Vector3.Distance(ai.transform.position, workSpot);
+            bool reached = dist <= WorkArriveThreshold
+                        || (ai.Movement != null && ai.Movement.HasReachedDestination())
+                        || moveToFacilityTimer >= MoveToFacilityTimeout; // 막혀도 시작
+
+            if (reached)
+            {
+                arrivedAtWorkSpot = true;
+                ai.Movement?.Stop();
+                if (facilityTransform != null)
+                    ai.Movement?.LookAt(facilityTransform.position); // 시설을 바라보게
+                PlayWorkAnimation(ai);
+
+                Debug.Log($"[FacilityWorkState] {ai.Owner?.Stats?.MemName} 시설 도착 → 작업 시작 ({facilityType})");
             }
         }
 
@@ -170,7 +265,13 @@ namespace MemSystem.AI.States
             isWorking = false;
 
             if (ai.Movement != null)
+            {
+                // 시설 칸(Area) 위에 서 있었다면 일반 칸으로 옮긴 뒤, 시설 칸 진입 권한을 회수한다.
+                // → 이 멤도 이제 순찰 멤처럼 시설 칸을 통과하지 못하게 되고, 정상 배회가 가능해진다.
+                ai.Movement.WarpToNonFacilityArea();
+                ai.Movement.SetFacilityAreaAllowed(false);
                 ai.Movement.Stop();
+            }
 
             Debug.Log($"[FacilityWorkState] {ai.Owner?.Stats?.MemName} 시설 상태 종료 ({facilityType})");
         }
@@ -200,8 +301,8 @@ namespace MemSystem.AI.States
                 case BuildingType.Farm:        // 밭: 낫질
                     ai.Visual.PlayFarm();
                     break;
-                case BuildingType.Generator:   // 발전기: 바람개비 돌리기
-                    ai.Visual.PlayGenerate();
+                case BuildingType.Generator:   // 발전기: 런닝머신 달리기 (제자리 뛰기)
+                    ai.Visual.PlayRun();
                     break;
                 case BuildingType.MiningCamp:  // 채굴장: 곡괭이질
                     ai.Visual.PlayMine();

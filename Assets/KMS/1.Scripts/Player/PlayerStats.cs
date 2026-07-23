@@ -20,6 +20,7 @@ namespace KMS
         public float MaxHunger => maxHunger;
         public float CurrentHunger { get; private set; }
         public bool IsAlive { get; private set; } = true;
+        public bool IsInvulnerable { get; private set; }
 
         public event Action<float, float> HealthChanged;
         public event Action<float, float> HungerChanged;
@@ -48,7 +49,7 @@ namespace KMS
 
         public void TakeDamage(float amount)
         {
-            if (!IsAlive || amount <= 0f) return;
+            if (!IsAlive || IsInvulnerable || amount <= 0f) return;
 
             CurrentHealth = Mathf.Max(0f, CurrentHealth - amount);
             Damaged?.Invoke(amount);
@@ -111,6 +112,11 @@ namespace KMS
             Revived?.Invoke();
             HealthChanged?.Invoke(CurrentHealth, maxHealth);
             HungerChanged?.Invoke(CurrentHunger, maxHunger);
+        }
+
+        public void SetInvulnerable(bool invulnerable)
+        {
+            IsInvulnerable = invulnerable;
         }
 
         public void Kill()
