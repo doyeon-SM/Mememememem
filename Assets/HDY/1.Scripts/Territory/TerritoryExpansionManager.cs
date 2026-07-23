@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using HDY.Recipe;
@@ -11,6 +12,14 @@ namespace HDY.Territory
     /// 여신상 UI의 레벨별 줄(GoddessStatueUI_LevelRow)에 레시피와 동일한 방식으로 표시하기 위함이다.
     /// 골드는 요구하지 않는다(재료만 소비).
     /// RewardExp: 이 확장 단계 완료에 성공했을 때 획득하는 영지 경험치(TerritoryData.CurrentExp).
+    ///
+    /// [HDY 요청 - 시트 마이그레이션] RequestTerritoryLevel/MaterialCosts/RewardExp는
+    /// expansionStepsSheet에서 파싱해 채우는 "정적 설정값"이고, IsExpanded만 파싱 시 항상 false로 시작하는
+    /// "런타임 상태"다. _Kyusoo의 TerritoryRecordData.cs가 리플렉션으로 TerritoryExpansionManager의
+    /// private 필드 "expansionSteps"를 List&lt;TerritoryExpansionEntry&gt;로 직접 캐스팅해서 IsExpanded를
+    /// "리스트의 인덱스 순서"로 저장/복원하기 때문에, 이 클래스 자체(필드 구성)와 리스트 순서를 함부로
+    /// 바꾸면 안 된다 - 시트의 줄 순서가 곧 세이브 데이터의 순서이자 GetNextPendingEntry()가 정의하는
+    /// 실제 확장 진행 순서다.
     /// </summary>
     [Serializable]
     public class TerritoryExpansionEntry
@@ -60,6 +69,13 @@ namespace HDY.Territory
     /// DontDestroyOnLoad로 유지되어 Awake가 다시 호출되지 않으므로, SceneManager.sceneLoaded 이벤트를
     /// 구독해 씬이 로드될 때마다 gridManager 참조를 다시 탐색한다. territoryData는 이 매니저처럼
     /// DontDestroyOnLoad로 함께 유지되므로 보통은 끊어지지 않지만, 혹시 몰라 같이 확인한다.
+    ///
+    /// [HDY 요청 - 시트 마이그레이션] expansionSteps는 더 이상 Inspector에서 직접 드래그/입력하지 않고,
+    /// Awake 시 expansionStepsSheet(TextAsset, 탭 구분)를 파싱해서 채운다. IsExpanded는 시트에 없는
+    /// 컬럼이라 파싱 직후에는 항상 false다(실제 완료 여부는 세이브 로드나 플레이 중 ApplyExpand() 호출로
+    /// 채워짐). expansionSteps 필드의 이름과 타입(List&lt;TerritoryExpansionEntry&gt;)은 _Kyusoo의
+    /// TerritoryRecordData.cs가 리플렉션으로 직접 참조하고 있어 절대 바꾸면 안 되고, 시트의 줄 순서도
+    /// 곧 진행 순서이자 세이브 인덱스라 함부로 바꾸면 안 된다.
     /// </summary>
     public class TerritoryExpansionManager : MonoBehaviour
     {
@@ -77,8 +93,14 @@ namespace HDY.Territory
 
         private int currentGridSize;
 
-        [Header("확장 단계 목록 (인스펙터에서 요구 레벨 + 재료 + 완료여부를 함께 등록/확인)")]
-        [SerializeField] private List<TerritoryExpansionEntry> expansionSteps = new List<TerritoryExpansionEntry>();
+        [Header("확장 단계 시트 (탭 구분 텍스트: RequestTerritoryLevel, MaterialCosts, RewardExp / 줄 순서=진행 순서)")]
+        [SerializeField] private TextAsset expansionStepsSheet;
+
+        // [HDY 요청 - 시트 마이그레이션] 필드 이름 "expansionSteps"와 타입은 _Kyusoo의 TerritoryRecordData.cs가
+        // 리플렉션으로 직접 참조하므로 절대 바꾸지 않는다. 세이브 데이터가 이 리스트의 "인덱스 순서"로
+        // IsExpanded를 저장/복원하고, GetNextPendingEntry()도 이 순서로 다음 진행 단계를 판단하므로
+        // expansionStepsSheet의 줄 순서를 함부로 바꾸면 안 된다.
+        private List<TerritoryExpansionEntry> expansionSteps = new List<TerritoryExpansionEntry>();
 
         public IReadOnlyList<TerritoryExpansionEntry> ExpansionSteps => expansionSteps;
 
@@ -105,6 +127,8 @@ namespace HDY.Territory
 
             currentGridSize = startingGridSize;
 
+            BuildExpansionSteps();
+
             SceneManager.sceneLoaded += OnSceneLoaded;
         }
 
@@ -114,6 +138,77 @@ namespace HDY.Territory
             {
                 SceneManager.sceneLoaded -= OnSceneLoaded;
             }
+        }
+
+        /// <summary>
+        /// 시트를 파싱해 행마다 TerritoryExpansionEntry를 만들어 expansionSteps에 채운다. IsExpanded는
+        /// 시트에 없으므로 항상 false로 시작한다(세이브 로드나 ApplyExpand()가 이후에 채운다). 줄 순서를
+        /// 그대로 유지해야 세이브 데이터의 인덱스, 그리고 GetNextPendingEntry()의 진행 순서와 어긋나지 않는다.
+        /// </summary>
+        private void BuildExpansionSteps()
+        {
+            expansionSteps.Clear();
+
+            if (expansionStepsSheet == null)
+            {
+                Debug.LogWarning("[TerritoryExpansionManager] expansionStepsSheet가 비어있습니다.");
+                return;
+            }
+
+            var lines = expansionStepsSheet.text.Split('\n');
+            for (int i = 1; i < lines.Length; i++) // 0번째 줄은 헤더라 건너뜀
+            {
+                var line = lines[i].TrimEnd('\r');
+                if (string.IsNullOrWhiteSpace(line)) continue;
+
+                var cols = line.Split('\t');
+                if (cols.Length < 3)
+                {
+                    Debug.LogWarning($"[TerritoryExpansionManager] 시트 {i + 1}번째 줄 컬럼 수가 부족합니다: {line}");
+                    continue;
+                }
+
+                var entry = new TerritoryExpansionEntry
+                {
+                    RequestTerritoryLevel = ParseInt(cols[0]),
+                    MaterialCosts = ParseMaterials(cols[1]),
+                    RewardExp = ParseInt(cols[2]),
+                    IsExpanded = false
+                };
+
+                expansionSteps.Add(entry);
+            }
+        }
+
+        private static int ParseInt(string s)
+        {
+            return int.TryParse(s.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) ? value : 0;
+        }
+
+        /// <summary>"item_wood:100;item_irongemstone:100" 형식을 파싱한다. 빈 문자열이면 빈 리스트를 반환한다.</summary>
+        private static List<Recipe_Requset_Item_Data> ParseMaterials(string raw)
+        {
+            var materials = new List<Recipe_Requset_Item_Data>();
+            if (string.IsNullOrWhiteSpace(raw)) return materials;
+
+            var entries = raw.Split(';');
+            foreach (var entry in entries)
+            {
+                if (string.IsNullOrWhiteSpace(entry)) continue;
+
+                var parts = entry.Split(':');
+                if (parts.Length != 2) continue;
+
+                var itemId = parts[0].Trim();
+                if (string.IsNullOrEmpty(itemId)) continue;
+
+                if (int.TryParse(parts[1].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var amount))
+                {
+                    materials.Add(new Recipe_Requset_Item_Data { Item_ID = itemId, Amount = amount });
+                }
+            }
+
+            return materials;
         }
 
         /// <summary>

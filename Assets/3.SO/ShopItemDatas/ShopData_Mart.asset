@@ -13,8 +13,11 @@ MonoBehaviour:
   m_Name: ShopData_Mart
   m_EditorClassIdentifier: Assembly-CSharp::HDY.Shop.ShopData
   ShopName: "\uB9C8\uD2B8"
-  Items:
-  - {fileID: 11400000, guid: 33321c4dc8b4dd6418f7a47c77347e62, type: 2}
-  - {fileID: 11400000, guid: a3192095ae951554bbb1c66d0f1c579d, type: 2}
-  - {fileID: 11400000, guid: 990bfb4b1d0c6424aab703ffe1ffa47a, type: 2}
+  ItemIds:
+  - item_berry
+  - item_salt
+  - item_sugar
+  - item_wheat
+  - item_cabbage
+  - item_rough_fur
   RestockIntervalMinutes: 20

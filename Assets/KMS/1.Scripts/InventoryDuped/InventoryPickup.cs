@@ -6,7 +6,14 @@ namespace KMS.InventoryDuped
     [DisallowMultipleComponent]
     public class InventoryPickup : MonoBehaviour, KMS.IInteractable
     {
-        [SerializeField] private ItemData itemData;
+        // [HDY 요청] ItemData 직접 참조 대신 Item_ID 문자열로 변경.
+        // ItemCatalogManager가 시트 기반으로 바뀌면서 런타임에 매번 새 ItemData 인스턴스를
+        // 만들기 때문에, 여기서 특정 ItemData 애셋을 직접 들고 있으면 같은 Item_ID를 가진
+        // 두 개의 서로 다른 객체가 메모리에 동시에 존재하게 되어 다른 곳(GridManager 등)의
+        // Resources.FindObjectsOfTypeAll<ItemData>() 조회가 꼬일 수 있다. ID 문자열만 들고
+        // 있다가 ItemCatalogManager.FindItemData(itemId)/PlayerInventory.AddItem(string,int)로
+        // 조회·위임하는 방식으로 통일했다.
+        [SerializeField] private string itemId;
         [SerializeField] private int amount = 1;
         [SerializeField] private string promptPrefix = "Pick up";
         [SerializeField] private bool destroyWhenFullyPickedUp = true;
@@ -20,6 +27,7 @@ namespace KMS.InventoryDuped
         {
             get
             {
+                ItemData itemData = ResolveItemData();
                 if (itemData == null || string.IsNullOrEmpty(itemData.ItemName)) return promptPrefix;
 
                 return $"{promptPrefix} {itemData.ItemName}";
@@ -28,7 +36,7 @@ namespace KMS.InventoryDuped
 
         public bool CanInteract(KMS.PlayerInteraction interactor)
         {
-            return itemData != null
+            return !string.IsNullOrEmpty(itemId)
                    && amount > 0
                    && interactor != null
                    && interactor.GetComponent<PlayerInventory>() != null;
@@ -36,14 +44,14 @@ namespace KMS.InventoryDuped
 
         public void Interact(KMS.PlayerInteraction interactor)
         {
-            if (interactor == null || itemData == null || amount <= 0) return;
+            if (interactor == null || string.IsNullOrEmpty(itemId) || amount <= 0) return;
 
             TryPickup(interactor.GetComponent<PlayerInventory>(), interactor.name);
         }
 
         private void Update()
         {
-            if (!autoPickupWhenNear || itemData == null || amount <= 0) return;
+            if (!autoPickupWhenNear || string.IsNullOrEmpty(itemId) || amount <= 0) return;
 
             int hitCount = Physics.OverlapSphereNonAlloc(
                 transform.position,
@@ -77,7 +85,7 @@ namespace KMS.InventoryDuped
 
         private void TryAutoPickup(Collider other)
         {
-            if (!autoPickupWhenNear || other == null || itemData == null || amount <= 0) return;
+            if (!autoPickupWhenNear || other == null || string.IsNullOrEmpty(itemId) || amount <= 0) return;
 
             PlayerInventory inventory = other.GetComponentInParent<PlayerInventory>();
             if (inventory == null) return;
@@ -87,14 +95,14 @@ namespace KMS.InventoryDuped
 
         private void TryPickup(PlayerInventory inventory, string pickerName)
         {
-            if (inventory == null || itemData == null || amount <= 0) return;
+            if (inventory == null || string.IsNullOrEmpty(itemId) || amount <= 0) return;
 
-            int remaining = inventory.AddItem(itemData, amount);
+            int remaining = inventory.AddItem(itemId, amount);
             int pickedUp = amount - remaining;
 
             if (pickedUp <= 0) return;
 
-            Debug.Log($"[InventoryPickup] Added {pickedUp} x {itemData.ItemName} to {pickerName}'s inventory.");
+            Debug.Log($"[InventoryPickup] Added {pickedUp} x {itemId} to {pickerName}'s inventory.");
 
             amount = remaining;
 
@@ -102,6 +110,20 @@ namespace KMS.InventoryDuped
             {
                 Destroy(gameObject);
             }
+        }
+
+        /// <summary>itemId로 ItemCatalogManager에서 ItemData를 조회한다. 못 찾으면 null.</summary>
+        private ItemData ResolveItemData()
+        {
+            if (string.IsNullOrEmpty(itemId)) return null;
+
+            ItemCatalogManager catalogManager = ItemCatalogManager.Instance;
+            if (catalogManager == null)
+            {
+                catalogManager = FindFirstObjectByType<ItemCatalogManager>();
+            }
+
+            return catalogManager != null ? catalogManager.FindItemData(itemId) : null;
         }
 
         private void OnDrawGizmosSelected()

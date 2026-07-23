@@ -68,49 +68,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::HDY.Recipe.RecipeUnlockManager
   itemCatalogManager: {fileID: 0}
   territoryData: {fileID: 0}
-  recipeUnlocks:
-  - Item_ID: blueprint_production_stand
-    RequestTerritoryLevel: 1
-    RequestGold: 0
-    MaterialCosts: []
-    RewardExp: 100
-    IsUnlocked: 0
-  - Item_ID: tool_shabby_capsule
-    RequestTerritoryLevel: 2
-    RequestGold: 1000
-    MaterialCosts: []
-    RewardExp: 100
-    IsUnlocked: 0
-  - Item_ID: item_iron
-    RequestTerritoryLevel: 2
-    RequestGold: 1000
-    MaterialCosts: []
-    RewardExp: 100
-    IsUnlocked: 0
-  - Item_ID: item_woodplank
-    RequestTerritoryLevel: 2
-    RequestGold: 1000
-    MaterialCosts: []
-    RewardExp: 100
-    IsUnlocked: 0
-  - Item_ID: blueprint_logging_farm
-    RequestTerritoryLevel: 3
-    RequestGold: 5000
-    MaterialCosts: []
-    RewardExp: 200
-    IsUnlocked: 0
-  - Item_ID: blueprint_iron_ore_quarry
-    RequestTerritoryLevel: 3
-    RequestGold: 5000
-    MaterialCosts: []
-    RewardExp: 200
-    IsUnlocked: 0
-  - Item_ID: blueprint_berry_farm
-    RequestTerritoryLevel: 3
-    RequestGold: 5000
-    MaterialCosts: []
-    RewardExp: 200
-    IsUnlocked: 0
+  recipeUnlockSheet: {fileID: 4900000, guid: ff596ee1a191cbc418b9c26a7d6dda4a, type: 3}
 --- !u!114 &3109777930955922154
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -126,20 +84,4 @@ MonoBehaviour:
   gridManager: {fileID: 0}
   territoryData: {fileID: 0}
   startingGridSize: 5
-  expansionSteps:
-  - RequestTerritoryLevel: 3
-    MaterialCosts:
-    - Item_ID: item_wood
-      Amount: 100
-    - Item_ID: item_irongemstone
-      Amount: 100
-    RewardExp: 0
-    IsExpanded: 0
-  - RequestTerritoryLevel: 4
-    MaterialCosts:
-    - Item_ID: item_woodplank
-      Amount: 50
-    - Item_ID: item_iron
-      Amount: 50
-    RewardExp: 0
-    IsExpanded: 0
+  expansionStepsSheet: {fileID: 4900000, guid: 1a52def124ce34a4db0909533a646243, type: 3}

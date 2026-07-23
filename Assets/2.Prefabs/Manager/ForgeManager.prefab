@@ -1,0 +1,90 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &2679181794698395931
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 5614541373382203805}
+  - component: {fileID: 2178253928380159341}
+  - component: {fileID: 3791526114003067158}
+  - component: {fileID: 5082117776368722736}
+  m_Layer: 0
+  m_Name: ForgeManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &5614541373382203805
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2679181794698395931}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &2178253928380159341
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2679181794698395931}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8c84e767536583d4f83256e9baddb6a6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HDY.Forge.ForgeInstanceRegistry
+--- !u!114 &3791526114003067158
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2679181794698395931}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f663be191471889448eec7904aca2185, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HDY.Forge.ForgeInstanceItemDataProvider
+  catalogManager: {fileID: 0}
+  tierData: {fileID: 11400000, guid: c76146c9d96ddb744a7c2e954daf9273, type: 2}
+  instanceRegistry: {fileID: 2178253928380159341}
+  toolTypeDataList:
+  - {fileID: 11400000, guid: f9692f5e10230d44dab6414baebea866, type: 2}
+  - {fileID: 11400000, guid: a3620e2936622f746983da2e88790df2, type: 2}
+  - {fileID: 11400000, guid: 0d89788df86d9e14baec054056c47b8e, type: 2}
+--- !u!114 &5082117776368722736
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2679181794698395931}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 25c59293dbb3ead4e9dbda361b60c4e3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HDY.Forge.ForgeManager
+  tierData: {fileID: 11400000, guid: c76146c9d96ddb744a7c2e954daf9273, type: 2}
+  enhancementTable: {fileID: 11400000, guid: a7f72d674e47b014f8febd8eb247e8b1, type: 2}
+  toolTypeDataList:
+  - {fileID: 11400000, guid: f9692f5e10230d44dab6414baebea866, type: 2}
+  - {fileID: 11400000, guid: a3620e2936622f746983da2e88790df2, type: 2}
+  - {fileID: 11400000, guid: 0d89788df86d9e14baec054056c47b8e, type: 2}
+  instanceRegistry: {fileID: 2178253928380159341}
+  itemDataProvider: {fileID: 3791526114003067158}
+  catalogManager: {fileID: 0}
+  territoryData: {fileID: 0}
+  overheatEpsilon: 0.01
