@@ -781,6 +781,7 @@ GameObject:
   - component: {fileID: 845823779146350221}
   - component: {fileID: 1355334650300166560}
   - component: {fileID: 7314621249000000001}
+  - component: {fileID: 2692254662522887380}
   m_Layer: 3
   m_Name: 0708_Player_KMS
   m_TagString: Player
@@ -841,7 +842,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 19102, guid: 0000000000000000e000000000000000, type: 0}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: 
   m_PanelSettings: {fileID: 11400000, guid: ea47c811135b491d92316667619daf26, type: 2}
   m_ParentUI: {fileID: 0}
@@ -944,6 +945,7 @@ MonoBehaviour:
   input: {fileID: 3809924721451799791}
   followTarget: {fileID: 994990562747414595}
   cameraTransform: {fileID: 0}
+  targetCamera: {fileID: 0}
   targetOffset: {x: 0, y: 0, z: 0}
   cameraDistance: 4
   minDistance: 0.6
@@ -952,6 +954,8 @@ MonoBehaviour:
   minPitch: -35
   maxPitch: 70
   positionSmoothTime: 0.04
+  aimFovReduction: 5
+  zoomSmoothTime: 0.2
   avoidClipping: 1
   collisionRadius: 0.2
   collisionBuffer: 0.1
@@ -994,13 +998,24 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::KMS.PlayerHUD
   stats: {fileID: 3755457853309600604}
+  playerInput: {fileID: 0}
+  hudView: {fileID: 0}
   uiDocument: {fileID: 9096202615754743167}
   healthBarName: player-health-bar
   hungerBarName: player-hunger-bar
   messageOverlayName: message-overlay
   messageLabelName: message-label
+  respawnButtonName: respawn-button
   notificationContainerName: notification-container
   throwGuideName: throw-guide
+  survivalStatusContainerName: health-info-container
+  inventoryButtonName: inventory-button
+  mapButtonName: map-button
+  realTimeLabelName: real-time-label
+  goldLabelName: gold-label
+  territoryData: {fileID: 0}
+  gameTimeManager: {fileID: 0}
+  statusRefreshInterval: 0.25
   notificationDuration: 2.5
 --- !u!114 &3531216659770184960
 MonoBehaviour:
@@ -1039,6 +1054,7 @@ MonoBehaviour:
   input: {fileID: 3809924721451799791}
   movement: {fileID: 8934387602833054668}
   inventory: {fileID: 3531216659770184960}
+  playerStats: {fileID: 0}
   cameraTransform: {fileID: 0}
   animator: {fileID: 363531072513294657}
   catalogManager: {fileID: 0}
@@ -1049,35 +1065,12 @@ MonoBehaviour:
   harvestCooldown: 0.35
   toolUseCooldown: 0.5
   fallbackToolDamage: 1
+  memMeleeItemId: tool_shabby_club
+  memMeleeDistance: 5
+  memMeleeHungerCost: 1
   drawDebugRay: 1
   debugMissColor: {r: 1, g: 0, b: 0, a: 1}
   debugHitColor: {r: 0, g: 1, b: 0, a: 1}
-  logHitTarget: 1
---- !u!114 &7314621249000000001
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2343506189397637329}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 7c861a4ff3b84806beec7f0f42177a81, type: 3}
-  m_Name:
-  m_EditorClassIdentifier: Assembly-CSharp::KMS.Combat.PlayerMeleeAttackController
-  input: {fileID: 3809924721451799791}
-  movement: {fileID: 8934387602833054668}
-  inventory: {fileID: 3531216659770184960}
-  cameraTransform: {fileID: 0}
-  animator: {fileID: 363531072513294657}
-  catalogManager: {fileID: 0}
-  attackLayer:
-    serializedVersion: 2
-    m_Bits: 1049847
-  attackOriginHeight: 1.2
-  drawDebugRay: 1
-  debugMissColor: {r: 1, g: 0, b: 0, a: 1}
-  debugHitColor: {r: 1, g: 0.92, b: 0.016, a: 1}
   logHitTarget: 1
 --- !u!114 &845823779146350221
 MonoBehaviour:
@@ -1113,6 +1106,9 @@ MonoBehaviour:
   movement: {fileID: 8934387602833054668}
   inventory: {fileID: 3531216659770184960}
   hud: {fileID: 5618815184311255004}
+  cameraController: {fileID: 0}
+  trajectoryPreview: {fileID: 0}
+  heldItemSprite: {fileID: 0}
   animator: {fileID: 363531072513294657}
   throwOrigin: {fileID: 5608315201457980184}
   capsulePrefab: {fileID: 5207469710425988775, guid: c1ad0ec31bfa9a54e8519048ed2fe0fa, type: 3}
@@ -1125,6 +1121,56 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 4294967295
   fallbackReleaseNormalizedTime: 0.2
+  aimRotationSpeed: 720
+--- !u!114 &7314621249000000001
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2343506189397637329}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7c861a4ff3b84806beec7f0f42177a81, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::KMS.Combat.PlayerMeleeAttackController
+  input: {fileID: 3809924721451799791}
+  movement: {fileID: 8934387602833054668}
+  inventory: {fileID: 3531216659770184960}
+  cameraTransform: {fileID: 0}
+  animator: {fileID: 363531072513294657}
+  catalogManager: {fileID: 0}
+  attackLayer:
+    serializedVersion: 2
+    m_Bits: 1049847
+  attackOriginHeight: 1.2
+  drawDebugRay: 1
+  debugMissColor: {r: 1, g: 0, b: 0, a: 1}
+  debugHitColor: {r: 1, g: 0.92, b: 0.016, a: 1}
+  logHitTarget: 1
+--- !u!114 &2692254662522887380
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2343506189397637329}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bdf28981476b3fe4588c1bf298a7a555, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::KMS.PlayerDeathController
+  stats: {fileID: 3755457853309600604}
+  input: {fileID: 3809924721451799791}
+  movement: {fileID: 8934387602833054668}
+  inventory: {fileID: 3531216659770184960}
+  hud: {fileID: 5618815184311255004}
+  cameraController: {fileID: 8959405548244434325}
+  capsuleThrowController: {fileID: 1355334650300166560}
+  animator: {fileID: 4410591622897935907}
+  respawnLocationMode: 0
+  respawnHealthPercent: 1
+  respawnInvulnerabilityDuration: 2
 --- !u!1 &2477439907191361803
 GameObject:
   m_ObjectHideFlags: 0

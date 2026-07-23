@@ -37,6 +37,7 @@ namespace KMS
         [SerializeField] private string hungerBarName = "player-hunger-bar";
         [SerializeField] private string messageOverlayName = "message-overlay";
         [SerializeField] private string messageLabelName = "message-label";
+        [SerializeField] private string respawnButtonName = "respawn-button";
         [SerializeField] private string notificationContainerName = "notification-container";
         [SerializeField] private string throwGuideName = "throw-guide";
         [SerializeField] private string survivalStatusContainerName = "health-info-container";
@@ -58,6 +59,7 @@ namespace KMS
         private ToolkitProgressBar toolkitHungerBar;
         private VisualElement toolkitMessageOverlay;
         private ToolkitLabel toolkitMessageLabel;
+        private ToolkitButton toolkitRespawnButton;
         private VisualElement toolkitNotificationContainer;
         private VisualElement toolkitThrowGuide;
         private VisualElement toolkitSurvivalStatus;
@@ -77,6 +79,7 @@ namespace KMS
         private bool hasDisplayedGold;
 
         public bool UsesToolkitHud => uiDocument != null && uiDocument.enabled;
+        public event Action RespawnRequested;
 
         private void Reset()
         {
@@ -224,6 +227,8 @@ namespace KMS
                 boundHudView.InventoryButton.onClick.AddListener(HandleInventoryButtonClicked);
             if (boundHudView.MapButton != null)
                 boundHudView.MapButton.onClick.AddListener(HandleMapButtonClicked);
+            if (boundHudView.RespawnButton != null)
+                boundHudView.RespawnButton.onClick.AddListener(HandleRespawnButtonClicked);
             boundHudView.SetSurvivalStatusVisible(isSurvivalStatusVisible);
         }
 
@@ -235,6 +240,8 @@ namespace KMS
                     boundHudView.InventoryButton.onClick.RemoveListener(HandleInventoryButtonClicked);
                 if (boundHudView.MapButton != null)
                     boundHudView.MapButton.onClick.RemoveListener(HandleMapButtonClicked);
+                if (boundHudView.RespawnButton != null)
+                    boundHudView.RespawnButton.onClick.RemoveListener(HandleRespawnButtonClicked);
             }
             boundHudView = null;
             UnbindToolkitElements();
@@ -250,6 +257,7 @@ namespace KMS
             toolkitHungerBar = UnityEngine.UIElements.UQueryExtensions.Q<ToolkitProgressBar>(root, hungerBarName);
             toolkitMessageOverlay = UnityEngine.UIElements.UQueryExtensions.Q<VisualElement>(root, messageOverlayName);
             toolkitMessageLabel = UnityEngine.UIElements.UQueryExtensions.Q<ToolkitLabel>(root, messageLabelName);
+            toolkitRespawnButton = UnityEngine.UIElements.UQueryExtensions.Q<ToolkitButton>(root, respawnButtonName);
             toolkitNotificationContainer = UnityEngine.UIElements.UQueryExtensions.Q<VisualElement>(root, notificationContainerName);
             toolkitThrowGuide = UnityEngine.UIElements.UQueryExtensions.Q<VisualElement>(root, throwGuideName);
             toolkitSurvivalStatus = UnityEngine.UIElements.UQueryExtensions.Q<VisualElement>(root, survivalStatusContainerName);
@@ -260,6 +268,7 @@ namespace KMS
 
             if (toolkitInventoryButton != null) toolkitInventoryButton.clicked += HandleInventoryButtonClicked;
             if (toolkitMapButton != null) toolkitMapButton.clicked += HandleMapButtonClicked;
+            if (toolkitRespawnButton != null) toolkitRespawnButton.clicked += HandleRespawnButtonClicked;
             if (toolkitSurvivalStatus != null)
                 toolkitSurvivalStatus.style.display = isSurvivalStatusVisible ? DisplayStyle.Flex : DisplayStyle.None;
         }
@@ -268,10 +277,12 @@ namespace KMS
         {
             if (toolkitInventoryButton != null) toolkitInventoryButton.clicked -= HandleInventoryButtonClicked;
             if (toolkitMapButton != null) toolkitMapButton.clicked -= HandleMapButtonClicked;
+            if (toolkitRespawnButton != null) toolkitRespawnButton.clicked -= HandleRespawnButtonClicked;
             toolkitHealthBar = null;
             toolkitHungerBar = null;
             toolkitMessageOverlay = null;
             toolkitMessageLabel = null;
+            toolkitRespawnButton = null;
             toolkitNotificationContainer = null;
             toolkitThrowGuide = null;
             toolkitSurvivalStatus = null;
@@ -283,12 +294,22 @@ namespace KMS
 
         private void HandleInventoryButtonClicked()
         {
+            if (stats != null && !stats.IsAlive) return;
             if (inventoryUi == null) inventoryUi = FindFirstObjectByType<KMS.InventoryDuped.InventoryUI>();
             inventoryUi?.Toggle();
         }
 
-        private void HandleMapPressed() => TogglePreviewMap();
-        private void HandleMapButtonClicked() => OpenPreviewMap();
+        private void HandleMapPressed()
+        {
+            if (stats == null || stats.IsAlive) TogglePreviewMap();
+        }
+
+        private void HandleMapButtonClicked()
+        {
+            if (stats == null || stats.IsAlive) OpenPreviewMap();
+        }
+
+        private void HandleRespawnButtonClicked() => RespawnRequested?.Invoke();
 
         private void OpenPreviewMap()
         {
@@ -359,20 +380,20 @@ namespace KMS
         private void RefreshStatusTexts()
         {
             EnsureGameTimeManager();
-            DateTime currentRealTime = gameTimeManager != null ? gameTimeManager.CurrentRealTimeKst : DateTime.Now;
-            string currentTime = currentRealTime.ToString("HH:mm:ss");
+            string currentTime = gameTimeManager != null
+                ? gameTimeManager.GetRealTimeText()
+                : $"{DateTime.Now.Hour:00}시 {DateTime.Now.Minute:00}분";
             if (currentTime != lastDisplayedTime)
             {
                 lastDisplayedTime = currentTime;
-                string value = $"현재 시간 {currentTime}";
                 if (UsesToolkitHud)
                 {
-                    if (toolkitRealTimeLabel != null) toolkitRealTimeLabel.text = value;
+                    if (toolkitRealTimeLabel != null) toolkitRealTimeLabel.text = currentTime;
                 }
                 else
                 {
                     ResolveHudView();
-                    hudView?.SetRealTime(value);
+                    hudView?.SetRealTime(currentTime);
                 }
             }
 
@@ -447,7 +468,7 @@ namespace KMS
             if (hasDisplayedGold && gold == lastDisplayedGold) return;
             lastDisplayedGold = gold;
             hasDisplayedGold = true;
-            string value = $"보유 골드 {gold:N0}";
+            string value = $"Gold: {gold} ";
             if (UsesToolkitHud)
             {
                 if (toolkitGoldLabel != null) toolkitGoldLabel.text = value;
@@ -492,14 +513,13 @@ namespace KMS
             if (UsesToolkitHud)
             {
                 if (toolkitMessageOverlay != null) toolkitMessageOverlay.style.display = DisplayStyle.Flex;
-                if (toolkitMessageLabel != null) toolkitMessageLabel.text = "Defeated";
+                if (toolkitMessageLabel != null) toolkitMessageLabel.text = "사망했습니다";
             }
             else
             {
                 ResolveHudView();
-                hudView?.SetDefeatOverlayVisible(true, "Defeated");
+                hudView?.SetDefeatOverlayVisible(true, "사망했습니다");
             }
-            ShowNotification("You were defeated.");
         }
 
         private void HandleRevived()
@@ -514,7 +534,7 @@ namespace KMS
                 ResolveHudView();
                 hudView?.SetDefeatOverlayVisible(false, string.Empty);
             }
-            ShowNotification("Revived.");
+            ShowNotification("리스폰했습니다.");
         }
 
         private static void SetToolkitProgress(ToolkitProgressBar bar, float current, float max, string label)

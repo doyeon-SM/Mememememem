@@ -14,8 +14,9 @@ GameObject:
   - component: {fileID: 1455616182525944570}
   - component: {fileID: 768179372815189251}
   - component: {fileID: 6902741669059206344}
+  - component: {fileID: 6902741669059206345}
   m_Layer: 0
-  m_Name: TestCapsule
+  m_Name: KMS_ShabbyCaptureCapsule
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -30,7 +31,7 @@ Transform:
   m_GameObject: {fileID: 5207469710425988775}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.70709, y: 4.95, z: 0.70709}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -138,9 +139,9 @@ Rigidbody:
   m_ImplicitTensor: 1
   m_UseGravity: 1
   m_IsKinematic: 1
-  m_Interpolate: 0
+  m_Interpolate: 1
   m_Constraints: 0
-  m_CollisionDetection: 0
+  m_CollisionDetection: 2
 --- !u!114 &6902741669059206344
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -150,7 +151,33 @@ MonoBehaviour:
   m_GameObject: {fileID: 5207469710425988775}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 70159bc038c6ef04b807413c830918b5, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::HDY.Capture.Capsule
-  CapsuleItemData: {fileID: 11400000, guid: 5f3e94d93dd93e347835ff700515b579, type: 2}
+  m_Script: {fileID: 11500000, guid: 4c16cf26d53449fb8b454ddb7ea83889, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::KMS.KMSCapsuleCaptureSequence
+  capsuleItemData: {fileID: 11400000, guid: 5f3e94d93dd93e347835ff700515b579, type: 2}
+  judgmentDelay: 0.65
+  judgmentMode: 0
+  successCleanupDelay: 0.4
+  failureCleanupDelay: 0.6
+  missLifetime: 8
+  captureVisual: {fileID: 6902741669059206345}
+--- !u!114 &6902741669059206345
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5207469710425988775}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 151a210320d046bf9dd67873e0d2b9f7, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::KMS.KMSCapsuleCaptureVisual
+  capsuleRenderers:
+  - {fileID: 3526675641311923905}
+  shakeAngle: 14
+  shakeSpeed: 15
+  successDuration: 0.32
+  failureDuration: 0.48
+  successColor: {r: 1, g: 0.9, b: 0.25, a: 1}
+  failureColor: {r: 1, g: 0.25, b: 0.2, a: 1}
