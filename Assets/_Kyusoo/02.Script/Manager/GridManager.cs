@@ -31,10 +31,11 @@ public class GridManager : MonoBehaviour
     [Tooltip("외곽 타일 테두리 여백 (값이 크면 Plane이 더 작아집니다)")]
     [SerializeField] private float planeInsetMargin = 1.2f;
 
-    [Tooltip("Green Plane 및 건물 배치 Y축 높이 (기본값: 0.501f)")]
+    [Tooltip("Green Plane의 Y축 높이 (기본값: 0.501f)")]
     [SerializeField] private float innerPlaneY = 0.501f;
 
-    [Tooltip("배치 모드 격자판의 Y축 높이 (Plane 직상단 밀착: 0.502f)")]
+    // 🌟 [추가]: 배치 모드 격자의 Y축 높이 (Plane 직상단 밀착: 0.502f)
+    [Tooltip("배치 모드 격자판의 Y축 높이 (기본값: 0.502f)")]
     [SerializeField] private float gridOverlayY = 0.502f;
 
     [Header("시설 데이터 정보: SO, 프리뷰")]
@@ -48,42 +49,55 @@ public class GridManager : MonoBehaviour
     [SerializeField] private Color buildableColor = new Color(0f, 0.5f, 1f, 0.4f);
     [SerializeField] private Color unbuildableColor = new Color(1f, 0f, 0f, 0.4f);
 
+    // 현재 선택된 시설 데이터, 배치할 때 보이는 프리뷰
     private BuildingData selectedBuildingData;
     private GameObject currentPreviewInstance;
 
+    // 프리뷰 최초 소환시 캐싱하여 프레임마다 호출하여 연산되지 않도록 처리
     private MeshRenderer[] previewRenderers;
 
     private int currentWidth;
     private int currentHeight;
 
+    // tileGrid => 바닥 타일 좌표 / occupiedCells => 해당 좌표에 건물이 존재하는지 여부(빈 타일: false)
     private GameObject[,] tileGrid;
     private Vector3 raycastHitPoint;
     private bool[,] occupiedCells;
 
+    // 영지 전체를 덮는 단일 격자 오버레이 판
     private GameObject globalGridOverlay;
 
+    // 타일에 배치된 시설 정보
     private GameObject[,] buildingObjectsGrid;
     private BuildingData[,] buildingDataGrid;
 
+    // 현재 마우스가 가리키는 시설의 시작점 좌표
     private int currentStartGridX;
     private int currentStartGridZ;
 
+    // 시설의 회전 상태가 반영된 최종 크기
     private int currentTargetWidth;
     private int currentTargetHeight;
 
+    // 시설 배치 가능 여부, 불가능할 때 DOTween 진동여부
     private bool canPlaceCurrent = false;
     private bool isShaking = false;
 
+    // 배치 모드 머티리얼 및 상태
     private Material placeModeMaterial;
     private bool isPlacementMode = false;
 
+    // 시설 배치 기록 관리용 참조
     private BuildRecordManager buildRecordManager;
 
+    // 인벤토리의 설계도 상태에 따라 필터링된 실시간 배치 가능 건물 리스트 캐시
     private List<BuildingData> currentAvailableBuildings = new List<BuildingData>();
 
+    // 배치 모드 진행 도중 실시간으로 증감된 설계도 내역을 기억하여 롤백 시 인벤토리를 완벽하게 원복합니다.
     private List<ItemData> sessionRemovedBlueprints = new List<ItemData>();
     private List<ItemData> sessionAddedBlueprints = new List<ItemData>();
 
+    // 프리뷰 이동 시 기존 시설의 작업 데이터를 임시 보존하는 캐시 구조체
     private class PickedUpBuildingRuntimeState
     {
         public FacilityData facilityData;
@@ -96,14 +110,18 @@ public class GridManager : MonoBehaviour
     public int MouseGridZ { get; private set; }
     public bool IsMouseOnGrid { get; private set; }
 
+    // 이벤트 발행(UI 연결용)
     public static event Action<bool, List<BuildingData>> OnPlacementModeChanged;
     public static event Action OnGridDataChanged;
 
+    // Test전역변수
     private int count = 5;
 
     private void Awake()
     {
         if (buildRecordManager == null) buildRecordManager = FindFirstObjectByType<BuildRecordManager>();
+
+        if (Mathf.Approximately(innerPlaneY, 1.0f)) innerPlaneY = 0.5f;
 
         InitGridMaterials();
     }
@@ -345,27 +363,19 @@ public class GridManager : MonoBehaviour
         {
             globalGridOverlay = GameObject.CreatePrimitive(PrimitiveType.Quad);
 
-            if (globalGridOverlay.TryGetComponent<Collider>(out var col))
-            {
-                col.enabled = false; 
-
-                if (Application.isPlaying)
-                {
-                    Destroy(col); 
-                }
-            }
+            if (globalGridOverlay.TryGetComponent<Collider>(out var col)) DestroyImmediate(col);
 
             globalGridOverlay.name = "GlobalGridOverlay";
             globalGridOverlay.transform.SetParent(floorContainer != null ? floorContainer : transform);
             globalGridOverlay.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+
+            if (globalGridOverlay.TryGetComponent<MeshRenderer>(out MeshRenderer overlayRenderer))
+            {
+                overlayRenderer.material = placeModeMaterial;
+            }
         }
 
-        if (globalGridOverlay.TryGetComponent<MeshRenderer>(out MeshRenderer overlayRenderer))
-        {
-            if (placeModeMaterial == null) placeModeMaterial = CreateGridMaterial(true);
-            overlayRenderer.material = placeModeMaterial;
-        }
-
+        // 🌟 [수정]: Y축 위치를 Green Plane 바로 위(0.501f)로 밀착 배치
         globalGridOverlay.transform.position = new Vector3(currentWidth / 2.0f, gridOverlayY, currentHeight / 2.0f);
         globalGridOverlay.transform.localScale = new Vector3(currentWidth, currentHeight, 1f);
 
@@ -462,15 +472,15 @@ public class GridManager : MonoBehaviour
         float offsetX = currentStartGridX + (currentTargetWidth / 2.0f);
         float offsetZ = currentStartGridZ + (currentTargetHeight / 2.0f);
 
-        float previewY = gridOverlayY + 0.008f;
-        currentPreviewInstance.transform.position = new Vector3(offsetX, previewY, offsetZ);
+        // 프리뷰 Y축 높이를 0.5f로 설정
+        currentPreviewInstance.transform.position = new Vector3(offsetX, 0.5f, offsetZ);
 
         canPlaceCurrent = CheckPlacement(currentStartGridX, currentStartGridZ, currentTargetWidth, currentTargetHeight);
 
-        if (canPlaceCurrent && !string.IsNullOrEmpty(selectedBuildingData.requireBlueprint))
+        if (canPlaceCurrent && selectedBuildingData.requireBlueprint != null)
         {
             var inventory = FindFirstObjectByType<PlayerInventory>();
-            if (inventory == null || inventory.GetItemAmount(selectedBuildingData.requireBlueprint) <= 0)
+            if (inventory == null || inventory.GetItemAmount(selectedBuildingData.requireBlueprint.Item_ID) <= 0)
             {
                 canPlaceCurrent = false;
             }
@@ -501,12 +511,11 @@ public class GridManager : MonoBehaviour
 
     private Material CreateGridMaterial(bool isPlacementMode)
     {
-        Texture2D texture = new Texture2D(64, 64, TextureFormat.RGBA32, false);
+        Texture2D texture = new Texture2D(64, 64);
         texture.filterMode = FilterMode.Point;
         texture.wrapMode = TextureWrapMode.Repeat;
 
-        Color gridBorderColor = new Color(0.1f, 0.1f, 0.1f, 0.45f);
-        Color transparentColor = new Color(0f, 0f, 0f, 0f);
+        Color gridBorderColor = new Color(0.4f, 0.4f, 0.4f, 0.35f);
 
         for (int y = 0; y < 64; y++)
         {
@@ -518,7 +527,7 @@ public class GridManager : MonoBehaviour
                 }
                 else
                 {
-                    texture.SetPixel(x, y, transparentColor);
+                    texture.SetPixel(x, y, Color.clear);
                 }
             }
         }
@@ -533,22 +542,14 @@ public class GridManager : MonoBehaviour
         else
         {
             Shader targetShader = Shader.Find("Universal Render Pipeline/Unlit");
-            if (targetShader == null) targetShader = Shader.Find("Unlit/Transparent");
-            if (targetShader == null) targetShader = Shader.Find("Legacy Shaders/Transparent/Cutout/Unlit");
-
             mat = new Material(targetShader);
+            mat.SetFloat("_Surface", 1f);
+            mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            mat.SetInt("_ZWrite", 0);
+            mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent + 10;
         }
-
-        mat.SetFloat("_Surface", 1f);
-        mat.SetFloat("_Blend", 0f);
-        mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-        mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-        mat.SetInt("_ZWrite", 0);
-        mat.SetOverrideTag("RenderType", "Transparent");
-
-        mat.DisableKeyword("_ALPHATEST_ON");
-        mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-        mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent + 100;
 
         if (mat.HasProperty("_BaseMap")) mat.SetTexture("_BaseMap", texture);
         if (mat.HasProperty("_MainTex")) mat.SetTexture("_MainTex", texture);
@@ -575,15 +576,9 @@ public class GridManager : MonoBehaviour
             return;
         }
 
-        Vector3 realSpawnPosition = new Vector3(
-            currentPreviewInstance.transform.position.x,
-            innerPlaneY,
-            currentPreviewInstance.transform.position.z
-        );
-
         GameObject realBuilding = Instantiate(
             selectedBuildingData.buildingPrefab,
-            realSpawnPosition,
+            currentPreviewInstance.transform.position,
             currentPreviewInstance.transform.rotation,
             floorContainer
         );
@@ -606,7 +601,7 @@ public class GridManager : MonoBehaviour
                 prodRuntime.isProducing = cachedPickedUpState.facilityData.isActive;
                 prodRuntime.currentProgressTime = cachedPickedUpState.facilityData.currentProgressTime;
                 prodRuntime.currentStorageCount = cachedPickedUpState.facilityData.currentStorageCount;
-                prodRuntime.craftingItem = cachedPickedUpState.facilityData.currentCraftingItemId;
+                prodRuntime.craftingItem = FindItemDataInProject(cachedPickedUpState.facilityData.currentCraftingItemId);
                 prodRuntime.UpdateMaxStorage();
 
                 if (prodRuntime.DeployedMems != null && prodRuntime.DeployedMemEntries != null)
@@ -626,8 +621,7 @@ public class GridManager : MonoBehaviour
                 craftRuntime.remainingQuantity = cachedPickedUpState.facilityData.remainingQuantity;
                 craftRuntime.currentProgressTime = cachedPickedUpState.facilityData.currentProgressTime;
                 craftRuntime.currentStorageCount = cachedPickedUpState.facilityData.currentStorageCount;
-                // 🌟 [수정]: string ID 직접 할당
-                craftRuntime.currentCraftingItem = cachedPickedUpState.facilityData.currentCraftingItemId;
+                craftRuntime.currentCraftingItem = FindItemDataInProject(cachedPickedUpState.facilityData.currentCraftingItemId);
 
                 if (craftRuntime.DeployedMems != null && craftRuntime.DeployedMemEntries != null)
                 {
@@ -664,18 +658,13 @@ public class GridManager : MonoBehaviour
             }
         }
 
-        if (!string.IsNullOrEmpty(selectedBuildingData.requireBlueprint))
+        if (selectedBuildingData.requireBlueprint != null)
         {
             var inventory = FindFirstObjectByType<PlayerInventory>();
             if (inventory != null)
             {
-                inventory.RemoveItem(selectedBuildingData.requireBlueprint, 1);
-
-                ItemData bpItem = FindItemDataInProject(selectedBuildingData.requireBlueprint);
-                if (bpItem != null)
-                {
-                    sessionRemovedBlueprints.Add(bpItem);
-                }
+                inventory.RemoveItem(selectedBuildingData.requireBlueprint.Item_ID, 1);
+                sessionRemovedBlueprints.Add(selectedBuildingData.requireBlueprint);
             }
         }
 
@@ -707,7 +696,7 @@ public class GridManager : MonoBehaviour
             cachedPickedUpState.facilityData.isActive = facility.isProducing;
             cachedPickedUpState.facilityData.currentProgressTime = facility.currentProgressTime;
             cachedPickedUpState.facilityData.currentStorageCount = facility.currentStorageCount;
-            cachedPickedUpState.facilityData.currentCraftingItemId = facility.craftingItem ?? "";
+            cachedPickedUpState.facilityData.currentCraftingItemId = facility.craftingItem != null ? facility.craftingItem.Item_ID : "";
 
             if (facility.DeployedMems != null)
                 cachedPickedUpState.deployedMems.AddRange(facility.DeployedMems);
@@ -727,8 +716,7 @@ public class GridManager : MonoBehaviour
             cachedPickedUpState.facilityData.remainingQuantity = craft.remainingQuantity;
             cachedPickedUpState.facilityData.currentProgressTime = craft.currentProgressTime;
             cachedPickedUpState.facilityData.currentStorageCount = craft.currentStorageCount;
-            // 🌟 [수정]: craft.currentCraftingItem이 string이므로 직결 대입
-            cachedPickedUpState.facilityData.currentCraftingItemId = craft.currentCraftingItem ?? "";
+            cachedPickedUpState.facilityData.currentCraftingItemId = craft.currentCraftingItem != null ? craft.currentCraftingItem.Item_ID : "";
 
             if (craft.DeployedMems != null)
                 cachedPickedUpState.deployedMems.AddRange(craft.DeployedMems);
@@ -757,17 +745,13 @@ public class GridManager : MonoBehaviour
 
         Destroy(targetBuilding);
 
-        if (retrievedData != null && !string.IsNullOrEmpty(retrievedData.requireBlueprint))
+        if (retrievedData != null && retrievedData.requireBlueprint != null)
         {
             var inventory = FindFirstObjectByType<PlayerInventory>();
             if (inventory != null)
             {
-                ItemData bpItem = FindItemDataInProject(retrievedData.requireBlueprint);
-                if (bpItem != null)
-                {
-                    inventory.AddItem(bpItem, 1);
-                    sessionAddedBlueprints.Add(bpItem);
-                }
+                inventory.AddItem(retrievedData.requireBlueprint, 1);
+                sessionAddedBlueprints.Add(retrievedData.requireBlueprint);
             }
         }
 
@@ -814,12 +798,6 @@ public class GridManager : MonoBehaviour
             foreach (MeshRenderer renderer in previewRenderers)
             {
                 renderer.material = previewMaterial;
-
-                renderer.sortingOrder = 100;
-                if (renderer.material != null)
-                {
-                    renderer.material.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Overlay;
-                }
             }
         }
     }
@@ -937,7 +915,7 @@ public class GridManager : MonoBehaviour
             float offsetX = snap.startX + (bWidth / 2.0f);
             float offsetZ = snap.startZ + (bHeight / 2.0f);
 
-            Vector3 spawnPos = new Vector3(offsetX, innerPlaneY, offsetZ);
+            Vector3 spawnPos = new Vector3(offsetX, 0.5f, offsetZ);
 
             GameObject restoredBuilding = Instantiate(snap.data.buildingPrefab, spawnPos, snap.rotation, floorContainer);
 
@@ -985,7 +963,7 @@ public class GridManager : MonoBehaviour
                         facility.isProducing = entry.isActive;
                         facility.currentProgressTime = entry.currentProgressTime;
                         facility.currentStorageCount = entry.currentStorageCount;
-                        facility.craftingItem = entry.currentCraftingItemId;
+                        facility.craftingItem = FindItemDataInProject(entry.currentCraftingItemId);
                         facility.UpdateMaxStorage();
 
                         if (facility.DeployedMems != null && facility.DeployedMemEntries != null)
@@ -1005,8 +983,7 @@ public class GridManager : MonoBehaviour
                         craft.remainingQuantity = entry.remainingQuantity;
                         craft.currentProgressTime = entry.currentProgressTime;
                         craft.currentStorageCount = entry.currentStorageCount;
-                        // 🌟 [수정]: craft.currentCraftingItem이 string이므로 직접 대입
-                        craft.currentCraftingItem = entry.currentCraftingItemId;
+                        craft.currentCraftingItem = FindItemDataInProject(entry.currentCraftingItemId);
 
                         if (craft.DeployedMems != null && craft.DeployedMemEntries != null)
                         {
@@ -1031,26 +1008,11 @@ public class GridManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// 🌟 [수정]: ItemCatalogManager에서만 ItemData SO를 탐색
-    /// </summary>
     private ItemData FindItemDataInProject(string itemId)
     {
         if (string.IsNullOrEmpty(itemId)) return null;
-
-        if (ItemCatalogManager.Instance == null)
-        {
-            Debug.LogError($"[ItemCatalogManager] 인스턴스가 존재하지 않아 아이템 '{itemId}'을(를) 탐색할 수 없습니다.");
-            return null;
-        }
-
-        ItemData targetItem = ItemCatalogManager.Instance.FindItemData(itemId);
-        if (targetItem == null)
-        {
-            Debug.LogError($"[ItemCatalogManager] 카탈로그에서 아이템 ID '{itemId}'에 해당하는 ItemData를 찾을 수 없습니다.");
-        }
-
-        return targetItem;
+        ItemData[] allItems = Resources.FindObjectsOfTypeAll<ItemData>();
+        return allItems.FirstOrDefault(item => item != null && item.Item_ID == itemId);
     }
 
     private bool IsPointerOverBlockingUI()
@@ -1138,7 +1100,7 @@ public class GridManager : MonoBehaviour
         {
             if (bData == null) continue;
 
-            if (string.IsNullOrEmpty(bData.requireBlueprint) || (inventory != null && inventory.GetItemAmount(bData.requireBlueprint) > 0))
+            if (bData.requireBlueprint == null || (inventory != null && inventory.GetItemAmount(bData.requireBlueprint.Item_ID) > 0))
             {
                 filteredList.Add(bData);
             }
@@ -1165,17 +1127,6 @@ public class GridManager : MonoBehaviour
         foreach (Transform child in obj.transform)
         {
             SetLayerRecursively(child.gameObject, newLayer);
-        }
-    }
-
-    private void OnValidate()
-    {
-        if (gridOverlayY < innerPlaneY) gridOverlayY = innerPlaneY + 0.001f;
-
-        if (Application.isPlaying)
-        {
-            UpdateInnerSurfacePlane();
-            UpdateGlobalGridOverlay();
         }
     }
 

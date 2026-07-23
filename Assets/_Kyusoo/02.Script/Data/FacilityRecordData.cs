@@ -7,7 +7,6 @@ using UnityEngine.SceneManagement;
 using HDY.Capture;
 using MemSystem.Data;
 using HDY.Mem;
-using HDY.Item;
 
 public class FacilityRecordData : MonoBehaviour, IRecord
 {
@@ -83,7 +82,7 @@ public class FacilityRecordData : MonoBehaviour, IRecord
             if (br.TryGetComponent<ProductionFacilityRuntime>(out var facility))
             {
                 rData.isActive = facility.isProducing;
-                rData.currentCraftingItemId = facility.craftingItem ?? "";
+                rData.currentCraftingItemId = facility.craftingItem != null ? facility.craftingItem.Item_ID : "";
                 rData.currentProgressTime = facility.currentProgressTime;
                 rData.currentStorageCount = facility.currentStorageCount;
 
@@ -92,14 +91,14 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                     var ids = facility.DeployedMemEntries.Where(e => e != null && !string.IsNullOrEmpty(e.KeyId)).Select(e => e.KeyId).ToList();
                     rData.DeployedMemIDs = ids;
 
+                    // 수집망에 GUID 추가
                     foreach (var id in ids) allDeployedMemIDs.Add(id);
                 }
             }
             else if (br.TryGetComponent<ProductionCraftRuntime>(out var craft))
             {
                 rData.isActive = craft.isProducing;
-                // 🌟 [수정]: craft.currentCraftingItem이 string이므로 바로 대입
-                rData.currentCraftingItemId = craft.currentCraftingItem ?? "";
+                rData.currentCraftingItemId = craft.currentCraftingItem != null ? craft.currentCraftingItem.Item_ID : "";
                 rData.targetQuantity = craft.targetQuantity;
                 rData.remainingQuantity = craft.remainingQuantity;
                 rData.currentProgressTime = craft.currentProgressTime;
@@ -118,12 +117,15 @@ public class FacilityRecordData : MonoBehaviour, IRecord
             currentData.placedBuildings.Add(bSave);
         }
 
+        // 🌟 [핵심 요구사항 - 교차 데이터 정산]:
+        // 하드디스크에 쓰기 직전, 세이브 데이터의 멤 창고 장부(serializedCapturedMems)를 전수 조사합니다.
         if (currentData.serializedCapturedMems != null)
         {
             foreach (var memEntry in currentData.serializedCapturedMems)
             {
                 if (memEntry != null && !string.IsNullOrEmpty(memEntry.KeyId))
                 {
+                    // 수집된 배치 멤 GUID 목록에 포함되어 있다면 true, 없다면 (배치 해제되었으므로) false 처리
                     if (allDeployedMemIDs.Contains(memEntry.KeyId))
                     {
                         memEntry.IsActive = true;
@@ -189,7 +191,7 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                 int bWidth = isRotated ? matchData.height : matchData.width;
                 int bHeight = isRotated ? matchData.width : matchData.height;
 
-                Vector3 spawnPos = new Vector3(bSave.gridX + (bWidth / 2.0f), 0.5f, bSave.gridZ + (bHeight / 2.0f));
+                Vector3 spawnPos = new Vector3(bSave.gridX + (bWidth / 2.0f), 0f, bSave.gridZ + (bHeight / 2.0f));
                 GameObject spawnedObj = Instantiate(matchData.buildingPrefab, spawnPos, Quaternion.Euler(0f, bSave.rotationY, 0f), floorContainer);
 
                 if (spawnedObj.TryGetComponent<BuildingRuntime>(out BuildingRuntime br))
@@ -227,7 +229,7 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                     facility.isProducing = entry.isActive;
                     facility.currentProgressTime = entry.currentProgressTime;
                     facility.currentStorageCount = entry.currentStorageCount;
-                    facility.craftingItem = entry.currentCraftingItemId;
+                    facility.craftingItem = RecordManager.Instance.FindItemDataInProject(entry.currentCraftingItemId);
                     facility.UpdateMaxStorage();
 
                     if (facility.DeployedMems != null) facility.DeployedMems.Clear();
@@ -251,8 +253,7 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                     craft.remainingQuantity = entry.remainingQuantity;
                     craft.currentProgressTime = entry.currentProgressTime;
                     craft.currentStorageCount = entry.currentStorageCount;
-                    // 🌟 [수정]: craft.currentCraftingItem이 string이므로 아이템 ID 직접 대입
-                    craft.currentCraftingItem = entry.currentCraftingItemId;
+                    craft.currentCraftingItem = RecordManager.Instance.FindItemDataInProject(entry.currentCraftingItemId);
 
                     if (craft.DeployedMems != null) craft.DeployedMems.Clear();
                     if (craft.DeployedMemEntries != null) craft.DeployedMemEntries.Clear();
@@ -287,27 +288,5 @@ public class FacilityRecordData : MonoBehaviour, IRecord
         RecordManager.Instance.SetPrivateFieldSafely(gridManager, "buildingObjectsGrid", buildingObjectsGrid);
         RecordManager.Instance.SetPrivateFieldSafely(gridManager, "buildingDataGrid", buildingDataGrid);
         RecordManager.Instance.RefreshActivePanelMemSlotsRealtime();
-    }
-
-    /// <summary>
-    /// 🌟 [수정]: ItemCatalogManager에서만 탐색하는 방식 적용
-    /// </summary>
-    private ItemData FindItemDataInProject(string itemId)
-    {
-        if (string.IsNullOrEmpty(itemId)) return null;
-
-        if (ItemCatalogManager.Instance == null)
-        {
-            Debug.LogError($"[ItemCatalogManager] 인스턴스가 존재하지 않아 아이템 '{itemId}'을(를) 탐색할 수 없습니다.");
-            return null;
-        }
-
-        ItemData targetItem = ItemCatalogManager.Instance.FindItemData(itemId);
-        if (targetItem == null)
-        {
-            Debug.LogError($"[ItemCatalogManager] 카탈로그에서 아이템 ID '{itemId}'에 해당하는 ItemData를 찾을 수 없습니다.");
-        }
-
-        return targetItem;
     }
 }

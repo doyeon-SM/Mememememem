@@ -20,6 +20,7 @@ public class RecordManager : MonoBehaviour
     private Dictionary<string, FacilityData> facilityDatabase = new Dictionary<string, FacilityData>();
     public bool IsBlueprintGiven { get; private set; }
 
+    // 씬 초기화 및 데이터 배포 중 실시간 저장이 발동해 파일이 오염되는 현상 차단
     public static bool IsLoadingData { get; private set; } = false;
 
     private void Awake()
@@ -52,26 +53,20 @@ public class RecordManager : MonoBehaviour
     {
         IsLoadingData = true;
 
-        try
-        {
-            string sceneName = scene.name.ToLower();
+        string sceneName = scene.name.ToLower();
 
-            if (sceneName.Contains("territory"))
-            {
-                Debug.Log("<color=cyan>[RecordManager]</color> 영지 씬 로드 감지 ➡️ 즉시 데이터 완전 복구 개시");
-                LoadAndBroadcastTerritoryData(SceneType.Territory);
-            }
-            else if (sceneName.Contains("main_world"))
-            {
-                Debug.Log("<color=yellow>[RecordManager]</color> 탐험 씬(Main_World) 로드 감지 ➡️ 플레이어 귀속 데이터 한정 복구 개시");
-                LoadAndBroadcastTerritoryData(SceneType.Exploration);
-            }
-        }
-        finally
+        if (sceneName.Contains("territory"))
         {
-            // 🌟 [수정]: 예외가 발생하더라도 IsLoadingData가 false로 안전하게 해제되도록 보장
-            IsLoadingData = false;
+            Debug.Log("<color=cyan>[RecordManager]</color> 영지 씬 로드 감지 ➡️ 즉시 데이터 완전 복구 개시");
+            LoadAndBroadcastTerritoryData(SceneType.Territory);
         }
+        else if (sceneName.Contains("main_world"))
+        {
+            Debug.Log("<color=yellow>[RecordManager]</color> 탐험 씬(Main_World) 로드 감지 ➡️ 플레이어 귀속 데이터 한정 복구 개시");
+            LoadAndBroadcastTerritoryData(SceneType.Exploration);
+        }
+
+        IsLoadingData = false;
     }
 
     public void LoadAndBroadcastTerritoryData(SceneType sceneType)
@@ -103,27 +98,36 @@ public class RecordManager : MonoBehaviour
             IsBlueprintGiven = saveData.isBlueprintGiven;
 
             // 🌟 [결정론적 복구 순서 정사]
+
+            // 1순위: 영지 기초 데이터 복구 (영지 레벨, 확장 상태)
             var territoryRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "TerritoryRecordData");
             territoryRecord?.ApplyData(saveData, sceneType);
 
+            // 2순위: 멤 저장소 데이터 복구 (시설이 GUID를 찾기 위해 필수)
             var memRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "MemRecordData");
             memRecord?.ApplyData(saveData, sceneType);
 
+            // 3순위: 플레이어 인벤토리 데이터 복구
             var inventoryRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "PlayerInventoryRecord");
             inventoryRecord?.ApplyData(saveData, sceneType);
 
+            // 4순위: 시설 배치 및 멤 근무 배정 복구 (2순위 멤 데이터를 기반으로 실물 배치)
             var facilityRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "FacilityRecordData");
             facilityRecord?.ApplyData(saveData, sceneType);
 
+            // 5순위: 보급고 음식 데이터 복구 (오프라인 소모 연산의 기준 음식량 세팅)
             var foodRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "ConsumeFoodRecordData");
             foodRecord?.ApplyData(saveData, sceneType);
 
+            // 6순위: 인게임 시간 복구 (GameTimeManager)
             var timeRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "TimeRecordData");
             timeRecord?.ApplyData(saveData, sceneType);
 
+            // 7순위: 오프라인 시간 보상 및 정산 시뮬레이션 (1~6번 복구 완료 후 최종 집행)
             var offlineRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "OfflineRewardRecordData");
             offlineRecord?.ApplyData(saveData, sceneType);
 
+            // 8순위: 그 외 나머지 확장 레코드 복구
             foreach (var record in subRecords)
             {
                 if (record == territoryRecord || record == memRecord || record == inventoryRecord ||
@@ -177,8 +181,6 @@ public class RecordManager : MonoBehaviour
 
     public ContainerData PackContainerData(InventoryContainer container)
     {
-        if (container == null) return null;
-
         var data = new ContainerData { width = container.width, height = container.height };
         if (container.slots != null)
         {
@@ -202,40 +204,21 @@ public class RecordManager : MonoBehaviour
 
         target.width = source.width;
         target.height = source.height;
-
-        int requiredCapacity = source.width * source.height;
-        target.slots = new ItemStack[requiredCapacity];
-
-        for (int i = 0; i < requiredCapacity; i++)
+        target.slots = new ItemStack[source.slots.Count];
+        for (int i = 0; i < source.slots.Count; i++)
         {
             target.slots[i] = new ItemStack();
-
-            if (i < source.slots.Count && source.slots[i] != null && !string.IsNullOrEmpty(source.slots[i].itemId) && source.slots[i].amount > 0)
-            {
+            if (source.slots[i] != null && !string.IsNullOrEmpty(source.slots[i].itemId) && source.slots[i].amount > 0)
                 target.slots[i].Set(source.slots[i].itemId, source.slots[i].amount);
-            }
             else
-            {
                 target.slots[i].Clear();
-            }
         }
     }
 
-    /// <summary>
-    /// 🌟 [수정]: Resources.FindObjectsOfTypeAll 제거 -> ItemCatalogManager로 일원화
-    /// </summary>
     public ItemData FindItemDataInProject(string itemId)
     {
         if (string.IsNullOrEmpty(itemId)) return null;
-
-        if (ItemCatalogManager.Instance != null)
-        {
-            ItemData catalogItem = ItemCatalogManager.Instance.FindItemData(itemId);
-            if (catalogItem != null) return catalogItem;
-        }
-
-        Debug.LogError($"[RecordManager] ItemCatalogManager에서 '{itemId}' 아이템을 찾을 수 없습니다.");
-        return null;
+        return Resources.FindObjectsOfTypeAll<ItemData>().FirstOrDefault(item => item != null && item.Item_ID == itemId);
     }
 
     public void SetPrivateFieldSafely(object targetObject, string fieldName, object valueToSet)
@@ -257,6 +240,7 @@ public class RecordManager : MonoBehaviour
 
     private IEnumerator SpawnWarehouseWanderersWithDelayRoutine()
     {
+        // TerritoryTestNavMeshBaker의 initialBakeDelay(0.5초)보다 조금 더 대기
         yield return new WaitForSeconds(0.6f);
 
         if (TerritoryWanderSpawner.Instance == null)

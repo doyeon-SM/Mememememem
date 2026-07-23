@@ -78,6 +78,8 @@ public class CraftingPanelUI : MonoBehaviour
     private bool isUpdatingQuantitySystem = false;
     private Coroutine errorFeedbackCoroutine;
 
+    private const float VIRTUAL_BASE_CRAFT_TIME = 20f;
+
     private void Awake()
     {
         if (Instance == null) Instance = this;
@@ -102,12 +104,23 @@ public class CraftingPanelUI : MonoBehaviour
     {
         if (targetFacility == null) return;
 
-        // 🌟 [수정]: string 변수 검사로 전환
-        if (currentUIState == CraftingUIState.Crafting && !string.IsNullOrEmpty(targetFacility.currentCraftingItem) && targetFacility.totalRequiredTime > 0f)
+        if (currentUIState == CraftingUIState.Crafting && targetFacility.currentCraftingItem != null && targetFacility.totalRequiredTime > 0f)
         {
             float progressNormalized = targetFacility.currentProgressTime / targetFacility.totalRequiredTime;
             if (progressBar != null) progressBar.value = progressNormalized;
 
+            /* 🌟 [임시 주석 처리]: 굶주림(식량 부족)으로 가동 중지되었을 때 UI 상에 <color=red>중지</color> 텍스트 노출 조건 분기 무력화
+            if (targetFacility.isProducing)
+            {
+                if (durationText != null) durationText.text = $"{Mathf.Clamp(progressNormalized * 100f, 0f, 100f):F0}%";
+            }
+            else
+            {
+                if (durationText != null) durationText.text = $"<color=red>중지 ({Mathf.Clamp(progressNormalized * 100f, 0f, 100f):F0}%)</color>";
+            }
+            */
+
+            // 허기 유무 및 보급 상태와 상관없이 언제나 백분율 퍼센트 텍스트만 고정 출력되도록 수정
             if (durationText != null) durationText.text = $"{Mathf.Clamp(progressNormalized * 100f, 0f, 100f):F0}%";
         }
 
@@ -126,8 +139,7 @@ public class CraftingPanelUI : MonoBehaviour
 
         RefreshStaticUI();
 
-        // 🌟 [수정]: string 유효성 검사
-        if (targetFacility.isProducing || !string.IsNullOrEmpty(targetFacility.currentCraftingItem))
+        if (targetFacility.isProducing || targetFacility.currentCraftingItem != null)
         {
             currentUIState = CraftingUIState.Crafting;
         }
@@ -178,15 +190,10 @@ public class CraftingPanelUI : MonoBehaviour
             GenerateRequiredMaterialListUI();
         }
 
-        // 🌟 [수정]: Crafting UI 모드 시 string ID를 기반으로 ItemCatalogManager에서 UI 정보 바인딩
-        if (currentUIState == CraftingUIState.Crafting && !string.IsNullOrEmpty(targetFacility.currentCraftingItem))
+        if (currentUIState == CraftingUIState.Crafting && targetFacility.currentCraftingItem != null)
         {
-            ItemData currentItem = FindItemDataInCatalog(targetFacility.currentCraftingItem);
-            if (currentItem != null)
-            {
-                if (craftingItemIcon != null) craftingItemIcon.sprite = currentItem.ItemIcon;
-                if (craftingItemName != null) craftingItemName.text = currentItem.ItemName;
-            }
+            if (craftingItemIcon != null) craftingItemIcon.sprite = targetFacility.currentCraftingItem.ItemIcon;
+            if (craftingItemName != null) craftingItemName.text = targetFacility.currentCraftingItem.ItemName;
         }
     }
 
@@ -218,9 +225,7 @@ public class CraftingPanelUI : MonoBehaviour
             }
             else
             {
-                // 🌟 [수정]: 하드코딩 20초 제거 -> 레시피의 time 값 연동
-                float baseDuration = activeSelectedRecipeData != null ? activeSelectedRecipeData.time : 20f;
-                float singleTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, targetFacility.DeployedMems);
+                float singleTime = ProductionCalculator.CalculateFinalProductionTime(VIRTUAL_BASE_CRAFT_TIME, targetFacility.DeployedMems);
                 float totalEstimatedTime = singleTime * selectedQuantity;
                 craftingDurationText.text = $"제작 예상시간: {totalEstimatedTime:F1}초 (개당 {singleTime:F1}초)";
             }
@@ -308,7 +313,13 @@ public class CraftingPanelUI : MonoBehaviour
         {
             if (requestData == null || string.IsNullOrEmpty(requestData.Item_ID)) continue;
 
-            ItemData materialItemData = FindItemDataInCatalog(requestData.Item_ID);
+            RecipeUnlockManager recipeManager = Object.FindFirstObjectByType<RecipeUnlockManager>();
+            ItemData materialItemData = null;
+
+            if (recipeManager != null)
+            {
+                materialItemData = recipeManager.FindRecipeItemData(requestData.Item_ID);
+            }
 
             if (materialItemData != null)
             {
@@ -365,9 +376,22 @@ public class CraftingPanelUI : MonoBehaviour
         if (targetFacility == null || selectedItem == null) return;
 
         activeSelectedRecipe = selectedItem;
+        activeSelectedRecipeData = null;
 
-        // 🌟 [수정]: Resources 탐색 제거 -> ItemCatalogManager 전용 레시피 탐색으로 변경
-        activeSelectedRecipeData = FindRecipeDataInCatalog(selectedItem.Item_ID);
+        RecipeData[] allRecipesInProject = Resources.FindObjectsOfTypeAll<RecipeData>();
+        foreach (RecipeData recipe in allRecipesInProject)
+        {
+            if (recipe != null && recipe.Recipe_Item_ID == selectedItem.Item_ID)
+            {
+                activeSelectedRecipeData = recipe;
+                break;
+            }
+        }
+
+        if (activeSelectedRecipeData == null)
+        {
+            Debug.LogWarning($"RecipeData SO 제작법을 프로젝트 내부에서 탐색해내지 못했습니다.");
+        }
 
         maxCraftableQuantity = CalculateMaxCraftableLimitAmount(selectedItem);
 
@@ -464,8 +488,7 @@ public class CraftingPanelUI : MonoBehaviour
             }
         }
 
-        // 🌟 [수정]: ItemData 대신 string ID 전달
-        targetFacility.SelectAndStartCrafting(activeSelectedRecipe.Item_ID, selectedQuantity);
+        targetFacility.SelectAndStartCrafting(activeSelectedRecipe, selectedQuantity);
         currentUIState = CraftingUIState.Crafting;
         RefreshCraftingModeUI();
     }
@@ -564,49 +587,5 @@ public class CraftingPanelUI : MonoBehaviour
         RefreshStaticUI();
         RefreshCraftingModeUI();
         UpdateStorageText();
-    }
-
-    /// <summary>
-    /// ItemCatalogManager 전용 ItemData 탐색
-    /// </summary>
-    private ItemData FindItemDataInCatalog(string itemId)
-    {
-        if (string.IsNullOrEmpty(itemId)) return null;
-
-        if (ItemCatalogManager.Instance == null)
-        {
-            Debug.LogError($"[ItemCatalogManager] 인스턴스가 존재하지 않아 아이템 '{itemId}'을(를) 탐색할 수 없습니다.");
-            return null;
-        }
-
-        ItemData targetItem = ItemCatalogManager.Instance.FindItemData(itemId);
-        if (targetItem == null)
-        {
-            Debug.LogError($"[ItemCatalogManager] 카탈로그에서 아이템 ID '{itemId}'에 해당하는 ItemData를 찾을 수 없습니다.");
-        }
-
-        return targetItem;
-    }
-
-    /// <summary>
-    /// ItemCatalogManager 전용 RecipeData 탐색
-    /// </summary>
-    private HDY.Recipe.RecipeData FindRecipeDataInCatalog(string recipeItemId)
-    {
-        if (string.IsNullOrEmpty(recipeItemId)) return null;
-
-        if (ItemCatalogManager.Instance == null)
-        {
-            Debug.LogError($"[ItemCatalogManager] 인스턴스가 존재하지 않아 레시피 '{recipeItemId}'을(를) 탐색할 수 없습니다.");
-            return null;
-        }
-
-        HDY.Recipe.RecipeData targetRecipe = ItemCatalogManager.Instance.FindRecipeData(recipeItemId);
-        if (targetRecipe == null)
-        {
-            Debug.LogError($"[ItemCatalogManager] 카탈로그에서 레시피 ID '{recipeItemId}'에 해당하는 RecipeData를 찾을 수 없습니다.");
-        }
-
-        return targetRecipe;
     }
 }
