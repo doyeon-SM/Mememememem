@@ -62,7 +62,13 @@ public class PlayerInventoryRecord : MonoBehaviour, IRecord
         if (liveInventory == null) return;
 
         SaveData currentData = RecordManager.Instance.ReadRawSaveFileOnly();
-        if (currentData == null) currentData = new SaveData();
+
+        // 🌟 [수정]: 세이브 파일 읽기 실패 시 데이터 초기화로 인한 기존 데이터 유실 방지
+        if (currentData == null)
+        {
+            Debug.LogWarning("[PlayerInventoryRecord] 기존 세이브 데이터를 읽어오지 못해 인벤토리 단독 저장을 중단합니다.");
+            return;
+        }
 
         if (liveInventory.inventory != null) currentData.playerInventoryData = RecordManager.Instance.PackContainerData(liveInventory.inventory);
         if (liveInventory.quickSlots != null) currentData.playerQuickSlotsData = RecordManager.Instance.PackContainerData(liveInventory.quickSlots);
@@ -78,16 +84,22 @@ public class PlayerInventoryRecord : MonoBehaviour, IRecord
     public void ApplyData(SaveData saveData, SceneType sceneType)
     {
         RefreshInventoryReference();
-        if (liveInventory == null) return;
+        if (liveInventory == null)
+        {
+            Debug.LogWarning("[PlayerInventoryRecord] 씬에서 PlayerInventory 참조를 찾을 수 없습니다.");
+            return;
+        }
 
-        if (saveData.playerInventoryData != null)
+        // 🌟 [수정]: PlayerInventory 내부 컨테이너 생성 여부 방어막
+        if (liveInventory.inventory != null && saveData.playerInventoryData != null)
+        {
             RecordManager.Instance.UnpackContainerData(saveData.playerInventoryData, liveInventory.inventory);
+        }
 
-        if (saveData.playerQuickSlotsData != null)
+        if (liveInventory.quickSlots != null && saveData.playerQuickSlotsData != null)
+        {
             RecordManager.Instance.UnpackContainerData(saveData.playerQuickSlotsData, liveInventory.quickSlots);
 
-        if (liveInventory.quickSlots != null)
-        {
             liveInventory.selectedQuickSlotIndex = liveInventory.quickSlots.IsValidIndex(saveData.selectedQuickSlotIndex)
                 ? saveData.selectedQuickSlotIndex : 0;
         }

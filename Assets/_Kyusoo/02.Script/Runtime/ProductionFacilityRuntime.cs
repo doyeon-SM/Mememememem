@@ -4,6 +4,7 @@ using HDY.Item;
 using MemSystem.Data;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 public class ProductionFacilityRuntime : MonoBehaviour
@@ -14,7 +15,9 @@ public class ProductionFacilityRuntime : MonoBehaviour
 
     [Header("실시간 생산 상태 변수")]
     public bool isProducing = false;
-    public ItemData craftingItem;
+
+    public string craftingItem; 
+
     public float totalRequiredTime;
     public float currentProgressTime = 0f;
     public float baseProductionTime = 30f;
@@ -72,7 +75,8 @@ public class ProductionFacilityRuntime : MonoBehaviour
     /// </summary>
     public void CheckProductionCondition()
     {
-        if (craftingItem == null || addMems.Count == 0)
+        // 🌟 [수정]: string.IsNullOrEmpty로 유효성 검사
+        if (string.IsNullOrEmpty(craftingItem) || addMems.Count == 0)
         {
             isProducing = false;
             currentProgressTime = 0f;
@@ -111,7 +115,6 @@ public class ProductionFacilityRuntime : MonoBehaviour
         }
     }
 
-
     /// <summary>
     /// UI에서 특정 멤을 클릭하여 배치할때 호출
     /// </summary>
@@ -135,7 +138,7 @@ public class ProductionFacilityRuntime : MonoBehaviour
         if (addMems.Count >= maxCapacity)
         {
             // 배치교체 필요
-            Debug.LogWarning($"배치 인원이 가득 찼습니다.");
+            Debug.LogWarning($"배치 인원이 가득 찼증니다.");
             return false;
         }
 
@@ -156,7 +159,7 @@ public class ProductionFacilityRuntime : MonoBehaviour
         if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
         OnMemDeploymentChanged?.Invoke();
 
-        if(buildingData != null)
+        if (buildingData != null)
         {
             MemAdded?.Invoke(buildingData.buildingType, targetMem, true);
         }
@@ -193,7 +196,6 @@ public class ProductionFacilityRuntime : MonoBehaviour
         }
     }
 
-
     /// <summary>
     /// 아이템 1개 생성이 완료되었을 때, 시설 내부에 저장되도록 처리
     /// </summary>
@@ -204,7 +206,9 @@ public class ProductionFacilityRuntime : MonoBehaviour
         // 아이템 수량 텍스트 수정처리(Event발행, currentStorageCount)
 
         currentProgressTime = 0f;
-        if (craftingItem != null)
+
+        // 🌟 [수정]: string.IsNullOrEmpty로 유효성 검사
+        if (!string.IsNullOrEmpty(craftingItem))
         {
             totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseProductionTime, addMems);
         }
@@ -216,17 +220,50 @@ public class ProductionFacilityRuntime : MonoBehaviour
     public void StoredItems()
     {
         if (currentStorageCount <= 0) return;
-        if (craftingItem == null) return;
+        if (string.IsNullOrEmpty(craftingItem)) return;
+
+        // 🌟 [수정]: ItemID(string) 기반으로 실제 ItemData SO 탐색
+        ItemData targetItemData = FindItemDataInProject(craftingItem);
+        if (targetItemData == null)
+        {
+            Debug.LogWarning($"[ProductionFacilityRuntime] 아이템 ID '{craftingItem}'에 해당하는 ItemData를 찾지 못했습니다.");
+            return;
+        }
 
         int amountToCollect = currentStorageCount;
 
         WarehouseInventory warehouse = FindFirstObjectByType<WarehouseInventory>();
         if (warehouse != null)
         {
-            int remaining = warehouse.AddItem(craftingItem, amountToCollect);
+            int remaining = warehouse.AddItem(targetItemData, amountToCollect);
             currentStorageCount = remaining;
         }
+    }
 
+    /// <summary>
+    /// ItemCatalog 또는 Resources에서 Item_ID와 일치하는 ItemData SO를 탐색합니다.
+    /// </summary>
+    /// <summary>
+    /// ItemCatalogManager에서만 Item_ID와 일치하는 ItemData SO를 탐색합니다.
+    /// 존재하지 않거나 카탈로그가 없으면 에러 로그를 출력합니다.
+    /// </summary>
+    private ItemData FindItemDataInProject(string itemId)
+    {
+        if (string.IsNullOrEmpty(itemId)) return null;
+
+        if (ItemCatalogManager.Instance == null)
+        {
+            Debug.LogError($"[ItemCatalogManager] 인스턴스가 존재하지 않아 아이템 '{itemId}'을(를) 탐색할 수 없습니다.");
+            return null;
+        }
+
+        ItemData targetItem = ItemCatalogManager.Instance.FindItemData(itemId);
+        if (targetItem == null)
+        {
+            Debug.LogError($"[ItemCatalogManager] 카탈로그에서 아이템 ID '{itemId}'에 해당하는 ItemData를 찾을 수 없습니다.");
+        }
+
+        return targetItem;
     }
 
     /// <summary>
