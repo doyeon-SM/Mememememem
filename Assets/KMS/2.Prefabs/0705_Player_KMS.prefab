@@ -2281,6 +2281,7 @@ GameObject:
   - component: {fileID: 1417337025289009185}
   - component: {fileID: 200104005170207881}
   - component: {fileID: 6654203113056198401}
+  - component: {fileID: 137336691908915984}
   m_Layer: 3
   m_Name: 0705_Player_KMS
   m_TagString: Player
@@ -2424,6 +2425,10 @@ MonoBehaviour:
   jumpHungerCost: 8
   sprintHungerCostPerSecond: 6
   externalForceDecay: 8
+  ladderClimbSpeed: 3
+  ladderSlideDownSpeed: 1.2
+  ladderSnapSpeed: 12
+  ladderInputThreshold: 0.1
 --- !u!114 &1362890632475711223
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2439,6 +2444,7 @@ MonoBehaviour:
   input: {fileID: 4979024867073124646}
   followTarget: {fileID: 1267460771281998772}
   cameraTransform: {fileID: 0}
+  targetCamera: {fileID: 0}
   targetOffset: {x: 0, y: 0, z: 0}
   cameraDistance: 4
   minDistance: 0.6
@@ -2447,6 +2453,8 @@ MonoBehaviour:
   minPitch: -35
   maxPitch: 70
   positionSmoothTime: 0.04
+  aimFovReduction: 5
+  zoomSmoothTime: 0.2
   avoidClipping: 1
   collisionRadius: 0.2
   collisionBuffer: 0.1
@@ -2489,12 +2497,24 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::KMS.PlayerHUD
   stats: {fileID: 4096632536079421107}
+  playerInput: {fileID: 0}
+  hudView: {fileID: 0}
   uiDocument: {fileID: 438533187111882974}
   healthBarName: player-health-bar
   hungerBarName: player-hunger-bar
   messageOverlayName: message-overlay
   messageLabelName: message-label
+  respawnButtonName: respawn-button
   notificationContainerName: notification-container
+  throwGuideName: throw-guide
+  survivalStatusContainerName: health-info-container
+  inventoryButtonName: inventory-button
+  mapButtonName: map-button
+  realTimeLabelName: real-time-label
+  goldLabelName: gold-label
+  territoryData: {fileID: 0}
+  gameTimeManager: {fileID: 0}
+  statusRefreshInterval: 0.25
   notificationDuration: 2.5
 --- !u!114 &6654203113056198401
 MonoBehaviour:
@@ -2517,6 +2537,30 @@ MonoBehaviour:
     height: 1
     slots: []
   selectedQuickSlotIndex: 0
+  catalogManager: {fileID: 0}
+--- !u!114 &137336691908915984
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7918483858181545715}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bdf28981476b3fe4588c1bf298a7a555, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::KMS.PlayerDeathController
+  stats: {fileID: 4096632536079421107}
+  input: {fileID: 4979024867073124646}
+  movement: {fileID: 4405603357810947506}
+  inventory: {fileID: 6654203113056198401}
+  hud: {fileID: 200104005170207881}
+  cameraController: {fileID: 1362890632475711223}
+  capsuleThrowController: {fileID: 0}
+  animator: {fileID: 3642636977771523299}
+  respawnLocationMode: 0
+  respawnHealthPercent: 1
+  respawnInvulnerabilityDuration: 2
 --- !u!1 &8029276847297385196
 GameObject:
   m_ObjectHideFlags: 0

@@ -217,6 +217,12 @@ namespace KMS
             if (heldItemSprite != null) heldItemSprite.SetThrowVisualSuppressed(true);
         }
 
+        /// <summary>사망 등 외부 상태 전환에서 진행 중인 투척을 안전하게 취소한다.</summary>
+        public void CancelActiveThrow()
+        {
+            CancelThrow(false);
+        }
+
         public void FinishThrowFromAnimationEvent()
         {
             if (state != ThrowState.Throwing) return;

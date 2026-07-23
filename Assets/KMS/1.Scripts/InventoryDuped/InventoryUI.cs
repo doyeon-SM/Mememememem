@@ -21,6 +21,9 @@ namespace KMS.InventoryDuped
         public ItemDragUI itemDragUI;
         public ItemTooltipUI itemTooltipUI;
 
+        [Header("정렬")]
+        [SerializeField] private InventorySortUI sortUI;
+
         [Header("KMS References")]
         [SerializeField] private KMS.PlayerInput playerInput;
         [SerializeField] private KMS.PlayerMovement playerMovement;
@@ -70,6 +73,7 @@ namespace KMS.InventoryDuped
             SubscribeInventoryEvents();
             SubscribeInputEvents();
             SubscribeDebugGiveItemButton();
+            SubscribeSortUI();
 
             isInventoryOpen = false;
             if (inventoryPanel != null) inventoryPanel.SetActive(false);
@@ -83,6 +87,7 @@ namespace KMS.InventoryDuped
             UnsubscribeInventoryEvents();
             UnsubscribeInputEvents();
             UnsubscribeDebugGiveItemButton();
+            UnsubscribeSortUI();
         }
 
         private void OnDisable()
@@ -221,6 +226,37 @@ namespace KMS.InventoryDuped
             if (cameraController == null) cameraController = FindFirstObjectByType<KMS.PlayerCameraController>();
             if (playerHud == null) playerHud = FindFirstObjectByType<KMS.PlayerHUD>();
             if (memDexLauncher == null) memDexLauncher = FindFirstObjectByType<KMS.KMSMemDexLauncher>();
+            if (sortUI == null && inventoryPanel != null)
+            {
+                sortUI = inventoryPanel.GetComponentInChildren<InventorySortUI>(true);
+            }
+        }
+
+        private void SubscribeSortUI()
+        {
+            if (sortUI != null) sortUI.OnSortRequested += HandleSortRequested;
+        }
+
+        private void UnsubscribeSortUI()
+        {
+            if (sortUI != null) sortUI.OnSortRequested -= HandleSortRequested;
+        }
+
+        private void HandleSortRequested(InventorySortCriteria criteria)
+        {
+            if (!isInventoryOpen || playerInventory == null) return;
+
+            bool isHoldingItem = heldStack != null && !heldStack.IsEmpty;
+            bool isDragging = dragSource != null;
+            bool isChoosingQuantity = quantityPopup != null && quantityPopup.IsOpen;
+            if (isHoldingItem || isDragging || isChoosingQuantity)
+            {
+                Debug.Log("[InventoryUI] 아이템 이동 또는 수량 선택 중에는 정렬할 수 없습니다.", this);
+                return;
+            }
+
+            HideItemTooltip();
+            playerInventory.ApplyInventorySort(criteria);
         }
 
         private void SelectQuickSlot(int index)

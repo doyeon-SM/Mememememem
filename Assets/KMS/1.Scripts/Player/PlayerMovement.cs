@@ -63,6 +63,7 @@ namespace KMS
         public float CurrentSpeed { get; private set; }
         public float VerticalVelocity => verticalVelocity;
         public Vector3 LastMoveDirection { get; private set; } = Vector3.forward;
+        public bool IsDead => isDead;
 
         private static readonly int SpeedHash = Animator.StringToHash("Speed");
         private static readonly int GroundedHash = Animator.StringToHash("Grounded");
@@ -77,6 +78,7 @@ namespace KMS
         private Vector3 externalVelocity;
         private LadderVolume candidateLadder;
         private LadderVolume activeLadder;
+        private bool isDead;
 
         private void Reset()
         {
@@ -115,6 +117,12 @@ namespace KMS
 
         private void Update()
         {
+            if (isDead)
+            {
+                UpdateAnimator();
+                return;
+            }
+
             if (activeLadder != null)
             {
                 HandleLadderMovement();
@@ -154,6 +162,19 @@ namespace KMS
             verticalVelocity = 0f;
             externalVelocity = Vector3.zero;
             CurrentSpeed = 0f;
+        }
+
+        public void SetDead(bool dead)
+        {
+            isDead = dead;
+            if (!dead) return;
+
+            activeLadder = null;
+            candidateLadder = null;
+            IsSprinting = false;
+            coyoteTimer = 0f;
+            jumpBufferTimer = 0f;
+            ResetMovementForces();
         }
 
         private void TryEnterLadder()

@@ -2833,6 +2833,7 @@ GameObject:
   - component: {fileID: 2109728097256706564}
   - component: {fileID: 6812409213719045061}
   - component: {fileID: 6812409213719045062}
+  - component: {fileID: 4783686582673597580}
   m_Layer: 3
   m_Name: 0720_Player_KMS
   m_TagString: Player
@@ -2840,52 +2841,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &6812409213719045061
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5320301024596143200}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 846f9bbc7192499cb2beca31ec1485cd, type: 3}
-  m_Name:
-  m_EditorClassIdentifier: Assembly-CSharp::KMS.KMSMemCaptureFocusController
-  inventory: {fileID: 9124669202358280069}
-  view: {fileID: 6812409213719045062}
-  cameraTransform: {fileID: 0}
-  maxFocusDistance: 30
-  focusLayers:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  raycastBufferSize: 32
-  showEquipCapsuleMessage: 1
-  equipCapsuleMessage: "\uCEA1\uC290\uC744 \uC7A5\uCC29\uD558\uC138\uC694"
---- !u!114 &6812409213719045062
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5320301024596143200}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 9f9b65cbd78449a0a835743b55da028b, type: 3}
-  m_Name:
-  m_EditorClassIdentifier: Assembly-CSharp::KMS.KMSMemCaptureFocusView
-  backgroundSprite: {fileID: 21300000, guid: 56be09f0a13daec40b94fe81070d4435, type: 3}
-  fontAsset: {fileID: 11400000, guid: 4b7ce8b83d56017438c4d21b29279bd6, type: 2}
-  panelColor: {r: 1, g: 1, b: 1, a: 0.94}
-  nameColor: {r: 0.08, g: 0.08, b: 0.08, a: 1}
-  messageColor: {r: 0.35, g: 0.35, b: 0.35, a: 1}
-  lowRateColor: {r: 0.93, g: 0.38, b: 0.16, a: 1}
-  highRateColor: {r: 0.12, g: 0.65, b: 0.25, a: 1}
-  panelSize: {x: 230, y: 72}
-  worldYOffset: 0.28
-  followSmoothTime: 0.055
-  screenMargin: 8
-  sortingOrder: 1100
 --- !u!4 &9028560332686509555
 Transform:
   m_ObjectHideFlags: 0
@@ -3102,6 +3057,7 @@ MonoBehaviour:
   hungerBarName: player-hunger-bar
   messageOverlayName: message-overlay
   messageLabelName: message-label
+  respawnButtonName: respawn-button
   notificationContainerName: notification-container
   throwGuideName: throw-guide
   survivalStatusContainerName: health-info-container
@@ -3207,7 +3163,7 @@ MonoBehaviour:
   heldItemSprite: {fileID: 0}
   animator: {fileID: 1914156871709254916}
   throwOrigin: {fileID: 8466654886214536108}
-  capsulePrefab: {fileID: 5207469710425988775, guid: c1ad0ec31bfa9a54e8519048ed2fe0fa, type: 3}
+  capsulePrefab: {fileID: 5207469710425988775, guid: 97c8a0cb41b947fca3182af81372457d, type: 3}
   capsuleItemId: tool_shabby_capsule
   requiredHoldTime: 0.5
   throwSpeed: 12
@@ -3303,6 +3259,75 @@ MonoBehaviour:
   faceCamera: 1
   flipX: 0
   sortingOrder: 20
+--- !u!114 &6812409213719045061
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5320301024596143200}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 846f9bbc7192499cb2beca31ec1485cd, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::KMS.KMSMemCaptureFocusController
+  inventory: {fileID: 9124669202358280069}
+  view: {fileID: 6812409213719045062}
+  cameraTransform: {fileID: 0}
+  maxFocusDistance: 30
+  focusLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  raycastBufferSize: 32
+  showEquipCapsuleMessage: 1
+  equipCapsuleMessage: "\uCEA1\uC290\uC744 \uC7A5\uCC29\uD558\uC138\uC694"
+--- !u!114 &6812409213719045062
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5320301024596143200}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9f9b65cbd78449a0a835743b55da028b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::KMS.KMSMemCaptureFocusView
+  backgroundSprite: {fileID: 21300000, guid: 56be09f0a13daec40b94fe81070d4435, type: 3}
+  fontAsset: {fileID: 11400000, guid: 4b7ce8b83d56017438c4d21b29279bd6, type: 2}
+  panelColor: {r: 1, g: 1, b: 1, a: 0.94}
+  nameColor: {r: 0.08, g: 0.08, b: 0.08, a: 1}
+  messageColor: {r: 0.35, g: 0.35, b: 0.35, a: 1}
+  lowRateColor: {r: 0.93, g: 0.38, b: 0.16, a: 1}
+  highRateColor: {r: 0.12, g: 0.65, b: 0.25, a: 1}
+  panelSize: {x: 230, y: 72}
+  worldYOffset: 0.28
+  followSmoothTime: 0.055
+  screenMargin: 8
+  sortingOrder: 1100
+--- !u!114 &4783686582673597580
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5320301024596143200}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bdf28981476b3fe4588c1bf298a7a555, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::KMS.PlayerDeathController
+  stats: {fileID: 4191295553828768883}
+  input: {fileID: 2825149733357899923}
+  movement: {fileID: 757377502652196312}
+  inventory: {fileID: 9124669202358280069}
+  hud: {fileID: 4255726674415822916}
+  cameraController: {fileID: 540356905414934518}
+  capsuleThrowController: {fileID: 5163941127334908272}
+  animator: {fileID: 1991091852164775653}
+  respawnLocationMode: 0
+  respawnHealthPercent: 1
+  respawnInvulnerabilityDuration: 2
 --- !u!1 &5344451024060801274
 GameObject:
   m_ObjectHideFlags: 0

@@ -1542,6 +1542,7 @@ GameObject:
   - component: {fileID: 3540616809798737260}
   - component: {fileID: 7457846233448879733}
   - component: {fileID: 4812345678901234567}
+  - component: {fileID: 818306641664187117}
   m_Layer: 3
   m_Name: 0712_Player_KMS
   m_TagString: Player
@@ -1758,36 +1759,25 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::KMS.PlayerHUD
   stats: {fileID: 1467707130239164394}
+  playerInput: {fileID: 0}
+  hudView: {fileID: 0}
   uiDocument: {fileID: 6477896841844138712}
   healthBarName: player-health-bar
   hungerBarName: player-hunger-bar
   messageOverlayName: message-overlay
   messageLabelName: message-label
+  respawnButtonName: respawn-button
   notificationContainerName: notification-container
   throwGuideName: throw-guide
   survivalStatusContainerName: health-info-container
+  inventoryButtonName: inventory-button
+  mapButtonName: map-button
+  realTimeLabelName: real-time-label
+  goldLabelName: gold-label
+  territoryData: {fileID: 0}
+  gameTimeManager: {fileID: 0}
+  statusRefreshInterval: 0.25
   notificationDuration: 2.5
---- !u!114 &4812345678901234567
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2157912231843724579}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 7c23c35fc5eb4fe597fc64cad654cc89, type: 3}
-  m_Name:
-  m_EditorClassIdentifier: Assembly-CSharp::KMS.KMSMemDexLauncher
-  uiDocument: {fileID: 6477896841844138712}
-  collectionButtonName: collection-button
-  memDexPrefab: {fileID: 6947569884078246553, guid: 73388961ba2024149adf73e0f355ad57, type: 3}
-  runtimeServicesPrefab: {fileID: 6103025047468129001, guid: 64a2de168be14be98e597b9162ca50f3, type: 3}
-  modalSortingOrder: 200
-  playerInput: {fileID: 0}
-  playerMovement: {fileID: 0}
-  cameraController: {fileID: 0}
-  inventoryUi: {fileID: 0}
 --- !u!114 &7684839475638990318
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1825,6 +1815,7 @@ MonoBehaviour:
   input: {fileID: 6377128861510376546}
   movement: {fileID: 867425413303697342}
   inventory: {fileID: 7684839475638990318}
+  playerStats: {fileID: 0}
   cameraTransform: {fileID: 0}
   animator: {fileID: 8078898450063223440}
   catalogManager: {fileID: 0}
@@ -1835,6 +1826,9 @@ MonoBehaviour:
   harvestCooldown: 0.35
   toolUseCooldown: 0.5
   fallbackToolDamage: 1
+  memMeleeItemId: tool_shabby_club
+  memMeleeDistance: 5
+  memMeleeHungerCost: 1
   drawDebugRay: 1
   debugMissColor: {r: 1, g: 0, b: 0, a: 1}
   debugHitColor: {r: 0, g: 1, b: 0, a: 1}
@@ -1875,6 +1869,7 @@ MonoBehaviour:
   hud: {fileID: 6857268053199938286}
   cameraController: {fileID: 3105963435254581775}
   trajectoryPreview: {fileID: 7457846233448879733}
+  heldItemSprite: {fileID: 0}
   animator: {fileID: 8078898450063223440}
   throwOrigin: {fileID: 5759527692786710262}
   capsulePrefab: {fileID: 5207469710425988775, guid: c1ad0ec31bfa9a54e8519048ed2fe0fa, type: 3}
@@ -1910,6 +1905,51 @@ MonoBehaviour:
   markerRadius: 0.2
   lineColor: {r: 0.2, g: 0.9, b: 1, a: 0.9}
   markerColor: {r: 0.3, g: 1, b: 0.55, a: 1}
+--- !u!114 &4812345678901234567
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2157912231843724579}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7c23c35fc5eb4fe597fc64cad654cc89, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::KMS.KMSMemDexLauncher
+  hudView: {fileID: 0}
+  uiDocument: {fileID: 6477896841844138712}
+  collectionButtonName: collection-button
+  memDexPrefab: {fileID: 6947569884078246553, guid: 73388961ba2024149adf73e0f355ad57, type: 3}
+  runtimeServicesPrefab: {fileID: 6103025047468129001, guid: 64a2de168be14be98e597b9162ca50f3, type: 3}
+  modalSortingOrder: 200
+  playerInput: {fileID: 0}
+  playerMovement: {fileID: 0}
+  cameraController: {fileID: 0}
+  inventoryUi: {fileID: 0}
+--- !u!114 &818306641664187117
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2157912231843724579}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bdf28981476b3fe4588c1bf298a7a555, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::KMS.PlayerDeathController
+  stats: {fileID: 1467707130239164394}
+  input: {fileID: 6377128861510376546}
+  movement: {fileID: 867425413303697342}
+  inventory: {fileID: 7684839475638990318}
+  hud: {fileID: 6857268053199938286}
+  cameraController: {fileID: 3105963435254581775}
+  capsuleThrowController: {fileID: 3540616809798737260}
+  animator: {fileID: 7908531257610593633}
+  respawnLocationMode: 0
+  respawnHealthPercent: 1
+  respawnInvulnerabilityDuration: 2
 --- !u!1 &2173737633472856558
 GameObject:
   m_ObjectHideFlags: 0

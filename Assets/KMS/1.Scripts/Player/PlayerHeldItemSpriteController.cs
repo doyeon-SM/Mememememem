@@ -39,6 +39,7 @@ namespace KMS
             if (inventory != null)
             {
                 inventory.OnSelectedQuickSlotChanged += HandleSelectedQuickSlotChanged;
+                inventory.OnQuickSlotChanged += HandleQuickSlotChanged;
             }
 
             RefreshHeldSprite();
@@ -57,6 +58,7 @@ namespace KMS
             if (inventory != null)
             {
                 inventory.OnSelectedQuickSlotChanged -= HandleSelectedQuickSlotChanged;
+                inventory.OnQuickSlotChanged -= HandleQuickSlotChanged;
             }
 
             SetSprite(null);
@@ -85,6 +87,15 @@ namespace KMS
         private void HandleSelectedQuickSlotChanged(int _)
         {
             RefreshHeldSprite();
+        }
+
+        private void HandleQuickSlotChanged(int changedIndex)
+        {
+            // 음식 마지막 1개 소비처럼 선택 번호는 그대로이고 슬롯 내용만 바뀌는 경우를 반영한다.
+            if (inventory != null && changedIndex == inventory.selectedQuickSlotIndex)
+            {
+                RefreshHeldSprite();
+            }
         }
 
         private void RefreshHeldSprite()
