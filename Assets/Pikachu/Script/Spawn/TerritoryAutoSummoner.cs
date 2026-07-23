@@ -202,12 +202,15 @@ public class TerritoryAutoSummoner : MonoBehaviour
         Bounds grid = navMeshBaker != null ? navMeshBaker.GridWorldBounds : default;
         bool hasGrid = grid.size.x >= 0.5f && grid.size.z >= 0.5f;
 
+        // 타일 윗면 높이(신버전 영지 타일은 y≈0.5)에 맞춰 소환 y를 잡는다.
+        float groundY = navMeshBaker != null ? navMeshBaker.GroundSurfaceY : grid.center.y;
+
         int spawned = 0;
         for (int i = 0; i < pool.Count && spawned < max; i++)
         {
             if (pool[i].data == null) continue;
 
-            Vector3 pos = hasGrid ? RandomPointInGrid(grid) : default; // default면 스포너가 자체 위치로 결정
+            Vector3 pos = hasGrid ? RandomPointInGrid(grid, groundY) : default; // default면 스포너가 자체 위치로 결정
             Mem mem = wanderSpawner.SpawnWanderer(pool[i].data, pool[i].key, pos);
             if (mem == null) continue;
 
@@ -266,13 +269,13 @@ public class TerritoryAutoSummoner : MonoBehaviour
     }
 
     /// <summary>그리드 범위 안의 랜덤 XZ 지점(가장자리 여백을 둬 NavMesh 안쪽에 들어오게). 스포너가 NavMesh에 스냅.</summary>
-    private Vector3 RandomPointInGrid(Bounds grid)
+    private Vector3 RandomPointInGrid(Bounds grid, float groundY)
     {
         float mx = Mathf.Max(0f, grid.extents.x - 0.6f);
         float mz = Mathf.Max(0f, grid.extents.z - 0.6f);
         return new Vector3(
             grid.center.x + Random.Range(-mx, mx),
-            grid.center.y,
+            groundY,
             grid.center.z + Random.Range(-mz, mz));
     }
 

@@ -53,6 +53,11 @@ namespace Pikachu.Test
         [Tooltip("NavMesh 영역을 그리드보다 이만큼(m) 넉넉히 잡습니다.")]
         [SerializeField] private float areaMargin = 1f;
 
+        [Header("바닥 높이 (타일 윗면)")]
+        [Tooltip("타일 윗면(멤이 걷는 바닥) 높이를 타일 렌더러에서 자동 감지합니다. 감지 실패 시 이 값을 사용합니다. " +
+                 "구버전 평면 타일=0, 신버전 두께 있는 타일=0.5")]
+        [SerializeField] private float fallbackGroundY = 0.5f;
+
         [Header("에이전트 설정")]
         [SerializeField] private float agentRadius = 0.3f;
         [SerializeField] private float agentHeight = 1.5f;
@@ -124,9 +129,16 @@ namespace Pikachu.Test
         public bool Bake()
         {
             Bounds gb = ComputeGridBounds();
-            Vector3 center = new Vector3(gb.center.x, 0.5f, gb.center.z);
+
+            // 타일 윗면(멤이 걷는 바닥) 높이에 맞춰 굽는다.
+            // 신버전 영지 타일은 두께가 있어 바닥이 y≈0.5 → y=0에 구우면 멤이 바닥에 파묻혀 보인다.
+            float surfaceY = ComputeGroundSurfaceY();
+
             Vector3 boxSize = new Vector3(
                 Mathf.Max(gb.size.x, 1f), 0.2f, Mathf.Max(gb.size.z, 1f));
+
+            // 박스의 "윗면"이 타일 윗면과 일치하도록 중심을 내린다.
+            Vector3 center = new Vector3(gb.center.x, surfaceY - boxSize.y * 0.5f, gb.center.z);
 
             // 걷기 가능 지형 = 그리드를 덮는 얇은 박스 하나 (콜라이더/메쉬 불필요)
             var sources = new List<NavMeshBuildSource>
@@ -191,7 +203,8 @@ namespace Pikachu.Test
             {
                 baked = true;
                 Debug.Log($"[TerritoryTestNavMeshBaker] ✅ NavMesh 생성 완료. " +
-                          $"영역 center={center} size=({boxSize.x:0.#}×{boxSize.z:0.#}), 정점 {verts}개, 기준 {hit.position}");
+                          $"바닥높이 y={surfaceY:0.###}, 영역 center={center} size=({boxSize.x:0.#}×{boxSize.z:0.#}), " +
+                          $"정점 {verts}개, 기준 {hit.position}");
                 return true;
             }
 
@@ -214,6 +227,34 @@ namespace Pikachu.Test
 
         /// <summary>현재 그리드의 월드 범위(중심/크기). 소환·배회 경계 정렬에 사용. (그리드는 월드 원점 기준 생성)</summary>
         public Bounds GridWorldBounds => ComputeGridBounds();
+
+        /// <summary>멤이 걷는 바닥(타일 윗면) 높이. 소환 위치 y 보정에 사용.</summary>
+        public float GroundSurfaceY => ComputeGroundSurfaceY();
+
+        /// <summary>
+        /// 타일 윗면(걷는 바닥) 높이를 FloorContainer 타일들의 렌더러에서 자동 감지합니다.
+        /// 구버전 평면 타일이면 ≈0, 신버전 두께 있는 타일이면 ≈0.5. 감지 실패 시 fallbackGroundY.
+        /// </summary>
+        private float ComputeGroundSurfaceY()
+        {
+            var floor = GameObject.Find("FloorContainer");
+            if (floor != null && floor.transform.childCount > 0)
+            {
+                float maxY = float.NegativeInfinity;
+
+                var renderers = floor.GetComponentsInChildren<Renderer>();
+                foreach (var r in renderers)
+                {
+                    if (r == null) continue;
+                    maxY = Mathf.Max(maxY, r.bounds.max.y);
+                }
+
+                if (!float.IsNegativeInfinity(maxY))
+                    return maxY;
+            }
+
+            return fallbackGroundY;
+        }
 
         /// <summary>
         /// 그리드 범위를 계산합니다. FloorContainer의 타일들에서 구하고, 없으면 기본 정사각형.

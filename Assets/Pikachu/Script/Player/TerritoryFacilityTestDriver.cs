@@ -59,7 +59,8 @@ namespace Pikachu.Test
             [Tooltip("생성할 시설 프리팹 (Assets/_Kyusoo/03.Prefab/Building/).")]
             public GameObject prefab;
 
-            [Tooltip("생성 좌표 (그리드 타일 중심, y=0). 시설끼리 겹치지 않게 다른 값으로.")]
+            [Tooltip("생성 좌표 (그리드 타일 중심). y는 자동으로 타일 윗면 높이에 맞춰지므로 x/z만 신경쓰면 된다. " +
+                     "시설끼리 겹치지 않게 다른 값으로. 예: (1.5, 0, 1.5), (3.5, 0, 3.5)")]
             public Vector3 position = new Vector3(2.5f, 0f, 2.5f);
         }
 
@@ -152,7 +153,10 @@ namespace Pikachu.Test
             {
                 if (spec == null || spec.prefab == null) continue;
 
-                var go = Instantiate(spec.prefab, spec.position, Quaternion.identity);
+                // 타일 윗면 높이에 자동으로 올린다(신버전 영지 타일은 바닥이 y≈0.5라 y=0이면 파묻힘).
+                Vector3 spawnPos = new Vector3(spec.position.x, ResolveGroundY(spec.position.y), spec.position.z);
+
+                var go = Instantiate(spec.prefab, spawnPos, Quaternion.identity);
                 go.name = spec.prefab.name + " (TestDriver)";
 
                 instances.Add(new FacInst
@@ -169,6 +173,16 @@ namespace Pikachu.Test
 
             lastEvent = $"🏭 시설 {instances.Count}개 생성";
             Debug.Log($"[TerritoryFacilityTestDriver] 시설 {instances.Count}개 생성 완료.");
+        }
+
+        /// <summary>
+        /// 시설을 올릴 바닥 높이(타일 윗면)를 반환합니다. NavMesh 베이커가 감지한 값을 쓰고,
+        /// 베이커가 없으면 인스펙터에 적은 y를 그대로 사용합니다.
+        /// </summary>
+        private float ResolveGroundY(float fallbackY)
+        {
+            var baker = FindFirstObjectByType<TerritoryTestNavMeshBaker>();
+            return baker != null ? baker.GroundSurfaceY : fallbackY;
         }
 
         /// <summary>
@@ -249,8 +263,21 @@ namespace Pikachu.Test
 
             inst.deployedMem = mem;
             used.Add(mem.memId);
+
+            // 배회 레지스트리는 개체 고유키(KeyId)로 관리되므로 memId로 직접 조회할 수 없다.
+            // 값들 중 같은 종족(memId)인 멤을 찾아 연결한다.
             if (TerritoryWanderSpawner.Instance != null)
-                TerritoryWanderSpawner.Instance.ActiveWanderers.TryGetValue(mem.memId, out inst.deployedMemObj);
+            {
+                foreach (var pair in TerritoryWanderSpawner.Instance.ActiveWanderers)
+                {
+                    Mem w = pair.Value;
+                    if (w != null && w.Data != null && w.Data.memId == mem.memId)
+                    {
+                        inst.deployedMemObj = w;
+                        break;
+                    }
+                }
+            }
 
             // 가동 시작
             if (inst.craft != null)
