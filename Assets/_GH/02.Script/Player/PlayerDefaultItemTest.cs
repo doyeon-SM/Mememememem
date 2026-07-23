@@ -7,10 +7,10 @@ using UnityEngine;
 [Serializable]
 public class PlayerDefaultItemEntry
 {
-    [SerializeField] private ItemData item;
+    [SerializeField] private string item;
     [Min(1)] [SerializeField] private int amount = 1;
 
-    public ItemData Item => item;
+    public string Item => item;
     public int Amount => Mathf.Max(1, amount);
 }
 
@@ -57,12 +57,12 @@ public class PlayerDefaultItemTest : MonoBehaviour
         for (int i = 0; i < defaultItems.Length; i++)
         {
             PlayerDefaultItemEntry entry = defaultItems[i];
-            if (entry == null || entry.Item == null || string.IsNullOrWhiteSpace(entry.Item.Item_ID))
+            if (entry == null || entry.Item == null || string.IsNullOrWhiteSpace(entry.Item))
             {
                 continue;
             }
 
-            string itemId = entry.Item.Item_ID;
+            string itemId = entry.Item;
             if (playerInventory.GetItemAmount(itemId) > 0)
             {
                 continue;
