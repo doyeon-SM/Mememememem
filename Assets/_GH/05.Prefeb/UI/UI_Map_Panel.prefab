@@ -870,7 +870,7 @@ MonoBehaviour:
   iconParent: {fileID: 5083448365011217708}
   defaultMap: {fileID: 11400000, guid: 998808f35b3ba4b4ba4524769475b42b, type: 2}
   iconPrefab: {fileID: 755001797447929636, guid: 022b9fee549e28b44ab6d5eb62190e61, type: 3}
-  generatedIconSize: {x: 100, y: 100}
+  generatedIconSize: {x: 75, y: 75}
   mapButtonParent: {fileID: 6989592447473372344}
   mapButtonPrefab: {fileID: 4592633667938287010, guid: e3a0db0aaf889204bbbc7d66ffecde87, type: 3}
   generatedMapButtonSize: {x: 250, y: 150}
@@ -878,6 +878,9 @@ MonoBehaviour:
   normalMapButtonBackgroundColor: {r: 0.08, g: 0.11, b: 0.14, a: 0.92}
   normalMapButtonTextColor: {r: 1, g: 1, b: 1, a: 1}
   lockedMapButtonTextColor: {r: 0.55, g: 0.55, b: 0.55, a: 1}
+  territoryTravelButton: {fileID: 0}
+  territoryTravelButtonText: {fileID: 0}
+  territoryTravelUnavailableSuffix: " (\uC774\uB3D9\uBD88\uAC00)"
   closeAfterTravel: 1
   bringCanvasToFrontOnOpen: 1
   openSortingOrder: 1000
