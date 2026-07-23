@@ -13,10 +13,21 @@ MonoBehaviour:
   m_Name: ShopData_Hardware
   m_EditorClassIdentifier: Assembly-CSharp::HDY.Shop.ShopData
   ShopName: "\uCCA0\uBB3C\uC810"
-  Items:
-  - {fileID: 11400000, guid: 3d01bab2addcaec41a001ba0223fb000, type: 2}
-  - {fileID: 11400000, guid: 779283d790e8f76418a157d3fa7cbea9, type: 2}
-  - {fileID: 11400000, guid: 6621e3c041ee025409a9523892d12f11, type: 2}
-  - {fileID: 11400000, guid: 6baa065021146bd4984a2a8ba0dc0871, type: 2}
-  - {fileID: 11400000, guid: 0c9b6e541ae1c5447b2b8c90fa667d93, type: 2}
+  ItemIds:
+  - item_baseblueprint
+  - item_iron
+  - item_irongemstone
+  - item_wood
+  - item_woodplank
+  - item_plated_plank
+  - item_plated_white_plank
+  - item_diamond
+  - item_processed_diamond
+  - item_amber
+  - item_birchwood
+  - item_birchwoodplank
+  - item_processed_plank
+  - item_processed_white_plank
+  - item_raw_amber
+  - item_intermediate_blueprint
   RestockIntervalMinutes: 20

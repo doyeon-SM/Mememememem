@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using UnityEngine;
 using HDY.Item;
 using HDY.Territory;
@@ -14,6 +15,14 @@ namespace HDY.Recipe
     /// MaterialCosts: 골드와 함께 필요한 재료(공용 업그레이드 팝업에 표시/차감됨).
     /// RewardExp: 이 레시피 해금에 성공했을 때 획득하는 영지 경험치(TerritoryData.CurrentExp).
     /// IsUnlocked: 실제 해금 여부(두 조건을 모두 만족해야 true가 됨).
+    ///
+    /// [HDY 요청 - 시트 마이그레이션] Item_ID/RequestTerritoryLevel/RequestGold/MaterialCosts/RewardExp는
+    /// recipeUnlockSheet에서 파싱해 채우는 "정적 설정값"이고, IsUnlocked만 파싱 시 항상 false로 시작하는
+    /// "런타임 상태"다 - 세이브 로드나 Unlock()/ApplyUnlock() 호출로만 바뀐다. _Kyusoo의
+    /// TerritoryRecordData.cs가 리플렉션으로 RecipeUnlockManager의 private 필드 "recipeUnlocks"를
+    /// List&lt;RecipeUnlockEntry&gt;로 직접 캐스팅해서 IsUnlocked를 "리스트의 인덱스 순서"로 저장/복원하기
+    /// 때문에, 이 클래스 자체(필드 구성)와 리스트 순서를 함부로 바꾸면 안 된다 - 시트의 줄 순서가 곧
+    /// 세이브 데이터의 순서와 대응된다.
     /// </summary>
     [Serializable]
     public class RecipeUnlockEntry
@@ -55,6 +64,12 @@ namespace HDY.Recipe
     ///
     /// [저장/불러오기 대응] TerritoryData와 함께 저장/불러오기 시스템이 이 매니저의 생명주기를 직접 관리할
     /// 예정이라, 더 이상 DontDestroyOnLoad 싱글톤을 쓰지 않는다(일반 컴포넌트).
+    ///
+    /// [HDY 요청 - 시트 마이그레이션] recipeUnlocks는 더 이상 Inspector에서 직접 드래그/입력하지 않고,
+    /// Awake 시 recipeUnlockSheet(TextAsset, 탭 구분)를 파싱해서 채운다. IsUnlocked는 시트에 없는 컬럼이라
+    /// 파싱 직후에는 항상 false다(실제 해금 여부는 세이브 로드나 플레이 중 Unlock()/ApplyUnlock() 호출로
+    /// 채워짐). recipeUnlocks 필드의 이름과 타입(List&lt;RecipeUnlockEntry&gt;)은 _Kyusoo의
+    /// TerritoryRecordData.cs가 리플렉션으로 직접 참조하고 있어 절대 바꾸면 안 된다.
     /// </summary>
     public class RecipeUnlockManager : MonoBehaviour
     {
@@ -64,21 +79,103 @@ namespace HDY.Recipe
         [Header("영지 데이터 참조 (경험치 지급용, 비어있으면 자동 탐색)")]
         [SerializeField] private TerritoryData territoryData;
 
+        [Header("제작법 해금 시트 (탭 구분 텍스트: Item_ID, RequestTerritoryLevel, RequestGold, MaterialCosts, RewardExp)")]
+        [SerializeField] private TextAsset recipeUnlockSheet;
+
         private void Awake()
         {
             itemCatalogManager = ItemCatalogManager.Resolve(itemCatalogManager);
 
             if (territoryData == null) territoryData = FindFirstObjectByType<TerritoryData>();
             if (territoryData == null) Debug.LogWarning("[RecipeUnlockManager] territoryData를 찾을 수 없습니다.", this);
+
+            BuildRecipeUnlocks();
         }
 
-        [Header("제작법 해금 목록 (인스펙터에서 Item_ID + 요구 레벨/골드/재료 + 해금여부를 함께 등록/확인)")]
-        [SerializeField] private List<RecipeUnlockEntry> recipeUnlocks = new List<RecipeUnlockEntry>();
+        // [HDY 요청 - 시트 마이그레이션] 필드 이름 "recipeUnlocks"와 타입은 _Kyusoo의 TerritoryRecordData.cs가
+        // 리플렉션으로 직접 참조하므로 절대 바꾸지 않는다. 세이브 데이터가 이 리스트의 "인덱스 순서"로
+        // IsUnlocked를 저장/복원하기 때문에, recipeUnlockSheet의 줄 순서도 함부로 바꾸면 안 된다.
+        private List<RecipeUnlockEntry> recipeUnlocks = new List<RecipeUnlockEntry>();
 
         public IReadOnlyList<RecipeUnlockEntry> RecipeUnlocks => recipeUnlocks;
 
         /// <summary>레시피 해금 상태가 바뀔 때마다(해금/강제 잠금 등) 발행. 여신상 UI가 구독해서 다시 그린다.</summary>
         public event Action OnRecipeUnlocksChanged;
+
+        /// <summary>
+        /// 시트를 파싱해 행마다 RecipeUnlockEntry를 만들어 recipeUnlocks에 채운다. IsUnlocked는 시트에
+        /// 없으므로 항상 false로 시작한다(세이브 로드나 Unlock()/ApplyUnlock()이 이후에 채운다).
+        /// 줄 순서를 그대로 유지해야 세이브 데이터의 인덱스와 어긋나지 않는다.
+        /// </summary>
+        private void BuildRecipeUnlocks()
+        {
+            recipeUnlocks.Clear();
+
+            if (recipeUnlockSheet == null)
+            {
+                Debug.LogWarning("[RecipeUnlockManager] recipeUnlockSheet가 비어있습니다.");
+                return;
+            }
+
+            var lines = recipeUnlockSheet.text.Split('\n');
+            for (int i = 1; i < lines.Length; i++) // 0번째 줄은 헤더라 건너뜀
+            {
+                var line = lines[i].TrimEnd('\r');
+                if (string.IsNullOrWhiteSpace(line)) continue;
+
+                var cols = line.Split('\t');
+                if (cols.Length < 5)
+                {
+                    Debug.LogWarning($"[RecipeUnlockManager] 시트 {i + 1}번째 줄 컬럼 수가 부족합니다: {line}");
+                    continue;
+                }
+
+                var entry = new RecipeUnlockEntry
+                {
+                    Item_ID = cols[0].Trim(),
+                    RequestTerritoryLevel = ParseInt(cols[1]),
+                    RequestGold = ParseInt(cols[2]),
+                    MaterialCosts = ParseMaterials(cols[3]),
+                    RewardExp = ParseInt(cols[4]),
+                    IsUnlocked = false
+                };
+
+                if (string.IsNullOrEmpty(entry.Item_ID)) continue;
+
+                recipeUnlocks.Add(entry);
+            }
+        }
+
+        private static int ParseInt(string s)
+        {
+            return int.TryParse(s.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) ? value : 0;
+        }
+
+        /// <summary>"item_wood:30;item_baseblueprint:1" 형식을 파싱한다. 빈 문자열이면 빈 리스트를 반환한다.</summary>
+        private static List<Recipe_Requset_Item_Data> ParseMaterials(string raw)
+        {
+            var materials = new List<Recipe_Requset_Item_Data>();
+            if (string.IsNullOrWhiteSpace(raw)) return materials;
+
+            var entries = raw.Split(';');
+            foreach (var entry in entries)
+            {
+                if (string.IsNullOrWhiteSpace(entry)) continue;
+
+                var parts = entry.Split(':');
+                if (parts.Length != 2) continue;
+
+                var itemId = parts[0].Trim();
+                if (string.IsNullOrEmpty(itemId)) continue;
+
+                if (int.TryParse(parts[1].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var amount))
+                {
+                    materials.Add(new Recipe_Requset_Item_Data { Item_ID = itemId, Amount = amount });
+                }
+            }
+
+            return materials;
+        }
 
         /// <summary>해당 제작법(Item_ID)의 해금 여부를 반환한다. 목록에 없으면 false.</summary>
         public bool IsUnlocked(string itemId)

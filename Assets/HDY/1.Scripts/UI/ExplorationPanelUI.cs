@@ -46,6 +46,14 @@ namespace HDY.UI
     /// - 우클릭: Idle 상태에서만 즉시 배치 해제. 진행 중에는 슬롯을 덮는 progressOverlay가 입력을 막아 애초에
     ///   우클릭/드래그가 슬롯에 닿지 않으므로, 진행 중 배치 해제는 오직 액션 버튼(취소)으로만 가능하다.
     ///
+    /// [웨이포인트 미해금 - 지역 잠김 안내] progressOverlay와 같은 자리(5슬롯 위)에 lockedZoneNoticeImage를 추가로
+    /// 둔다. ExplorationRuntime.IsZoneAvailable(zone)이 false이고(연결 맵의 웨이포인트가 아직 다 해금되지 않음)
+    /// 상태가 Idle일 때만 활성화되어, 슬롯을 덮어 입력을 막고 안내 이미지를 보여준다. Raycast Target을 켜둬야
+    /// 실제로 슬롯 클릭/드래그를 막는다(progressOverlay와 동일한 방식). 이미 시작/진행 중인 지역은 나중에
+    /// 웨이포인트 조건이 바뀌더라도 이 안내를 띄우지 않는다(시작 자체를 막는 용도이기 때문).
+    /// 시작 버튼(actionButton)은 CanStart(zone)이 IsZoneAvailable을 이미 검사하므로 별도 처리 없이도 자동으로
+    /// 비활성화된다 - 이 안내 이미지는 그 사실을 화면에 보여주는 역할과, 슬롯 드래그 배치 자체를 막는 역할을 겸한다.
+    ///
     /// [보상 아이콘 그리드 - 동적 생성] rewardIconGridParent(GridLayoutGroup 부착)에 rewardIconPrefab을 지역의
     /// 보상 개수만큼 Instantiate한다. 표시되는 최대수량 텍스트는 항상 ExplorationRuntime.GetBonusRatio(현재 배치된
     /// 멤들의 탐험레벨 합/요구치 비율)를 반영한 값이라, 멤을 배치/해제할 때마다(RefreshCurrentZoneDisplay 호출 시)
@@ -90,6 +98,12 @@ namespace HDY.UI
         [SerializeField] private TMP_Text remainingTimeText;
         [Tooltip("탐험 슬롯에 멤이 배치되면 항상 표시할 탐험 아이콘(그 옆에 실제 탐험레벨 숫자도 함께 표시됨).")]
         [SerializeField] private Sprite explorationStatIcon;
+
+        [Header("웨이포인트 미해금 안내 (지역이 잠겨있어 탐험을 시작할 수 없을 때)")]
+        [Tooltip("연결된 맵의 웨이포인트가 아직 모두 해금되지 않아(ExplorationRuntime.IsZoneAvailable=false) 이 지역을 " +
+                 "시작할 수 없을 때 5슬롯을 덮어 입력을 막고 표시할 안내 이미지. progressOverlay와 같은 자리에 배치하고, " +
+                 "Image의 Raycast Target을 켜둬야 실제로 슬롯 클릭/드래그가 막힌다. 이미 진행 중인 지역에는 표시하지 않는다.")]
+        [SerializeField] private Image lockedZoneNoticeImage;
 
         [Header("하단 정보 / 액션 버튼")]
         [SerializeField] private TMP_Text explorationLevelSumText;
@@ -149,6 +163,11 @@ namespace HDY.UI
 
         private void OnEnable()
         {
+            if (SortButtonManagement.Instance != null)
+            {
+                SortButtonManagement.Instance.UpdateSortFilters(gameObject);
+            }
+
             runtime = ExplorationRuntime.Resolve(runtime);
             ExplorationRuntime.OnMemDeploymentChanged += HandleExplorationChanged;
 
@@ -222,6 +241,13 @@ namespace HDY.UI
             }
 
             if (progressOverlay != null) progressOverlay.SetActive(state != ExplorationState.Idle);
+
+            // 웨이포인트가 아직 다 해금되지 않아 시작할 수 없는 지역이면(단, 이미 진행 중인 지역은 제외) 슬롯을
+            // 덮어 입력을 막고 안내 이미지를 보여준다. 시작 버튼은 CanStart가 IsZoneAvailable을 이미 검사하므로
+            // 별도 처리 없이도 자동으로 비활성화된다.
+            bool zoneAvailable = runtime.IsZoneAvailable(zone);
+            bool showLockedNotice = state == ExplorationState.Idle && !zoneAvailable;
+            if (lockedZoneNoticeImage != null) lockedZoneNoticeImage.gameObject.SetActive(showLockedNotice);
 
             RefreshActionButton(zone, state);
             UpdateTimerDisplay();

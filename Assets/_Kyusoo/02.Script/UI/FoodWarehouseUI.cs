@@ -25,28 +25,25 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner
     [SerializeField] private Button upgradeButton;
     [SerializeField] private WarehouseUpgrade warehouseUpgrade;
 
-    [Header("통합 음식 가방 (오른쪽, 70칸 10x7 - 슬롯은 씬에 미리 배치)")]
-    [SerializeField] private Transform inventoryGrid;
+    [Header("우측 인벤토리 영역들 (QuickSlotArea, InventoryArea, WarehouseArea)")]
+    [SerializeField] private Transform quickSlotGrid;         // QuickSlotArea -> P_QuickSlotGrid (미리 배치)
+    [SerializeField] private Transform inventoryGrid;         // InventoryArea -> P_InventoryGrid (미리 배치)
+    [SerializeField] private Transform warehouseGrid;         // WarehouseArea -> P_InventoryGrid (동적 생성/확장)
+    [SerializeField] private InventorySlotUI warehouseSlotPrefab; // 우측 일반 창고용 슬롯 프리팹 (비어있으면 storageSlotPrefab 사용)
 
     [Header("공용 (드래그, 툴팁, 텍스트)")]
     [SerializeField] private ItemDragUI itemDragUI;
     [SerializeField] private ItemTooltipUI itemTooltipUI;
     [SerializeField] private TextMeshProUGUI totalHungerText;
 
-    private class FilteredFoodSource
-    {
-        public SlotGroup originalGroup;
-        public int originalIndex;
-        public ItemStack stack;
-    }
+    private InventorySlotUI[] storageSlots;   // 좌측 음식 창고 슬롯 배열
+    private InventorySlotUI[] quickSlots;     // 우측 퀵슬롯 배열
+    private InventorySlotUI[] inventorySlots; // 우측 일반 인벤토리 슬롯 배열
+    private InventorySlotUI[] warehouseSlots; // 우측 일반 창고 슬롯 배열
 
-    private InventorySlotUI[] storageSlots;
-    private InventorySlotUI[] inventorySlots;
-
-    private List<FilteredFoodSource> rightFilteredFoods = new List<FilteredFoodSource>();
     private InventorySlotUI dragSource;
+
     public InventoryContainer FoodStorageContainer => ConsumeFoodSystem.Instance != null ? ConsumeFoodSystem.Instance.FoodStorageContainer : null;
-    public InventoryContainer FoodBagContainer => ConsumeFoodSystem.Instance != null ? ConsumeFoodSystem.Instance.FoodBagContainer : null;
     public ItemCatalogManager CatalogManager => catalogManager;
 
     public static event Action OnFoodDataChanged;
@@ -71,11 +68,11 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner
             return;
         }
 
-        BindPlayerSlots();
-        EnsureStorageSlotCount();
+        BindRightPreplacedSlots();
+        EnsureFoodStorageSlotCount();
+        EnsureRightWarehouseSlotCount();
         HideItemTooltip();
 
-        FetchFoodFromInventories();
         RefreshAll();
 
         if (TotalHungerManager.Instance != null)
@@ -86,34 +83,44 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner
 
     private void OnEnable()
     {
-        if (playerInventory != null) playerInventory.OnInventoryChanged += RefreshAll;
+        if (playerInventory != null)
+        {
+            playerInventory.OnInventoryChanged += RefreshAll;
+            playerInventory.OnQuickSlotChanged += HandleQuickSlotChanged;
+        }
+
         if (warehouseInventory != null)
         {
             warehouseInventory.OnStorageChanged += RefreshAll;
             warehouseInventory.OnRowCountChanged += HandleRowCountChanged;
         }
+
         if (sortUI != null) sortUI.OnSortRequested += HandleSortRequested;
 
         if (TotalHungerManager.Instance != null)
         {
             TotalHungerManager.Instance.OnTotalHungerChanged += UpdateHungerText;
-
             TotalHungerManager.Instance.RecalculateTotalHunger();
             UpdateHungerText(TotalHungerManager.Instance.TotalHungerPerMinute);
         }
 
-        FetchFoodFromInventories();
         RefreshAll();
     }
 
     private void OnDisable()
     {
-        if (playerInventory != null) playerInventory.OnInventoryChanged -= RefreshAll;
+        if (playerInventory != null)
+        {
+            playerInventory.OnInventoryChanged -= RefreshAll;
+            playerInventory.OnQuickSlotChanged -= HandleQuickSlotChanged;
+        }
+
         if (warehouseInventory != null)
         {
             warehouseInventory.OnStorageChanged -= RefreshAll;
             warehouseInventory.OnRowCountChanged -= HandleRowCountChanged;
         }
+
         if (sortUI != null) sortUI.OnSortRequested -= HandleSortRequested;
 
         if (TotalHungerManager.Instance != null)
@@ -123,72 +130,313 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner
     }
 
     /// <summary>
-    /// 외부 가방과 일반 창고의 원본 음식들을 완전히 긁어와 이관한 후 원본 칸을 정돈(Clear)시킵니다.
+    /// 씬에 미리 배치되어 있는 퀵슬롯과 기본 인벤토리 슬롯들을 바인딩합니다.
     /// </summary>
-    private void FetchFoodFromInventories()
+    private void BindRightPreplacedSlots()
     {
-        var bagContainer = FoodBagContainer;
-        if (bagContainer == null || bagContainer.slots == null) return;
-
-        if (playerInventory != null && playerInventory.inventory != null && playerInventory.inventory.slots != null)
+        // 1. 퀵슬롯 바인딩 (SlotGroup.QuickSlot 으로 지정)
+        if (quickSlotGrid != null)
         {
-            for (int i = 0; i < playerInventory.inventory.slots.Length; i++)
+            int count = quickSlotGrid.childCount;
+            quickSlots = new InventorySlotUI[count];
+            for (int i = 0; i < count; i++)
             {
-                ItemStack slot = playerInventory.inventory.slots[i];
-                if (IsFoodItem(slot))
+                var slotUI = quickSlotGrid.GetChild(i).GetComponent<InventorySlotUI>();
+                if (slotUI != null)
                 {
-                    int remaining = AddItemToContainer(bagContainer, slot.itemId, slot.amount);
-                    if (remaining <= 0) slot.Clear(); 
-                    else slot.amount = remaining;
+                    slotUI.Initialize(this, SlotGroup.QuickSlot, i);
+                    quickSlots[i] = slotUI;
                 }
             }
         }
 
-        if (warehouseInventory != null && warehouseInventory.storage != null && warehouseInventory.storage.slots != null)
+        // 2. 인벤토리 바인딩 (SlotGroup.Inventory 로 지정)
+        if (inventoryGrid != null)
         {
-            for (int i = 0; i < warehouseInventory.storage.slots.Length; i++)
+            int count = inventoryGrid.childCount;
+            inventorySlots = new InventorySlotUI[count];
+            for (int i = 0; i < count; i++)
             {
-                ItemStack slot = warehouseInventory.storage.slots[i];
-                if (IsFoodItem(slot))
+                var slotUI = inventoryGrid.GetChild(i).GetComponent<InventorySlotUI>();
+                if (slotUI != null)
                 {
-                    int remaining = AddItemToContainer(bagContainer, slot.itemId, slot.amount);
-                    if (remaining <= 0) slot.Clear(); 
-                    else slot.amount = remaining;
+                    slotUI.Initialize(this, SlotGroup.Inventory, i);
+                    inventorySlots[i] = slotUI;
                 }
             }
         }
-
-        if (ConsumeFoodSystem.Instance != null)
-        {
-            ConsumeFoodSystem.Instance.ProcessFoodConsumption(true);
-        }
-
-        OnFoodDataChanged?.Invoke();
     }
 
-    private int AddItemToContainer(InventoryContainer container, string itemId, int amount)
+    /// <summary>
+    /// 우측 일반 창고 슬롯 개수를 warehouseInventory.storage 크기에 맞춰 동적으로 확장/생성합니다.
+    /// </summary>
+    private void EnsureRightWarehouseSlotCount()
     {
-        int remaining = amount;
-        for (int i = 0; i < container.slots.Length; i++)
+        if (warehouseInventory == null || warehouseInventory.storage == null || warehouseGrid == null) return;
+
+        var container = warehouseInventory.storage;
+        int required = container.slots != null ? container.slots.Length : 0;
+        int current = warehouseSlots != null ? warehouseSlots.Length : 0;
+
+        if (required <= current) return;
+
+        var grown = new InventorySlotUI[required];
+        for (int i = 0; i < current; i++) grown[i] = warehouseSlots[i];
+
+        InventorySlotUI prefabToUse = warehouseSlotPrefab != null ? warehouseSlotPrefab : storageSlotPrefab;
+
+        for (int i = current; i < required; i++)
         {
-            if (container.slots[i] == null) container.slots[i] = new ItemStack();
-            if (container.slots[i].itemId == itemId && !container.slots[i].IsEmpty)
+            if (prefabToUse != null)
             {
-                container.slots[i].amount += remaining;
-                return 0;
+                var slot = Instantiate(prefabToUse, warehouseGrid);
+                slot.Initialize(this, SlotGroup.Storage, i);
+                grown[i] = slot;
             }
         }
-        for (int i = 0; i < container.slots.Length; i++)
+        warehouseSlots = grown;
+
+        // 슬롯 생성 후 ScrollRect Content 레이아웃 즉시 재계산
+        Canvas.ForceUpdateCanvases();
+        if (warehouseGrid is RectTransform rectTransform)
         {
-            if (container.slots[i] == null) container.slots[i] = new ItemStack();
-            if (container.slots[i].IsEmpty)
-            {
-                container.slots[i].Set(itemId, remaining);
-                return 0;
-            }
+            LayoutRebuilder.ForceRebuildLayoutImmediate(rectTransform);
         }
-        return remaining;
     }
+
+    /// <summary>
+    /// 좌측 음식 창고 슬롯 개수를 업그레이드 단계에 맞춰 동적으로 확장/생성합니다.
+    /// </summary>
+    private void EnsureFoodStorageSlotCount()
+    {
+        var storageContainer = FoodStorageContainer;
+        if (storageSlotPrefab == null || storageContentParent == null || warehouseInventory == null || storageContainer == null) return;
+
+        int upgradedRows = warehouseInventory.storage.height - warehouseInventory.StartingRows;
+        int currentRows = 1 + Mathf.Max(0, upgradedRows);
+
+        int required = 5 * currentRows;
+        int current = storageSlots != null ? storageSlots.Length : 0;
+
+        ItemStack[] oldSlots = storageContainer.slots;
+        storageContainer.slots = new ItemStack[required];
+        for (int i = 0; i < required; i++)
+        {
+            if (oldSlots != null && i < oldSlots.Length) storageContainer.slots[i] = oldSlots[i];
+            else storageContainer.slots[i] = new ItemStack();
+        }
+        storageContainer.width = 5;
+        storageContainer.height = required / 5;
+
+        if (required <= current) return;
+        var grown = new InventorySlotUI[required];
+        for (int i = 0; i < current; i++) grown[i] = storageSlots[i];
+        for (int i = current; i < required; i++)
+        {
+            var slot = Instantiate(storageSlotPrefab, storageContentParent);
+            slot.Initialize(this, SlotGroup.Storage, i);
+            grown[i] = slot;
+        }
+        storageSlots = grown;
+    }
+
+    public void RefreshAllPanelsAndSlots()
+    {
+        RefreshAll();
+    }
+
+    private void RefreshAll()
+    {
+        EnsureFoodStorageSlotCount();
+        EnsureRightWarehouseSlotCount();
+
+        RefreshStorageSlots();
+        RefreshQuickSlots();
+        RefreshInventorySlots();
+        RefreshWarehouseSlots();
+    }
+
+    private void RefreshStorageSlots()
+    {
+        var container = FoodStorageContainer;
+        if (storageSlots == null || container == null || container.slots == null) return;
+
+        for (int i = 0; i < storageSlots.Length; i++)
+        {
+            if (storageSlots[i] == null) continue;
+            ItemStack stack = (i < container.slots.Length) ? container.slots[i] : null;
+            storageSlots[i].SetStack(stack);
+        }
+    }
+
+    private void RefreshQuickSlots()
+    {
+        if (quickSlots == null || playerInventory == null || playerInventory.quickSlots == null) return;
+        var container = playerInventory.quickSlots;
+
+        for (int i = 0; i < quickSlots.Length; i++)
+        {
+            if (quickSlots[i] == null) continue;
+            ItemStack stack = (container.slots != null && i < container.slots.Length) ? container.slots[i] : null;
+            quickSlots[i].SetStack(stack);
+        }
+    }
+
+    private void RefreshInventorySlots()
+    {
+        if (inventorySlots == null || playerInventory == null || playerInventory.inventory == null) return;
+        var container = playerInventory.inventory;
+
+        for (int i = 0; i < inventorySlots.Length; i++)
+        {
+            if (inventorySlots[i] == null) continue;
+            ItemStack stack = (container.slots != null && i < container.slots.Length) ? container.slots[i] : null;
+            inventorySlots[i].SetStack(stack);
+        }
+    }
+
+    private void RefreshWarehouseSlots()
+    {
+        if (warehouseSlots == null || warehouseInventory == null || warehouseInventory.storage == null) return;
+        var container = warehouseInventory.storage;
+
+        for (int i = 0; i < warehouseSlots.Length; i++)
+        {
+            if (warehouseSlots[i] == null) continue;
+            ItemStack stack = (container.slots != null && i < container.slots.Length) ? container.slots[i] : null;
+            warehouseSlots[i].SetStack(stack);
+        }
+    }
+
+    /// <summary>
+    /// UI 슬롯 객체로부터 연동된 원본 InventoryContainer 및 인덱스를 자동 추출합니다.
+    /// </summary>
+    private bool GetContainerAndIndex(InventorySlotUI slot, out InventoryContainer container, out int index)
+    {
+        container = null;
+        index = -1;
+        if (slot == null) return false;
+
+        // 1. 좌측 음식 창고
+        if (storageSlots != null)
+        {
+            int idx = Array.IndexOf(storageSlots, slot);
+            if (idx >= 0)
+            {
+                container = FoodStorageContainer;
+                index = idx;
+                return true;
+            }
+        }
+
+        // 2. 우측 퀵슬롯
+        if (quickSlots != null)
+        {
+            int idx = Array.IndexOf(quickSlots, slot);
+            if (idx >= 0)
+            {
+                container = playerInventory?.quickSlots;
+                index = idx;
+                return true;
+            }
+        }
+
+        // 3. 우측 일반 인벤토리
+        if (inventorySlots != null)
+        {
+            int idx = Array.IndexOf(inventorySlots, slot);
+            if (idx >= 0)
+            {
+                container = playerInventory?.inventory;
+                index = idx;
+                return true;
+            }
+        }
+
+        // 4. 우측 일반 창고
+        if (warehouseSlots != null)
+        {
+            int idx = Array.IndexOf(warehouseSlots, slot);
+            if (idx >= 0)
+            {
+                container = warehouseInventory?.storage;
+                index = idx;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void MoveBetweenSlots(InventorySlotUI from, InventorySlotUI to)
+    {
+        if (from == null || to == null) return;
+
+        if (!GetContainerAndIndex(from, out var srcContainer, out int srcIndex)) return;
+        if (!GetContainerAndIndex(to, out var dstContainer, out int dstIndex)) return;
+
+        if (srcContainer == null || dstContainer == null || srcIndex < 0 || dstIndex < 0) return;
+
+        // 🌟 퀵슬롯 사용중 잠금 검사
+        if (srcContainer == playerInventory?.quickSlots && playerInventory.IsQuickSlotLocked(srcIndex)) return;
+        if (dstContainer == playerInventory?.quickSlots && playerInventory.IsQuickSlotLocked(dstIndex)) return;
+
+        bool isSourceFoodStorage = (srcContainer == FoodStorageContainer);
+        bool isTargetFoodStorage = (dstContainer == FoodStorageContainer);
+
+        // 🌟 음식 창고(좌측)로 들어오는 아이템은 반드시 Food 카테고리여야 함
+        if (isTargetFoodStorage)
+        {
+            if (srcIndex >= srcContainer.slots.Length) return;
+            ItemStack srcStack = srcContainer.slots[srcIndex];
+
+            if (srcStack == null || srcStack.IsEmpty) return;
+
+            if (!IsFoodItem(srcStack))
+            {
+                Debug.LogWarning("[FoodWarehouseUI] 음식 카테고리의 아이템만 음식 창고에 넣을 수 있습니다.");
+                return;
+            }
+        }
+
+        // 슬롯 실질 이동 실행
+        bool moved = InventorySlotMoveHelper.MoveSlot(srcContainer, srcIndex, dstContainer, dstIndex, catalogManager);
+
+        if (moved)
+        {
+            RefreshAll();
+
+            // 음식이 들어오거나 빠졌을 때 소모 시스템 및 데이터 변경 이벤트 발행
+            if (isSourceFoodStorage && isTargetFoodStorage)
+            {
+                ConsumeFoodSystem.Instance?.OnStorageToStorageMove();
+            }
+            else if (!isSourceFoodStorage && isTargetFoodStorage)
+            {
+                ConsumeFoodSystem.Instance?.OnRightToLeftMove();
+                OnFoodDataChanged?.Invoke();
+            }
+            else if (isSourceFoodStorage && !isTargetFoodStorage)
+            {
+                ConsumeFoodSystem.Instance?.OnLeftToRightMove();
+                OnFoodDataChanged?.Invoke();
+            }
+
+            // 🌟 [수정]: PlayerInventory & WarehouseInventory 실제 이벤트 발행 메서드 호출
+            if (srcContainer == playerInventory?.inventory || srcContainer == playerInventory?.quickSlots ||
+                dstContainer == playerInventory?.inventory || dstContainer == playerInventory?.quickSlots)
+            {
+                playerInventory?.PublishInventoryChanged();
+            }
+
+            if (srcContainer == warehouseInventory?.storage || dstContainer == warehouseInventory?.storage)
+            {
+                warehouseInventory?.PublishWarehouseChanged();
+            }
+        }
+    }
+
+    #region Drag & Drop & Tooltip Interface Handlers
 
     public void BeginSlotDrag(InventorySlotUI source, ItemStack stack, Vector2 position)
     {
@@ -233,6 +481,8 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner
         if (itemTooltipUI != null) itemTooltipUI.Hide();
     }
 
+    #endregion
+
     private void HandleUpgradeButtonClicked()
     {
         if (warehouseUpgrade != null && UpgradePopupUI.Instance != null)
@@ -243,184 +493,19 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner
 
     private void HandleRowCountChanged()
     {
-        EnsureStorageSlotCount();
+        EnsureFoodStorageSlotCount();
+        EnsureRightWarehouseSlotCount();
         RefreshAll();
+    }
+
+    private void HandleQuickSlotChanged(int slotIndex)
+    {
+        RefreshQuickSlots();
     }
 
     private void HandleSortRequested(ItemSortCriteria criteria)
     {
         warehouseInventory?.ApplySort(criteria);
-    }
-
-    private void MoveBetweenSlots(InventorySlotUI from, InventorySlotUI to)
-    {
-        var storageContainer = FoodStorageContainer;
-        var bagContainer = FoodBagContainer;
-        if (storageContainer == null || bagContainer == null) return;
-
-        if (from.group == SlotGroup.Storage && to.group == SlotGroup.Storage)
-        {
-            bool moved = InventorySlotMoveHelper.MoveSlot(storageContainer, from.slotIndex, storageContainer, to.slotIndex, catalogManager);
-
-            if (moved)
-            {
-                RefreshAll();
-                ConsumeFoodSystem.Instance?.OnStorageToStorageMove();
-            }
-            return;
-        }
-
-        if (from.group == SlotGroup.Inventory && to.group == SlotGroup.Inventory) return;
-
-        if (from.group == SlotGroup.Inventory && to.group == SlotGroup.Storage)
-        {
-            if (from.slotIndex >= rightFilteredFoods.Count) return;
-
-            FilteredFoodSource src = rightFilteredFoods[from.slotIndex];
-
-            bool moved = InventorySlotMoveHelper.MoveSlot(bagContainer, src.originalIndex, storageContainer, to.slotIndex, catalogManager);
-
-            if (moved)
-            {
-                RefreshAll();
-                if (ConsumeFoodSystem.Instance != null)
-                {
-                    ConsumeFoodSystem.Instance.OnRightToLeftMove();
-
-                    OnFoodDataChanged?.Invoke();
-                }
-            }
-            return;
-        }
-
-        if (from.group == SlotGroup.Storage && to.group == SlotGroup.Inventory)
-        {
-            ItemStack leftStack = storageContainer.slots[from.slotIndex];
-            if (leftStack == null || leftStack.IsEmpty) return;
-
-            int initialAmount = leftStack.amount;
-
-            int remaining = AddItemToContainer(bagContainer, leftStack.itemId, initialAmount);
-            int added = initialAmount - remaining;
-
-            if (added > 0)
-            {
-                leftStack.amount -= added;
-                if (leftStack.amount <= 0) leftStack.Clear();
-
-                RefreshAll();
-                ConsumeFoodSystem.Instance?.OnLeftToRightMove();
-            }
-            return;
-        }
-    }
-
-    private void EnsureStorageSlotCount()
-    {
-        var storageContainer = FoodStorageContainer;
-        if (storageSlotPrefab == null || storageContentParent == null || warehouseInventory == null || storageContainer == null) return;
-
-        int upgradedRows = warehouseInventory.storage.height - warehouseInventory.StartingRows;
-        int currentRows = 1 + Mathf.Max(0, upgradedRows);
-
-        int required = 5 * currentRows;
-        int current = storageSlots != null ? storageSlots.Length : 0;
-
-        ItemStack[] oldSlots = storageContainer.slots;
-        storageContainer.slots = new ItemStack[required];
-        for (int i = 0; i < required; i++)
-        {
-            if (oldSlots != null && i < oldSlots.Length) storageContainer.slots[i] = oldSlots[i];
-            else storageContainer.slots[i] = new ItemStack();
-        }
-        storageContainer.width = 5;
-        storageContainer.height = required / 5;
-
-        if (required <= current) return;
-        var grown = new InventorySlotUI[required];
-        for (int i = 0; i < current; i++) grown[i] = storageSlots[i];
-        for (int i = current; i < required; i++)
-        {
-            var slot = Instantiate(storageSlotPrefab, storageContentParent);
-            slot.Initialize(this, SlotGroup.Storage, i);
-            grown[i] = slot;
-        }
-        storageSlots = grown;
-    }
-
-    private void BindPlayerSlots()
-    {
-        int maxBagCount = 70;
-        inventorySlots = new InventorySlotUI[maxBagCount];
-
-        if (inventoryGrid == null) return;
-
-        for (int i = 0; i < maxBagCount && i < inventoryGrid.childCount; i++)
-        {
-            InventorySlotUI slotUI = inventoryGrid.GetChild(i).GetComponent<InventorySlotUI>();
-            inventorySlots[i] = slotUI;
-
-            if (slotUI != null) slotUI.Initialize(this, SlotGroup.Inventory, i);
-        }
-    }
-
-    public void RefreshAllPanelsAndSlots()
-    {
-        RefreshAll();
-    }
-
-    private void RefreshAll()
-    {
-        BuildRightFilteredFoodList();
-        RefreshStorageSlots();
-        RefreshInventorySlots();
-    }
-
-    private void BuildRightFilteredFoodList()
-    {
-        rightFilteredFoods.Clear();
-        var bagContainer = FoodBagContainer;
-        if (bagContainer == null || bagContainer.slots == null) return;
-
-        for (int i = 0; i < bagContainer.slots.Length; i++)
-        {
-            ItemStack stack = bagContainer.slots[i];
-            if (stack != null && !stack.IsEmpty)
-            {
-                rightFilteredFoods.Add(new FilteredFoodSource { originalGroup = SlotGroup.Inventory, originalIndex = i, stack = stack });
-            }
-        }
-    }
-
-    private void RefreshStorageSlots()
-    {
-        var storageContainer = FoodStorageContainer;
-        if (storageSlots == null || storageContainer == null) return;
-
-        for (int i = 0; i < storageSlots.Length; i++)
-        {
-            if (storageSlots[i] == null) continue;
-            storageSlots[i].SetStack(storageContainer.slots[i]);
-        }
-    }
-
-    private void RefreshInventorySlots()
-    {
-        if (inventorySlots == null) return;
-
-        for (int i = 0; i < inventorySlots.Length; i++)
-        {
-            if (inventorySlots[i] == null) continue;
-
-            if (i < rightFilteredFoods.Count)
-            {
-                inventorySlots[i].SetStack(rightFilteredFoods[i].stack);
-            }
-            else
-            {
-                inventorySlots[i].SetStack(null);
-            }
-        }
     }
 
     private bool IsFoodItem(ItemStack stack)

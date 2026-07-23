@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -76,6 +77,12 @@ namespace HDY.UI
     /// (플레이어→상점)를 서로 다른 풀로 관리한다(ShopItemData.Purchase_MaxAmount / Selling_MaxAmount).
     /// 구매 최대 수량은 구매 재고와 "지금 가진 재화(골드 또는 재료)로 실제 결제 가능한 수량" 중 작은
     /// 값이고, 판매 최대 수량은 판매 재고와 "지금 보유한 수량" 중 작은 값이다.
+    ///
+    /// [HDY 요청 - 시트 마이그레이션] ShopData.Items(SO 리스트)가 ShopData.ItemIds(문자열 목록)로
+    /// 바뀌면서, 이 화면에서 "지금 상점이 취급하는 ShopItemData 목록"이 필요할 때는 더 이상
+    /// currentShop.Items를 직접 순회하지 않고 stockManager.GetShopItems(currentShop)을 사용한다 -
+    /// ShopStockManager가 ItemIds를 카탈로그에서 resolve해 캐싱해둔 같은 인스턴스를 반환해줘야
+    /// 재고 딕셔너리 조회(Dictionary&lt;ShopItemData,int&gt;)가 정상 동작하기 때문이다.
     /// </summary>
     public class ShopUI : MonoBehaviour
     {
@@ -367,12 +374,14 @@ namespace HDY.UI
             return Mathf.Min(owned, sellStock);
         }
 
-        /// <summary>currentShop.Items에서 predicate를 만족하는 것만 골라 filteredItemsBuffer에 채운다.</summary>
+        /// <summary>stockManager.GetShopItems(currentShop)에서 predicate를 만족하는 것만 골라 filteredItemsBuffer에 채운다.</summary>
         private List<ShopItemData> FilterCurrentShopItems(Func<ShopItemData, bool> predicate)
         {
             filteredItemsBuffer.Clear();
 
-            foreach (var itemData in currentShop.Items)
+            if (stockManager == null) return filteredItemsBuffer;
+
+            foreach (var itemData in stockManager.GetShopItems(currentShop))
             {
                 if (itemData == null) continue;
                 if (predicate(itemData)) filteredItemsBuffer.Add(itemData);
@@ -603,8 +612,8 @@ namespace HDY.UI
         /// <summary>구매 재고 또는 판매 재고가 바뀌면 지금 보고 있는 탭(구매/판매)에 해당하는 목록만 다시 그린다.</summary>
         private void HandleStockChanged(ShopItemData itemData)
         {
-            if (currentShop == null) return;
-            if (!currentShop.Items.Contains(itemData)) return;
+            if (currentShop == null || stockManager == null) return;
+            if (!stockManager.GetShopItems(currentShop).Contains(itemData)) return;
 
             if (showingSellTab) RefreshSellList();
             else RefreshBuyList();
