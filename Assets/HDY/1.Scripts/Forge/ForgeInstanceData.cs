@@ -29,6 +29,12 @@ namespace HDY.Forge
         /// <summary>모루 과열 수치 (0~1, 1 = 100%). 이 개체 전용으로 개별 관리되며, 강화/승급 성공 시 0으로 초기화된다.</summary>
         public float OverheatPercent;
 
+        /// <summary>
+        /// 연마칸 배열 (1~5칸). 도구가 처음 이 인스턴스로 등록되는 순간(제작 즉시) 1회 채워지며,
+        /// 강화/승급과는 완전히 독립적으로 관리된다 - 승급(티어업)이 일어나도 이 배열은 그대로 유지된다.
+        /// </summary>
+        public ForgeRefinementSlotData[] RefinementSlots = Array.Empty<ForgeRefinementSlotData>();
+
         /// <summary>합성 ID 문자열("{BaseItemId}@{InstanceId}")을 만든다.</summary>
         public string BuildCompositeId()
         {

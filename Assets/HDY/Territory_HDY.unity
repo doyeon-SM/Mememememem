@@ -21825,11 +21825,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4e14f46a5873d2349b977e624127cacd, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GridManager
-  tilePrefab: {fileID: 1991049688055867003, guid: 71850ee10c7918546a9903546724e218, type: 3}
+  outerTilePrefab: {fileID: 0}
+  innerTilePrefab: {fileID: 0}
   floorContainer: {fileID: 1005538851}
   gridLayerMask:
     serializedVersion: 2
     m_Bits: 1048576
+  innerSurfacePlane: {fileID: 0}
+  planeInsetMargin: 1.2
+  innerPlaneY: 0.501
+  gridOverlayY: 0.502
   buildings:
   - {fileID: 11400000, guid: f6d2392d0febf794389ea73590fa8122, type: 2}
   - {fileID: 11400000, guid: 77b52e4d931bc084e8dc47ea580b885c, type: 2}
@@ -23270,7 +23275,10 @@ MonoBehaviour:
   sortUI: {fileID: 1610521857}
   upgradeButton: {fileID: 5141559261117478873}
   warehouseUpgrade: {fileID: 5489548650194613591}
+  quickSlotGrid: {fileID: 0}
   inventoryGrid: {fileID: 5657705610774771005}
+  warehouseGrid: {fileID: 0}
+  warehouseSlotPrefab: {fileID: 0}
   itemDragUI: {fileID: 3096594948886457230}
   itemTooltipUI: {fileID: 752756897288333494}
   totalHungerText: {fileID: 5750286533984721785}

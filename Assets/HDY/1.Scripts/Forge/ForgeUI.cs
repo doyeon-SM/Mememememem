@@ -14,7 +14,9 @@ namespace HDY.Forge
     public enum ForgeUITab
     {
         Enhance,
-        Promotion
+        Promotion,
+        Refinement,
+        Inheritance
     }
 
     /// <summary>
@@ -27,6 +29,8 @@ namespace HDY.Forge
     ///
     /// [탭] 강화 탭은 CanEnhance=true인 도구만, 승급 탭은 지금 승급 가능한 상태(EligibleForPromotionNow)인
     /// 도구만 하단 목록에 보여준다. 정렬은 티어 내림차순 -> 강화레벨 내림차순.
+    /// 연마/전승 탭은 각각 ForgeUI_RefinementPanel/ForgeUI_InheritancePanel이 전담한다 - 이 클래스는
+    /// 탭 전환에 따라 두 패널의 GameObject를 켜고 끄는 라우팅만 담당한다(MemStorageUI_Grid/Info와 동일한 분리 패턴).
     ///
     /// [자동 전환] 강화로 10강을 찍으면 자동으로 승급 탭으로 전환하고 같은 아이템을 그대로 선택 상태로 둔다.
     /// 승급에 성공하면 선택을 해제한다(아이템 자체는 그 자리에서 다음 티어로 바뀐 채 남아있음).
@@ -36,17 +40,24 @@ namespace HDY.Forge
         [Header("탭")]
         [SerializeField] private Button enhanceTabButton;
         [SerializeField] private Button promotionTabButton;
+        [SerializeField] private Button refinementTabButton;
+        [SerializeField] private Button inheritanceTabButton;
         [SerializeField] private GameObject enhanceTabSelectedMark;
         [SerializeField] private GameObject promotionTabSelectedMark;
+        [SerializeField] private GameObject refinementTabSelectedMark;
+        [SerializeField] private GameObject inheritanceTabSelectedMark;
 
         [Header("닫기 (선택)")]
         [SerializeField] private Button closeButton;
 
-        [Header("하단 목록 (10 x n 스크롤)")]
+        [Header("강화/승급 전용 - 하단 목록 (10 x n 스크롤)")]
         [SerializeField] private Transform slotListContent;
         [SerializeField] private ForgeToolSlotUI slotPrefab;
         [SerializeField] private PlayerInventory playerInventory;
         [SerializeField] private WarehouseInventory warehouseInventory;
+
+        [Header("강화/승급 전용 - 가운데 패널 루트 (탭 전환 시 이 루트를 통째로 켜고 끔)")]
+        [SerializeField] private GameObject enhancePromotionPanelRoot;
 
         [Header("가운데 - 선택 슬롯")]
         [SerializeField] private ForgeToolSlotUI selectedSlotDisplay;
@@ -76,6 +87,12 @@ namespace HDY.Forge
         [SerializeField] private Color normalTextColor = Color.white;
         [SerializeField] private Color shortageTextColor = Color.red;
 
+        [Header("연마/전승 전용 - 패널 (탭 전환 시 GameObject를 켜고 끔)")]
+        [SerializeField] private GameObject refinementPanelRoot;
+        [SerializeField] private ForgeUI_RefinementPanel refinementPanel;
+        [SerializeField] private GameObject inheritancePanelRoot;
+        [SerializeField] private ForgeUI_InheritancePanel inheritancePanel;
+
         [Header("참조")]
         [SerializeField] private ForgeManager forgeManager;
         [SerializeField] private ItemCatalogManager catalogManager;
@@ -94,6 +111,8 @@ namespace HDY.Forge
 
             if (enhanceTabButton != null) enhanceTabButton.onClick.AddListener(() => SwitchTab(ForgeUITab.Enhance));
             if (promotionTabButton != null) promotionTabButton.onClick.AddListener(() => SwitchTab(ForgeUITab.Promotion));
+            if (refinementTabButton != null) refinementTabButton.onClick.AddListener(() => SwitchTab(ForgeUITab.Refinement));
+            if (inheritanceTabButton != null) inheritanceTabButton.onClick.AddListener(() => SwitchTab(ForgeUITab.Inheritance));
             if (actionButton != null) actionButton.onClick.AddListener(HandleActionButtonClicked);
             if (closeButton != null) closeButton.onClick.AddListener(() => UIManager.Instance?.CloseCurrent());
 
@@ -128,6 +147,8 @@ namespace HDY.Forge
 
         private void HandleContainersChanged()
         {
+            if (currentTab != ForgeUITab.Enhance && currentTab != ForgeUITab.Promotion) return;
+
             RefreshList();
             RefreshMiddlePanel();
         }
@@ -138,10 +159,24 @@ namespace HDY.Forge
 
             if (enhanceTabSelectedMark != null) enhanceTabSelectedMark.SetActive(tab == ForgeUITab.Enhance);
             if (promotionTabSelectedMark != null) promotionTabSelectedMark.SetActive(tab == ForgeUITab.Promotion);
-            if (actionButtonLabel != null) actionButtonLabel.text = tab == ForgeUITab.Enhance ? "강화하기" : "승급하기";
+            if (refinementTabSelectedMark != null) refinementTabSelectedMark.SetActive(tab == ForgeUITab.Refinement);
+            if (inheritanceTabSelectedMark != null) inheritanceTabSelectedMark.SetActive(tab == ForgeUITab.Inheritance);
 
-            RefreshList();
-            RefreshMiddlePanel();
+            bool isEnhanceOrPromotion = tab == ForgeUITab.Enhance || tab == ForgeUITab.Promotion;
+
+            // 강화/승급 전용 하단 목록 + 가운데 패널은 두 탭이 공유하므로 같이 켜고 끈다.
+            if (slotListContent != null) slotListContent.gameObject.SetActive(isEnhanceOrPromotion);
+            if (enhancePromotionPanelRoot != null) enhancePromotionPanelRoot.SetActive(isEnhanceOrPromotion);
+
+            if (refinementPanelRoot != null) refinementPanelRoot.SetActive(tab == ForgeUITab.Refinement);
+            if (inheritancePanelRoot != null) inheritancePanelRoot.SetActive(tab == ForgeUITab.Inheritance);
+
+            if (isEnhanceOrPromotion)
+            {
+                if (actionButtonLabel != null) actionButtonLabel.text = tab == ForgeUITab.Enhance ? "강화하기" : "승급하기";
+                RefreshList();
+                RefreshMiddlePanel();
+            }
         }
 
         /// <summary>하단 목록을 다시 스캔·필터링·정렬해서 그린다. 인벤토리/창고 변경 이벤트에서도 호출된다.</summary>
