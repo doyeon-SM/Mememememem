@@ -124,7 +124,7 @@ namespace Pikachu.Test
         public bool Bake()
         {
             Bounds gb = ComputeGridBounds();
-            Vector3 center = new Vector3(gb.center.x, 0f, gb.center.z);
+            Vector3 center = new Vector3(gb.center.x, 0.5f, gb.center.z);
             Vector3 boxSize = new Vector3(
                 Mathf.Max(gb.size.x, 1f), 0.2f, Mathf.Max(gb.size.z, 1f));
 

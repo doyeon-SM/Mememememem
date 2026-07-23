@@ -1,11 +1,14 @@
-﻿using System;
+﻿using HDY.Item;
+using HDY.Mem;
+using KMS.InventoryDuped;
+using MemSystem.Data;
+using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
-using HDY.Item;
-using KMS.InventoryDuped;
 
 public class RecordManager : MonoBehaviour
 {
@@ -134,6 +137,11 @@ public class RecordManager : MonoBehaviour
                 record.ApplyData(saveData, sceneType);
             }
 
+            if (sceneType == SceneType.Territory)
+            {
+                StartCoroutine(SpawnWarehouseWanderersWithDelayRoutine());
+            }
+
             Debug.Log($"<color=lime>[RecordManager]</color> {sceneType} 환경 맞춤 데이터 복구 및 정산 완료!");
         }
         catch (Exception e)
@@ -228,5 +236,35 @@ public class RecordManager : MonoBehaviour
     {
         foreach (var p in FindObjectsByType<ProductionPanelUI>(FindObjectsInactive.Include, FindObjectsSortMode.None)) if (p.gameObject.activeInHierarchy) p.RefreshUI();
         foreach (var c in FindObjectsByType<CraftingPanelUI>(FindObjectsInactive.Include, FindObjectsSortMode.None)) if (c.gameObject.activeInHierarchy) c.RefreshUI();
+    }
+
+    private IEnumerator SpawnWarehouseWanderersWithDelayRoutine()
+    {
+        // TerritoryTestNavMeshBaker의 initialBakeDelay(0.5초)보다 조금 더 대기
+        yield return new WaitForSeconds(0.6f);
+
+        if (TerritoryWanderSpawner.Instance == null)
+        {
+            Debug.LogWarning("[RecordManager] 씬에 TerritoryWanderSpawner 인스턴스가 존재하지 않습니다.");
+            yield break;
+        }
+
+        var memManager = FindFirstObjectByType<HDY.Capture.MemCaptureManager>();
+        if (memManager != null && memManager.CapturedMems != null)
+        {
+            foreach (var entry in memManager.CapturedMems)
+            {
+                if (entry == null || entry.IsEmpty || entry.IsActive) continue;
+
+                MemData realMemData = MemCatalogManager.Instance != null
+                    ? MemCatalogManager.Instance.FindMemData(entry.MemId)
+                    : null;
+
+                if (realMemData != null)
+                {
+                    TerritoryWanderSpawner.Instance.SpawnWanderer(realMemData, new Vector3(0f, 1f, 0f));
+                }
+            }
+        }
     }
 }

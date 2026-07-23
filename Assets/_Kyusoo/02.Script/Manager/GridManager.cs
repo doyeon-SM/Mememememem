@@ -24,6 +24,20 @@ public class GridManager : MonoBehaviour
     [SerializeField] private Transform floorContainer;
     [SerializeField] private LayerMask gridLayerMask;
 
+    [Header("내부 상단 Plane 설정")]
+    [Tooltip("타일 상단에 올려둘 Green Plane 오브젝트")]
+    [SerializeField] private GameObject innerSurfacePlane;
+
+    [Tooltip("외곽 타일 테두리 여백 (값이 크면 Plane이 더 작아집니다)")]
+    [SerializeField] private float planeInsetMargin = 1.2f;
+
+    [Tooltip("Green Plane의 Y축 높이 (기본값: 0.501f)")]
+    [SerializeField] private float innerPlaneY = 0.501f;
+
+    // 🌟 [추가]: 배치 모드 격자의 Y축 높이 (Plane 직상단 밀착: 0.502f)
+    [Tooltip("배치 모드 격자판의 Y축 높이 (기본값: 0.502f)")]
+    [SerializeField] private float gridOverlayY = 0.502f;
+
     [Header("시설 데이터 정보: SO, 프리뷰")]
     [SerializeField] private List<BuildingData> buildings = new List<BuildingData>();
     [SerializeField] private Material previewMaterial;
@@ -106,6 +120,8 @@ public class GridManager : MonoBehaviour
     private void Awake()
     {
         if (buildRecordManager == null) buildRecordManager = FindFirstObjectByType<BuildRecordManager>();
+
+        if (Mathf.Approximately(innerPlaneY, 1.0f)) innerPlaneY = 0.5f;
 
         InitGridMaterials();
     }
@@ -227,6 +243,7 @@ public class GridManager : MonoBehaviour
             }
         }
 
+        UpdateInnerSurfacePlane();
         UpdateGlobalGridOverlay();
     }
 
@@ -284,6 +301,7 @@ public class GridManager : MonoBehaviour
         currentWidth = newWidth;
         currentHeight = newHeight;
 
+        UpdateInnerSurfacePlane();
         UpdateGlobalGridOverlay();
     }
 
@@ -307,14 +325,12 @@ public class GridManager : MonoBehaviour
         GameObject newTile = Instantiate(targetPrefab, spawnPosition, Quaternion.identity, floorContainer);
         newTile.name = $"Tile_({x},{z})";
 
-        // 🌟 1. [자식 포함 레이어 강제 적용]: 루트 및 모든 자식 메쉬 오브젝트에 gridLayerMask 적용
         int maskLayer = GetFirstLayerFromMask(gridLayerMask);
         if (maskLayer >= 0)
         {
             SetLayerRecursively(newTile, maskLayer);
         }
 
-        // 🌟 2. [콜라이더 자동 보장]: 충돌체가 없으면 BoxCollider 자동 생성
         var colliders = newTile.GetComponentsInChildren<Collider>();
         if (colliders == null || colliders.Length == 0)
         {
@@ -326,13 +342,27 @@ public class GridManager : MonoBehaviour
         return newTile;
     }
 
+    private void UpdateInnerSurfacePlane()
+    {
+        if (innerSurfacePlane == null) return;
+
+        float centerX = currentWidth / 2.0f;
+        float centerZ = currentHeight / 2.0f;
+
+        innerSurfacePlane.transform.position = new Vector3(centerX, innerPlaneY, centerZ);
+
+        float targetWidth = Mathf.Max(0.1f, currentWidth - planeInsetMargin);
+        float targetHeight = Mathf.Max(0.1f, currentHeight - planeInsetMargin);
+
+        innerSurfacePlane.transform.localScale = new Vector3(targetWidth / 10.0f, 1.0f, targetHeight / 10.0f);
+    }
+
     private void UpdateGlobalGridOverlay()
     {
         if (globalGridOverlay == null)
         {
             globalGridOverlay = GameObject.CreatePrimitive(PrimitiveType.Quad);
 
-            // 🌟 격자 오버레이가 레이캐스트를 막지 않도록 콜라이더 완전 제거
             if (globalGridOverlay.TryGetComponent<Collider>(out var col)) DestroyImmediate(col);
 
             globalGridOverlay.name = "GlobalGridOverlay";
@@ -345,7 +375,8 @@ public class GridManager : MonoBehaviour
             }
         }
 
-        globalGridOverlay.transform.position = new Vector3(currentWidth / 2.0f, 0.5f, currentHeight / 2.0f);
+        // 🌟 [수정]: Y축 위치를 Green Plane 바로 위(0.501f)로 밀착 배치
+        globalGridOverlay.transform.position = new Vector3(currentWidth / 2.0f, gridOverlayY, currentHeight / 2.0f);
         globalGridOverlay.transform.localScale = new Vector3(currentWidth, currentHeight, 1f);
 
         if (globalGridOverlay.TryGetComponent<MeshRenderer>(out MeshRenderer renderer) && renderer.material != null)
@@ -408,7 +439,6 @@ public class GridManager : MonoBehaviour
         Vector2 mousePosition = Mouse.current.position.ReadValue();
         Ray ray = Camera.main.ScreenPointToRay(mousePosition);
 
-        // 🌟 레이어 마스크가 지정되어 있지 않을 경우 예외 방지 (전체 탐색)
         LayerMask maskToUse = gridLayerMask.value != 0 ? gridLayerMask : (LayerMask)(~0);
 
         if (Physics.Raycast(ray, out RaycastHit hit, Mathf.Infinity, maskToUse))
@@ -442,7 +472,8 @@ public class GridManager : MonoBehaviour
         float offsetX = currentStartGridX + (currentTargetWidth / 2.0f);
         float offsetZ = currentStartGridZ + (currentTargetHeight / 2.0f);
 
-        currentPreviewInstance.transform.position = new Vector3(offsetX, 1.0f, offsetZ);
+        // 프리뷰 Y축 높이를 0.5f로 설정
+        currentPreviewInstance.transform.position = new Vector3(offsetX, 0.5f, offsetZ);
 
         canPlaceCurrent = CheckPlacement(currentStartGridX, currentStartGridZ, currentTargetWidth, currentTargetHeight);
 
@@ -484,7 +515,7 @@ public class GridManager : MonoBehaviour
         texture.filterMode = FilterMode.Point;
         texture.wrapMode = TextureWrapMode.Repeat;
 
-        Color gridBorderColor = new Color(0.5f, 0.5f, 0.5f, 0.4f);
+        Color gridBorderColor = new Color(0.4f, 0.4f, 0.4f, 0.35f);
 
         for (int y = 0; y < 64; y++)
         {
@@ -517,7 +548,7 @@ public class GridManager : MonoBehaviour
             mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
             mat.SetInt("_ZWrite", 0);
             mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-            mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+            mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent + 10;
         }
 
         if (mat.HasProperty("_BaseMap")) mat.SetTexture("_BaseMap", texture);
@@ -884,7 +915,7 @@ public class GridManager : MonoBehaviour
             float offsetX = snap.startX + (bWidth / 2.0f);
             float offsetZ = snap.startZ + (bHeight / 2.0f);
 
-            Vector3 spawnPos = new Vector3(offsetX, 1.0f, offsetZ);
+            Vector3 spawnPos = new Vector3(offsetX, 0.5f, offsetZ);
 
             GameObject restoredBuilding = Instantiate(snap.data.buildingPrefab, spawnPos, snap.rotation, floorContainer);
 
