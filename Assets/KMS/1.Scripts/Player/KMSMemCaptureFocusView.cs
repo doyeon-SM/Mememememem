@@ -109,7 +109,7 @@ namespace KMS
 
             if (nameText != null)
             {
-                nameText.text = displayName;
+                nameText.text = $"{GetTierMarker(newTarget)} {displayName}";
             }
 
             float normalizedRate = Mathf.Clamp01(captureRate);
@@ -129,7 +129,7 @@ namespace KMS
 
             if (nameText != null)
             {
-                nameText.text = displayName;
+                nameText.text = $"{GetTierMarker(newTarget)} {displayName}";
             }
 
             if (detailText != null)
@@ -162,6 +162,21 @@ namespace KMS
             targetRenderers = target != null ? target.GetComponentsInChildren<Renderer>(true) : null;
             hasPosition = false;
             positionVelocity = Vector2.zero;
+        }
+
+        private static string GetTierMarker(Mem mem)
+        {
+            if (mem == null) return string.Empty;
+
+            int grade = Mathf.Clamp((int)mem.Tier + 1, 1, 5);
+            return grade switch
+            {
+                1 => "①",
+                2 => "②",
+                3 => "③",
+                4 => "④",
+                _ => "⑤"
+            };
         }
 
         private Vector3 GetWorldAnchor()

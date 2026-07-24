@@ -397,7 +397,8 @@ namespace KMS.InventoryDuped
             isInventoryOpen = open;
 
             if (inventoryPanel != null) inventoryPanel.SetActive(open);
-            if (playerHud != null) playerHud.SetSurvivalStatusVisible(!open);
+            // The exploration HUD keeps survival status visible behind the inventory.
+            if (playerHud != null) playerHud.SetSurvivalStatusVisible(true);
             if (playerInput != null)
             {
                 playerInput.SetCursorReleased(open);
