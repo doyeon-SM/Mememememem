@@ -21,6 +21,10 @@ namespace KMS.InventoryDuped
         public ItemDragUI itemDragUI;
         public ItemTooltipUI itemTooltipUI;
 
+        [Header("Temporary Trash")]
+        [SerializeField] private InventorySlotUI trashSlotUI;
+        private readonly ItemStack trashStack = new ItemStack();
+
         [Header("정렬")]
         [SerializeField] private InventorySortUI sortUI;
 
@@ -66,6 +70,11 @@ namespace KMS.InventoryDuped
                 Debug.LogWarning("[InventoryUI] PlayerInventory reference is missing.");
                 enabled = false;
                 return;
+            }
+
+            if (trashSlotUI == null)
+            {
+                Debug.LogWarning("[InventoryUI] trashSlotUI is missing. Temporary trash is disabled.", this);
             }
 
             BindSlots();
@@ -121,8 +130,8 @@ namespace KMS.InventoryDuped
             if (heldStack == null || heldStack.IsEmpty)
             {
                 bool taken = button == PointerEventData.InputButton.Left
-                    ? playerInventory.TryTakeSlot(slot.group, slot.slotIndex, int.MaxValue, out ItemStack takenStack)
-                    : playerInventory.TryTakeHalfSlot(slot.group, slot.slotIndex, out takenStack);
+                    ? TryTakeFull(slot.group, slot.slotIndex, out ItemStack takenStack)
+                    : TryTakeHalf(slot.group, slot.slotIndex, out takenStack);
 
                 if (!taken) return;
 
@@ -133,8 +142,8 @@ namespace KMS.InventoryDuped
             else
             {
                 bool placed = button == PointerEventData.InputButton.Left
-                    ? playerInventory.TryPlaceHeldStack(slot.group, slot.slotIndex, heldStack)
-                    : playerInventory.TryPlaceHeldAmount(slot.group, slot.slotIndex, heldStack, 1);
+                    ? TryPlaceFull(slot.group, slot.slotIndex, heldStack)
+                    : TryPlaceOne(slot.group, slot.slotIndex, heldStack);
 
                 if (!placed) return;
             }
@@ -296,6 +305,123 @@ namespace KMS.InventoryDuped
             // else: Storage가 섞인 조합 - 이 컨트롤러 범위 밖이므로 무시(WarehouseUI에서만 발생해야 함)
         }
 
+        private bool TryTakeFull(SlotGroup group, int index, out ItemStack taken)
+        {
+            if (group == SlotGroup.Trash)
+            {
+                return TryTakeTrashAmount(trashStack.IsEmpty ? 0 : trashStack.amount, out taken);
+            }
+
+            return playerInventory.TryTakeSlot(group, index, int.MaxValue, out taken);
+        }
+
+        private bool TryTakeHalf(SlotGroup group, int index, out ItemStack taken)
+        {
+            if (group == SlotGroup.Trash)
+            {
+                int amount = trashStack.IsEmpty ? 0 : Mathf.CeilToInt(trashStack.amount * 0.5f);
+                return TryTakeTrashAmount(amount, out taken);
+            }
+
+            return playerInventory.TryTakeHalfSlot(group, index, out taken);
+        }
+
+        private bool TryTakeAmount(SlotGroup group, int index, int amount, out ItemStack taken)
+        {
+            if (group == SlotGroup.Trash)
+            {
+                return TryTakeTrashAmount(amount, out taken);
+            }
+
+            return playerInventory.TryTakeSlot(group, index, amount, out taken);
+        }
+
+        private bool TryPlaceFull(SlotGroup group, int index, ItemStack held)
+        {
+            if (group == SlotGroup.Trash)
+            {
+                return PlaceTrash(held, held != null ? held.amount : 0);
+            }
+
+            return playerInventory.TryPlaceHeldStack(group, index, held);
+        }
+
+        private bool TryPlaceOne(SlotGroup group, int index, ItemStack held)
+        {
+            if (group == SlotGroup.Trash)
+            {
+                return PlaceTrash(held, 1);
+            }
+
+            return playerInventory.TryPlaceHeldAmount(group, index, held, 1);
+        }
+
+        private bool TryGetSnapshot(SlotGroup group, int index, out ItemStack snapshot)
+        {
+            if (group == SlotGroup.Trash)
+            {
+                snapshot = trashStack.IsEmpty
+                    ? null
+                    : new ItemStack { itemId = trashStack.itemId, amount = trashStack.amount };
+                return snapshot != null;
+            }
+
+            return playerInventory.TryGetSlotSnapshot(group, index, out snapshot);
+        }
+
+        private bool TryTakeTrashAmount(int amount, out ItemStack taken)
+        {
+            taken = null;
+            if (trashStack.IsEmpty || amount <= 0) return false;
+
+            int takenAmount = Mathf.Min(amount, trashStack.amount);
+            taken = new ItemStack { itemId = trashStack.itemId, amount = takenAmount };
+
+            trashStack.amount -= takenAmount;
+            if (trashStack.amount <= 0)
+            {
+                trashStack.Clear();
+            }
+
+            RefreshTrashSlot();
+            return true;
+        }
+
+        private bool PlaceTrash(ItemStack held, int amount)
+        {
+            if (held == null || held.IsEmpty || amount <= 0) return false;
+
+            int placeAmount = Mathf.Min(amount, held.amount);
+            trashStack.Set(held.itemId, placeAmount);
+
+            held.amount -= placeAmount;
+            if (held.amount <= 0)
+            {
+                held.Clear();
+            }
+
+            RefreshTrashSlot();
+            return true;
+        }
+
+        private void ForcePlaceInTrash(ItemStack held)
+        {
+            if (held == null || held.IsEmpty) return;
+
+            string itemId = held.itemId;
+            int amount = held.amount;
+            PlaceTrash(held, held.amount);
+
+            Debug.LogWarning(
+                $"[InventoryUI] No inventory space was available. '{itemId}' x{amount} was moved to temporary trash.",
+                this);
+        }
+
+        private void RefreshTrashSlot()
+        {
+            trashSlotUI?.SetStack(trashStack);
+        }
+
         private void SetInventoryOpen(bool open)
         {
             if (open)
@@ -317,10 +443,20 @@ namespace KMS.InventoryDuped
 
             if (!open && heldStack != null && !heldStack.IsEmpty)
             {
-                if (playerInventory == null || !playerInventory.TryReturnHeldStack(heldStack, heldOriginGroup, heldOriginIndex))
+                bool returned;
+                if (heldOriginGroup == SlotGroup.Trash)
                 {
-                    Debug.LogWarning("[InventoryUI] 커서에 든 아이템을 반환할 공간이 없어 인벤토리를 닫지 못했습니다.");
-                    return;
+                    returned = PlaceTrash(heldStack, heldStack.amount);
+                }
+                else
+                {
+                    returned = playerInventory != null &&
+                               playerInventory.TryReturnHeldStack(heldStack, heldOriginGroup, heldOriginIndex);
+                }
+
+                if (!returned || !heldStack.IsEmpty)
+                {
+                    ForcePlaceInTrash(heldStack);
                 }
 
                 ClearHeldItem();
@@ -410,7 +546,7 @@ namespace KMS.InventoryDuped
             if (heldStack != null && !heldStack.IsEmpty) return;
             if (quantityPopup == null) EnsureQuantityPopup();
             if (quantityPopup == null) return;
-            if (!playerInventory.TryGetSlotSnapshot(slot.group, slot.slotIndex, out ItemStack snapshot)) return;
+            if (!TryGetSnapshot(slot.group, slot.slotIndex, out ItemStack snapshot)) return;
 
             HDY.Item.ItemData itemData = playerInventory.FindItemData(snapshot.itemId);
             if (itemData == null) return;
@@ -424,7 +560,7 @@ namespace KMS.InventoryDuped
         private void ConfirmQuantityPick(SlotGroup group, int index, int amount, Vector2 position)
         {
             if (!isInventoryOpen || heldStack != null && !heldStack.IsEmpty) return;
-            if (!playerInventory.TryTakeSlot(group, index, amount, out ItemStack takenStack)) return;
+            if (!TryTakeAmount(group, index, amount, out ItemStack takenStack)) return;
 
             heldStack = takenStack;
             heldOriginGroup = group;
@@ -436,6 +572,7 @@ namespace KMS.InventoryDuped
         {
             inventorySlots = BindSlotGroup(inventoryGrid, playerInventory.inventory.slots.Length, SlotGroup.Inventory);
             quickSlots = BindSlotGroup(quickSlotRoot, playerInventory.quickSlots.slots.Length, SlotGroup.QuickSlot);
+            trashSlotUI?.Initialize(this, SlotGroup.Trash, 0);
         }
 
         private InventorySlotUI[] BindSlotGroup(Transform root, int count, SlotGroup group)
@@ -535,6 +672,7 @@ namespace KMS.InventoryDuped
             RefreshInventorySlots();
             RefreshQuickSlots();
             RefreshSelectedQuickSlot(playerInventory.selectedQuickSlotIndex);
+            RefreshTrashSlot();
         }
 
         private void RefreshInventorySlots()

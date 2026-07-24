@@ -41,6 +41,14 @@ namespace HDY.Inventory
     ///
     /// [PlayerInventory 임시 배치] 아직 씬 간 데이터 전달 시스템이 없어서, 이 씬에도 PlayerInventory를
     /// 임시로 배치해서 참조한다. 나중에 씬 이동 시 데이터를 넘겨받는 방식이 생기면 이 참조 연결 부분만 바뀌면 된다.
+    ///
+    /// [HDY 요청 - 인벤토리 정렬/업그레이드] 창고 쪽(P_WarehouseUI)에 있던 정렬 버튼 + 업그레이드 버튼을
+    /// 인벤토리 쪽(P_InventoryUI)에도 동일한 레이아웃으로 배치했다. 정렬은 KMS의 InventorySortUI(창고용
+    /// WarehouseSortUI와는 다른 컴포넌트, InventorySortCriteria를 사용)를 그대로 재사용하고, 업그레이드는
+    /// 창고의 WarehouseUpgrade와 동일한 패턴의 새 어댑터(InventoryUpgrade)를 만들어 공용 팝업(UpgradePopupUI)에
+    /// 연결했다. 인벤토리 그리드(10x6=60칸)는 이미 씬에 전부 배치되어 있으므로 창고처럼 런타임에 슬롯을 늘리지
+    /// 않고, 대신 "몇 번 칸까지 언락됐는지"(PlayerInventory.UnlockedInventorySlotCount)에 따라 슬롯의
+    /// CanvasGroup(이미 프리팹에 붙어있음)으로 회색 처리 + 상호작용 차단만 토글한다(RefreshInventorySlotLocks).
     /// </summary>
     public class WarehouseUI : MonoBehaviour, IInventorySlotOwner, IInventorySlotClickOwner
     {
@@ -61,6 +69,15 @@ namespace HDY.Inventory
 
         [Header("인벤토리 (오른쪽 위, 10x6 - 슬롯은 씬에 미리 배치)")]
         [SerializeField] private Transform inventoryGrid;
+
+        [Header("인벤토리 정렬 ([HDY 요청] 창고와 동일한 정렬 버튼을 인벤토리 쪽에도 배치)")]
+        [SerializeField] private InventorySortUI inventorySortUI;
+
+        [Header("인벤토리 업그레이드 ([HDY 요청] 5칸씩 확장)")]
+        [SerializeField] private Button inventoryUpgradeButton;
+        [SerializeField] private InventoryUpgrade inventoryUpgrade;
+        [Tooltip("아직 언락되지 않은 인벤토리 칸의 표시 투명도(0~1). 낮을수록 더 흐리게(회색처럼) 보인다.")]
+        [SerializeField] [Range(0f, 1f)] private float lockedSlotAlpha = 0.35f;
 
         [Header("퀵슬롯 (오른쪽 맨 아래, 10칸 - 슬롯은 씬에 미리 배치)")]
         [SerializeField] private Transform quickSlotRoot;
@@ -95,10 +112,18 @@ namespace HDY.Inventory
             if (upgradeButton == null) Debug.LogWarning("[WarehouseUI] upgradeButton이 비어있습니다. 창고 업그레이드 버튼이 동작하지 않습니다.", this);
             if (warehouseUpgrade == null) Debug.LogWarning("[WarehouseUI] warehouseUpgrade가 비어있습니다. 업그레이드 팝업을 열 수 없습니다.", this);
             if (trashSlotUI == null) Debug.LogWarning("[WarehouseUI] trashSlotUI가 비어있습니다. 트래시 슬롯이 동작하지 않습니다.", this);
+            if (inventorySortUI == null) Debug.LogWarning("[WarehouseUI] inventorySortUI가 비어있습니다. 인벤토리 정렬 버튼이 동작하지 않습니다.", this);
+            if (inventoryUpgradeButton == null) Debug.LogWarning("[WarehouseUI] inventoryUpgradeButton이 비어있습니다. 인벤토리 업그레이드 버튼이 동작하지 않습니다.", this);
+            if (inventoryUpgrade == null) Debug.LogWarning("[WarehouseUI] inventoryUpgrade가 비어있습니다. 인벤토리 업그레이드 팝업을 열 수 없습니다.", this);
 
             if (upgradeButton != null)
             {
                 upgradeButton.onClick.AddListener(HandleUpgradeButtonClicked);
+            }
+
+            if (inventoryUpgradeButton != null)
+            {
+                inventoryUpgradeButton.onClick.AddListener(HandleInventoryUpgradeButtonClicked);
             }
         }
 
@@ -126,6 +151,7 @@ namespace HDY.Inventory
                 playerInventory.OnInventoryChanged += RefreshInventorySlots;
                 playerInventory.OnQuickSlotChanged += RefreshQuickSlot;
                 playerInventory.OnSelectedQuickSlotChanged += RefreshSelectedQuickSlot;
+                playerInventory.OnInventorySlotCountChanged += HandleInventorySlotCountChanged;
             }
 
             if (warehouseInventory != null)
@@ -138,6 +164,11 @@ namespace HDY.Inventory
             {
                 sortUI.OnSortRequested += HandleSortRequested;
             }
+
+            if (inventorySortUI != null)
+            {
+                inventorySortUI.OnSortRequested += HandleInventorySortRequested;
+            }
         }
 
         private void OnDisable()
@@ -147,6 +178,7 @@ namespace HDY.Inventory
                 playerInventory.OnInventoryChanged -= RefreshInventorySlots;
                 playerInventory.OnQuickSlotChanged -= RefreshQuickSlot;
                 playerInventory.OnSelectedQuickSlotChanged -= RefreshSelectedQuickSlot;
+                playerInventory.OnInventorySlotCountChanged -= HandleInventorySlotCountChanged;
             }
 
             if (warehouseInventory != null)
@@ -158,6 +190,11 @@ namespace HDY.Inventory
             if (sortUI != null)
             {
                 sortUI.OnSortRequested -= HandleSortRequested;
+            }
+
+            if (inventorySortUI != null)
+            {
+                inventorySortUI.OnSortRequested -= HandleInventorySortRequested;
             }
 
             // [ESC 닫기 안전장치] 이 패널은 PanelManager가 SetActive(false)로 직접 닫으므로 닫기 자체를
@@ -450,19 +487,24 @@ namespace HDY.Inventory
             }
         }
 
-        /// <summary>itemId를 병합할 수 있는 가장 낮은 index 칸을 찾고, 없으면 가장 낮은 index의 빈 칸을 찾는다. 없으면 -1.</summary>
+        /// <summary>itemId를 병합할 수 있는 가장 낮은 index 칸을 찾고, 없으면 가장 낮은 index의 빈 칸을 찾는다. 없으면 -1.
+        /// [HDY 요청 - 인벤토리 업그레이드] 목적지가 플레이어 인벤토리일 때는 아직 언락되지 않은 칸을 건너뛴다.</summary>
         private int FindBestDestinationIndex(InventoryContainer container, string itemId)
         {
             int maxStack = GetMaxStackSafe(itemId);
 
             for (int i = 0; i < container.slots.Length; i++)
             {
+                if (IsDestinationIndexLocked(container, i)) continue;
+
                 ItemStack s = container.slots[i];
                 if (!s.IsEmpty && s.itemId == itemId && s.amount < maxStack) return i;
             }
 
             for (int i = 0; i < container.slots.Length; i++)
             {
+                if (IsDestinationIndexLocked(container, i)) continue;
+
                 if (container.slots[i].IsEmpty) return i;
             }
 
@@ -506,7 +548,8 @@ namespace HDY.Inventory
             playerInventory.PublishInventoryChanged();
         }
 
-        /// <summary>destination을 낮은 index부터(병합 우선 -&gt; 빈 칸) amount만큼 채운다. 채우지 못한 나머지를 반환한다.</summary>
+        /// <summary>destination을 낮은 index부터(병합 우선 -&gt; 빈 칸) amount만큼 채운다. 채우지 못한 나머지를 반환한다.
+        /// [HDY 요청 - 인벤토리 업그레이드] destination이 플레이어 인벤토리일 때는 아직 언락되지 않은 칸을 건너뛴다.</summary>
         private int FillDestinationWithAmount(InventoryContainer destination, string itemId, int amount)
         {
             int maxStack = GetMaxStackSafe(itemId);
@@ -514,6 +557,8 @@ namespace HDY.Inventory
 
             for (int i = 0; i < destination.slots.Length && remaining > 0; i++)
             {
+                if (IsDestinationIndexLocked(destination, i)) continue;
+
                 ItemStack s = destination.slots[i];
                 if (s.IsEmpty || s.itemId != itemId) continue;
 
@@ -527,6 +572,8 @@ namespace HDY.Inventory
 
             for (int i = 0; i < destination.slots.Length && remaining > 0; i++)
             {
+                if (IsDestinationIndexLocked(destination, i)) continue;
+
                 ItemStack s = destination.slots[i];
                 if (!s.IsEmpty) continue;
 
@@ -536,6 +583,16 @@ namespace HDY.Inventory
             }
 
             return remaining;
+        }
+
+        /// <summary>
+        /// [HDY 요청 - 인벤토리 업그레이드] Shift/Ctrl 단축 이동(FindBestDestinationIndex/FillDestinationWithAmount)이
+        /// 아직 언락되지 않은 인벤토리 칸으로 아이템을 밀어넣지 못하도록, 목적지 컨테이너가 플레이어 인벤토리일 때만
+        /// 잠금 여부를 확인한다(창고/퀵슬롯은 이 잠금 개념이 없다).
+        /// </summary>
+        private bool IsDestinationIndexLocked(InventoryContainer container, int index)
+        {
+            return container == playerInventory.inventory && playerInventory.IsInventorySlotLocked(index);
         }
 
         /// <summary>sourceContainers에서 itemId를 총 amount만큼 제거한다(각 컨테이너를 순서대로 훑으며 차감).</summary>
@@ -683,9 +740,43 @@ namespace HDY.Inventory
             RefreshStorageSlots();
         }
 
+        // ===================== 인벤토리 정렬/업그레이드 ([HDY 요청]) =====================
+
+        private void HandleInventoryUpgradeButtonClicked()
+        {
+            if (inventoryUpgrade == null)
+            {
+                Debug.LogWarning("[WarehouseUI] inventoryUpgrade가 비어있어 인벤토리 업그레이드 팝업을 열 수 없습니다.", this);
+                return;
+            }
+
+            if (UpgradePopupUI.Instance == null)
+            {
+                Debug.LogWarning("[WarehouseUI] 씬에서 UpgradePopupUI를 찾을 수 없습니다.", this);
+                return;
+            }
+
+            UpgradePopupUI.Instance.Show(inventoryUpgrade);
+        }
+
+        private void HandleInventorySlotCountChanged()
+        {
+            Debug.Log("[WarehouseUI] OnInventorySlotCountChanged 수신 -> 인벤토리 슬롯 잠금 상태 갱신");
+            RefreshInventorySlotLocks();
+        }
+
+        private void HandleInventorySortRequested(InventorySortCriteria criteria)
+        {
+            Debug.Log($"[WarehouseUI] 인벤토리 정렬 요청: {criteria}");
+            playerInventory?.ApplyInventorySort(criteria);
+        }
+
         private bool IsLocked(InventorySlotUI slot)
         {
-            return slot != null && slot.group == SlotGroup.QuickSlot && playerInventory.IsQuickSlotLocked(slot.slotIndex);
+            if (slot == null) return false;
+            if (slot.group == SlotGroup.QuickSlot) return playerInventory.IsQuickSlotLocked(slot.slotIndex);
+            if (slot.group == SlotGroup.Inventory) return playerInventory.IsInventorySlotLocked(slot.slotIndex);
+            return false;
         }
 
         private void HandleSortRequested(ItemSortCriteria criteria)
@@ -760,6 +851,7 @@ namespace HDY.Inventory
             RefreshQuickSlots();
             RefreshSelectedQuickSlot(playerInventory.selectedQuickSlotIndex);
             RefreshTrashSlot();
+            RefreshInventorySlotLocks();
         }
 
         private void RefreshStorageSlots()
@@ -782,6 +874,32 @@ namespace HDY.Inventory
                 {
                     inventorySlots[i].SetStack(playerInventory.inventory.slots[i]);
                 }
+            }
+        }
+
+        /// <summary>
+        /// [HDY 요청 - 인벤토리 업그레이드] 언락된 칸(0 ~ UnlockedInventorySlotCount-1)은 정상 상태로 두고,
+        /// 아직 언락되지 않은 칸은 슬롯에 이미 붙어있는 CanvasGroup으로 회색 처리(alpha 낮춤) + 상호작용을
+        /// 막는다(interactable=false, blocksRaycasts=false). InventorySlotUI 자체는 다른 팀 소유라 건드리지
+        /// 않고, 슬롯 프리팹에 이미 있는 CanvasGroup 컴포넌트를 여기서 직접 제어한다.
+        /// </summary>
+        private void RefreshInventorySlotLocks()
+        {
+            if (inventorySlots == null || playerInventory == null) return;
+
+            int unlockedCount = playerInventory.UnlockedInventorySlotCount;
+
+            for (int i = 0; i < inventorySlots.Length; i++)
+            {
+                if (inventorySlots[i] == null) continue;
+
+                bool unlocked = i < unlockedCount;
+                CanvasGroup canvasGroup = inventorySlots[i].GetComponent<CanvasGroup>();
+                if (canvasGroup == null) continue;
+
+                canvasGroup.interactable = unlocked;
+                canvasGroup.blocksRaycasts = unlocked;
+                canvasGroup.alpha = unlocked ? 1f : lockedSlotAlpha;
             }
         }
 

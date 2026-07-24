@@ -39,6 +39,11 @@ public class InventorySlotUI : MonoBehaviour, IBeginDragHandler, IDragHandler, I
         group = newGroup;
         slotIndex = index;
 
+        if (newGroup == SlotGroup.Trash && keyText != null)
+        {
+            keyText.gameObject.SetActive(false);
+        }
+
         SetSelected(false);
     }
 
@@ -47,8 +52,11 @@ public class InventorySlotUI : MonoBehaviour, IBeginDragHandler, IDragHandler, I
         currentStack = stack;
 
         bool hasItem = stack != null && !stack.IsEmpty;
+        if (hasItem && catalogManager == null)
+        {
+            catalogManager = ItemCatalogManager.Resolve(null);
+        }
 
-        // [HDY 요청] 슬롯에는 itemId만 있으므로 표시를 위해 카탈로그에서 ItemData를 다시 조회한다.
         ItemData data = (hasItem && catalogManager != null) ? catalogManager.FindItemData(stack.itemId) : null;
 
         if (itemIcon != null)

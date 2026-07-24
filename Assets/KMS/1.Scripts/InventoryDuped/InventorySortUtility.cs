@@ -25,29 +25,47 @@ namespace KMS.InventoryDuped
             ItemCatalogManager catalogManager)
         {
             if (container == null || container.slots == null) return false;
+            if (catalogManager == null)
+            {
+                Debug.LogWarning("[InventorySortUtility] Sort cancelled because ItemCatalogManager is unavailable.");
+                return false;
+            }
 
-            var totals = new Dictionary<string, int>();
+            var totals = new Dictionary<string, long>();
+            var unresolvedStacks = new List<ItemStack>();
+            var unresolvedIds = new HashSet<string>();
+
             foreach (var slot in container.slots)
             {
                 if (slot == null || slot.IsEmpty) continue;
 
-                totals.TryGetValue(slot.itemId, out int current);
+                ItemData itemData = catalogManager.FindItemData(slot.itemId);
+                if (itemData == null)
+                {
+                    unresolvedStacks.Add(new ItemStack { itemId = slot.itemId, amount = slot.amount });
+                    unresolvedIds.Add(slot.itemId);
+                    continue;
+                }
+
+                totals.TryGetValue(slot.itemId, out long current);
                 totals[slot.itemId] = current + slot.amount;
             }
 
             var compacted = new List<ItemStack>();
             foreach (var pair in totals)
             {
-                int remaining = pair.Value;
+                long remaining = pair.Value;
                 int maxStack = GetMaxStack(pair.Key, catalogManager);
 
                 while (remaining > 0)
                 {
-                    int amount = Mathf.Min(maxStack, remaining);
+                    int amount = (int)Math.Min((long)maxStack, remaining);
                     compacted.Add(new ItemStack { itemId = pair.Key, amount = amount });
                     remaining -= amount;
                 }
             }
+
+            compacted.AddRange(unresolvedStacks);
 
             List<ItemStack> sorted;
             switch (criteria)
@@ -69,6 +87,21 @@ namespace KMS.InventoryDuped
                 default:
                     sorted = compacted;
                     break;
+            }
+
+            if (sorted.Count > container.slots.Length)
+            {
+                Debug.LogWarning(
+                    $"[InventorySortUtility] Sort cancelled because {sorted.Count} slots are required " +
+                    $"but the inventory only has {container.slots.Length}. No items were changed.");
+                return false;
+            }
+
+            if (unresolvedIds.Count > 0)
+            {
+                Debug.LogWarning(
+                    $"[InventorySortUtility] Preserved unresolved item IDs without compacting: " +
+                    $"{string.Join(", ", unresolvedIds)}");
             }
 
             for (int i = 0; i < container.slots.Length; i++)
