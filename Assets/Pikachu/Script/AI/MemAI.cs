@@ -339,6 +339,11 @@ namespace MemSystem.AI
             if (Owner?.Stats == null) return;
             if (Owner.Stats.Personality != MemPersonality.Aggressive) return;
             if (CurrentState == CombatState || CurrentState == FleeState || CurrentState == CapturedState) return;
+
+            // NavMesh 밖이면 선제 공격보다 복귀가 우선.
+            // 여기서 Combat으로 끌고 가버리면 Idle/Wander의 NavMesh 자가 복구 루프가
+            // 한 번도 돌지 못해, 난폭 멤만 제자리에 굳는다.
+            if (Movement != null && !Movement.IsOnNavMesh) return;
             if (playerTransform == null)
             {
                 var player = GameObject.FindGameObjectWithTag("Player");

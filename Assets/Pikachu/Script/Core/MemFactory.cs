@@ -84,7 +84,13 @@ namespace MemSystem.Core
             mem.gameObject.SetActive(true);
 
             // 3. 활성화된 상태에서 안전하게 NavMeshAgent Warp 호출 (이전 경로/보간 찌꺼기 제거)
-            if (mem.Movement != null) mem.Movement.Warp(position);
+            //    실패하면 NavMesh 밖에 놓인 채로 스폰된다 → 이동 명령이 전부 무시되므로 반드시 확인한다.
+            if (mem.Movement != null && !mem.Movement.Warp(position))
+            {
+                Debug.LogError(
+                    $"[MemFactory] {data.memName} 이 NavMesh 밖에 스폰되었습니다 (위치: {position}). " +
+                    $"이 멤은 이동하지 못합니다 — 스폰 지점을 NavMesh 위로 옮기세요.", mem);
+            }
 
             // 데이터 주입 + 초기화 (AI 초기화 → PlayIdle 등 Animator 제어 포함)
             mem.Initialize(data, tierTable);
