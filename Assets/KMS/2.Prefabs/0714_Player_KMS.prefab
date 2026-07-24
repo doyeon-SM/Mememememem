@@ -2830,10 +2830,10 @@ GameObject:
   - component: {fileID: 8642937105823619041}
   - component: {fileID: 816496616688076247}
   - component: {fileID: 6464142994961608153}
-  - component: {fileID: 2109728097256706564}
   - component: {fileID: 6812409213719045061}
   - component: {fileID: 6812409213719045062}
   - component: {fileID: 1489569411123139381}
+  - component: {fileID: 2142550370433789115}
   m_Layer: 3
   m_Name: 0714_Player_KMS
   m_TagString: Player
@@ -3160,10 +3160,10 @@ MonoBehaviour:
   hud: {fileID: 4255726674415822916}
   cameraController: {fileID: 540356905414934518}
   trajectoryPreview: {fileID: 816496616688076247}
-  heldItemSprite: {fileID: 0}
+  heldItemModel: {fileID: 2142550370433789115}
   animator: {fileID: 1914156871709254916}
   throwOrigin: {fileID: 8466654886214536108}
-  capsulePrefab: {fileID: 5207469710425988775, guid: c1ad0ec31bfa9a54e8519048ed2fe0fa, type: 3}
+  capsulePrefab: {fileID: 5207469710425988775, guid: 97c8a0cb41b947fca3182af81372457d, type: 3}
   capsuleItemId: tool_shabby_capsule
   requiredHoldTime: 0.5
   throwSpeed: 12
@@ -3234,31 +3234,6 @@ MonoBehaviour:
   playerMovement: {fileID: 0}
   cameraController: {fileID: 0}
   inventoryUi: {fileID: 0}
---- !u!114 &2109728097256706564
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5320301024596143200}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a714dd61e52b4aa4b92bf47e6f9f33c1, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::KMS.PlayerHeldItemSpriteController
-  inventory: {fileID: 9124669202358280069}
-  catalogManager: {fileID: 0}
-  movement: {fileID: 757377502652196312}
-  animator: {fileID: 1914156871709254916}
-  handAnchor: {fileID: 0}
-  spriteRenderer: {fileID: 0}
-  cameraTransform: {fileID: 0}
-  localPosition: {x: 0.08, y: 0.02, z: 0.02}
-  localEulerAngles: {x: 0, y: 0, z: 0}
-  spriteScale: 0.3
-  faceCamera: 1
-  flipX: 0
-  sortingOrder: 20
 --- !u!114 &6812409213719045061
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3328,6 +3303,23 @@ MonoBehaviour:
   respawnLocationMode: 0
   respawnHealthPercent: 1
   respawnInvulnerabilityDuration: 2
+--- !u!114 &2142550370433789115
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5320301024596143200}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6886ed6a8297f164d85f15f131fe9c5d, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::KMS.PlayerHeldItemModelController
+  inventory: {fileID: 9124669202358280069}
+  movement: {fileID: 757377502652196312}
+  animator: {fileID: 1914156871709254916}
+  handAnchor: {fileID: 0}
+  prefabTable: {fileID: 11400000, guid: 2df0fe05f944de94394c1b2705430ece, type: 2}
 --- !u!1 &5344451024060801274
 GameObject:
   m_ObjectHideFlags: 0
