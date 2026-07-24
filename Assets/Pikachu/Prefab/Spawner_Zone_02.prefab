@@ -1,0 +1,101 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &8527542342734120356
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2290462727817788671}
+  - component: {fileID: 7427474801450705305}
+  - component: {fileID: 7738170531454432910}
+  - component: {fileID: 8093623029131725433}
+  m_Layer: 0
+  m_Name: Spawner_Zone_02
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &2290462727817788671
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8527542342734120356}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -1.13, y: 0, z: -1.129}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &7427474801450705305
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8527542342734120356}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d95da87d2999aea429322093873b842c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MemSystem.Core.MemFactory
+  memPrefab: {fileID: 3233825511572421704, guid: 7bcf68e9d2b34cb4280a27e0712fcdc6, type: 3}
+  tierTable: {fileID: 11400000, guid: 64385f8870b07d64485e7b5ef574050c, type: 2}
+  memParent: {fileID: 0}
+--- !u!114 &7738170531454432910
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8527542342734120356}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 86382e2ca0c71f441ab96e609d2ffd71, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MemSystem.Spawn.MemPool
+  factory: {fileID: 7427474801450705305}
+  defaultCapacity: 10
+  maxSize: 25
+--- !u!114 &8093623029131725433
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8527542342734120356}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 010859359a7b4394aaa2bdb8e793eab3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MemSystem.Spawn.MemSpawner
+  memPool: {fileID: 7738170531454432910}
+  memFactory: {fileID: 7427474801450705305}
+  spawnTable:
+  - {fileID: 11400000, guid: 2e401caa7986662408594d1503a7093b, type: 2}
+  - {fileID: 11400000, guid: 35d202700732d564c92ca08d0cf94f24, type: 2}
+  - {fileID: 11400000, guid: 32a9dff475e9c8f43aea494926d11d45, type: 2}
+  - {fileID: 11400000, guid: cf2fe5b026fc68648a4d52889971461e, type: 2}
+  - {fileID: 11400000, guid: cc1e4d1feb6c5e145b93069af3370e8d, type: 2}
+  - {fileID: 11400000, guid: a2ae3fd2cd7331141ae35b6b5216d561, type: 2}
+  - {fileID: 11400000, guid: d494901d9cf744d4caafe4d8e446b525, type: 2}
+  - {fileID: 11400000, guid: 3eb3430088ce84b4dab0142171c502e1, type: 2}
+  waypoints:
+  - {fileID: 0}
+  spawnRadius: 200
+  maxActiveCount: 20
+  minStayTime: 10
+  maxStayTime: 30
+  spawnBatchSize: 3
+  spawnInterval: 1
+  despawnDelay: 60
+  cooldownMin: 60
+  cooldownMax: 120
+  playerTransform: {fileID: 0}

@@ -165,17 +165,34 @@ namespace MemSystem.Movement
 
         /// <summary>
         /// 지정된 위치로 NavMeshAgent를 즉시 이동시킵니다. (스폰/풀링 재사용 시 안전)
+        ///
+        /// 요청 위치가 NavMesh에서 살짝 벗어나 있으면 가장 가까운 NavMesh 지점으로 보정합니다.
+        /// 보정 없이 그냥 Warp하면 실패해도 티가 나지 않고, NavMesh 밖에 놓인 멤은
+        /// 이후 모든 이동 명령(ChaseTo/Stop/MoveTo)이 무시되어 제자리에 굳습니다.
         /// </summary>
-        public void Warp(Vector3 position)
+        /// <param name="position">배치할 위치</param>
+        /// <param name="sampleRadius">NavMesh 보정 탐색 반경</param>
+        /// <returns>NavMesh 위에 정상적으로 배치되었으면 true</returns>
+        public bool Warp(Vector3 position, float sampleRadius = 5f)
         {
-            if (agent != null && agent.isActiveAndEnabled)
-            {
-                agent.Warp(position);
-            }
-            else
+            if (agent == null || !agent.isActiveAndEnabled)
             {
                 transform.position = position;
+                return false;
             }
+
+            // NavMesh 위의 유효 지점으로 보정한 뒤 워프
+            Vector3 target = position;
+            if (NavMesh.SamplePosition(position, out NavMeshHit hit, sampleRadius, NavMesh.AllAreas))
+                target = hit.position;
+
+            if (agent.Warp(target) && agent.isOnNavMesh)
+                return true;
+
+            Debug.LogWarning(
+                $"[MemMovement] {name} NavMesh 배치 실패 — 요청 위치 {position} 기준 반경 {sampleRadius}m 안에 " +
+                $"NavMesh가 없습니다. 스폰 지점/NavMesh 베이크를 확인하세요.", this);
+            return false;
         }
 
         /// <summary>
