@@ -13,6 +13,7 @@ GameObject:
   - component: {fileID: 6088371095298622029}
   - component: {fileID: 6484860860064703803}
   - component: {fileID: 1801878515672269504}
+  - component: {fileID: 82964979840366046}
   m_Layer: 5
   m_Name: ForgeSlotUI_Prefab
   m_TagString: Untagged
@@ -137,6 +138,20 @@ MonoBehaviour:
   iconImage: {fileID: 6088371095298622029}
   levelBadgeText: {fileID: 6198177151326741271}
   clickArea: {fileID: 6484860860064703803}
+  tooltipTrigger: {fileID: 82964979840366046}
+--- !u!114 &82964979840366046
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1484838274082397620}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 54116f0de4164c2c815d079b9f689b72, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::KMS.InventoryDuped.ItemTooltipTriggerUI
+  itemTooltipUI: {fileID: 0}
 --- !u!1 &7733776788661385118
 GameObject:
   m_ObjectHideFlags: 0

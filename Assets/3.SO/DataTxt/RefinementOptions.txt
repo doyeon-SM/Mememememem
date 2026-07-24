@@ -1,0 +1,38 @@
+﻿# 연마 옵션 데이터 (RefinementConfig의 optionDataCsv에 연결)
+# 컬럼(탭 구분): 등급	종류	수치	확률	표시명
+# - 등급: Rare / Epic / Unique / Legendary / Myth (CommonClass와 동일, 대소문자 무관)
+# - 종류: 옵션 종류 문자열 키 (실제 스탯 적용 로직은 추후 진행 - 지금은 값만 보관)
+# - 수치: 이 종류+등급 조합에서 나올 수 있는 고정 수치 (범위 아님, 값 종류마다 별도 행)
+# - 확률: 같은 등급 내에서 이 (종류,수치) 조합이 뽑힐 가중치 (등급 내 상대값)
+# - 표시명: 툴팁 등 화면에 보여줄 한글 라벨 (코드 수정 없이 이 컬럼만 바꾸면 반영됨)
+등급	종류	수치	확률	표시명
+Rare	DamageIncrease	1	50	데미지
+Rare	DamageIncrease	2	30	데미지
+Rare	DamageIncrease	3	20	데미지
+Rare	GatherIncrease	1	50	채집량
+Rare	GatherIncrease	2	30	채집량
+Rare	GatherIncrease	3	20	채집량
+Epic	DamageIncrease	2	50	데미지
+Epic	DamageIncrease	3	30	데미지
+Epic	DamageIncrease	4	20	데미지
+Epic	GatherIncrease	2	50	채집량
+Epic	GatherIncrease	3	30	채집량
+Epic	GatherIncrease	4	20	채집량
+Unique	DamageIncrease	4	50	데미지
+Unique	DamageIncrease	5	30	데미지
+Unique	DamageIncrease	6	20	데미지
+Unique	GatherIncrease	4	50	채집량
+Unique	GatherIncrease	5	30	채집량
+Unique	GatherIncrease	6	20	채집량
+Legendary	DamageIncrease	6	50	데미지
+Legendary	DamageIncrease	7	30	데미지
+Legendary	DamageIncrease	8	20	데미지
+Legendary	GatherIncrease	6	50	채집량
+Legendary	GatherIncrease	7	30	채집량
+Legendary	GatherIncrease	8	20	채집량
+Myth	DamageIncrease	9	50	데미지
+Myth	DamageIncrease	10	30	데미지
+Myth	DamageIncrease	12	20	데미지
+Myth	GatherIncrease	9	50	채집량
+Myth	GatherIncrease	10	30	채집량
+Myth	GatherIncrease	12	20	채집량

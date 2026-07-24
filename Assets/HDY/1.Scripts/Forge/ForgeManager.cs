@@ -117,7 +117,7 @@ namespace HDY.Forge
     }
 
     /// <summary>
-    /// 강화/승급 시도를 실제로 처리하는 매니저. 재료·골드 소비, 확률 판정, 모루 과열 수치 관리,
+    /// 강화/승급/연마/전승 시도를 실제로 처리하는 매니저. 재료·골드 소비, 확률 판정, 모루 과열 수치 관리,
     /// 강화 개체(ForgeInstanceData) 생성/갱신을 담당한다.
     /// ForgeUI는 강화칸에 참조된 도구 1개(ItemStack, 실제로는 인벤토리/창고에 그대로 있는 원본 참조)를
     /// 넘겨 이 매니저를 호출하기만 하면 된다 - 슬롯을 옮기지 않고 그 자리에서 itemId만 갱신한다.
@@ -134,6 +134,10 @@ namespace HDY.Forge
         [SerializeField] private ForgeInstanceItemDataProvider itemDataProvider;
         [SerializeField] private ItemCatalogManager catalogManager;
         [SerializeField] private TerritoryData territoryData;
+
+        [Header("연마 설정")]
+        [Tooltip("연마(Refinement)/전승(Inheritance) 관련 확률·비용 테이블. 비워두면 연마 관련 기능은 전부 비활성화된다.")]
+        [SerializeField] private RefinementConfig refinementConfig;
 
         [Tooltip("IMaterialInventory를 구현한 컴포넌트를 연결. 비워두면 Awake에서 씬을 훑어 자동으로 찾는다 " +
                  "(UpgradePopupUI와 동일한 패턴 - CombinedMaterialInventory가 인벤토리+창고를 합산해서 확인/차감해준다).")]
@@ -430,6 +434,7 @@ namespace HDY.Forge
                     return ForgeAttemptOutcome.Rejected(ForgeFailReason.NoNextTierDefined);
                 }
 
+                // [연마 시스템] 승급(티어업)은 연마칸/옵션에 영향을 주지 않는다 - instance.RefinementSlots는 그대로 유지된다.
                 instance.TierIndex = nextTierIndex;
                 instance.BaseItemId = nextItemId;
                 instance.EnhanceLevel = 0;
@@ -451,6 +456,295 @@ namespace HDY.Forge
                 instance.OverheatPercent,
                 guaranteed,
                 false);
+        }
+
+        // ==================== 연마(Refinement) ====================
+
+        /// <summary>
+        /// 인벤토리/창고에 새로 들어온 도구가 아직 강화 개체로 등록되지 않았다면(합성 ID가 아니라면)
+        /// 즉시 인스턴스를 만들고 연마 슬롯을 채운다. ForgeRefinementAutoAssigner가 인벤토리 변경 이벤트에서
+        /// 호출해서, 도구가 "제작 즉시" 연마 슬롯을 가진 것처럼 동작하게 만든다.
+        /// 이미 합성 ID인데 연마 슬롯만 비어있는 경우(예: 이전 버전 데이터)도 마찬가지로 채워준다.
+        /// 실제로 뭔가 변경되었으면 true.
+        /// </summary>
+        public bool TryEnsureRefinementInstance(ItemStack stack)
+        {
+            if (!ValidateDependencies() || refinementConfig == null) return false;
+            if (stack == null || stack.IsEmpty) return false;
+
+            return TryGetInstanceForRefinement(stack, out _, out _);
+        }
+
+        /// <summary>
+        /// 읽기 전용 조회(등록 없음, 실행 아님). 슬롯이 아직 없다면 방어적으로 채워서 돌려준다.
+        /// ForgeUI_RefinementPanel/ForgeUI_InheritancePanel이 슬롯 표시에 사용한다.
+        /// </summary>
+        public bool TryPeekRefinementSlots(ItemStack stack, out ForgeRefinementSlotData[] slots)
+        {
+            slots = null;
+
+            if (!ValidateDependencies() || refinementConfig == null) return false;
+            if (!TryGetInstanceForRefinement(stack, out var instance, out _)) return false;
+
+            slots = instance.RefinementSlots;
+            return true;
+        }
+
+        /// <summary>도구 제작(첫 등록) 시 슬롯개수(1~5)를 굴리고, 각 칸을 Rare 등급 랜덤 옵션으로 채운다.</summary>
+        private void AssignInitialRefinementSlots(ForgeInstanceData instance)
+        {
+            if (refinementConfig == null || instance == null) return;
+
+            int slotCount = refinementConfig.RollSlotCount();
+            var slots = new ForgeRefinementSlotData[slotCount];
+            var optionTable = refinementConfig.GetOptionTable();
+
+            for (int i = 0; i < slotCount; i++)
+            {
+                string optionType = null;
+                string displayName = null;
+                float value = 0f;
+                optionTable?.TryPickRandom(CommonClass.Rare, out optionType, out displayName, out value);
+                slots[i] = new ForgeRefinementSlotData(CommonClass.Rare, optionType, displayName, value);
+            }
+
+            instance.RefinementSlots = slots;
+        }
+
+        /// <summary>
+        /// 강화 시스템과 동일한 인스턴스를 재사용하되, 연마 슬롯이 비어있으면 방어적으로 채워준다.
+        ///
+        /// [버그 수정] 이 stack이 아직 합성 ID가 아니었다면(일반 아이템), TryGetOrCreateInstance는 매번
+        /// "새" ForgeInstanceData를 만들어 레지스트리에 등록만 하고 stack.itemId는 그대로 둔다. 그래서 이
+        /// 메서드가 커밋(ApplyInstanceToSlot) 없이 끝나면, 같은 아이템을 다시 조회할 때마다(예: UI가 매
+        /// 프레임/매 갱신마다 TryPeekRefinementSlots를 부르는 경우) 매번 새 인스턴스가 또 만들어지고 이전
+        /// 인스턴스는 레지스트리에 고아로 남아 계속 쌓이는 문제("연마 인스턴스 복제")가 있었다.
+        /// 새로 만든 인스턴스는 이 메서드 안에서 즉시 합성 ID로 커밋해서, 다음 조회부터는 항상 같은
+        /// 인스턴스를 재사용하도록 고정한다 - 그래서 이 메서드는 이름과 달리 "완전한 읽기 전용"은 아니고,
+        /// 최초 1회에 한해 상태를 확정짓는(materialize) 부수효과를 갖는다.
+        /// </summary>
+        private bool TryGetInstanceForRefinement(ItemStack stack, out ForgeInstanceData instance, out ForgeToolTypeData toolTypeData)
+        {
+            instance = null;
+            toolTypeData = null;
+
+            if (stack == null || stack.IsEmpty) return false;
+
+            bool alreadyComposite = ForgeInstanceRegistry.IsCompositeId(stack.itemId);
+
+            if (!TryGetOrCreateInstance(stack, out instance, out toolTypeData))
+            {
+                return false;
+            }
+
+            if (instance.RefinementSlots == null || instance.RefinementSlots.Length == 0)
+            {
+                AssignInitialRefinementSlots(instance);
+            }
+
+            if (!alreadyComposite)
+            {
+                ApplyInstanceToSlot(stack, instance);
+            }
+
+            return true;
+        }
+
+        /// <summary>도구 전체 슬롯 중 최고 등급을 찾는다. 슬롯이 없으면 Rare.</summary>
+        private static CommonClass GetHighestGrade(ForgeRefinementSlotData[] slots)
+        {
+            var highest = CommonClass.Rare;
+            if (slots == null) return highest;
+
+            foreach (var slot in slots)
+            {
+                if (slot != null && (int)slot.Grade > (int)highest)
+                {
+                    highest = slot.Grade;
+                }
+            }
+
+            return highest;
+        }
+
+        /// <summary>기본비용(최고등급 기준) + 잠근 슬롯들의 잠금비용 합산.</summary>
+        private int CalculateRefinementStoneCost(ForgeRefinementSlotData[] slots, bool[] lockedSlotIndices)
+        {
+            int total = refinementConfig.GetBaseCost(GetHighestGrade(slots));
+
+            if (slots != null && lockedSlotIndices != null)
+            {
+                for (int i = 0; i < slots.Length && i < lockedSlotIndices.Length; i++)
+                {
+                    if (lockedSlotIndices[i] && slots[i] != null)
+                    {
+                        total += refinementConfig.GetLockCost(slots[i].Grade);
+                    }
+                }
+            }
+
+            return total;
+        }
+
+        /// <summary>
+        /// 연마 실행 버튼을 누르기 전 미리보기. lockedSlotIndices는 슬롯 배열과 같은 길이여야 하며,
+        /// true인 인덱스는 "이번 연마에서 잠가서 보호할 칸"을 의미한다(null이면 전부 재판정 대상).
+        /// </summary>
+        public RefinementPreview GetRefinementPreview(ItemStack stack, bool[] lockedSlotIndices)
+        {
+            if (!ValidateDependencies() || refinementConfig == null)
+            {
+                return RefinementPreview.Blocked(RefinementFailReason.MissingDependency);
+            }
+
+            if (!TryGetInstanceForRefinement(stack, out var instance, out _))
+            {
+                return RefinementPreview.Blocked(RefinementFailReason.NotForgeableTool);
+            }
+
+            if (instance.RefinementSlots == null || instance.RefinementSlots.Length == 0)
+            {
+                return RefinementPreview.Blocked(RefinementFailReason.NoInstanceData);
+            }
+
+            int stoneCost = CalculateRefinementStoneCost(instance.RefinementSlots, lockedSlotIndices);
+            int goldCost = refinementConfig.FixedGoldCost;
+
+            var materials = MaterialInventory;
+            int stoneOwned = materials != null ? materials.GetAmount(refinementConfig.RefinementMaterialItemId) : 0;
+            int goldOwned = territoryData != null ? territoryData.Gold : 0;
+
+            return new RefinementPreview(RefinementFailReason.None, refinementConfig.RefinementMaterialItemId,
+                stoneCost, stoneOwned, goldCost, goldOwned);
+        }
+
+        /// <summary>
+        /// 연마를 한 번 시도한다. lockedSlotIndices에서 true인 칸은 건드리지 않고, 나머지 칸은 전부
+        /// (등급변화확률 판정 → 결정된 등급 내 종류/수치 재판정) 순서로 재판정된다. 실패라는 결과는 없다 -
+        /// 재료/골드만 충분하면 항상 무언가 바뀐다(등급이 그대로여도 종류/수치는 재판정됨).
+        /// </summary>
+        public RefinementOutcome TryRefine(ItemStack stack, bool[] lockedSlotIndices)
+        {
+            if (!ValidateDependencies() || refinementConfig == null)
+            {
+                return RefinementOutcome.Rejected(RefinementFailReason.MissingDependency);
+            }
+
+            if (!TryGetInstanceForRefinement(stack, out var instance, out _))
+            {
+                return RefinementOutcome.Rejected(RefinementFailReason.NotForgeableTool);
+            }
+
+            if (instance.RefinementSlots == null || instance.RefinementSlots.Length == 0)
+            {
+                return RefinementOutcome.Rejected(RefinementFailReason.NoInstanceData);
+            }
+
+            int stoneCost = CalculateRefinementStoneCost(instance.RefinementSlots, lockedSlotIndices);
+            int goldCost = refinementConfig.FixedGoldCost;
+
+            if (!HasEnoughMaterialAndGold(refinementConfig.RefinementMaterialItemId, stoneCost, goldCost, out var shortageReason))
+            {
+                var refinementReason = shortageReason == ForgeFailReason.NotEnoughGold
+                    ? RefinementFailReason.NotEnoughGold
+                    : RefinementFailReason.NotEnoughMaterial;
+                return RefinementOutcome.Rejected(refinementReason);
+            }
+
+            ConsumeMaterialAndGold(refinementConfig.RefinementMaterialItemId, stoneCost, goldCost);
+
+            var optionTable = refinementConfig.GetOptionTable();
+
+            for (int i = 0; i < instance.RefinementSlots.Length; i++)
+            {
+                bool isLocked = lockedSlotIndices != null && i < lockedSlotIndices.Length && lockedSlotIndices[i];
+                if (isLocked) continue;
+
+                var slot = instance.RefinementSlots[i];
+                if (slot == null) continue;
+
+                // 1단계: 등급변화확률로 등급 결정 (최고등급이면 스킵, 항상 유지)
+                if (!refinementConfig.IsMaxGrade(slot.Grade) && refinementConfig.RollGradeUp(slot.Grade))
+                {
+                    slot.Grade = refinementConfig.GetNextGrade(slot.Grade);
+                }
+
+                // 2단계: 결정된 등급 내에서 종류+수치 재판정 (등급이 그대로여도 항상 재판정됨)
+                if (optionTable != null && optionTable.TryPickRandom(slot.Grade, out var optionType, out var displayName, out var value))
+                {
+                    slot.OptionType = optionType;
+                    slot.DisplayName = displayName;
+                    slot.Value = value;
+                }
+            }
+
+            if (itemDataProvider != null)
+            {
+                itemDataProvider.RefreshRuntimeItemData(stack.itemId);
+            }
+
+            return new RefinementOutcome(true, RefinementFailReason.None, instance.RefinementSlots);
+        }
+
+        // ==================== 전승(Inheritance) ====================
+
+        /// <summary>
+        /// 재료 도구의 연마칸 수·옵션을 받는 도구에 그대로 옮긴다(받는 도구의 기존 연마 옵션은 버려짐).
+        /// 도구 종류만 같으면 티어는 달라도 무관하다. 무조건 성공하며 추가 비용은 없다. 재료 도구는 소멸한다.
+        /// </summary>
+        public InheritanceOutcome TryInherit(ItemStack materialStack, ItemStack targetStack)
+        {
+            if (!ValidateDependencies())
+            {
+                return InheritanceOutcome.Rejected(InheritanceFailReason.MissingDependency);
+            }
+
+            if (materialStack == null || targetStack == null || materialStack.IsEmpty || targetStack.IsEmpty)
+            {
+                return InheritanceOutcome.Rejected(InheritanceFailReason.NotForgeableTool);
+            }
+
+            if (ReferenceEquals(materialStack, targetStack))
+            {
+                return InheritanceOutcome.Rejected(InheritanceFailReason.SameStack);
+            }
+
+            if (!TryGetInstanceForRefinement(materialStack, out var materialInstance, out _))
+            {
+                return InheritanceOutcome.Rejected(InheritanceFailReason.NotForgeableTool);
+            }
+
+            if (!TryGetInstanceForRefinement(targetStack, out var targetInstance, out _))
+            {
+                return InheritanceOutcome.Rejected(InheritanceFailReason.NotForgeableTool);
+            }
+
+            if (materialInstance.ToolType != targetInstance.ToolType)
+            {
+                return InheritanceOutcome.Rejected(InheritanceFailReason.ToolTypeMismatch);
+            }
+
+            var sourceSlots = materialInstance.RefinementSlots ?? System.Array.Empty<ForgeRefinementSlotData>();
+            var copiedSlots = new ForgeRefinementSlotData[sourceSlots.Length];
+
+            for (int i = 0; i < sourceSlots.Length; i++)
+            {
+                copiedSlots[i] = sourceSlots[i]?.Clone();
+            }
+
+            targetInstance.RefinementSlots = copiedSlots;
+
+            // 재료 도구는 소멸한다.
+            if (instanceRegistry != null) instanceRegistry.RemoveInstance(materialInstance.InstanceId);
+            if (itemDataProvider != null) itemDataProvider.ClearCache(materialStack.itemId);
+            materialStack.Clear();
+
+            if (itemDataProvider != null)
+            {
+                itemDataProvider.RefreshRuntimeItemData(targetStack.itemId);
+            }
+
+            return InheritanceOutcome.Success;
         }
 
         /// <summary>읽기 전용 상태 조회(등록/생성 없음). 합성 ID면 실제 인스턴스를, 아니면 "0강" 가상 상태를 반환한다.</summary>
