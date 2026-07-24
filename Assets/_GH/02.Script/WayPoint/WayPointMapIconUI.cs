@@ -111,7 +111,8 @@ public class WayPointMapIconUI : MonoBehaviour, IPointerEnterHandler, IPointerMo
         }
     }
 
-    // 아이콘 클릭 시 지도 UI에 이동 요청을 전달한다.
+    // 이동 가능한 활성 웨이포인트는 아이콘 클릭으로 즉시 이동한다.
+    // 프리뷰 모드 또는 잠금 상태에서는 정보 툴팁만 유지한다.
     private void HandleClick()
     {
         if (owner == null || state == null)
@@ -119,12 +120,13 @@ public class WayPointMapIconUI : MonoBehaviour, IPointerEnterHandler, IPointerMo
             return;
         }
 
-        if (!owner.CanTravelByClick(state))
+        if (owner.CanTravelByClick(state))
         {
+            owner.TravelTo(state.Id);
             return;
         }
 
-        owner.TravelTo(state.Id);
+        owner.NotifyWayPointPointerEnter(state, transform as RectTransform);
     }
 
     // 마우스가 아이콘에 올라오면 툴팁을 보여준다.
@@ -135,7 +137,7 @@ public class WayPointMapIconUI : MonoBehaviour, IPointerEnterHandler, IPointerMo
             return;
         }
 
-        owner.ShowTooltip(state, transform as RectTransform);
+        owner.NotifyWayPointPointerEnter(state, transform as RectTransform);
     }
 
     // 마우스 이동에 맞춰 툴팁 위치를 갱신한다.
@@ -149,15 +151,13 @@ public class WayPointMapIconUI : MonoBehaviour, IPointerEnterHandler, IPointerMo
         owner.MoveTooltip(transform as RectTransform);
     }
 
-    // 마우스가 아이콘에서 벗어나면 툴팁을 숨긴다.
+    // 아이콘을 벗어나면 툴팁 숨김을 요청한다. Fill_BG로 진입하면 요청이 취소된다.
     public void OnPointerExit(PointerEventData eventData)
     {
-        if (owner == null)
+        if (owner != null)
         {
-            return;
+            owner.NotifyWayPointPointerExit();
         }
-
-        owner.HideTooltip();
     }
 
 }

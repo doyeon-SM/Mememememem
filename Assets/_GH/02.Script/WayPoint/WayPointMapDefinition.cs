@@ -12,6 +12,8 @@ public class WayPointMapDefinition : ScriptableObject
     public string id;
     public string displayName;
     public Sprite mapSprite;
+    [Tooltip("해금된 스테이지/지도 선택 버튼에 표시할 아이콘입니다. 비워 두면 아이콘을 표시하지 않습니다.")]
+    public Sprite stageButtonSprite;
 
     [Header("Scene")]
     [Tooltip("Build Settings에 등록된 이 맵의 씬 이름입니다.")]

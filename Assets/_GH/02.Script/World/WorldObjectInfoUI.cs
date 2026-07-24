@@ -29,6 +29,8 @@ public class WorldObjectInfoUI : MonoBehaviour
     [SerializeField] private Sprite chestInteractionSprite;
     [Tooltip("비워 두면 기존 월드 오브젝트 패널과 같은 부모 아래에 생성합니다.")]
     [SerializeField] private Transform tooltipParent;
+    [Tooltip("Chest Tooltip Prefab을 생성할 때 적용할 Canvas 기준 Anchored Position입니다.")]
+    [SerializeField] private Vector2 chestTooltipAnchoredPosition;
 
     [Header("Target Position")]
     [Tooltip("Renderer/Collider의 최상단을 기준으로 추가할 월드 좌표 오프셋입니다.")]
@@ -127,7 +129,6 @@ public class WorldObjectInfoUI : MonoBehaviour
         if (currentChest != null)
         {
             RefreshChestUI();
-            UpdateFocusedUIPosition();
             return;
         }
 
@@ -325,10 +326,26 @@ public class WorldObjectInfoUI : MonoBehaviour
         chestTooltipInstance = Instantiate(chestTooltipPrefab, parent, false);
         chestTooltipInstance.name = $"{chestTooltipPrefab.name} (Runtime)";
         chestTooltipRect = chestTooltipInstance.GetComponent<RectTransform>();
-        chestTooltipIcon = FindChestIcon(chestTooltipInstance);
-        chestTooltipNameText = FindChestNameText(chestTooltipInstance);
+
+        if (chestTooltipRect != null)
+        {
+            chestTooltipRect.anchoredPosition = chestTooltipAnchoredPosition;
+        }
+
+        CacheChestTooltipReferences(chestTooltipInstance);
         chestTooltipInstance.SetActive(false);
         return true;
+    }
+
+    private void CacheChestTooltipReferences(GameObject tooltipObject)
+    {
+        if (tooltipObject == null)
+        {
+            return;
+        }
+
+        chestTooltipIcon = FindChestIcon(tooltipObject);
+        chestTooltipNameText = FindChestNameText(tooltipObject);
     }
 
     private Transform ResolveTooltipParent()
@@ -457,22 +474,15 @@ public class WorldObjectInfoUI : MonoBehaviour
 
     private void UpdateFocusedUIPosition()
     {
-        Component target = currentTarget != null
-            ? currentTarget
-            : currentChest != null
-                ? currentChest
-                : null;
-
-        if (target == null)
+        // 상자 툴팁은 Canvas의 고정 좌표를 사용하므로 이 위치 갱신에서 제외합니다.
+        if (currentTarget == null)
         {
             return;
         }
 
-        RectTransform displayRect = currentChest != null && chestTooltipInstance != null
-            ? chestTooltipRect
-            : panelRoot != null
-                ? panelRoot.transform as RectTransform
-                : null;
+        RectTransform displayRect = panelRoot != null
+            ? panelRoot.transform as RectTransform
+            : null;
 
         if (displayRect == null)
         {
@@ -485,7 +495,7 @@ public class WorldObjectInfoUI : MonoBehaviour
             return;
         }
 
-        Vector3 worldPosition = CalculateTargetTop(target) + worldAnchorOffset;
+        Vector3 worldPosition = CalculateTargetTop(currentTarget) + worldAnchorOffset;
         Vector3 screenPosition = cameraToUse.WorldToScreenPoint(worldPosition);
         bool isBehindCamera = screenPosition.z <= 0f;
 
