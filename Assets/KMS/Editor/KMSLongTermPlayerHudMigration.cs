@@ -20,6 +20,7 @@ namespace KMS.EditorTools
         private const string IconFolder = "Assets/KMS/3.UI/Icons";
         private const string SunIconPath = IconFolder + "/KMS_HUD_Sun.png";
         private const string MoonIconPath = IconFolder + "/KMS_HUD_Moon.png";
+        private const string HungerIconPath = IconFolder + "/KMS_HUD_Hunger.png";
         private const string PackTextureRoot = "Assets/Pikachu/Modern UI Pack/Textures";
         private const string SquareFillPath = PackTextureRoot + "/Border/Flat/Square Filled.png";
         private const string RoundedFillPath = PackTextureRoot + "/Border/Rounded/128px/Rounded Filled 128px.png";
@@ -28,6 +29,7 @@ namespace KMS.EditorTools
         private const string BagIconPath = PackTextureRoot + "/Icon/Business & Commerce/Shopping Bag Filled.png";
         private const string DexIconPath = PackTextureRoot + "/Icon/Document/Book Filled.png";
         private const string CoinIconPath = PackTextureRoot + "/Icon/Business & Commerce/Diamond Coin Filled.png";
+        private const string HeartIconPath = PackTextureRoot + "/Icon/Common/Heart Filled.png";
         private const string CloseIconPath = PackTextureRoot + "/Icon/Navigation/Close.png";
         private const string AddIconPath = PackTextureRoot + "/Icon/Navigation/Add.png";
         private const string LeftIconPath = PackTextureRoot + "/Icon/Navigation/Arrow Simple Left.png";
@@ -148,28 +150,83 @@ namespace KMS.EditorTools
         {
             RectTransform survival = Find(hud, "SurvivalStatus") as RectTransform;
             Require(survival != null, "SurvivalStatus is missing.");
-            SetRect(survival, Vector2.zero, Vector2.zero, new Vector2(16f, 16f), new Vector2(300f, 66f));
+            SetRect(survival, Vector2.zero, Vector2.zero, new Vector2(16f, 16f), new Vector2(242f, 78f));
+            Image survivalBackground = survival.GetComponent<Image>();
+            if (survivalBackground == null) survivalBackground = survival.gameObject.AddComponent<Image>();
+            ApplySquareSkin(survivalBackground, new Color32(0, 0, 0, 82));
+            survivalBackground.raycastTarget = false;
 
             RectTransform health = Find(survival, "HealthBar") as RectTransform;
             RectTransform hunger = Find(survival, "HungerBar") as RectTransform;
-            Stretch(health, new Vector2(0f, 0.54f), Vector2.one);
-            Stretch(hunger, Vector2.zero, new Vector2(1f, 0.46f));
-            ApplyRoundedSkin(health.GetComponent<Image>(), new Color32(0, 0, 0, 145));
-            ApplyRoundedSkin(hunger.GetComponent<Image>(), new Color32(0, 0, 0, 145));
+            Require(health != null && hunger != null, "HealthBar or HungerBar is missing.");
+            SetRect(health, Vector2.zero, Vector2.zero, new Vector2(10f, 42f), new Vector2(222f, 26f));
+            SetRect(hunger, Vector2.zero, Vector2.zero, new Vector2(10f, 10f), new Vector2(222f, 26f));
 
-            TMP_Text healthText = Find(health, "ValueText")?.GetComponent<TMP_Text>();
-            TMP_Text hungerText = Find(hunger, "ValueText")?.GetComponent<TMP_Text>();
-            if (healthText != null) healthText.fontSize = 12f;
-            if (hungerText != null) hungerText.fontSize = 12f;
+            ConfigureSurvivalRow(health, LoadPackSprite(HeartIconPath), new Color32(13, 184, 101, 255));
+            ConfigureSurvivalRow(hunger, AssetDatabase.LoadAssetAtPath<Sprite>(HungerIconPath),
+                new Color32(255, 190, 18, 255));
 
             KMSPlayerHudView view = hud.GetComponent<KMSPlayerHudView>();
             if (view != null)
             {
                 SerializedObject serializedView = new SerializedObject(view);
-                serializedView.FindProperty("survivalMinWidth").floatValue = 300f;
-                serializedView.FindProperty("survivalMaxWidth").floatValue = 300f;
+                serializedView.FindProperty("survivalMinWidth").floatValue = 242f;
+                serializedView.FindProperty("survivalMaxWidth").floatValue = 242f;
                 serializedView.ApplyModifiedPropertiesWithoutUndo();
             }
+        }
+
+        private static void ConfigureSurvivalRow(RectTransform row, Sprite iconSprite, Color fillColor)
+        {
+            Require(iconSprite != null, $"{row.name} icon is missing.");
+
+            Image rowImage = row.GetComponent<Image>();
+            if (rowImage != null)
+            {
+                rowImage.sprite = null;
+                rowImage.color = Color.clear;
+                rowImage.raycastTarget = false;
+            }
+
+            Image fill = Find(row, "Fill")?.GetComponent<Image>();
+            TMP_Text value = Find(row, "ValueText")?.GetComponent<TMP_Text>();
+            Require(fill != null && value != null, $"{row.name} fill or value label is missing.");
+
+            Transform previousTrack = row.Find("StatusTrack");
+            if (previousTrack != null)
+            {
+                fill.transform.SetParent(row, false);
+                value.transform.SetParent(row, false);
+                UnityEngine.Object.DestroyImmediate(previousTrack.gameObject);
+            }
+            Transform previousIcon = row.Find("StatusIcon");
+            if (previousIcon != null) UnityEngine.Object.DestroyImmediate(previousIcon.gameObject);
+
+            Image icon = CreateIcon("StatusIcon", row, iconSprite);
+            SetRect(icon.rectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
+                new Vector2(1f, 0f), new Vector2(24f, 24f));
+
+            RectTransform track = CreatePanel("StatusTrack", row, new Color32(0, 0, 0, 155));
+            SetRect(track, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
+                new Vector2(34f, 0f), new Vector2(188f, 20f));
+            ApplySquareSkin(track.GetComponent<Image>(), new Color32(0, 0, 0, 155));
+
+            fill.transform.SetParent(track, false);
+            Stretch(fill.rectTransform);
+            fill.sprite = null;
+            fill.type = Image.Type.Simple;
+            fill.color = fillColor;
+            fill.raycastTarget = false;
+
+            value.transform.SetParent(track, false);
+            Stretch(value.rectTransform);
+            value.rectTransform.offsetMin = new Vector2(4f, 0f);
+            value.rectTransform.offsetMax = new Vector2(-5f, 0f);
+            value.fontSize = 11f;
+            value.enableAutoSizing = false;
+            value.alignment = TextAlignmentOptions.MidlineRight;
+            value.textWrappingMode = TextWrappingModes.NoWrap;
+            value.color = Color.white;
         }
 
         private static void ConfigureInventory(GameObject root)
@@ -473,8 +530,10 @@ namespace KMS.EditorTools
 
             CopyIconIfMissing("Assets/Pikachu/Resource/Icon/noto--sun.png", SunIconPath);
             CopyIconIfMissing("Assets/Pikachu/Resource/Icon/fluent-emoji-flat--crescent-moon.png", MoonIconPath);
+            CopyIconIfMissing("Assets/Pikachu/Resource/Icon/flowbite--bowl-food-solid (1).png", HungerIconPath);
             AssetDatabase.ImportAsset(SunIconPath, ImportAssetOptions.ForceUpdate);
             AssetDatabase.ImportAsset(MoonIconPath, ImportAssetOptions.ForceUpdate);
+            AssetDatabase.ImportAsset(HungerIconPath, ImportAssetOptions.ForceUpdate);
         }
 
         private static void CopyIconIfMissing(string source, string destination)

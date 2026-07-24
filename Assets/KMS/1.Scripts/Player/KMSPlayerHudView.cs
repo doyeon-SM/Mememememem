@@ -62,12 +62,12 @@ namespace KMS
 
         public void SetHealth(float current, float max)
         {
-            SetProgress(healthFill, healthText, current, max, "Health");
+            SetProgress(healthFill, healthText, current, max);
         }
 
         public void SetHunger(float current, float max)
         {
-            SetProgress(hungerFill, hungerText, current, max, "Hunger");
+            SetProgress(hungerFill, hungerText, current, max);
         }
 
         public void SetRealTime(string value)
@@ -187,7 +187,7 @@ namespace KMS
             survivalStatus.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, width);
         }
 
-        private static void SetProgress(Image fill, TMP_Text label, float current, float max, string title)
+        private static void SetProgress(Image fill, TMP_Text label, float current, float max)
         {
             float normalized = max > 0f ? Mathf.Clamp01(current / max) : 0f;
             if (fill != null)
@@ -199,7 +199,7 @@ namespace KMS
                 fillRect.anchoredPosition = Vector2.zero;
                 fillRect.sizeDelta = Vector2.zero;
             }
-            if (label != null) label.text = $"{title} {Mathf.CeilToInt(current)} / {Mathf.CeilToInt(max)}";
+            if (label != null) label.text = $"{Mathf.CeilToInt(current)}/{Mathf.CeilToInt(max)}";
         }
 
         private static IEnumerator FadeOut(CanvasGroup canvasGroup, float duration)
