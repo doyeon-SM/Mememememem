@@ -237,7 +237,8 @@ public class PlayerInventory : MonoBehaviour
     {
         if (string.IsNullOrEmpty(itemId) || amount <= 0) return amount;
 
-        var itemData = catalogManager != null ? catalogManager.FindItemData(itemId) : null;
+        ItemCatalogManager catalog = ResolveCatalogManager();
+        var itemData = catalog != null ? catalog.FindItemData(itemId) : null;
 
         if (itemData == null)
         {
@@ -254,7 +255,7 @@ public class PlayerInventory : MonoBehaviour
     /// </summary>
     public bool ApplyInventorySort(InventorySortCriteria criteria)
     {
-        bool sorted = InventorySortUtility.SortAndCompact(inventory, criteria, catalogManager);
+        bool sorted = InventorySortUtility.SortAndCompact(inventory, criteria, ResolveCatalogManager());
         if (!sorted) return false;
 
         OnInventoryChanged?.Invoke();
@@ -449,7 +450,8 @@ public class PlayerInventory : MonoBehaviour
 
     public ItemData FindItemData(string itemId)
     {
-        return catalogManager != null ? catalogManager.FindItemData(itemId) : null;
+        ItemCatalogManager catalog = ResolveCatalogManager();
+        return catalog != null ? catalog.FindItemData(itemId) : null;
     }
 
     /// <summary>
@@ -851,9 +853,20 @@ public class PlayerInventory : MonoBehaviour
         return null;
     }
 
+    private ItemCatalogManager ResolveCatalogManager()
+    {
+        if (catalogManager == null)
+        {
+            catalogManager = ItemCatalogManager.Resolve(null);
+        }
+
+        return catalogManager;
+    }
+
     private int GetMaxStack(string itemId)
     {
-        ItemData itemData = catalogManager != null ? catalogManager.FindItemData(itemId) : null;
+        ItemCatalogManager catalog = ResolveCatalogManager();
+        ItemData itemData = catalog != null ? catalog.FindItemData(itemId) : null;
         return itemData != null ? Mathf.Max(1, itemData.MaxStack) : 1;
     }
 
@@ -924,7 +937,12 @@ public class PlayerInventory : MonoBehaviour
         if (IsContainerSlotLocked(fromContainer, fromIndex)) return false;
         if (IsContainerSlotLocked(toContainer, toIndex)) return false;
 
-        return InventorySlotMoveHelper.MoveSlot(fromContainer, fromIndex, toContainer, toIndex, catalogManager);
+        return InventorySlotMoveHelper.MoveSlot(
+            fromContainer,
+            fromIndex,
+            toContainer,
+            toIndex,
+            ResolveCatalogManager());
     }
 
     // 모든 퀵슬롯 변화 알림

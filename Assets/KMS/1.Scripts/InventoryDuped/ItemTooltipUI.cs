@@ -47,6 +47,11 @@ namespace KMS.InventoryDuped
                 return;
             }
 
+            if (catalogManager == null)
+            {
+                catalogManager = ItemCatalogManager.Resolve(null);
+            }
+
             var data = catalogManager != null ? catalogManager.FindItemData(stack.itemId) : null;
             Show(data, screenPosition);
         }
