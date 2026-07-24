@@ -92,11 +92,38 @@ public class PlayerInventory : MonoBehaviour
     [Header("아이템 카탈로그 (Item_ID로 조회할 때 사용)")]
     [SerializeField] private ItemCatalogManager catalogManager;
 
+    // [HDY 요청 - 인벤토리 업그레이드] 인벤토리 그리드(10x6=60칸)는 씬에 항상 전부 배치되어 있지만,
+    // 실제로 사용 가능한 칸은 unlockedInventorySlotCount까지로 제한된다. 이 값 이후 칸은 업그레이드
+    // 전까지 잠겨있다(WarehouseUI가 CanvasGroup으로 회색 처리 + 상호작용 차단을 담당하고, 이 클래스는
+    // 그 잠금 여부 판정과 아이템이 실제로 잠긴 칸에 들어가지 않도록 막는 데이터 레벨 방어를 담당한다).
+    [Header("인벤토리 슬롯 잠금 해제 (업그레이드)")]
+    [Tooltip("시작할 때 바로 사용 가능한 인벤토리 칸 수. 이 값 이후 칸은 업그레이드 전까지 잠겨있다(회색 처리 및 상호작용 불가).")]
+    [SerializeField] private int startingInventorySlotCount = 10;
+    [Tooltip("업그레이드 1회당 추가로 언락되는 칸 수.")]
+    [SerializeField] private int slotsPerInventoryUpgrade = 5;
+    [Tooltip("현재 언락된 인벤토리 칸 수. 런타임에 UnlockNextInventorySlots()로 늘어난다.")]
+    [SerializeField] private int unlockedInventorySlotCount;
+
     public event Action OnInventoryChanged;
     public event Action<ItemData,int> OnItemObtained;
     public event Action<int> OnQuickSlotChanged;
     public event Action<int> OnSelectedQuickSlotChanged;
     public event Action<int> OnQuickSlotSelectionRequested;
+
+    /// <summary>[HDY 요청] 인벤토리 칸 잠금 해제 상태가 바뀔 때(업그레이드 성공 시) 발행. WarehouseUI가 구독해서 슬롯 잠금 표시를 갱신한다.</summary>
+    public event Action OnInventorySlotCountChanged;
+
+    /// <summary>업그레이드 없이 시작할 때 기본으로 언락되어 있는 인벤토리 칸 수.</summary>
+    public int StartingInventorySlotCount => startingInventorySlotCount;
+
+    /// <summary>업그레이드 1회당 추가로 언락되는 칸 수.</summary>
+    public int SlotsPerInventoryUpgrade => slotsPerInventoryUpgrade;
+
+    /// <summary>현재 언락되어 실제로 사용 가능한 인벤토리 칸 수.</summary>
+    public int UnlockedInventorySlotCount => unlockedInventorySlotCount;
+
+    /// <summary>인벤토리 그리드 전체 칸 수(씬에 배치된 최대치, 10x6=60). 이 이상은 언락할 수 없다.</summary>
+    public int MaxInventorySlotCount => inventory.slots != null ? inventory.slots.Length : 0;
 
     private void Awake()
     {
@@ -104,6 +131,11 @@ public class PlayerInventory : MonoBehaviour
         quickSlots.Initialize();
 
         catalogManager = ItemCatalogManager.Resolve(catalogManager);
+
+        // [HDY 요청 - 인벤토리 업그레이드] 아직 값이 설정되지 않았으면(0 이하) 시작 칸 수로 초기화하고,
+        // 그 외에는 현재 그리드 크기를 벗어나지 않도록 클램프한다(인스펙터 실수로 범위를 벗어난 값이 들어간 경우 방어).
+        if (unlockedInventorySlotCount <= 0) unlockedInventorySlotCount = startingInventorySlotCount;
+        unlockedInventorySlotCount = Mathf.Clamp(unlockedInventorySlotCount, 0, MaxInventorySlotCount);
     }
 
     private void Start()
@@ -230,6 +262,30 @@ public class PlayerInventory : MonoBehaviour
     }
 
     /// <summary>
+    /// [HDY 요청 - 인벤토리 업그레이드] 인벤토리 칸을 slotsPerInventoryUpgrade만큼 추가로 언락한다.
+    /// 실제 비용 확인/차감은 이 메서드의 책임이 아니다 - InventoryUpgrade(IUpgradable 구현체)가 계산하고,
+    /// 공용 업그레이드 팝업(UpgradePopupUI)이 비용을 다 낸 뒤에만 이 메서드를 호출해준다(WarehouseUpgrade와 동일한 역할 분담).
+    /// 이미 최대치(MaxInventorySlotCount)면 아무 일도 하지 않는다.
+    /// </summary>
+    public void UnlockNextInventorySlots()
+    {
+        int max = MaxInventorySlotCount;
+        if (unlockedInventorySlotCount >= max) return;
+
+        unlockedInventorySlotCount = Mathf.Min(max, unlockedInventorySlotCount + slotsPerInventoryUpgrade);
+
+        Debug.Log($"[PlayerInventory] 인벤토리 칸 언락: 현재 {unlockedInventorySlotCount}/{max}칸");
+
+        OnInventorySlotCountChanged?.Invoke();
+    }
+
+    /// <summary>[HDY 요청 - 인벤토리 업그레이드] 인벤토리 컨테이너에서 index가 아직 언락되지 않은 칸인지 확인한다.</summary>
+    public bool IsInventorySlotLocked(int index)
+    {
+        return index < 0 || index >= unlockedInventorySlotCount;
+    }
+
+    /// <summary>
     /// 사망 시 보호 대상인 도구를 제외한 일반/퀵슬롯 아이템을 모두 제거한다.
     /// 슬롯 위치는 유지하며, 전체 처리가 끝난 뒤 변경 이벤트를 한 번만 발행한다.
     /// </summary>
@@ -346,7 +402,7 @@ public class PlayerInventory : MonoBehaviour
 
         InventoryContainer container = GetContainer(group);
         if (container == null || !container.IsValidIndex(index)) return false;
-        if (IsLockedQuickSlot(container, index)) return false;
+        if (IsContainerSlotLocked(container, index)) return false;
 
         ItemStack slot = container.slots[index];
         if (slot == null || slot.IsEmpty || amount <= 0) return false;
@@ -416,7 +472,7 @@ public class PlayerInventory : MonoBehaviour
 
         InventoryContainer container = GetContainer(group);
         if (container == null || !container.IsValidIndex(index)) return false;
-        if (IsLockedQuickSlot(container, index)) return false;
+        if (IsContainerSlotLocked(container, index)) return false;
 
         ItemStack target = container.slots[index];
         int requestedAmount = Mathf.Min(amount, heldStack.amount);
@@ -686,7 +742,7 @@ public class PlayerInventory : MonoBehaviour
 
         for (int i = 0; i < container.slots.Length; i++)
         {
-            if (skipLockedQuickSlot && IsLockedQuickSlot(container, i)) continue;
+            if (skipLockedQuickSlot && IsContainerSlotLocked(container, i)) continue;
 
             ItemStack slot = container.slots[i];
 
@@ -705,7 +761,7 @@ public class PlayerInventory : MonoBehaviour
 
         for (int i = 0; i < container.slots.Length; i++)
         {
-            if (IsLockedQuickSlot(container, i)) continue;
+            if (IsContainerSlotLocked(container, i)) continue;
 
             ItemStack slot = container.slots[i];
 
@@ -731,7 +787,7 @@ public class PlayerInventory : MonoBehaviour
 
         for (int i = 0; i < container.slots.Length; i++)
         {
-            if (IsLockedQuickSlot(container, i)) continue;
+            if (IsContainerSlotLocked(container, i)) continue;
 
             ItemStack slot = container.slots[i];
 
@@ -760,7 +816,7 @@ public class PlayerInventory : MonoBehaviour
 
         for (int i = 0; i < container.slots.Length; i++)
         {
-            if (IsLockedQuickSlot(container, i)) continue;
+            if (IsContainerSlotLocked(container, i)) continue;
 
             ItemStack slot = container.slots[i];
 
@@ -776,10 +832,16 @@ public class PlayerInventory : MonoBehaviour
         return remaining;
     }
 
-    // 잠긴 퀵슬롯 인덱스인지 확인
-    private bool IsLockedQuickSlot(InventoryContainer container, int index)
+    /// <summary>
+    /// [HDY 요청] 기존에는 퀵슬롯 사용중 잠금(IsLockedQuickSlot)만 검사했지만, 인벤토리 업그레이드로
+    /// "아직 언락되지 않은 인벤토리 칸" 잠금 개념이 추가되어 컨테이너별로 분기해서 검사하도록 일반화했다.
+    /// 창고(Storage)는 이 클래스가 다루지 않으므로(WarehouseInventory가 별도 처리) 여기 나타나지 않는다.
+    /// </summary>
+    private bool IsContainerSlotLocked(InventoryContainer container, int index)
     {
-        return container == quickSlots && IsQuickSlotLocked(index);
+        if (container == quickSlots) return IsQuickSlotLocked(index);
+        if (container == inventory) return IsInventorySlotLocked(index);
+        return false;
     }
 
     private InventoryContainer GetContainer(SlotGroup group)
@@ -812,7 +874,7 @@ public class PlayerInventory : MonoBehaviour
     {
         InventoryContainer container = GetContainer(group);
         if (container == null || !container.IsValidIndex(index)) return;
-        if (IsLockedQuickSlot(container, index)) return;
+        if (IsContainerSlotLocked(container, index)) return;
 
         ItemStack target = container.slots[index];
         if (!target.IsEmpty && target.itemId != heldStack.itemId) return;
@@ -853,13 +915,14 @@ public class PlayerInventory : MonoBehaviour
 
     /// <summary>
     /// [HDY 요청] 슬롯 이동/병합의 실제 규칙은 InventorySlotMoveHelper(공용)에 위임한다 - WarehouseUI의
-    /// 창고↔인벤토리 이동도 완전히 동일한 규칙을 써야 해서 로직을 한 곳으로 모았다. 여기서는 잠긴 퀵슬롯
-    /// 여부만 미리 걸러낸다(이 규칙은 PlayerInventory에만 있는 개념이라 공용 헬퍼가 알 필요 없음).
+    /// 창고↔인벤토리 이동도 완전히 동일한 규칙을 써야 해서 로직을 한 곳으로 모았다. 여기서는 잠긴 퀵슬롯/
+    /// 아직 언락되지 않은 인벤토리 칸 여부만 미리 걸러낸다(이 규칙들은 PlayerInventory에만 있는 개념이라
+    /// 공용 헬퍼가 알 필요 없음).
     /// </summary>
     private bool MoveSlot(InventoryContainer fromContainer, int fromIndex, InventoryContainer toContainer, int toIndex)
     {
-        if (IsLockedQuickSlot(fromContainer, fromIndex)) return false;
-        if (IsLockedQuickSlot(toContainer, toIndex)) return false;
+        if (IsContainerSlotLocked(fromContainer, fromIndex)) return false;
+        if (IsContainerSlotLocked(toContainer, toIndex)) return false;
 
         return InventorySlotMoveHelper.MoveSlot(fromContainer, fromIndex, toContainer, toIndex, catalogManager);
     }
