@@ -3091,6 +3091,9 @@ MonoBehaviour:
     slots: []
   selectedQuickSlotIndex: 0
   catalogManager: {fileID: 0}
+  startingInventorySlotCount: 10
+  slotsPerInventoryUpgrade: 5
+  unlockedInventorySlotCount: 0
 --- !u!114 &4848836010295030028
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3313,7 +3316,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 6886ed6a8297f164d85f15f131fe9c5d, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::KMS.PlayerHeldItemModelController
   inventory: {fileID: 9124669202358280069}
   movement: {fileID: 757377502652196312}

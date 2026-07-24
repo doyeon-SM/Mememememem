@@ -52,7 +52,7 @@ namespace KMS.EditorTools
                 "Assets/HDY/3DAsset/Capsule/tripo_convert_939fec23-d3f6-4750-ae2d-7ff01f60ceca.fbx",
                 Vector3.zero,
                 Vector3.zero,
-                0.32f,
+                0.28f,
                 false)
         };
 

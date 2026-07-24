@@ -108,6 +108,7 @@ public class PlayerInventory : MonoBehaviour
     public event Action<ItemData,int> OnItemObtained;
     public event Action<int> OnQuickSlotChanged;
     public event Action<int> OnSelectedQuickSlotChanged;
+    public event Action<int> OnQuickSlotSelectionChanged;
     public event Action<int> OnQuickSlotSelectionRequested;
 
     /// <summary>[HDY 요청] 인벤토리 칸 잠금 해제 상태가 바뀔 때(업그레이드 성공 시) 발행. WarehouseUI가 구독해서 슬롯 잠금 표시를 갱신한다.</summary>
@@ -549,8 +550,13 @@ public class PlayerInventory : MonoBehaviour
     // 슬롯 변경 및 이벤트 호출
     private void ApplyQuickSlotSelection(int index)
     {
+        bool selectionChanged = selectedQuickSlotIndex != index;
         selectedQuickSlotIndex = index;
         OnSelectedQuickSlotChanged?.Invoke(index);
+        if (selectionChanged)
+        {
+            OnQuickSlotSelectionChanged?.Invoke(index);
+        }
     }
 
     // 퀵슬롯 아이템 확인
