@@ -16,7 +16,6 @@ namespace HDY.UI
         [SerializeField] private Button slotButton;
         [SerializeField] private Image itemIconImage;
         [SerializeField] private Image lockImage; // 해금 안 됐을 때 표시(아이템 이미지 위에 겹쳐짐)
-        [SerializeField] private Image selectedHighlight; // 선택된 슬롯 강조 표시(선택 사항, 없어도 동작함)
 
         /// <summary>이 슬롯이 표시하고 있는 레시피의 Item_ID.</summary>
         public string ItemId { get; private set; }
@@ -65,13 +64,13 @@ namespace HDY.UI
             SetSelected(false);
         }
 
-        /// <summary>이 슬롯이 현재 선택된 상태인지에 따라 강조 표시를 켜고 끈다.</summary>
+        /// <summary>
+        /// [HDY 요청] 선택 강조 표시(selectedHighlight)를 더 이상 쓰지 않기로 해서 실제로 하는 일은 없다.
+        /// 다만 GoddessStatueUI_LevelRow.RefreshSelection이 모든 슬롯에 대해 이 메서드를 호출하고 있어서,
+        /// 그 파일까지 함께 고치지 않아도 되도록 메서드 자체(빈 구현)는 남겨뒀다.
+        /// </summary>
         public void SetSelected(bool selected)
         {
-            if (selectedHighlight != null)
-            {
-                selectedHighlight.gameObject.SetActive(selected);
-            }
         }
 
         private void HandleClick()

@@ -163,6 +163,15 @@ namespace HDY.UI
             {
                 grid.ShowInitial(captureManager.CapturedMems, FindMemData, GetStatDisplayInfo, captureManager.UnlockedPageCount);
             }
+
+            // [HDY 요청] 업그레이드 가능 여부에 따라 버튼을 켜고 끈다. 그리드를 다시 열 때마다(OnEnable)
+            // 초기 상태를 맞추고, 이후 페이지가 언락될 때마다(OnStorageCapacityChanged) 다시 갱신한다.
+            if (captureManager != null)
+            {
+                captureManager.OnStorageCapacityChanged += RefreshUpgradeButtonState;
+            }
+
+            RefreshUpgradeButtonState();
         }
 
         private void OnDisable()
@@ -183,6 +192,11 @@ namespace HDY.UI
             {
                 upgradeButton.onClick.RemoveListener(HandleUpgradeButtonClicked);
             }
+
+            if (captureManager != null)
+            {
+                captureManager.OnStorageCapacityChanged -= RefreshUpgradeButtonState;
+            }
         }
 
         /// <summary>업그레이드 버튼 클릭 처리. 공용 업그레이드 팝업에 멤창고 페이지 업그레이드 어댑터를 넘겨 보여준다.</summary>
@@ -201,6 +215,19 @@ namespace HDY.UI
             }
 
             UpgradePopupUI.Instance.Show(storageUpgrade);
+        }
+
+        /// <summary>
+        /// [HDY 요청] storageUpgrade.CanUpgrade()(더 언락할 페이지가 남아있는지) 기준으로 업그레이드
+        /// 버튼을 켜고 끈다. 더 이상 언락할 페이지가 없으면(MAX) 버튼 자체를 숨긴다. upgradeButton은
+        /// MemStorageUI_Grid의 pageDotsParent 하위에 배치되어 있으므로(페이지 점들 오른쪽에 붙어 보이도록),
+        /// 활성화되면 그 부모의 레이아웃(HorizontalLayoutGroup 등)에 따라 자동으로 가장 오른쪽에 위치한다.
+        /// </summary>
+        private void RefreshUpgradeButtonState()
+        {
+            if (upgradeButton == null || storageUpgrade == null) return;
+
+            upgradeButton.gameObject.SetActive(storageUpgrade.CanUpgrade());
         }
 
         private void HandleSlotClicked(CapturedMemEntry entry, MemData data)
