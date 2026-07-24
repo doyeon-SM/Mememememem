@@ -96,6 +96,7 @@ public class PlayerInventory : MonoBehaviour
     public event Action<ItemData,int> OnItemObtained;
     public event Action<int> OnQuickSlotChanged;
     public event Action<int> OnSelectedQuickSlotChanged;
+    public event Action<int> OnQuickSlotSelectionChanged;
     public event Action<int> OnQuickSlotSelectionRequested;
 
     private void Awake()
@@ -493,8 +494,13 @@ public class PlayerInventory : MonoBehaviour
     // 슬롯 변경 및 이벤트 호출
     private void ApplyQuickSlotSelection(int index)
     {
+        bool selectionChanged = selectedQuickSlotIndex != index;
         selectedQuickSlotIndex = index;
         OnSelectedQuickSlotChanged?.Invoke(index);
+        if (selectionChanged)
+        {
+            OnQuickSlotSelectionChanged?.Invoke(index);
+        }
     }
 
     // 퀵슬롯 아이템 확인

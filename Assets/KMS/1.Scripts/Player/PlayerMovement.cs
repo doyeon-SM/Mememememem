@@ -1,3 +1,4 @@
+using KMS.Audio;
 using UnityEngine;
 
 namespace KMS
@@ -251,6 +252,7 @@ namespace KMS
             verticalVelocity = Mathf.Sqrt(jumpHeight * -2f * gravity);
             jumpBufferTimer = 0f;
             coyoteTimer = 0f;
+            KMSAudioService.PlayAt(GameSfxId.Jump, transform.position);
         }
 
         private void HandleMovement()

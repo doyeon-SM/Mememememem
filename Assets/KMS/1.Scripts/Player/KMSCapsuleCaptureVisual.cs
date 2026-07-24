@@ -2,6 +2,7 @@ using System.Collections;
 using MemSystem.Core;
 using MemSystem.Data;
 using MemSystem.Events;
+using KMS.Audio;
 using UnityEngine;
 
 namespace KMS
@@ -92,6 +93,7 @@ namespace KMS
                 return;
             }
 
+            KMSAudioService.PlayAt(GameSfxId.CaptureSuccess, transform.position);
             StartVisualRoutine(SuccessRoutine());
         }
 
@@ -102,6 +104,7 @@ namespace KMS
                 return;
             }
 
+            KMSAudioService.PlayAt(GameSfxId.CaptureFailure, transform.position);
             StartVisualRoutine(FailureRoutine());
         }
 

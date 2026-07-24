@@ -1,4 +1,6 @@
 using HDY.Item;
+using KGH.Data;
+using KMS.Audio;
 using UnityEngine;
 
 using HdyItemCategory = HDY.Item.ItemCategory;
@@ -162,6 +164,7 @@ namespace KMS.Harvesting
             bool isMemMeleeAttempt = selectedItem.Item_ID == memMeleeItemId;
 
             cooldownTimer = Mathf.Max(harvestCooldown, toolUseCooldown);
+            KMSAudioService.PlayAt(GameSfxId.ToolSwing, transform.position);
             if (animator != null)
             {
                 animator.SetTrigger(SlashHash);
@@ -209,6 +212,7 @@ namespace KMS.Harvesting
                 }
 
                 memTarget.TakeDamage(Mathf.Max(1, selectedItem.Value));
+                KMSAudioService.PlayAt(GameSfxId.ClubHitMem, hit.point);
                 return;
             }
 
@@ -237,8 +241,32 @@ namespace KMS.Harvesting
             if (hitObj.collider == null) return false;
             WorldObject harvestable = hitObj.collider.GetComponent<WorldObject>();
             if (harvestable == null) return false;
-            harvestable.ObjectInteract(inventory, selectedItem);
+            bool applied = harvestable.ObjectInteract(inventory, selectedItem);
+            if (applied)
+            {
+                GameSfxId? impactId = GetHarvestImpactId(harvestable.RequiredToolType);
+                if (impactId.HasValue)
+                {
+                    KMSAudioService.PlayAt(impactId.Value, hitObj.point);
+                }
+            }
+
             return true;
+        }
+
+        private static GameSfxId? GetHarvestImpactId(ObjectType objectType)
+        {
+            switch (objectType)
+            {
+                case ObjectType.Tree:
+                    return GameSfxId.AxeHitTree;
+                case ObjectType.Stone:
+                    return GameSfxId.PickaxeHitStone;
+                case ObjectType.Bush:
+                    return GameSfxId.HoeHitBush;
+                default:
+                    return null;
+            }
         }
     }
 }
