@@ -1,9 +1,11 @@
 ﻿using HDY.Capture;
+using HDY.Item;
 using MemSystem.Data;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using WebSocketSharp;
 
 public class ProductionPanelUI : MonoBehaviour
 {
@@ -32,7 +34,6 @@ public class ProductionPanelUI : MonoBehaviour
     [SerializeField] private GameObject craftingSlotPrefab;
     [SerializeField] private Transform craftingSlotParent;
 
-    // 현재 UI 창이 조준하고 있는 타겟 시설 스크립트 캐싱
     public ProductionFacilityRuntime TargetFacility => targetFacility;
     private ProductionFacilityRuntime targetFacility;
 
@@ -47,31 +48,17 @@ public class ProductionPanelUI : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// 아이템 생산시 슬라이더 변화처리
-    /// </summary>
     private void Update()
     {
         if (targetFacility == null) return;
 
-        if (targetFacility.craftingItem != null && targetFacility.totalRequiredTime > 0f)
+        // 🌟 [수정]: string ID 검사
+        if (!string.IsNullOrEmpty(targetFacility.craftingItem) && targetFacility.totalRequiredTime > 0f)
         {
             float progressNormalized = targetFacility.currentProgressTime / targetFacility.totalRequiredTime;
             if (progressBar != null) progressBar.value = progressNormalized;
             if (durationText != null) durationText.text = $"{Mathf.Clamp(progressNormalized * 100f, 0f, 100f):F0}%";
 
-            /* 🌟 [임시 주석 처리]: 식량 부족으로 생산 중지되었을 때의 경고 예외 텍스트 출력 로직 차단
-            if (targetFacility.isProducing)
-            {
-                if (productionSpeed != null) productionSpeed.text = $"생산속도: {targetFacility.totalRequiredTime:F1}초(개당)";
-            }
-            else
-            {
-                if (productionSpeed != null) productionSpeed.text = "<color=red>생산 중지 (식량 부족)</color>";
-            }
-            */
-
-            // 허기 상태 유무와 관계없이 무조건 실제 생산속도 텍스트를 고정 출력하도록 수정
             if (productionSpeed != null) productionSpeed.text = $"생산속도: {targetFacility.totalRequiredTime:F1}초(개당)";
         }
         else
@@ -84,9 +71,6 @@ public class ProductionPanelUI : MonoBehaviour
         UpdateStorageText();
     }
 
-    /// <summary>
-    /// 기본 모드에서 시설물 클릭 시 패널 UI를 활성화
-    /// </summary>
     public void OpenPanel(ProductionFacilityRuntime facility)
     {
         if (facility == null) return;
@@ -96,9 +80,6 @@ public class ProductionPanelUI : MonoBehaviour
         DisplayProduction();
     }
 
-    /// <summary>
-    /// 패널이 열릴 때 시설의 이름, 레벨, 멤 슬롯 상태 등의 정보 받아오기
-    /// </summary>
     public void RefreshStaticUI()
     {
         if (targetFacility == null)
@@ -151,16 +132,27 @@ public class ProductionPanelUI : MonoBehaviour
 
         if (defaultMode != null) defaultMode.SetActive(true);
 
-        if (targetFacility.craftingItem != null)
+        // 🌟 [수정]: string 아이템 ID 기반으로 ItemCatalogManager에서 아이템 정보 검색
+        if (!string.IsNullOrEmpty(targetFacility.craftingItem))
         {
-            if (creatingItem != null)
+            ItemData targetItemData = FindItemDataInCatalog(targetFacility.craftingItem);
+
+            if (targetItemData != null)
             {
-                creatingItem.sprite = targetFacility.craftingItem.ItemIcon;
-                creatingItem.gameObject.SetActive(true);
+                if (creatingItem != null)
+                {
+                    creatingItem.sprite = targetItemData.ItemIcon;
+                    creatingItem.gameObject.SetActive(true);
+                }
+                if (creatingItemName != null)
+                {
+                    creatingItemName.text = targetItemData.ItemName;
+                }
             }
-            if (creatingItemName != null)
+            else
             {
-                creatingItemName.text = targetFacility.craftingItem.ItemName;
+                if (creatingItem != null) creatingItem.gameObject.SetActive(false);
+                if (creatingItemName != null) creatingItemName.text = "아이템 정보 없음";
             }
         }
         else
@@ -173,8 +165,27 @@ public class ProductionPanelUI : MonoBehaviour
     }
 
     /// <summary>
-    /// 드롭 이벤트를 수신하여 멤 배치 및 펫정보 수신
+    /// ItemCatalogManager 전용 탐색 헬퍼 메서드
     /// </summary>
+    private ItemData FindItemDataInCatalog(string itemId)
+    {
+        if (string.IsNullOrEmpty(itemId)) return null;
+
+        if (ItemCatalogManager.Instance == null)
+        {
+            Debug.LogError($"[ItemCatalogManager] 인스턴스가 존재하지 않아 아이템 '{itemId}'을(를) 탐색할 수 없습니다.");
+            return null;
+        }
+
+        ItemData targetItem = ItemCatalogManager.Instance.FindItemData(itemId);
+        if (targetItem == null)
+        {
+            Debug.LogError($"[ItemCatalogManager] 카탈로그에서 아이템 ID '{itemId}'에 해당하는 ItemData를 찾을 수 없습니다.");
+        }
+
+        return targetItem;
+    }
+
     public void TryDeployMemFromUI(MemData targetMem, CapturedMemEntry targetEntry)
     {
         if (targetFacility == null || targetMem == null || targetEntry == null) return;
@@ -187,9 +198,6 @@ public class ProductionPanelUI : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// 시설 내 슬롯 클릭 시 슬로 배치 해제 처리
-    /// </summary>
     public void TryRemoveMemFromUI(MemData targetMem)
     {
         if (targetFacility == null || targetMem == null) return;
@@ -199,9 +207,6 @@ public class ProductionPanelUI : MonoBehaviour
         RefreshStaticUI();
     }
 
-    /// <summary>
-    /// 시설 내 저장된 수량 텍스트 업데이트
-    /// </summary>
     private void UpdateStorageText()
     {
         if (targetFacility == null || completeCreateCount == null) return;
@@ -209,9 +214,6 @@ public class ProductionPanelUI : MonoBehaviour
         completeCreateCount.text = targetFacility.currentStorageCount.ToString();
     }
 
-    /// <summary>
-    /// 생산중인 아이템 버튼 클릭 시 수령 처리 연동
-    /// </summary>
     private void OnClickCollectReward()
     {
         if (targetFacility == null) return;
@@ -221,9 +223,6 @@ public class ProductionPanelUI : MonoBehaviour
         UpdateStorageText();
     }
 
-    /// <summary>
-    /// UI 닫기 버튼용
-    /// </summary>
     public void ClosePanel()
     {
         targetFacility = null;

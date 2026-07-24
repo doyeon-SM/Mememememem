@@ -26,20 +26,21 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner
     [SerializeField] private WarehouseUpgrade warehouseUpgrade;
 
     [Header("우측 인벤토리 영역들 (QuickSlotArea, InventoryArea, WarehouseArea)")]
-    [SerializeField] private Transform quickSlotGrid;         // QuickSlotArea -> P_QuickSlotGrid (미리 배치)
-    [SerializeField] private Transform inventoryGrid;         // InventoryArea -> P_InventoryGrid (미리 배치)
-    [SerializeField] private Transform warehouseGrid;         // WarehouseArea -> P_InventoryGrid (동적 생성/확장)
-    [SerializeField] private InventorySlotUI warehouseSlotPrefab; // 우측 일반 창고용 슬롯 프리팹 (비어있으면 storageSlotPrefab 사용)
+    [SerializeField] private Transform quickSlotGrid;         
+    [SerializeField] private Transform inventoryGrid;         
+    [SerializeField] private Transform warehouseGrid;         
+    [SerializeField] private InventorySlotUI warehouseSlotPrefab; 
+    [SerializeField] private RectTransform warehouseScrollViewRect;// 우측 창고 Height 조절용
 
     [Header("공용 (드래그, 툴팁, 텍스트)")]
     [SerializeField] private ItemDragUI itemDragUI;
     [SerializeField] private ItemTooltipUI itemTooltipUI;
     [SerializeField] private TextMeshProUGUI totalHungerText;
 
-    private InventorySlotUI[] storageSlots;   // 좌측 음식 창고 슬롯 배열
-    private InventorySlotUI[] quickSlots;     // 우측 퀵슬롯 배열
-    private InventorySlotUI[] inventorySlots; // 우측 일반 인벤토리 슬롯 배열
-    private InventorySlotUI[] warehouseSlots; // 우측 일반 창고 슬롯 배열
+    private InventorySlotUI[] storageSlots;   
+    private InventorySlotUI[] quickSlots;     
+    private InventorySlotUI[] inventorySlots; 
+    private InventorySlotUI[] warehouseSlots; 
 
     private InventorySlotUI dragSource;
 
@@ -178,7 +179,11 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner
         int required = container.slots != null ? container.slots.Length : 0;
         int current = warehouseSlots != null ? warehouseSlots.Length : 0;
 
-        if (required <= current) return;
+        if (required <= current)
+        {
+            UpdateWarehouseScrollHeight();
+            return;
+        }
 
         var grown = new InventorySlotUI[required];
         for (int i = 0; i < current; i++) grown[i] = warehouseSlots[i];
@@ -196,12 +201,32 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner
         }
         warehouseSlots = grown;
 
+        UpdateWarehouseScrollHeight();
+
         // 슬롯 생성 후 ScrollRect Content 레이아웃 즉시 재계산
         Canvas.ForceUpdateCanvases();
         if (warehouseGrid is RectTransform rectTransform)
         {
             LayoutRebuilder.ForceRebuildLayoutImmediate(rectTransform);
         }
+    }
+
+    /// <summary>
+    /// 창고 슬롯 갯수(10개당 75)에 맞춰 우측 창고 스크롤 뷰의 높이 조절
+    /// </summary>
+    private void UpdateWarehouseScrollHeight()
+    {
+        if (warehouseScrollViewRect == null || warehouseSlots == null) return;
+
+        int slotCount = warehouseSlots.Length;
+
+        float targetHeight = (slotCount / 10f) * 75f;
+
+        targetHeight = Mathf.Max(75f, targetHeight);
+
+        Vector2 sizeDelta = warehouseScrollViewRect.sizeDelta;
+        sizeDelta.y = targetHeight;
+        warehouseScrollViewRect.sizeDelta = sizeDelta;
     }
 
     /// <summary>

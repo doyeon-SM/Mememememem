@@ -16,7 +16,8 @@ public class ProductionCraftRuntime : MonoBehaviour
     [Header("제작 상태 여부")]
     public bool isProducing = false;
 
-    public ItemData currentCraftingItem;
+    // 🌟 [수정]: ItemData 대신 아이템 ID(string)로 저장
+    public string currentCraftingItem;
 
     public float totalRequiredTime;
     public float currentProgressTime = 0f;
@@ -36,13 +37,9 @@ public class ProductionCraftRuntime : MonoBehaviour
     public List<MemData> DeployedMems => addMems;
     public List<CapturedMemEntry> DeployedMemEntries => addMemEntries;
 
-    // 임시. 생산 소요 시간
-    private float craftingDuration = 20f;
-
     public static event Action OnMemDeploymentChanged;
 
     // 시설에 실제 멤 UI배치와 관련하여 멤 배치/해제, 시설 가동, 가동 중단에 대한 이벤트 발행
-    // 해당 이벤트를 받아서 멤의 실제 UI배치 처리 및 Animation 동작진행 예정
     public static event Action<BuildingType, MemData, bool> MemAdded;
     public static event Action<BuildingType, List<MemData>> FacilityStarted;
     public static event Action<BuildingType, List<MemData>, FacilityStopReason> FacilityStopped;
@@ -71,20 +68,22 @@ public class ProductionCraftRuntime : MonoBehaviour
     }
 
     /// <summary>
-    /// 제작 버튼 클릭시 동작되는 함수
-    /// 총 소요시간(1개당 제작 시간 - 멤 등급으로인해 감속되는 시간)을 기반으로 제작을 진행
-    /// 작업상태를 True로 변경
+    /// 제작 버튼 클릭시 동작되는 함수 (string ID 기반)
     /// </summary>
-    public void SelectAndStartCrafting(ItemData targetItem, int quantity)
+    public void SelectAndStartCrafting(string targetItemId, int quantity)
     {
-        if (targetItem == null || addMems.Count == 0) return;
+        if (string.IsNullOrEmpty(targetItemId) || addMems.Count == 0) return;
 
-        currentCraftingItem = targetItem;
+        currentCraftingItem = targetItemId;
         targetQuantity = quantity;
         remainingQuantity = quantity;
         currentProgressTime = 0f;
 
-        totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(craftingDuration, addMems);
+        // 🌟 [수정]: ItemCatalogManager에서 RecipeData를 조회하여 time 기반 소요시간 산출
+        RecipeData recipe = FindRecipeDataInCatalog(currentCraftingItem);
+        float baseDuration = recipe != null ? recipe.time : 20f;
+
+        totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, addMems);
 
         if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
         {
@@ -94,6 +93,15 @@ public class ProductionCraftRuntime : MonoBehaviour
         {
             isProducing = false;
         }
+    }
+
+    /// <summary>
+    /// ItemData 오버로드 버전 (호환성 유지)
+    /// </summary>
+    public void SelectAndStartCrafting(ItemData targetItem, int quantity)
+    {
+        if (targetItem == null) return;
+        SelectAndStartCrafting(targetItem.Item_ID, quantity);
     }
 
     /// <summary>
@@ -112,10 +120,15 @@ public class ProductionCraftRuntime : MonoBehaviour
             return;
         }
 
-        if (currentCraftingItem != null)
+        if (!string.IsNullOrEmpty(currentCraftingItem))
         {
             float currentProgressPercent = totalRequiredTime > 0f ? (currentProgressTime / totalRequiredTime) : 0f;
-            totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(craftingDuration, addMems);
+
+            // 🌟 [수정]: RecipeData.time 동적 적용
+            RecipeData recipe = FindRecipeDataInCatalog(currentCraftingItem);
+            float baseDuration = recipe != null ? recipe.time : 20f;
+
+            totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, addMems);
             currentProgressTime = totalRequiredTime * currentProgressPercent;
 
             if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
@@ -136,7 +149,6 @@ public class ProductionCraftRuntime : MonoBehaviour
     {
         if (targetMem == null || buildingData == null) return false;
 
-        // 🌟 [제작대 슬롯 용량 제한 가드 정식 추가]: 제작대는 1레벨 1칸 고정이므로 기존 배치가 있다면 추가 배입을 완전히 차단합니다.
         if (addMems.Count >= 1)
         {
             Debug.LogWarning("[ProductionCraftRuntime] 제작대의 멤 배치 슬롯이 이미 가득 찼습니다.");
@@ -209,13 +221,17 @@ public class ProductionCraftRuntime : MonoBehaviour
     private void CompleteCraftingUnit()
     {
         currentStorageCount++;
-        remainingQuantity--; 
+        remainingQuantity--;
 
         currentProgressTime = 0f;
 
         if (remainingQuantity > 0)
         {
-            totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(craftingDuration, addMems);
+            // 🌟 [수정]: RecipeData.time 동적 적용
+            RecipeData recipe = FindRecipeDataInCatalog(currentCraftingItem);
+            float baseDuration = recipe != null ? recipe.time : 20f;
+
+            totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, addMems);
         }
         else
         {
@@ -233,33 +249,27 @@ public class ProductionCraftRuntime : MonoBehaviour
     /// </summary>
     public void CancelCrafting()
     {
-        if(!isProducing && currentCraftingItem == null) return;
+        if (!isProducing && string.IsNullOrEmpty(currentCraftingItem)) return;
 
         bool wasWorking = isProducing;
 
         var inventory = FindFirstObjectByType<PlayerInventory>();
         var warehouse = FindFirstObjectByType<WarehouseInventory>();
-        
+
         if (currentStorageCount > 0)
         {
-            if (inventory != null)
+            // 🌟 [수정]: ItemCatalogManager에서 ItemData 검색
+            ItemData itemData = FindItemDataInCatalog(currentCraftingItem);
+            if (inventory != null && itemData != null)
             {
-                inventory.AddItem(currentCraftingItem, currentStorageCount);
+                inventory.AddItem(itemData, currentStorageCount);
             }
         }
 
         if (remainingQuantity > 0)
         {
-            RecipeData matchedRecipe = null;
-            RecipeData[] allRecipes = Resources.FindObjectsOfTypeAll<RecipeData>();
-            foreach (RecipeData recipe in allRecipes)
-            {
-                if (recipe != null && recipe.Recipe_Item_ID == currentCraftingItem.Item_ID)
-                {
-                    matchedRecipe = recipe;
-                    break;
-                }
-            }
+            // 🌟 [수정]: ItemCatalogManager를 통해서만 RecipeData 탐색
+            RecipeData matchedRecipe = FindRecipeDataInCatalog(currentCraftingItem);
 
             if (matchedRecipe != null && matchedRecipe.Requset_Items_ID != null)
             {
@@ -297,19 +307,17 @@ public class ProductionCraftRuntime : MonoBehaviour
 
     /// <summary>
     /// 수령 보상 처리
-    /// 0개일 때, return;
-    /// 전체 제작 예정 수량보다 적은상태에서 수령할 때, 수령 + 화면유지
-    /// 전체 제작 수량을 다 제작한 상태에서 수령하면 수령 + 초기화면 전환
     /// </summary>
     public bool CollectCraftedItems()
     {
         if (currentStorageCount <= 0) return false;
 
-        //
         PlayerInventory inventory = FindFirstObjectByType<PlayerInventory>();
-        if(inventory != null)
+        ItemData itemData = FindItemDataInCatalog(currentCraftingItem);
+
+        if (inventory != null && itemData != null)
         {
-            int remaining = inventory.AddItem(currentCraftingItem, currentStorageCount);
+            int remaining = inventory.AddItem(itemData, currentStorageCount);
             currentStorageCount = remaining;
         }
 
@@ -322,7 +330,51 @@ public class ProductionCraftRuntime : MonoBehaviour
             return true;
         }
 
-        return false; 
+        return false;
+    }
+
+    /// <summary>
+    /// ItemCatalogManager 전용 ItemData 탐색 (없을 시 에러 로그)
+    /// </summary>
+    private ItemData FindItemDataInCatalog(string itemId)
+    {
+        if (string.IsNullOrEmpty(itemId)) return null;
+
+        if (ItemCatalogManager.Instance == null)
+        {
+            Debug.LogError($"[ItemCatalogManager] 인스턴스가 존재하지 않아 아이템 '{itemId}'을(를) 탐색할 수 없습니다.");
+            return null;
+        }
+
+        ItemData targetItem = ItemCatalogManager.Instance.FindItemData(itemId);
+        if (targetItem == null)
+        {
+            Debug.LogError($"[ItemCatalogManager] 카탈로그에서 아이템 ID '{itemId}'에 해당하는 ItemData를 찾을 수 없습니다.");
+        }
+
+        return targetItem;
+    }
+
+    /// <summary>
+    /// ItemCatalogManager 전용 RecipeData 탐색 (없을 시 에러 로그)
+    /// </summary>
+    private RecipeData FindRecipeDataInCatalog(string recipeItemId)
+    {
+        if (string.IsNullOrEmpty(recipeItemId)) return null;
+
+        if (ItemCatalogManager.Instance == null)
+        {
+            Debug.LogError($"[ItemCatalogManager] 인스턴스가 존재하지 않아 레시피 '{recipeItemId}'을(를) 탐색할 수 없습니다.");
+            return null;
+        }
+
+        RecipeData targetRecipe = ItemCatalogManager.Instance.FindRecipeData(recipeItemId);
+        if (targetRecipe == null)
+        {
+            Debug.LogError($"[ItemCatalogManager] 카탈로그에서 레시피 ID '{recipeItemId}'에 해당하는 RecipeData를 찾을 수 없습니다.");
+        }
+
+        return targetRecipe;
     }
 
     /// <summary>
@@ -350,16 +402,15 @@ public class ProductionCraftRuntime : MonoBehaviour
         if (buildingData != null)
         {
             FacilityStopped?.Invoke(buildingData.buildingType, addMems, FacilityStopReason.Starvation);
-        
         }
     }
 
     /// <summary>
-    ///  식량 재공급 -> 시설가동 처리
+    /// 식량 재공급 -> 시설가동 처리
     /// </summary>
     public void ResumeWorkAfterStarvation()
     {
-        if (currentCraftingItem != null && addMems.Count > 0)
+        if (!string.IsNullOrEmpty(currentCraftingItem) && addMems.Count > 0)
         {
             SetProducingActive(true);
         }

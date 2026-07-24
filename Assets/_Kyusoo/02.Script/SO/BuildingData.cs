@@ -11,7 +11,7 @@ public class BuildingData : ScriptableObject
     public Sprite buildingImage;
     public BuildingType buildingType;
     public int satisfaction;
-    public ItemData requireBlueprint;
+    public string requireBlueprint;
 
     [Header("건물 사이즈")]
     public int width;

@@ -10,14 +10,14 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: aa834ba98afac274f8eee27f34b67923, type: 3}
-  m_Name: Building_Berry_Farm
+  m_Name: Building_Crafting_Table
   m_EditorClassIdentifier: Assembly-CSharp::BuildingData
-  buildingId: building_berry_farm
-  buildingName: "\uBC2D"
-  buildingPrefab: {fileID: 9215367321915130356, guid: 7033cf765fb100e4c9aab8aa46d0343f, type: 3}
-  buildingImage: {fileID: 21300000, guid: 916e6a89d0405e548b59e1fa83698d2c, type: 3}
-  buildingType: 3
+  buildingId: building_crafting_table
+  buildingName: "\uC81C\uC791\uB300"
+  buildingPrefab: {fileID: 9215367321915130356, guid: 945230bc28283e1478b27eb56af17998, type: 3}
+  buildingImage: {fileID: -580590128, guid: ef9c2a17439ebe6489216e6f8e7679c8, type: 3}
+  buildingType: 0
   satisfaction: 10
-  requireBlueprint: {fileID: 11400000, guid: 2d340f487c8bd2e4db5f2513529d2ecd, type: 2}
+  requireBlueprint: blueprint_production_stand
   width: 1
   height: 1
