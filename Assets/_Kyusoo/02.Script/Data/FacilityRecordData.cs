@@ -16,14 +16,14 @@ public class FacilityRecordData : MonoBehaviour, IRecord
         GridManager.OnGridDataChanged += OnFacilityDataChanged;
         ProductionFacilityRuntime.OnMemDeploymentChanged += OnFacilityDataChanged;
         ProductionCraftRuntime.OnMemDeploymentChanged += OnFacilityDataChanged;
-        RanchFacilityRuntime.OnMemDeploymentChanged += OnFacilityDataChanged; 
+        RanchFacilityRuntime.OnMemDeploymentChanged += OnFacilityDataChanged;
 
         ProductionFacilityRuntime.FacilityStarted += OnFacilityStartedHandler;
         ProductionFacilityRuntime.FacilityStopped += OnFacilityStoppedHandler;
         ProductionCraftRuntime.FacilityStarted += OnFacilityStartedHandler;
         ProductionCraftRuntime.FacilityStopped += OnFacilityStoppedHandler;
-        RanchFacilityRuntime.FacilityStarted += OnFacilityStartedHandler;     
-        RanchFacilityRuntime.FacilityStopped += OnFacilityStoppedHandler; 
+        RanchFacilityRuntime.FacilityStarted += OnFacilityStartedHandler;
+        RanchFacilityRuntime.FacilityStopped += OnFacilityStoppedHandler;
     }
 
     private void OnDisable()
@@ -70,10 +70,15 @@ public class FacilityRecordData : MonoBehaviour, IRecord
         currentData.placedBuildings = new List<PlacedBuildingData>();
 
         HashSet<string> allDeployedMemIDs = new HashSet<string>();
+        HashSet<GameObject> processedObjects = new HashSet<GameObject>();
+        Dictionary<string, FacilityData> activeFacilityDict = new Dictionary<string, FacilityData>();
 
         foreach (var br in activeBuildings)
         {
-            if (br == null || br.buildingData == null) continue;
+            // 🌟 [수정 위치]: 씬에서 파괴되지 않고 실제 활성화된 건물 오브젝트만 수집
+            if (br == null || br.buildingData == null || !br.gameObject.activeInHierarchy) continue;
+            if (processedObjects.Contains(br.gameObject)) continue;
+            processedObjects.Add(br.gameObject);
 
             PlacedBuildingData bSave = new PlacedBuildingData
             {
@@ -84,10 +89,11 @@ public class FacilityRecordData : MonoBehaviour, IRecord
             };
 
             string uniqueId = $"{br.buildingData.buildingName}_{br.gridX}_{br.gridZ}";
-            FacilityData rData = RecordManager.Instance.GetFacilityData(uniqueId);
+            FacilityData rData = new FacilityData { Building_ID = uniqueId };
 
             if (br.TryGetComponent<ProductionFacilityRuntime>(out var facility))
             {
+                rData.currentLevel = facility.currentLevel;
                 rData.isActive = facility.isProducing;
                 rData.currentCraftingItemId = facility.craftingItem ?? "";
                 rData.currentProgressTime = facility.currentProgressTime;
@@ -103,6 +109,7 @@ public class FacilityRecordData : MonoBehaviour, IRecord
             }
             else if (br.TryGetComponent<ProductionCraftRuntime>(out var craft))
             {
+                rData.currentLevel = 1;
                 rData.isActive = craft.isProducing;
                 rData.currentCraftingItemId = craft.currentCraftingItem ?? "";
                 rData.targetQuantity = craft.targetQuantity;
@@ -118,20 +125,24 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                     foreach (var id in ids) allDeployedMemIDs.Add(id);
                 }
             }
-            else if (br.TryGetComponent<RanchFacilityRuntime>(out var ranch)) // 🌟 [추가]: 목장 저장 로직
+            else if (br.TryGetComponent<RanchFacilityRuntime>(out var ranch))
             {
+                rData.currentLevel = ranch.currentLevel;
                 rData.isActive = ranch.isProducing;
                 rData.ranchSlots = new List<RanchSlotSaveData>();
+                rData.DeployedMemIDs = new List<string>();
 
                 if (ranch.Slots != null)
                 {
                     foreach (var slot in ranch.Slots)
                     {
+                        string keyId = slot.deployedMemEntry != null ? slot.deployedMemEntry.KeyId : "";
+
                         var slotSave = new RanchSlotSaveData
                         {
                             slotIndex = slot.slotIndex,
                             isUnlocked = slot.isUnlocked,
-                            deployedMemKeyId = slot.deployedMemEntry != null ? slot.deployedMemEntry.KeyId : "",
+                            deployedMemKeyId = keyId,
                             craftingItemId = slot.craftingItemId ?? "",
                             isProducing = slot.isProducing,
                             currentProgressTime = slot.currentProgressTime,
@@ -139,9 +150,11 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                         };
                         rData.ranchSlots.Add(slotSave);
 
-                        if (!string.IsNullOrEmpty(slotSave.deployedMemKeyId))
+                        // 🌟 [수정 위치]: 목장 배치 멤의 KeyID를 DeployedMemIDs 리스트에도 동시 저장하여 데이터 일관성 보장
+                        if (!string.IsNullOrEmpty(keyId))
                         {
-                            allDeployedMemIDs.Add(slotSave.deployedMemKeyId);
+                            allDeployedMemIDs.Add(keyId);
+                            rData.DeployedMemIDs.Add(keyId);
                         }
                     }
                 }
@@ -149,6 +162,13 @@ public class FacilityRecordData : MonoBehaviour, IRecord
 
             bSave.runtimeData = rData;
             currentData.placedBuildings.Add(bSave);
+            activeFacilityDict[uniqueId] = rData;
+        }
+
+        // 🌟 [수정 위치]: RecordManager의 메모리 딕셔너리를 현재 씬의 실제 동기화 데이터로 완전히 교체
+        if (RecordManager.Instance != null)
+        {
+            RecordManager.Instance.SynchronizeFacilityDatabase(activeFacilityDict);
         }
 
         if (currentData.serializedCapturedMems != null)
@@ -157,21 +177,14 @@ public class FacilityRecordData : MonoBehaviour, IRecord
             {
                 if (memEntry != null && !string.IsNullOrEmpty(memEntry.KeyId))
                 {
-                    if (allDeployedMemIDs.Contains(memEntry.KeyId))
-                    {
-                        memEntry.IsActive = true;
-                    }
-                    else
-                    {
-                        memEntry.IsActive = false;
-                    }
+                    memEntry.IsActive = allDeployedMemIDs.Contains(memEntry.KeyId);
                 }
             }
         }
 
         currentData.lastSaveTime = DateTime.UtcNow.ToString("o");
         File.WriteAllText(saveFilePath, JsonUtility.ToJson(currentData, true));
-        Debug.Log("<color=lime>[FacilityLayoutRecord]</color> 시설 정보 및 멤 창고 IsActive 상태 데이터 업데이트");
+        Debug.Log("<color=lime>[FacilityLayoutRecord]</color> 시설 정보 및 멤 창고 IsActive 상태 데이터 정제 저장 완료");
     }
 
     public void ApplyData(SaveData saveData, SceneType sceneType)
@@ -236,6 +249,7 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                 if (spawnedObj.TryGetComponent<ProductionFacilityRuntime>(out var facility))
                 {
                     facility.buildingData = matchData;
+                    facility.currentLevel = entry.currentLevel > 0 ? entry.currentLevel : 1;
                     facility.isProducing = entry.isActive;
                     facility.currentProgressTime = entry.currentProgressTime;
                     facility.currentStorageCount = entry.currentStorageCount;
@@ -289,13 +303,13 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                         }
                     }
                 }
-                else if (spawnedObj.TryGetComponent<RanchFacilityRuntime>(out var ranch)) // 🌟 [추가]: 목장 복원 로직
+                else if (spawnedObj.TryGetComponent<RanchFacilityRuntime>(out var ranch))
                 {
                     ranch.buildingData = matchData;
+                    ranch.currentLevel = entry.currentLevel > 0 ? entry.currentLevel : 1;
                     ranch.UpdateSlotCapacity();
 
                     var memManager = FindFirstObjectByType<MemCaptureManager>();
-
                     if (entry.ranchSlots != null && entry.ranchSlots.Count > 0)
                     {
                         foreach (var slotSave in entry.ranchSlots)
@@ -313,15 +327,17 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                                         MemData realMemData = MemCatalogManager.Instance != null ? MemCatalogManager.Instance.FindMemData(match.MemId) : null;
                                         if (realMemData != null)
                                         {
-                                            ranch.TryAddMemToSlot(slotSave.slotIndex, realMemData, match);
+                                            slotRuntime.deployedMem = realMemData;
+                                            slotRuntime.deployedMemEntry = match;
+                                            match.IsActive = true;
                                         }
                                     }
                                 }
 
-                                // 멤 추가 함수 호출 후 개별 진행 상태 복원
                                 slotRuntime.craftingItemId = slotSave.craftingItemId;
                                 slotRuntime.currentProgressTime = slotSave.currentProgressTime;
                                 slotRuntime.currentStorageCount = slotSave.currentStorageCount;
+                                slotRuntime.isProducing = slotSave.isProducing;
                             }
                         }
                     }

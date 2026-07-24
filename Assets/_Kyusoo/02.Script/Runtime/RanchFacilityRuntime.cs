@@ -1,6 +1,7 @@
 ﻿using HDY.Capture;
 using HDY.Inventory;
 using HDY.Item;
+using HDY.Mem;
 using MemSystem.Data;
 using System;
 using System.Collections.Generic;
@@ -70,8 +71,26 @@ public class RanchFacilityRuntime : MonoBehaviour
 
     private void Start()
     {
+        EnsureBuildingData();
         UpdateSlotCapacity();
         CheckAllSlotsProductionCondition();
+
+        if (FacilityCollectManager.Instance != null)
+            FacilityCollectManager.Instance.RegisterFacility(this);
+    }
+
+    private void OnDestroy()
+    {
+        if (FacilityCollectManager.Instance != null)
+            FacilityCollectManager.Instance.UnregisterFacility(this);
+    }
+
+    private void EnsureBuildingData()
+    {
+        if (buildingData == null && TryGetComponent<BuildingRuntime>(out var br))
+        {
+            buildingData = br.buildingData;
+        }
     }
 
     private void InitializeSlots()
@@ -153,6 +172,8 @@ public class RanchFacilityRuntime : MonoBehaviour
                 new List<MemData> { slot.deployedMem }
             );
         }
+
+        FacilityCollectManager.Instance?.NotifyFacilityChanged(this);
     }
 
     public void CheckAllSlotsProductionCondition()
@@ -186,7 +207,20 @@ public class RanchFacilityRuntime : MonoBehaviour
 
     public bool TryAddMemToSlot(int slotIndex, MemData targetMem, CapturedMemEntry targetEntry)
     {
-        if (targetMem == null || targetEntry == null || buildingData == null) return false;
+        EnsureBuildingData();
+
+        if (targetEntry == null)
+        {
+            Debug.LogWarning("[목장] CapturedMemEntry가 null입니다.");
+            return false;
+        }
+
+        if (buildingData == null)
+        {
+            Debug.LogError("[목장] BuildingData가 할당되지 않아 배치를 진행할 수 없습니다.");
+            return false;
+        }
+
         if (slotIndex < 0 || slotIndex >= slots.Count) return false;
 
         RanchSlotRuntime targetSlot = slots[slotIndex];
@@ -196,39 +230,54 @@ public class RanchFacilityRuntime : MonoBehaviour
             return false;
         }
 
-        // 🌟 [수정]: MemData/MemId 중복 검사 제거 -> KeyId 동일 개체만 중복 검사
+        MemData realMemData = targetMem;
+        if ((realMemData == null || string.IsNullOrEmpty(realMemData.memId)) && MemCatalogManager.Instance != null)
+        {
+            realMemData = MemCatalogManager.Instance.FindMemData(targetEntry.MemId);
+        }
+
+        if (realMemData == null)
+        {
+            Debug.LogError($"[목장] '{targetEntry.MemId}'에 대한 MemData를 카탈로그에서 찾을 수 없습니다.");
+            return false;
+        }
+
         foreach (var slot in slots)
         {
-            if (slot.deployedMemEntry != null && slot.deployedMemEntry.KeyId == targetEntry.KeyId)
+            if (slot != targetSlot && slot.deployedMemEntry != null && slot.deployedMemEntry.KeyId == targetEntry.KeyId)
             {
-                Debug.LogWarning($"해당 멤 개체(KeyID: {targetEntry.KeyId})는 이미 이 목장의 다른 슬롯에 배치되어 있습니다.");
+                Debug.LogWarning($"[목장] 해당 멤 개체(KeyID: {targetEntry.KeyId})는 이미 이 목장의 다른 슬롯에 배치되어 있습니다.");
                 return false;
             }
         }
 
-        if (targetEntry.IsActive)
+        if (targetEntry.IsActive && (targetSlot.deployedMemEntry == null || targetSlot.deployedMemEntry.KeyId != targetEntry.KeyId))
         {
-            Debug.LogWarning($"{targetMem.memName}(은/는) 이미 다른 시설이나 탐험대에 배치되어 있습니다.");
+            Debug.LogWarning($"[목장] {realMemData.memName}(은/는) 이미 다른 시설이나 탐험대에 배치되어 있습니다.");
             return false;
         }
 
-        if (!ProductionCalculator.CanDeployToFacility(targetMem, buildingData.buildingType))
+        if (!ProductionCalculator.CanDeployToFacility(realMemData, buildingData.buildingType))
         {
             ProductionStatType requiredStat = ProductionCalculator.GetRequiredStatType(buildingData.buildingType);
-            Debug.LogWarning($"{targetMem.memName}이 {requiredStat} 스탯이 없어 목장에 배치할 수 없습니다.");
+            Debug.LogWarning($"[목장] {realMemData.memName}이 {requiredStat} 스탯이 없어 목장에 배치할 수 없습니다.");
             return false;
         }
 
-        targetSlot.deployedMem = targetMem;
+        if (targetSlot.deployedMemEntry != null && targetSlot.deployedMemEntry.KeyId != targetEntry.KeyId)
+        {
+            targetSlot.ClearMem();
+        }
+
+        targetSlot.deployedMem = realMemData;
         targetSlot.deployedMemEntry = targetEntry;
         targetEntry.IsActive = true;
 
-        string produceItemId = "item_wood"; // 임시 설정
-        targetSlot.craftingItemId = produceItemId;
+        targetSlot.craftingItemId = GetRanchProduceItemId(realMemData);
 
         targetSlot.totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(
             baseProductionTime,
-            new List<MemData> { targetMem }
+            new List<MemData> { realMemData }
         );
         targetSlot.currentProgressTime = 0f;
 
@@ -244,15 +293,29 @@ public class RanchFacilityRuntime : MonoBehaviour
 
         if (buildingData != null)
         {
-            MemAdded?.Invoke(buildingData.buildingType, targetMem, true);
+            MemAdded?.Invoke(buildingData.buildingType, realMemData, true);
         }
 
         return true;
     }
 
-    /// <summary>
-    /// 🌟 [추가]: CapturedMemEntry (KeyId) 기준 슬롯 해제
-    /// </summary>
+    public string GetRanchProduceItemId(MemData memData)
+    {
+        if (memData == null) return "item_rough_fur";
+
+        switch (memData.memId)
+        {
+            case "Mem_Rare_01":
+                return "item_rough_fur";
+            case "Mem_Epic_01":
+                return "item_rough_fur";
+            case "Mem_Unique_01":
+                return "item_diamond";
+            default:
+                return "item_rough_fur";
+        }
+    }
+
     public void RemoveMem(CapturedMemEntry targetEntry)
     {
         if (targetEntry == null) return;

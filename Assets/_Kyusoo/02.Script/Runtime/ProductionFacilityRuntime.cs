@@ -1,6 +1,7 @@
 ﻿using HDY.Capture;
 using HDY.Inventory;
 using HDY.Item;
+using HDY.Mem;
 using HDY.Recipe;
 using MemSystem.Data;
 using System;
@@ -44,8 +45,26 @@ public class ProductionFacilityRuntime : MonoBehaviour
 
     private void Start()
     {
+        EnsureBuildingData();
         UpdateMaxStorage();
         CheckProductionCondition();
+
+        if (FacilityCollectManager.Instance != null)
+            FacilityCollectManager.Instance.RegisterFacility(this);
+    }
+
+    private void OnDestroy()
+    {
+        if (FacilityCollectManager.Instance != null)
+            FacilityCollectManager.Instance.UnregisterFacility(this);
+    }
+
+    private void EnsureBuildingData()
+    {
+        if (buildingData == null && TryGetComponent<BuildingRuntime>(out var br))
+        {
+            buildingData = br.buildingData;
+        }
     }
 
     public void LevelUp()
@@ -128,42 +147,69 @@ public class ProductionFacilityRuntime : MonoBehaviour
         }
     }
 
+    // 🌟 [목장 기반 복사 및 커스텀]: 생산시설 멤 배치 핵심 로직
     public bool TryAddMem(MemData targetMem, CapturedMemEntry targetEntry)
     {
-        if (targetMem == null || targetEntry == null || buildingData == null) return false;
+        EnsureBuildingData();
+
+        if (targetEntry == null)
+        {
+            Debug.LogWarning("[생산시설] ❌ CapturedMemEntry 인자가 null입니다.");
+            return false;
+        }
+
+        if (buildingData == null)
+        {
+            Debug.LogError("[생산시설] ❌ BuildingData가 할당되어 있지 않아 배치를 진행할 수 없습니다.");
+            return false;
+        }
+
+        MemData realMemData = targetMem;
+        if ((realMemData == null || string.IsNullOrEmpty(realMemData.memId)) && MemCatalogManager.Instance != null && !string.IsNullOrEmpty(targetEntry.MemId))
+        {
+            realMemData = MemCatalogManager.Instance.FindMemData(targetEntry.MemId);
+        }
+
+        if (realMemData == null)
+        {
+            Debug.LogError($"[생산시설] ❌ targetEntry의 MemId('{targetEntry.MemId}')에 해당되는 MemData SO가 존재하지 않습니다.");
+            return false;
+        }
 
         int maxCapacity = ProductionCalculator.GetMaxMemCount(currentLevel);
 
-        // 🌟 [수정]: MemData/MemId 기준 검사 제거 -> KeyId 동일 개체만 중복 검사
         if (addMemEntries.Exists(e => e != null && e.KeyId == targetEntry.KeyId))
         {
-            Debug.LogWarning($"동일한 멤 개체(KeyID: {targetEntry.KeyId})가 이미 이 시설에 투입되어 있습니다.");
+            Debug.LogWarning($"[생산시설] ⚠️ 동일한 멤 개체(KeyID: {targetEntry.KeyId})가 이미 이 시설에 투입되어 있습니다.");
             return false;
         }
 
         if (targetEntry.IsActive)
         {
-            Debug.LogWarning($"{targetMem.memName}(은/는) 이미 다른 시설이나 탐험대에 배치되어 있습니다.");
+            Debug.LogWarning($"[생산시설] ⚠️ {realMemData.memName}(KeyID: {targetEntry.KeyId})은/는 이미 IsActive == true 상태(다른 시설/탐험대 근무 중)입니다.");
             return false;
         }
 
-        if (addMems.Count >= maxCapacity)
+        // 스탯 수치와 필요 스탯 종류 로그 세부 출력
+        ProductionStatType requiredStat = ProductionCalculator.GetRequiredStatType(buildingData.buildingType);
+        int currentStatVal = realMemData.productionStats.GetStat(requiredStat);
+
+        if (!ProductionCalculator.CanDeployToFacility(realMemData, buildingData.buildingType))
         {
-            Debug.LogWarning($"배치 인원이 가득 찼증니다.");
+            Debug.LogWarning($"[생산시설] ⚠️ {realMemData.memName}의 {requiredStat} 스탯이 {currentStatVal}단계입니다. ({buildingData.buildingName} 배치 요구 조건: 1단계 이상)");
             return false;
         }
 
-        if (!ProductionCalculator.CanDeployToFacility(targetMem, buildingData.buildingType))
+        if (addMems.Count >= maxCapacity && addMemEntries.Count > 0)
         {
-            ProductionStatType requiredStat = ProductionCalculator.GetRequiredStatType(buildingData.buildingType);
-            Debug.LogWarning($"{targetMem.memName}이 {requiredStat} 스탯이 없어 시설에 배치할 수 없습니다.");
-            return false;
+            Debug.Log($"[생산시설] 🔄 최대 수용량({maxCapacity}) 도달로 기존 멤({addMems[0].memName})을 해제하고 새 멤({realMemData.memName})으로 교체합니다.");
+            RemoveMem(addMemEntries[0]);
         }
 
-        addMems.Add(targetMem);
+        addMems.Add(realMemData);
         addMemEntries.Add(targetEntry);
         targetEntry.IsActive = true;
-        Debug.Log($"[생산] {targetMem.memName} 배치 성공!");
+        Debug.Log($"<color=lime>[생산시설]</color> ✅ {realMemData.memName} 배치 성공! (스탯: {requiredStat} Lv.{currentStatVal})");
 
         CheckProductionCondition();
 
@@ -172,15 +218,12 @@ public class ProductionFacilityRuntime : MonoBehaviour
 
         if (buildingData != null)
         {
-            MemAdded?.Invoke(buildingData.buildingType, targetMem, true);
+            MemAdded?.Invoke(buildingData.buildingType, realMemData, true);
         }
 
         return true;
     }
 
-    /// <summary>
-    /// 🌟 [추가]: CapturedMemEntry (KeyId) 기준 멤 제거
-    /// </summary>
     public void RemoveMem(CapturedMemEntry targetEntry)
     {
         if (targetEntry == null) return;
@@ -193,8 +236,6 @@ public class ProductionFacilityRuntime : MonoBehaviour
             addMemEntries[index].IsActive = false;
             addMemEntries.RemoveAt(index);
             if (index < addMems.Count) addMems.RemoveAt(index);
-
-            Debug.Log($"[생산 해제] KeyID '{targetEntry.KeyId}' 시설에서 제외 완료.");
 
             CheckProductionCondition();
 
@@ -229,6 +270,8 @@ public class ProductionFacilityRuntime : MonoBehaviour
             float baseDuration = GetBaseProductionTime();
             totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, addMems);
         }
+
+        FacilityCollectManager.Instance?.NotifyFacilityChanged(this);
     }
 
     public void StoredItems()
@@ -282,5 +325,6 @@ public class ProductionFacilityRuntime : MonoBehaviour
         {
             FacilityStopped?.Invoke(buildingData.buildingType, addMems, FacilityStopReason.Starvation);
         }
+        FacilityCollectManager.Instance?.NotifyFacilityChanged(this);
     }
 }

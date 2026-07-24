@@ -69,7 +69,6 @@ public class RecordManager : MonoBehaviour
         }
         finally
         {
-            // 🌟 [수정]: 예외가 발생하더라도 IsLoadingData가 false로 안전하게 해제되도록 보장
             IsLoadingData = false;
         }
     }
@@ -102,7 +101,6 @@ public class RecordManager : MonoBehaviour
 
             IsBlueprintGiven = saveData.isBlueprintGiven;
 
-            // 🌟 [결정론적 복구 순서 정사]
             var territoryRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "TerritoryRecordData");
             territoryRecord?.ApplyData(saveData, sceneType);
 
@@ -175,6 +173,19 @@ public class RecordManager : MonoBehaviour
         else facilityDatabase.Add(buildingId, updatedData);
     }
 
+    // 🌟 [수정 위치]: 배치 취소/철거 시 씬에 없는 건물의 딕셔너리 캐시 데이터를 완전히 동기화 정제하는 메서드 추가
+    public void SynchronizeFacilityDatabase(Dictionary<string, FacilityData> activeFacilities)
+    {
+        facilityDatabase.Clear();
+        if (activeFacilities != null)
+        {
+            foreach (var pair in activeFacilities)
+            {
+                facilityDatabase[pair.Key] = pair.Value;
+            }
+        }
+    }
+
     public ContainerData PackContainerData(InventoryContainer container)
     {
         if (container == null) return null;
@@ -221,9 +232,6 @@ public class RecordManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// 🌟 [수정]: Resources.FindObjectsOfTypeAll 제거 -> ItemCatalogManager로 일원화
-    /// </summary>
     public ItemData FindItemDataInProject(string itemId)
     {
         if (string.IsNullOrEmpty(itemId)) return null;

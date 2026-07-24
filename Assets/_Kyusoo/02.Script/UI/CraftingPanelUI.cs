@@ -10,7 +10,6 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
-using WebSocketSharp;
 
 public class CraftingPanelUI : MonoBehaviour
 {
@@ -103,7 +102,6 @@ public class CraftingPanelUI : MonoBehaviour
     {
         if (targetFacility == null) return;
 
-        // 🌟 [수정]: string 변수 검사로 전환
         if (currentUIState == CraftingUIState.Crafting && !string.IsNullOrEmpty(targetFacility.currentCraftingItem) && targetFacility.totalRequiredTime > 0f)
         {
             float progressNormalized = targetFacility.currentProgressTime / targetFacility.totalRequiredTime;
@@ -127,7 +125,6 @@ public class CraftingPanelUI : MonoBehaviour
 
         RefreshStaticUI();
 
-        // 🌟 [수정]: string 유효성 검사
         if (targetFacility.isProducing || !string.IsNullOrEmpty(targetFacility.currentCraftingItem))
         {
             currentUIState = CraftingUIState.Crafting;
@@ -179,7 +176,6 @@ public class CraftingPanelUI : MonoBehaviour
             GenerateRequiredMaterialListUI();
         }
 
-        // 🌟 [수정]: Crafting UI 모드 시 string ID를 기반으로 ItemCatalogManager에서 UI 정보 바인딩
         if (currentUIState == CraftingUIState.Crafting && !string.IsNullOrEmpty(targetFacility.currentCraftingItem))
         {
             ItemData currentItem = FindItemDataInCatalog(targetFacility.currentCraftingItem);
@@ -219,7 +215,6 @@ public class CraftingPanelUI : MonoBehaviour
             }
             else
             {
-                // 🌟 [수정]: 하드코딩 20초 제거 -> 레시피의 time 값 연동
                 float baseDuration = activeSelectedRecipeData != null ? activeSelectedRecipeData.time : 20f;
                 float singleTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, targetFacility.DeployedMems);
                 float totalEstimatedTime = singleTime * selectedQuantity;
@@ -366,8 +361,6 @@ public class CraftingPanelUI : MonoBehaviour
         if (targetFacility == null || selectedItem == null) return;
 
         activeSelectedRecipe = selectedItem;
-
-        // 🌟 [수정]: Resources 탐색 제거 -> ItemCatalogManager 전용 레시피 탐색으로 변경
         activeSelectedRecipeData = FindRecipeDataInCatalog(selectedItem.Item_ID);
 
         maxCraftableQuantity = CalculateMaxCraftableLimitAmount(selectedItem);
@@ -465,7 +458,6 @@ public class CraftingPanelUI : MonoBehaviour
             }
         }
 
-        // 🌟 [수정]: ItemData 대신 string ID 전달
         targetFacility.SelectAndStartCrafting(activeSelectedRecipe.Item_ID, selectedQuantity);
         currentUIState = CraftingUIState.Crafting;
         RefreshCraftingModeUI();
@@ -524,9 +516,28 @@ public class CraftingPanelUI : MonoBehaviour
         completeCountText.text = targetFacility.currentStorageCount.ToString();
     }
 
-    public void TryDeployMemFromUI(MemData targetMem, CapturedMemEntry targetEntry)
+    public bool TryDeployMemFromUI(MemData targetMem, CapturedMemEntry targetEntry)
     {
-        if (targetFacility == null || targetMem == null || targetEntry == null) return;
+        // 🌟 [보완]: targetFacility가 null인 경우 씬에서 활성화된 ProductionCraftRuntime을 자동 탐색해 할당
+        if (targetFacility == null)
+        {
+            targetFacility = FindFirstObjectByType<ProductionCraftRuntime>();
+            if (targetFacility != null)
+            {
+                Debug.Log("<color=cyan>[CraftingPanelUI]</color> targetFacility가 null이어서 씬 내 활성 제작대 런타임을 자동 연결했습니다.");
+            }
+            else
+            {
+                Debug.LogError($"[{GetType().Name}] ❌ 씬에서 ProductionCraftRuntime 인스턴스를 찾지 못해 배치를 진행할 수 없습니다.");
+                return false;
+            }
+        }
+
+        if (targetEntry == null)
+        {
+            Debug.LogError($"[{GetType().Name}] ❌ targetEntry 인자가 null입니다.");
+            return false;
+        }
 
         bool isSuccess = targetFacility.TryAddMem(targetMem, targetEntry);
 
@@ -539,6 +550,8 @@ public class CraftingPanelUI : MonoBehaviour
                 UpdateSelectProductCalculatedUI();
             }
         }
+
+        return isSuccess;
     }
 
     public void TryRemoveMemFromUI(MemData targetMem)
@@ -567,9 +580,6 @@ public class CraftingPanelUI : MonoBehaviour
         UpdateStorageText();
     }
 
-    /// <summary>
-    /// ItemCatalogManager 전용 ItemData 탐색
-    /// </summary>
     private ItemData FindItemDataInCatalog(string itemId)
     {
         if (string.IsNullOrEmpty(itemId)) return null;
@@ -589,9 +599,6 @@ public class CraftingPanelUI : MonoBehaviour
         return targetItem;
     }
 
-    /// <summary>
-    /// ItemCatalogManager 전용 RecipeData 탐색
-    /// </summary>
     private HDY.Recipe.RecipeData FindRecipeDataInCatalog(string recipeItemId)
     {
         if (string.IsNullOrEmpty(recipeItemId)) return null;

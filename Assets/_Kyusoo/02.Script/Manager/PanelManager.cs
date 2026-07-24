@@ -27,6 +27,10 @@ public class PanelManager : MonoBehaviour
     private GridManager cachedGridManager;
     private FieldInfo placementModeFieldInfo;
 
+    public bool IsCraftingPanelActive => craftingPanel != null && craftingPanel.activeSelf;
+    public bool IsProductionPanelActive => productionPanel != null && productionPanel.activeSelf;
+    public bool IsRanchPanelActive => ranchPanel != null && ranchPanel.activeSelf;
+
 
     private void Awake()
     {

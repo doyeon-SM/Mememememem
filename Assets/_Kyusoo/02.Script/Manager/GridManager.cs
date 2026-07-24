@@ -15,33 +15,20 @@ using UnityEngine.InputSystem;
 public class GridManager : MonoBehaviour
 {
     [Header("타일 생성 관련 정보: Prefabs, 생성될 위치, Grid Layer")]
-    [Tooltip("영지 외곽(테두리/절벽)에 생성될 타일 프리팹 (A)")]
     [SerializeField] private GameObject outerTilePrefab;
-
-    [Tooltip("영지 내부(평면)에 생성될 타일 프리팹 (B)")]
     [SerializeField] private GameObject innerTilePrefab;
-
     [SerializeField] private Transform floorContainer;
     [SerializeField] private LayerMask gridLayerMask;
 
     [Header("내부 상단 Plane 설정")]
-    [Tooltip("타일 상단에 올려둘 Green Plane 오브젝트")]
     [SerializeField] private GameObject innerSurfacePlane;
-
-    [Tooltip("외곽 타일 테두리 여백 (값이 크면 Plane이 더 작아집니다)")]
     [SerializeField] private float planeInsetMargin = 1.2f;
-
-    [Tooltip("Green Plane 및 건물 배치 Y축 높이 (기본값: 0.501f)")]
     [SerializeField] private float innerPlaneY = 0.501f;
-
-    [Tooltip("배치 모드 격자판의 Y축 높이 (Plane 직상단 밀착: 0.502f)")]
     [SerializeField] private float gridOverlayY = 0.502f;
 
     [Header("시설 데이터 정보: SO, 프리뷰")]
     [SerializeField] private List<BuildingData> buildings = new List<BuildingData>();
     [SerializeField] private Material previewMaterial;
-
-    [Tooltip("URP/Unlit 기반의 Surface Type: Transparent로 설정된 머티리얼 에셋을 여기에 넣어주세요.")]
     [SerializeField] private Material gridMaterialPrefab;
 
     [Header("타일 색상 정보: 배치 가능, 배치 불가")]
@@ -50,7 +37,6 @@ public class GridManager : MonoBehaviour
 
     private BuildingData selectedBuildingData;
     private GameObject currentPreviewInstance;
-
     private MeshRenderer[] previewRenderers;
 
     private int currentWidth;
@@ -61,13 +47,11 @@ public class GridManager : MonoBehaviour
     private bool[,] occupiedCells;
 
     private GameObject globalGridOverlay;
-
     private GameObject[,] buildingObjectsGrid;
     private BuildingData[,] buildingDataGrid;
 
     private int currentStartGridX;
     private int currentStartGridZ;
-
     private int currentTargetWidth;
     private int currentTargetHeight;
 
@@ -80,7 +64,6 @@ public class GridManager : MonoBehaviour
     private BuildRecordManager buildRecordManager;
 
     private List<BuildingData> currentAvailableBuildings = new List<BuildingData>();
-
     private List<ItemData> sessionRemovedBlueprints = new List<ItemData>();
     private List<ItemData> sessionAddedBlueprints = new List<ItemData>();
 
@@ -104,7 +87,6 @@ public class GridManager : MonoBehaviour
     private void Awake()
     {
         if (buildRecordManager == null) buildRecordManager = FindFirstObjectByType<BuildRecordManager>();
-
         InitGridMaterials();
     }
 
@@ -112,7 +94,6 @@ public class GridManager : MonoBehaviour
     {
         int targetWidth = currentWidth > 0 ? currentWidth : 5;
         int targetHeight = currentHeight > 0 ? currentHeight : 5;
-
         InitializeGrid(targetWidth, targetHeight);
     }
 
@@ -183,7 +164,7 @@ public class GridManager : MonoBehaviour
                     {
                         PanelManager.Instance.OpenCraftingPanel(craft);
                     }
-                    else if (targetObj.TryGetComponent<RanchFacilityRuntime>(out RanchFacilityRuntime ranch)) // 🌟 [추가]: 목장 클릭 시 연동
+                    else if (targetObj.TryGetComponent<RanchFacilityRuntime>(out RanchFacilityRuntime ranch))
                     {
                         PanelManager.Instance.OpenRanchPanel(ranch);
                     }
@@ -205,17 +186,10 @@ public class GridManager : MonoBehaviour
         currentWidth = width;
         currentHeight = height;
 
-        if (tileGrid == null || tileGrid.Length == 0)
-            tileGrid = new GameObject[currentWidth, currentHeight];
-
-        if (occupiedCells == null || occupiedCells.Length == 0)
-            occupiedCells = new bool[currentWidth, currentHeight];
-
-        if (buildingObjectsGrid == null || buildingObjectsGrid.Length == 0)
-            buildingObjectsGrid = new GameObject[currentWidth, currentHeight];
-
-        if (buildingDataGrid == null || buildingDataGrid.Length == 0)
-            buildingDataGrid = new BuildingData[currentWidth, currentHeight];
+        if (tileGrid == null || tileGrid.Length == 0) tileGrid = new GameObject[currentWidth, currentHeight];
+        if (occupiedCells == null || occupiedCells.Length == 0) occupiedCells = new bool[currentWidth, currentHeight];
+        if (buildingObjectsGrid == null || buildingObjectsGrid.Length == 0) buildingObjectsGrid = new GameObject[currentWidth, currentHeight];
+        if (buildingDataGrid == null || buildingDataGrid.Length == 0) buildingDataGrid = new BuildingData[currentWidth, currentHeight];
 
         for (int i = 0; i < currentWidth; i++)
         {
@@ -238,7 +212,6 @@ public class GridManager : MonoBehaviour
 
         GameObject[,] newTileGrid = new GameObject[newWidth, newHeight];
         bool[,] newOccupiedCells = new bool[newWidth, newHeight];
-
         GameObject[,] newBuildingObjectsGrid = new GameObject[newWidth, newHeight];
         BuildingData[,] newBuildingDataGrid = new BuildingData[newWidth, newHeight];
 
@@ -255,10 +228,7 @@ public class GridManager : MonoBehaviour
 
                 if (wasOuter != isNowOuter)
                 {
-                    if (tileGrid[i, j] != null)
-                    {
-                        Destroy(tileGrid[i, j]);
-                    }
+                    if (tileGrid[i, j] != null) Destroy(tileGrid[i, j]);
                     newTileGrid[i, j] = SpawnTile(i, j, newWidth, newHeight);
                 }
                 else
@@ -290,31 +260,20 @@ public class GridManager : MonoBehaviour
         UpdateGlobalGridOverlay();
     }
 
-    private bool IsOuterTile(int x, int z, int width, int height)
-    {
-        return x == 0 || x == width - 1 || z == 0 || z == height - 1;
-    }
+    private bool IsOuterTile(int x, int z, int width, int height) => x == 0 || x == width - 1 || z == 0 || z == height - 1;
 
     private GameObject SpawnTile(int x, int z, int width, int height)
     {
         Vector3 spawnPosition = new Vector3(x + 0.5f, 0f, z + 0.5f);
-
         bool isOuter = IsOuterTile(x, z, width, height);
         GameObject targetPrefab = isOuter ? outerTilePrefab : innerTilePrefab;
-
-        if (targetPrefab == null)
-        {
-            targetPrefab = outerTilePrefab != null ? outerTilePrefab : innerTilePrefab;
-        }
+        if (targetPrefab == null) targetPrefab = outerTilePrefab != null ? outerTilePrefab : innerTilePrefab;
 
         GameObject newTile = Instantiate(targetPrefab, spawnPosition, Quaternion.identity, floorContainer);
         newTile.name = $"Tile_({x},{z})";
 
         int maskLayer = GetFirstLayerFromMask(gridLayerMask);
-        if (maskLayer >= 0)
-        {
-            SetLayerRecursively(newTile, maskLayer);
-        }
+        if (maskLayer >= 0) SetLayerRecursively(newTile, maskLayer);
 
         var colliders = newTile.GetComponentsInChildren<Collider>();
         if (colliders == null || colliders.Length == 0)
@@ -330,15 +289,12 @@ public class GridManager : MonoBehaviour
     private void UpdateInnerSurfacePlane()
     {
         if (innerSurfacePlane == null) return;
-
         float centerX = currentWidth / 2.0f;
         float centerZ = currentHeight / 2.0f;
-
         innerSurfacePlane.transform.position = new Vector3(centerX, innerPlaneY, centerZ);
 
         float targetWidth = Mathf.Max(0.1f, currentWidth - planeInsetMargin);
         float targetHeight = Mathf.Max(0.1f, currentHeight - planeInsetMargin);
-
         innerSurfacePlane.transform.localScale = new Vector3(targetWidth / 10.0f, 1.0f, targetHeight / 10.0f);
     }
 
@@ -347,17 +303,11 @@ public class GridManager : MonoBehaviour
         if (globalGridOverlay == null)
         {
             globalGridOverlay = GameObject.CreatePrimitive(PrimitiveType.Quad);
-
             if (globalGridOverlay.TryGetComponent<Collider>(out var col))
             {
                 col.enabled = false;
-
-                if (Application.isPlaying)
-                {
-                    Destroy(col);
-                }
+                if (Application.isPlaying) Destroy(col);
             }
-
             globalGridOverlay.name = "GlobalGridOverlay";
             globalGridOverlay.transform.SetParent(floorContainer != null ? floorContainer : transform);
             globalGridOverlay.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
@@ -390,7 +340,6 @@ public class GridManager : MonoBehaviour
         {
             sessionRemovedBlueprints.Clear();
             sessionAddedBlueprints.Clear();
-
             buildRecordManager?.SaveRollbackData(buildingObjectsGrid, buildingDataGrid, currentWidth, currentHeight);
         }
         else
@@ -401,10 +350,7 @@ public class GridManager : MonoBehaviour
         currentAvailableBuildings = GetAvailableBuildingsFromInventory();
         OnPlacementModeChanged?.Invoke(isPlacementMode, currentAvailableBuildings);
 
-        if (globalGridOverlay != null)
-        {
-            globalGridOverlay.SetActive(isPlacementMode);
-        }
+        if (globalGridOverlay != null) globalGridOverlay.SetActive(isPlacementMode);
 
         Debug.Log($"배치 모드 상태 변경: {isPlacementMode} | 배치 가능 건물 수: {currentAvailableBuildings.Count}개");
     }
@@ -415,12 +361,10 @@ public class GridManager : MonoBehaviour
         {
             currentPreviewInstance.transform.DOKill();
             Destroy(currentPreviewInstance);
-
             selectedBuildingData = null;
             previewRenderers = null;
             canPlaceCurrent = false;
             isShaking = false;
-
             cachedPickedUpState = null;
         }
     }
@@ -431,13 +375,11 @@ public class GridManager : MonoBehaviour
 
         Vector2 mousePosition = Mouse.current.position.ReadValue();
         Ray ray = Camera.main.ScreenPointToRay(mousePosition);
-
         LayerMask maskToUse = gridLayerMask.value != 0 ? gridLayerMask : (LayerMask)(~0);
 
         if (Physics.Raycast(ray, out RaycastHit hit, Mathf.Infinity, maskToUse))
         {
             raycastHitPoint = hit.point;
-
             MouseGridX = Mathf.FloorToInt(hit.point.x);
             MouseGridZ = Mathf.FloorToInt(hit.point.z);
             IsMouseOnGrid = true;
@@ -450,8 +392,7 @@ public class GridManager : MonoBehaviour
 
     private void UpdatePreviewPosition()
     {
-        if (selectedBuildingData == null || currentPreviewInstance == null) return;
-        if (isShaking) return;
+        if (selectedBuildingData == null || currentPreviewInstance == null || isShaking) return;
 
         int currentRotationIndex = Mathf.RoundToInt(currentPreviewInstance.transform.eulerAngles.y / 90f) % 4;
         bool isRotated = (currentRotationIndex == 1 || currentRotationIndex == 3);
@@ -464,7 +405,6 @@ public class GridManager : MonoBehaviour
 
         float offsetX = currentStartGridX + (currentTargetWidth / 2.0f);
         float offsetZ = currentStartGridZ + (currentTargetHeight / 2.0f);
-
         float previewY = gridOverlayY + 0.008f;
         currentPreviewInstance.transform.position = new Vector3(offsetX, previewY, offsetZ);
 
@@ -488,15 +428,8 @@ public class GridManager : MonoBehaviour
         {
             for (int z = startZ; z < startZ + height; z++)
             {
-                if (x < 0 || x >= currentWidth || z < 0 || z >= currentHeight)
-                {
-                    return false;
-                }
-
-                if (occupiedCells[x, z] == true)
-                {
-                    return false;
-                }
+                if (x < 0 || x >= currentWidth || z < 0 || z >= currentHeight) return false;
+                if (occupiedCells[x, z]) return false;
             }
         }
         return true;
@@ -504,9 +437,11 @@ public class GridManager : MonoBehaviour
 
     private Material CreateGridMaterial(bool isPlacementMode)
     {
-        Texture2D texture = new Texture2D(64, 64, TextureFormat.RGBA32, false);
-        texture.filterMode = FilterMode.Point;
-        texture.wrapMode = TextureWrapMode.Repeat;
+        Texture2D texture = new Texture2D(64, 64, TextureFormat.RGBA32, false)
+        {
+            filterMode = FilterMode.Point,
+            wrapMode = TextureWrapMode.Repeat
+        };
 
         Color gridBorderColor = new Color(0.1f, 0.1f, 0.1f, 0.45f);
         Color transparentColor = new Color(0f, 0f, 0f, 0f);
@@ -515,33 +450,12 @@ public class GridManager : MonoBehaviour
         {
             for (int x = 0; x < 64; x++)
             {
-                if (x < 2 || x > 61 || y < 2 || y > 61)
-                {
-                    texture.SetPixel(x, y, gridBorderColor);
-                }
-                else
-                {
-                    texture.SetPixel(x, y, transparentColor);
-                }
+                texture.SetPixel(x, y, (x < 2 || x > 61 || y < 2 || y > 61) ? gridBorderColor : transparentColor);
             }
         }
         texture.Apply();
 
-        Material mat = null;
-
-        if (gridMaterialPrefab != null)
-        {
-            mat = new Material(gridMaterialPrefab);
-        }
-        else
-        {
-            Shader targetShader = Shader.Find("Universal Render Pipeline/Unlit");
-            if (targetShader == null) targetShader = Shader.Find("Unlit/Transparent");
-            if (targetShader == null) targetShader = Shader.Find("Legacy Shaders/Transparent/Cutout/Unlit");
-
-            mat = new Material(targetShader);
-        }
-
+        Material mat = gridMaterialPrefab != null ? new Material(gridMaterialPrefab) : new Material(Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Unlit/Transparent"));
         mat.SetFloat("_Surface", 1f);
         mat.SetFloat("_Blend", 0f);
         mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
@@ -570,10 +484,7 @@ public class GridManager : MonoBehaviour
                 isShaking = true;
                 currentPreviewInstance.transform.DOKill();
                 currentPreviewInstance.transform.DOShakePosition(0.25f, new Vector3(0.25f, 0f, 0.25f), 40, 90, false, true)
-                    .OnComplete(() =>
-                    {
-                        isShaking = false;
-                    });
+                    .OnComplete(() => isShaking = false);
             }
             return;
         }
@@ -639,7 +550,7 @@ public class GridManager : MonoBehaviour
                     craftRuntime.DeployedMemEntries.AddRange(cachedPickedUpState.deployedMemEntries);
                 }
             }
-            else if (realBuilding.TryGetComponent<RanchFacilityRuntime>(out RanchFacilityRuntime ranchRuntime)) // 🌟 [추가]: 목장 재배치 복원
+            else if (realBuilding.TryGetComponent<RanchFacilityRuntime>(out RanchFacilityRuntime ranchRuntime))
             {
                 ranchRuntime.buildingData = selectedBuildingData;
                 ranchRuntime.UpdateSlotCapacity();
@@ -664,7 +575,11 @@ public class GridManager : MonoBehaviour
                 prodRuntime.buildingData = selectedBuildingData;
                 prodRuntime.UpdateMaxStorage();
             }
-            else if (realBuilding.TryGetComponent<RanchFacilityRuntime>(out RanchFacilityRuntime ranchRuntime)) // 🌟 [추가]: 목장 최초 배치
+            else if (realBuilding.TryGetComponent<ProductionCraftRuntime>(out ProductionCraftRuntime craftRuntime))
+            {
+                craftRuntime.buildingData = selectedBuildingData;
+            }
+            else if (realBuilding.TryGetComponent<RanchFacilityRuntime>(out RanchFacilityRuntime ranchRuntime))
             {
                 ranchRuntime.buildingData = selectedBuildingData;
                 ranchRuntime.UpdateSlotCapacity();
@@ -687,19 +602,12 @@ public class GridManager : MonoBehaviour
             if (inventory != null)
             {
                 inventory.RemoveItem(selectedBuildingData.requireBlueprint, 1);
-
                 ItemData bpItem = FindItemDataInProject(selectedBuildingData.requireBlueprint);
-                if (bpItem != null)
-                {
-                    sessionRemovedBlueprints.Add(bpItem);
-                }
+                if (bpItem != null) sessionRemovedBlueprints.Add(bpItem);
             }
         }
 
-        Debug.Log($"[Build] {selectedBuildingData.buildingName} 건설 및 데이터 보존 재배치 성공!");
-
         ClearPreview();
-
         currentAvailableBuildings = GetAvailableBuildingsFromInventory();
         OnPlacementModeChanged?.Invoke(isPlacementMode, currentAvailableBuildings);
 
@@ -726,8 +634,7 @@ public class GridManager : MonoBehaviour
             cachedPickedUpState.facilityData.currentStorageCount = facility.currentStorageCount;
             cachedPickedUpState.facilityData.currentCraftingItemId = facility.craftingItem ?? "";
 
-            if (facility.DeployedMems != null)
-                cachedPickedUpState.deployedMems.AddRange(facility.DeployedMems);
+            if (facility.DeployedMems != null) cachedPickedUpState.deployedMems.AddRange(facility.DeployedMems);
             if (facility.DeployedMemEntries != null)
             {
                 cachedPickedUpState.deployedMemEntries.AddRange(facility.DeployedMemEntries);
@@ -746,8 +653,7 @@ public class GridManager : MonoBehaviour
             cachedPickedUpState.facilityData.currentStorageCount = craft.currentStorageCount;
             cachedPickedUpState.facilityData.currentCraftingItemId = craft.currentCraftingItem ?? "";
 
-            if (craft.DeployedMems != null)
-                cachedPickedUpState.deployedMems.AddRange(craft.DeployedMems);
+            if (craft.DeployedMems != null) cachedPickedUpState.deployedMems.AddRange(craft.DeployedMems);
             if (craft.DeployedMemEntries != null)
             {
                 cachedPickedUpState.deployedMemEntries.AddRange(craft.DeployedMemEntries);
@@ -757,7 +663,7 @@ public class GridManager : MonoBehaviour
                 }
             }
         }
-        else if (targetBuilding.TryGetComponent<RanchFacilityRuntime>(out var ranch)) // 🌟 [추가]: 목장 들기 시 상태 저장
+        else if (targetBuilding.TryGetComponent<RanchFacilityRuntime>(out var ranch))
         {
             cachedPickedUpState.facilityData.isActive = ranch.isProducing;
             if (ranch.Slots != null)
@@ -787,6 +693,8 @@ public class GridManager : MonoBehaviour
             }
         }
 
+        // 🌟 [핵심 수정]: 즉시 비활성화 후 파괴
+        targetBuilding.SetActive(false);
         Destroy(targetBuilding);
 
         if (retrievedData != null && !string.IsNullOrEmpty(retrievedData.requireBlueprint))
@@ -813,11 +721,7 @@ public class GridManager : MonoBehaviour
         if (availableIndex >= 0)
         {
             CreateBuildingPreview(availableIndex);
-
-            if (currentPreviewInstance != null)
-            {
-                currentPreviewInstance.transform.rotation = targetRotation;
-            }
+            if (currentPreviewInstance != null) currentPreviewInstance.transform.rotation = targetRotation;
         }
     }
 
@@ -837,16 +741,12 @@ public class GridManager : MonoBehaviour
             }
 
             Collider[] colliders = currentPreviewInstance.GetComponentsInChildren<Collider>();
-            foreach (Collider col in colliders)
-            {
-                col.enabled = false;
-            }
+            foreach (Collider col in colliders) col.enabled = false;
 
             previewRenderers = currentPreviewInstance.GetComponentsInChildren<MeshRenderer>();
             foreach (MeshRenderer renderer in previewRenderers)
             {
                 renderer.material = previewMaterial;
-
                 renderer.sortingOrder = 100;
                 if (renderer.material != null)
                 {
@@ -859,25 +759,18 @@ public class GridManager : MonoBehaviour
     private void UpdatePreviewVisual(bool canPlace)
     {
         if (previewRenderers == null) return;
-
         Color targetColor = canPlace ? buildableColor : unbuildableColor;
-
         foreach (MeshRenderer renderer in previewRenderers)
         {
-            if (renderer != null)
-            {
-                renderer.material.SetColor("_BaseColor", targetColor);
-            }
+            if (renderer != null) renderer.material.SetColor("_BaseColor", targetColor);
         }
     }
 
     private void RotatePreview()
     {
         if (currentPreviewInstance == null) return;
-
         float currentY = currentPreviewInstance.transform.eulerAngles.y;
         float rotateY = (currentY > 45f) ? 0f : 90f;
-
         currentPreviewInstance.transform.rotation = Quaternion.Euler(0f, rotateY, 0f);
         UpdatePreviewPosition();
     }
@@ -901,22 +794,18 @@ public class GridManager : MonoBehaviour
         if (!isPlacementMode) return;
         if (buildRecordManager == null) return;
 
+        // 🌟 1. 씬 내 모든 기존 건축물 완전 제거
         ClearAllPlacedBuildings();
 
+        // 🌟 2. 배치 모드 진입 직전 스냅샷 복원
         List<BuildingSnapshot> rollbackData = buildRecordManager.Rollback();
         RestoreRollbackData(rollbackData);
 
         var inventory = FindFirstObjectByType<PlayerInventory>();
         if (inventory != null)
         {
-            foreach (var item in sessionRemovedBlueprints)
-            {
-                inventory.AddItem(item, 1);
-            }
-            foreach (var item in sessionAddedBlueprints)
-            {
-                inventory.RemoveItem(item.Item_ID, 1);
-            }
+            foreach (var item in sessionRemovedBlueprints) inventory.AddItem(item, 1);
+            foreach (var item in sessionAddedBlueprints) inventory.RemoveItem(item.Item_ID, 1);
         }
         sessionRemovedBlueprints.Clear();
         sessionAddedBlueprints.Clear();
@@ -924,38 +813,44 @@ public class GridManager : MonoBehaviour
         ChangePlacementMode();
 
         TriggerSatisfactionUpdate();
+
+        // 🌟 3. 복원 완료 후 1대1 싱크 이벤트 재발행
+        OnGridDataChanged?.Invoke();
+        TotalHungerManager.Instance?.RecalculateTotalHunger();
     }
 
+    /// <summary>
+    /// 🌟 [수정]: 씬 상에 존재하는 모든 BuildingRuntime 오브젝트를 전수 조사하여 삭제합니다.
+    /// 그리드 배열 참소 손상으로 인한 고스트 오브젝트 생성을 차단합니다.
+    /// </summary>
     private void ClearAllPlacedBuildings()
     {
-        for (int x = 0; x < currentWidth; x++)
+        var allBuildings = FindObjectsByType<BuildingRuntime>(FindObjectsSortMode.None);
+        foreach (var building in allBuildings)
         {
-            for (int z = 0; z < currentHeight; z++)
+            if (building != null)
             {
-                if (buildingObjectsGrid[x, z] != null)
-                {
-                    GameObject buildingData = buildingObjectsGrid[x, z];
-                    for (int i = 0; i < currentWidth; i++)
-                    {
-                        for (int j = 0; j < currentHeight; j++)
-                        {
-                            if (buildingObjectsGrid[i, j] == buildingData)
-                            {
-                                buildingObjectsGrid[i, j] = null;
-                                buildingDataGrid[i, j] = null;
-                                occupiedCells[i, j] = false;
-                            }
-                        }
-                    }
-                    Destroy(buildingData);
-                }
+                building.gameObject.SetActive(false);
+                Destroy(building.gameObject);
             }
         }
+        if (buildingObjectsGrid != null) Array.Clear(buildingObjectsGrid, 0, buildingObjectsGrid.Length);
+        if (buildingDataGrid != null) Array.Clear(buildingDataGrid, 0, buildingDataGrid.Length);
+        if (occupiedCells != null) Array.Clear(occupiedCells, 0, occupiedCells.Length);
     }
 
     private void RestoreRollbackData(List<BuildingSnapshot> rollbackData)
     {
         if (rollbackData == null) return;
+
+        var memManager = FindFirstObjectByType<MemCaptureManager>();
+        if (memManager != null && memManager.CapturedMems != null)
+        {
+            foreach (var m in memManager.CapturedMems)
+            {
+                if (m != null) m.IsActive = false;
+            }
+        }
 
         foreach (var snap in rollbackData)
         {
@@ -988,7 +883,6 @@ public class GridManager : MonoBehaviour
                     List<CapturedMemEntry> matchedEntries = new List<CapturedMemEntry>();
                     List<MemData> restoredMems = new List<MemData>();
 
-                    var memManager = FindFirstObjectByType<MemCaptureManager>();
                     if (memManager != null && entry.DeployedMemIDs != null)
                     {
                         var warehouseList = memManager.CapturedMems;
@@ -1000,11 +894,15 @@ public class GridManager : MonoBehaviour
                                 warehouseMatch.IsActive = true;
                                 matchedEntries.Add(warehouseMatch);
 
-                                MemData mData = new MemData();
-                                mData.memName = warehouseMatch.MemId;
-
+                                MemData mData = new MemData { memName = warehouseMatch.MemId, memId = warehouseMatch.MemId };
                                 var template = MemCatalogManager.Instance != null ? MemCatalogManager.Instance.FindMemData(warehouseMatch.MemId) : null;
-                                mData.maxHunger = (template != null) ? template.maxHunger : 10;
+                                if (template != null)
+                                {
+                                    mData.maxHunger = template.maxHunger;
+                                    mData.productionStats = template.productionStats;
+                                    // 임시: MemData 내 ranchProduceItemId 필드가 추가되기 전까지 RanchFacilityRuntime.GetRanchProduceItemId(memData)로 매핑하여 처리
+                                    mData.modelPrefab = template.modelPrefab;
+                                }
 
                                 restoredMems.Add(mData);
                             }
@@ -1014,10 +912,12 @@ public class GridManager : MonoBehaviour
                     if (restoredBuilding.TryGetComponent<ProductionFacilityRuntime>(out var facility))
                     {
                         facility.buildingData = snap.data;
+                        facility.currentLevel = entry.currentLevel > 0 ? entry.currentLevel : 1;
                         facility.isProducing = entry.isActive;
                         facility.currentProgressTime = entry.currentProgressTime;
                         facility.currentStorageCount = entry.currentStorageCount;
                         facility.craftingItem = entry.currentCraftingItemId;
+
                         facility.UpdateMaxStorage();
 
                         if (facility.DeployedMems != null && facility.DeployedMemEntries != null)
@@ -1047,15 +947,49 @@ public class GridManager : MonoBehaviour
                             craft.DeployedMemEntries.AddRange(matchedEntries);
                         }
                     }
-                    else if (restoredBuilding.TryGetComponent<RanchFacilityRuntime>(out var ranch)) // 🌟 [추가]: 목장 롤백 복원
+                    else if (restoredBuilding.TryGetComponent<RanchFacilityRuntime>(out var ranch))
                     {
                         ranch.buildingData = snap.data;
+                        ranch.currentLevel = entry.currentLevel > 0 ? entry.currentLevel : 1;
                         ranch.UpdateSlotCapacity();
 
-                        for (int i = 0; i < restoredMems.Count && i < matchedEntries.Count; i++)
+                        if (entry.ranchSlots != null && entry.ranchSlots.Count > 0)
                         {
-                            ranch.TryAddMemToSlot(i, restoredMems[i], matchedEntries[i]);
+                            foreach (var slotSave in entry.ranchSlots)
+                            {
+                                if (slotSave.slotIndex >= 0 && slotSave.slotIndex < ranch.Slots.Count)
+                                {
+                                    var slotRuntime = ranch.Slots[slotSave.slotIndex];
+                                    slotRuntime.isUnlocked = slotSave.isUnlocked;
+
+                                    if (!string.IsNullOrEmpty(slotSave.deployedMemKeyId) && memManager != null)
+                                    {
+                                        var match = memManager.CapturedMems.FirstOrDefault(m => m != null && m.KeyId == slotSave.deployedMemKeyId);
+                                        if (match != null)
+                                        {
+                                            MemData realMemData = MemCatalogManager.Instance != null ? MemCatalogManager.Instance.FindMemData(match.MemId) : null;
+                                            if (realMemData != null)
+                                            {
+                                                slotRuntime.deployedMem = realMemData;
+                                                slotRuntime.deployedMemEntry = match;
+                                                match.IsActive = true;
+                                            }
+                                        }
+                                    }
+
+                                    // 임시: 저장 데이터의 craftingItemId가 없는 경우 memId 기반 GetRanchProduceItemId로 생산 품목 매핑
+                                    string produceItemId = !string.IsNullOrEmpty(slotSave.craftingItemId)
+                                        ? slotSave.craftingItemId
+                                        : (slotRuntime.deployedMem != null ? ranch.GetRanchProduceItemId(slotRuntime.deployedMem) : string.Empty);
+
+                                    slotRuntime.craftingItemId = produceItemId;
+                                    slotRuntime.currentProgressTime = slotSave.currentProgressTime;
+                                    slotRuntime.currentStorageCount = slotSave.currentStorageCount;
+                                    slotRuntime.isProducing = slotSave.isProducing;
+                                }
+                            }
                         }
+                        ranch.CheckAllSlotsProductionCondition();
                     }
                 }
             }
@@ -1072,9 +1006,6 @@ public class GridManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// ItemCatalogManager에서만 ItemData SO를 탐색합니다.
-    /// </summary>
     private ItemData FindItemDataInProject(string itemId)
     {
         if (string.IsNullOrEmpty(itemId)) return null;
@@ -1085,19 +1016,12 @@ public class GridManager : MonoBehaviour
             return null;
         }
 
-        ItemData targetItem = ItemCatalogManager.Instance.FindItemData(itemId);
-        if (targetItem == null)
-        {
-            Debug.LogError($"[ItemCatalogManager] 카탈로그에서 아이템 ID '{itemId}'에 해당하는 ItemData를 찾을 수 없습니다.");
-        }
-
-        return targetItem;
+        return ItemCatalogManager.Instance.FindItemData(itemId);
     }
 
     private bool IsPointerOverBlockingUI()
     {
-        if (EventSystem.current == null) return false;
-        if (!EventSystem.current.IsPointerOverGameObject()) return false;
+        if (EventSystem.current == null || !EventSystem.current.IsPointerOverGameObject()) return false;
 
         PointerEventData eventData = new PointerEventData(EventSystem.current);
         if (UnityEngine.InputSystem.Mouse.current != null)
@@ -1109,7 +1033,7 @@ public class GridManager : MonoBehaviour
             return false;
         }
 
-        System.Collections.Generic.List<RaycastResult> results = new System.Collections.Generic.List<RaycastResult>();
+        List<RaycastResult> results = new List<RaycastResult>();
         EventSystem.current.RaycastAll(eventData, results);
 
         foreach (var result in results)
@@ -1117,12 +1041,10 @@ public class GridManager : MonoBehaviour
             if (result.gameObject != null)
             {
                 string uiName = result.gameObject.name.ToLower();
-
                 if (uiName.Contains("root") || uiName.Contains("hud") || uiName.Equals("panel") || uiName.Contains("bg") || uiName.Contains("background"))
                 {
                     continue;
                 }
-
                 return true;
             }
         }
@@ -1163,7 +1085,7 @@ public class GridManager : MonoBehaviour
 
     private void TriggerSatisfactionUpdate()
     {
-        SatisFactoryUI satisfactionUI = UnityEngine.Object.FindFirstObjectByType<SatisFactoryUI>();
+        SatisFactoryUI satisfactionUI = FindFirstObjectByType<SatisFactoryUI>();
         if (satisfactionUI != null)
         {
             satisfactionUI.RecalculateSatisfaction();

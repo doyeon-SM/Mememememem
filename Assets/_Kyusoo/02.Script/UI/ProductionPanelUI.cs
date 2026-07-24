@@ -13,7 +13,7 @@ public class ProductionPanelUI : MonoBehaviour
     [Header("중앙 패널 - Top")]
     [SerializeField] private TextMeshProUGUI buildingName;
     [SerializeField] private TextMeshProUGUI buildingLevel;
-    [SerializeField] private Button levelUp; // 🌟 레벨업 버튼
+    [SerializeField] private Button levelUp;
 
     [Header("중앙 패널 - Center")]
     [SerializeField] private MemSlotUI[] memSlotImages = new MemSlotUI[5];
@@ -48,7 +48,21 @@ public class ProductionPanelUI : MonoBehaviour
 
         if (levelUp != null)
         {
-            levelUp.onClick.AddListener(OnClickLevelUp); // 🌟 레벨업 버튼 이벤트 연동
+            levelUp.onClick.AddListener(OnClickLevelUp);
+        }
+
+        // 🌟 [목장과 동일하게 추가]: UI 슬롯 5개 인덱스 및 클릭/드롭 이벤트 초기화
+        InitializeSlotIndexes();
+    }
+
+    private void InitializeSlotIndexes()
+    {
+        for (int i = 0; i < memSlotImages.Length; i++)
+        {
+            if (memSlotImages[i] != null)
+            {
+                memSlotImages[i].InitializeSlot(i);
+            }
         }
     }
 
@@ -89,7 +103,6 @@ public class ProductionPanelUI : MonoBehaviour
 
         bodyNameTextModify();
 
-        // 🌟 레벨에 따른 슬롯 해금 계산
         int maxCapacity = ProductionCalculator.GetMaxMemCount(targetFacility.currentLevel);
 
         for (int i = 0; i < memSlotImages.Length; i++)
@@ -110,15 +123,12 @@ public class ProductionPanelUI : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// 🌟 [레벨업 버튼 클릭 핸들러]
-    /// </summary>
     private void OnClickLevelUp()
     {
         if (targetFacility == null) return;
 
         targetFacility.LevelUp();
-        RefreshStaticUI(); // UI 레벨 텍스트 및 슬롯 해금 상태 즉시 리프레시
+        RefreshStaticUI();
     }
 
     private void bodyNameTextModify()
@@ -177,9 +187,19 @@ public class ProductionPanelUI : MonoBehaviour
         return ItemCatalogManager.Instance.FindItemData(itemId);
     }
 
-    public void TryDeployMemFromUI(MemData targetMem, CapturedMemEntry targetEntry)
+    public bool TryDeployMemFromUI(MemData targetMem, CapturedMemEntry targetEntry)
     {
-        if (targetFacility == null || targetMem == null || targetEntry == null) return;
+        if (targetFacility == null)
+        {
+            Debug.LogError($"[{GetType().Name}] ❌ targetFacility 참조가 null입니다. OpenPanel()이 정상적으로 호출되었는지 확인하세요.");
+            return false;
+        }
+
+        if (targetEntry == null)
+        {
+            Debug.LogError($"[{GetType().Name}] ❌ targetEntry 인자가 null입니다.");
+            return false;
+        }
 
         bool isSuccess = targetFacility.TryAddMem(targetMem, targetEntry);
 
@@ -187,6 +207,8 @@ public class ProductionPanelUI : MonoBehaviour
         {
             RefreshStaticUI();
         }
+
+        return isSuccess;
     }
 
     public void TryRemoveMemFromUI(MemData targetMem)

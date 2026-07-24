@@ -11,7 +11,7 @@ public class RanchPanelUI : MonoBehaviour
     [Header("상단 시설 정보 및 레벨업")]
     [SerializeField] private TextMeshProUGUI buildingName;
     [SerializeField] private TextMeshProUGUI buildingLevel;
-    [SerializeField] private Button levelUpBtn; // 🌟 레벨업 버튼 추가
+    [SerializeField] private Button levelUpBtn;
 
     [Header("1대1 매칭 슬롯 배열 (5개 고정)")]
     [SerializeField] private MemSlotUI[] memSlots = new MemSlotUI[5];
@@ -35,7 +35,7 @@ public class RanchPanelUI : MonoBehaviour
 
         if (levelUpBtn != null)
         {
-            levelUpBtn.onClick.AddListener(OnClickLevelUp); // 🌟 레벨업 버튼 이벤트 연동
+            levelUpBtn.onClick.AddListener(OnClickLevelUp);
         }
 
         InitializeSlotIndexes();
@@ -96,13 +96,11 @@ public class RanchPanelUI : MonoBehaviour
             MemData placedMem = isUnlocked ? slots[i].deployedMem : null;
             CapturedMemEntry placedEntry = isUnlocked ? slots[i].deployedMemEntry : null;
 
-            // 상단 멤 슬롯 UI 갱신 (해금 시 검은색 -> 흰색)
             if (i < memSlots.Length && memSlots[i] != null)
             {
                 memSlots[i].RefreshStatus(isUnlocked, placedMem, placedEntry);
             }
 
-            // 하단 생산 슬롯 UI 갱신 (해금 시 검은색 -> 흰색)
             if (i < productionSlots.Length && productionSlots[i] != null)
             {
                 if (i < slots.Count)
@@ -118,26 +116,26 @@ public class RanchPanelUI : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// 🌟 [레벨업 버튼 클릭 핸들러]
-    /// </summary>
     private void OnClickLevelUp()
     {
         if (targetFacility == null) return;
 
         targetFacility.LevelUp();
-        RefreshStaticUI(); // UI 레벨 텍스트 및 해금 슬롯 상태 개편
+        RefreshStaticUI();
     }
 
-    public void TryDeployMemFromUI(int slotIndex, MemData targetMem, CapturedMemEntry targetEntry)
+    // 🌟 [수정 위치]: bool 반환 타입으로 변경
+    public bool TryDeployMemFromUI(int slotIndex, MemData targetMem, CapturedMemEntry targetEntry)
     {
-        if (targetFacility == null || targetMem == null || targetEntry == null) return;
+        if (targetFacility == null || targetMem == null || targetEntry == null) return false;
 
         bool isSuccess = targetFacility.TryAddMemToSlot(slotIndex, targetMem, targetEntry);
         if (isSuccess)
         {
             RefreshStaticUI();
         }
+
+        return isSuccess;
     }
 
     public void TryRemoveMemFromUI(MemData targetMem)
