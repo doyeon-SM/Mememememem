@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.Serialization;
 using UnityEngine.UI;
 
@@ -163,7 +164,7 @@ public class WayPointMapUI : MonoBehaviour
         BringCanvasToFront();
         currentOpenMode = openMode;
         openedFromWayPointId = string.Empty;
-        currentMap = ResolveMap(mapOverride);
+        currentMap = ResolveInitialMap(mapOverride);
         RefreshMapView();
         RefreshTerritoryTravelButton();
     }
@@ -224,8 +225,8 @@ public class WayPointMapUI : MonoBehaviour
             && WayPointManager.Instance.CanTravel(state.Id);
     }
 
-    // 스테이지 버튼을 눌렀을 때 해당 맵으로 지도 배경과 아이콘을 바꾼다.
-    /// <summary>사용 가능한 지도라면 지도 배경과 아이콘을 해당 스테이지로 전환합니다.</summary>
+    // 지도 버튼을 눌렀을 때 해당 맵으로 지도 배경과 아이콘을 바꾼다.
+    /// <summary>사용 가능한 지도라면 지도 배경과 아이콘을 해당 지도로 전환합니다.</summary>
     public void SelectMap(WayPointMapDefinition mapDefinition)
     {
         if (mapDefinition == null || WayPointManager.Instance == null)
@@ -233,7 +234,8 @@ public class WayPointMapUI : MonoBehaviour
             return;
         }
 
-        if (!WayPointManager.Instance.IsMapAvailable(mapDefinition))
+        if (!WayPointManager.Instance.IsMapVisibleInList(mapDefinition)
+            || !WayPointManager.Instance.IsMapAvailable(mapDefinition))
         {
             return;
         }
@@ -430,6 +432,21 @@ public class WayPointMapUI : MonoBehaviour
         RefreshAllIcons();
     }
 
+    // 지도를 처음 열 때 현재 씬에 연결된 지도를 우선한다.
+    private WayPointMapDefinition ResolveInitialMap(WayPointMapDefinition requestedMap)
+    {
+        if (WayPointManager.Instance == null)
+        {
+            return requestedMap != null ? requestedMap : defaultMap;
+        }
+
+        WayPointMapDefinition sceneMap = WayPointManager.Instance.GetPreferredMapForScene(
+            SceneManager.GetActiveScene().name,
+            requestedMap);
+
+        return sceneMap != null ? sceneMap : ResolveMap(requestedMap);
+    }
+
     // 지정된 맵이 없거나 잠겨 있으면 볼 수 있는 첫 맵을 선택한다.
     private WayPointMapDefinition ResolveMap(WayPointMapDefinition requestedMap)
     {
@@ -438,12 +455,27 @@ public class WayPointMapUI : MonoBehaviour
             return requestedMap != null ? requestedMap : defaultMap;
         }
 
-        if (requestedMap != null && WayPointManager.Instance.IsMapAvailable(requestedMap))
+        // 현재 씬에 실제로 연결된 지도는 잠금 상태여도 현재 위치를 올바르게
+        // 표시해야 하므로 다른 지도로 대체하지 않는다.
+        if (requestedMap != null
+            && WayPointManager.Instance.IsMapVisibleInList(requestedMap)
+            && WayPointManager.Instance.IsMapAssignedToScene(
+                requestedMap,
+                SceneManager.GetActiveScene().name))
         {
             return requestedMap;
         }
 
-        if (defaultMap != null && WayPointManager.Instance.IsMapAvailable(defaultMap))
+        if (requestedMap != null
+            && WayPointManager.Instance.IsMapVisibleInList(requestedMap)
+            && WayPointManager.Instance.IsMapAvailable(requestedMap))
+        {
+            return requestedMap;
+        }
+
+        if (defaultMap != null
+            && WayPointManager.Instance.IsMapVisibleInList(defaultMap)
+            && WayPointManager.Instance.IsMapAvailable(defaultMap))
         {
             return defaultMap;
         }
@@ -451,7 +483,8 @@ public class WayPointMapUI : MonoBehaviour
         List<WayPointMapDefinition> maps = WayPointManager.Instance.GetAllMaps();
         foreach (WayPointMapDefinition map in maps)
         {
-            if (WayPointManager.Instance.IsMapAvailable(map))
+            if (WayPointManager.Instance.IsMapVisibleInList(map)
+                && WayPointManager.Instance.IsMapAvailable(map))
             {
                 return map;
             }
@@ -471,7 +504,7 @@ public class WayPointMapUI : MonoBehaviour
         mapImage.sprite = currentMap.mapSprite;
     }
 
-    // 매니저에 등록된 맵 목록을 기준으로 스테이지 선택 버튼을 만든다.
+    // 스테이지 기본 지도는 항상 표시하고, 하위 지도는 실제 방문 후에만 표시한다.
     private void RebuildMapButtons()
     {
         if (WayPointManager.Instance == null || mapButtonParent == null)
@@ -480,15 +513,47 @@ public class WayPointMapUI : MonoBehaviour
         }
 
         HashSet<WayPointMapDefinition> visibleMaps = new HashSet<WayPointMapDefinition>();
-        List<WayPointMapDefinition> maps = WayPointManager.Instance.GetAllMaps();
+        List<WayPointMapDefinition> orderedMaps = new List<WayPointMapDefinition>();
 
-        foreach (WayPointMapDefinition mapDefinition in maps)
+        // 스테이지 등록 순서를 유지한다. 각 스테이지의 기본 지도 뒤에
+        // 최초 방문한 동굴/실내 같은 하위 지도 버튼을 배치한다.
+        foreach (WayPointStageDefinition stageDefinition in WayPointManager.Instance.GetAllStages())
         {
-            if (mapDefinition == null)
+            if (stageDefinition == null)
             {
                 continue;
             }
 
+            AddVisibleMapButtonTarget(orderedMaps, stageDefinition.GetDefaultMap());
+
+            if (stageDefinition.maps == null)
+            {
+                continue;
+            }
+
+            foreach (WayPointMapDefinition mapDefinition in stageDefinition.maps)
+            {
+                if (mapDefinition == null || stageDefinition.IsDefaultMap(mapDefinition))
+                {
+                    continue;
+                }
+
+                AddVisibleMapButtonTarget(orderedMaps, mapDefinition);
+            }
+        }
+
+        // 아직 스테이지 데이터로 옮기지 않은 기존 지도도 계속 표시한다.
+        foreach (WayPointMapDefinition mapDefinition in WayPointManager.Instance.GetAllMaps())
+        {
+            if (WayPointManager.Instance.GetStageForMap(mapDefinition) == null)
+            {
+                AddVisibleMapButtonTarget(orderedMaps, mapDefinition);
+            }
+        }
+
+        int siblingIndex = 0;
+        foreach (WayPointMapDefinition mapDefinition in orderedMaps)
+        {
             visibleMaps.Add(mapDefinition);
 
             if (!mapButtonsByDefinition.TryGetValue(mapDefinition, out Button button) || button == null)
@@ -498,6 +563,7 @@ public class WayPointMapUI : MonoBehaviour
             }
 
             button.gameObject.SetActive(true);
+            button.transform.SetSiblingIndex(siblingIndex++);
             RefreshMapButton(button, mapDefinition);
         }
 
@@ -510,8 +576,33 @@ public class WayPointMapUI : MonoBehaviour
         }
     }
 
-    // 스테이지 버튼 프리팹이 있으면 사용하고, 없으면 기본 버튼을 자동 생성한다.
+    private void AddVisibleMapButtonTarget(
+        List<WayPointMapDefinition> orderedMaps,
+        WayPointMapDefinition mapDefinition)
+    {
+        if (mapDefinition == null
+            || orderedMaps.Contains(mapDefinition)
+            || WayPointManager.Instance == null
+            || !WayPointManager.Instance.IsMapVisibleInList(mapDefinition))
+        {
+            return;
+        }
+
+        orderedMaps.Add(mapDefinition);
+    }
+
     private Button CreateMapButton(WayPointMapDefinition mapDefinition)
+    {
+        string buttonId = string.IsNullOrWhiteSpace(mapDefinition.id)
+            ? mapDefinition.name
+            : mapDefinition.id;
+        Button button = CreateMapButtonObject(buttonId);
+        button.onClick.AddListener(() => SelectMap(mapDefinition));
+        return button;
+    }
+
+    // 지도 버튼 프리팹이 있으면 사용하고, 없으면 기본 버튼을 자동 생성한다.
+    private Button CreateMapButtonObject(string buttonId)
     {
         Button button;
 
@@ -521,7 +612,7 @@ public class WayPointMapUI : MonoBehaviour
         }
         else
         {
-            GameObject buttonObject = new GameObject($"MapButton_{mapDefinition.id}", typeof(RectTransform), typeof(Image), typeof(Button));
+            GameObject buttonObject = new GameObject($"MapButton_{buttonId}", typeof(RectTransform), typeof(Image), typeof(Button));
             buttonObject.transform.SetParent(mapButtonParent, false);
 
             RectTransform rectTransform = buttonObject.transform as RectTransform;
@@ -550,9 +641,8 @@ public class WayPointMapUI : MonoBehaviour
             button = buttonObject.GetComponent<Button>();
         }
 
-        button.name = $"MapButton_{mapDefinition.id}";
+        button.name = $"MapButton_{buttonId}";
         button.onClick.RemoveAllListeners();
-        button.onClick.AddListener(() => SelectMap(mapDefinition));
         return button;
     }
 
@@ -561,13 +651,16 @@ public class WayPointMapUI : MonoBehaviour
     {
         bool isAvailable = WayPointManager.Instance != null && WayPointManager.Instance.IsMapAvailable(mapDefinition);
         bool isSelected = currentMap == mapDefinition;
+        ApplyMapButtonVisuals(button, GetMapDisplayName(mapDefinition), isAvailable, isSelected);
+    }
 
+    private void ApplyMapButtonVisuals(Button button, string displayName, bool isAvailable, bool isSelected)
+    {
         button.interactable = isAvailable;
 
         TMP_Text text = button.GetComponentInChildren<TMP_Text>(true);
         if (text != null)
         {
-            string displayName = string.IsNullOrWhiteSpace(mapDefinition.displayName) ? mapDefinition.id : mapDefinition.displayName;
             text.text = isAvailable ? displayName : $"{displayName} (잠김)";
             text.color = isAvailable ? normalMapButtonTextColor : lockedMapButtonTextColor;
         }
@@ -575,7 +668,6 @@ public class WayPointMapUI : MonoBehaviour
         Text legacyText = button.GetComponentInChildren<Text>(true);
         if (legacyText != null)
         {
-            string displayName = string.IsNullOrWhiteSpace(mapDefinition.displayName) ? mapDefinition.id : mapDefinition.displayName;
             legacyText.text = isAvailable ? displayName : $"{displayName} (잠김)";
             legacyText.color = isAvailable ? normalMapButtonTextColor : lockedMapButtonTextColor;
         }
@@ -585,6 +677,18 @@ public class WayPointMapUI : MonoBehaviour
         {
             background.color = isSelected ? selectedMapButtonBackgroundColor : normalMapButtonBackgroundColor;
         }
+    }
+
+    private static string GetMapDisplayName(WayPointMapDefinition mapDefinition)
+    {
+        if (mapDefinition == null)
+        {
+            return string.Empty;
+        }
+
+        return string.IsNullOrWhiteSpace(mapDefinition.displayName)
+            ? mapDefinition.id
+            : mapDefinition.displayName;
     }
 
     // 현재 맵에 속한 웨이포인트 아이콘만 생성하거나 갱신한다.

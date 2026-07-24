@@ -169,7 +169,7 @@ public class WorldChunkManager : MonoBehaviour
         }
     }
 
-    private void OnDrawGizmos()
+    private void OnDrawGizmosSelected()
     {
         if (!showGizmos)
         {

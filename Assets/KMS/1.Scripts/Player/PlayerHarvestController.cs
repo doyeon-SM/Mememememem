@@ -26,6 +26,8 @@ namespace KMS.Harvesting
         [Header("Harvest")]
         [SerializeField] private LayerMask harvestLayer = ~0;
         [SerializeField] private float harvestDistance = 3f;
+        [Tooltip("도구 타격 SphereCast의 반경입니다. 값이 클수록 조준 판정이 여유로워집니다.")]
+        [SerializeField, Min(0.01f)] private float harvestRadius = 0.45f;
         [SerializeField] private float harvestCooldown = 0.35f;
         [SerializeField] private float toolUseCooldown = 0.5f;
         [SerializeField] private int fallbackToolDamage = 1;
@@ -36,13 +38,20 @@ namespace KMS.Harvesting
         [SerializeField, Min(0f)] private float memMeleeHungerCost = 1f;
 
         [Header("Debug")]
+        [Tooltip("플레이 중 SphereCast 중심선을 Scene 뷰에 표시합니다.")]
         [SerializeField] private bool drawDebugRay = true;
+        [Tooltip("플레이어를 선택했을 때 SphereCast의 시작·끝 구체와 판정 폭을 표시합니다.")]
+        [SerializeField] private bool drawSphereCastGizmo = true;
         [SerializeField] private Color debugMissColor = Color.red;
         [SerializeField] private Color debugHitColor = Color.green;
+        [SerializeField] private Color sphereCastGizmoColor = new Color(1f, 0.72f, 0.1f, 0.85f);
         [SerializeField] private bool logHitTarget = true;
+
+        private const int MaxHarvestHits = 32;
 
         private float cooldownTimer;
         private bool isPrimaryActionHeld;
+        private readonly RaycastHit[] harvestHits = new RaycastHit[MaxHarvestHits];
         private static readonly int SlashHash = Animator.StringToHash("Slash");
 
         private void Reset()
@@ -168,13 +177,7 @@ namespace KMS.Harvesting
             }
 
             Ray ray = new Ray(cameraTransform.position, cameraTransform.forward);
-
-            bool hasHit = Physics.Raycast(
-                ray,
-                out RaycastHit hit,
-                harvestDistance,
-                harvestLayer,
-                QueryTriggerInteraction.Collide);
+            bool hasHit = TryGetClosestSphereCastHit(ray, out RaycastHit hit);
 
             if (drawDebugRay)
             {
@@ -232,13 +235,103 @@ namespace KMS.Harvesting
             }
         }
 
+        /// <summary>
+        /// 카메라 정면으로 SphereCast를 수행하고 플레이어 자신의 콜라이더를 제외한 가장 가까운 충돌을 반환합니다.
+        /// 가장 가까운 외부 장애물도 결과에 포함되므로 기존 Raycast와 동일하게 벽 너머 대상을 타격하지 않습니다.
+        /// </summary>
+        private bool TryGetClosestSphereCastHit(Ray ray, out RaycastHit closestHit)
+        {
+            float distance = Mathf.Max(0f, harvestDistance);
+            float radius = Mathf.Max(0.01f, harvestRadius);
+            int hitCount = Physics.SphereCastNonAlloc(
+                ray,
+                radius,
+                harvestHits,
+                distance,
+                harvestLayer,
+                QueryTriggerInteraction.Collide);
+
+            closestHit = default;
+            float closestDistance = float.MaxValue;
+            bool found = false;
+
+            for (int i = 0; i < hitCount; i++)
+            {
+                RaycastHit candidate = harvestHits[i];
+                harvestHits[i] = default;
+
+                if (candidate.collider == null || IsPlayerCollider(candidate.collider))
+                {
+                    continue;
+                }
+
+                if (!found || candidate.distance < closestDistance)
+                {
+                    closestHit = candidate;
+                    closestDistance = candidate.distance;
+                    found = true;
+                }
+            }
+
+            return found;
+        }
+
+        private bool IsPlayerCollider(Collider candidate)
+        {
+            return candidate != null
+                   && candidate.GetComponentInParent<PlayerHarvestController>() == this;
+        }
+
         private bool WorldObjectHarvest(RaycastHit hitObj, ItemData selectedItem)
         {
             if (hitObj.collider == null) return false;
-            WorldObject harvestable = hitObj.collider.GetComponent<WorldObject>();
+            WorldObject harvestable = hitObj.collider.GetComponentInParent<WorldObject>();
             if (harvestable == null) return false;
             harvestable.ObjectInteract(inventory, selectedItem);
             return true;
+        }
+
+        private void OnDrawGizmosSelected()
+        {
+            if (!drawSphereCastGizmo)
+            {
+                return;
+            }
+
+            Transform cam = cameraTransform != null
+                ? cameraTransform
+                : Camera.main != null
+                    ? Camera.main.transform
+                    : null;
+
+            if (cam == null)
+            {
+                return;
+            }
+
+            float distance = Mathf.Max(0f, harvestDistance);
+            float radius = Mathf.Max(0.01f, harvestRadius);
+            Vector3 start = cam.position;
+            Vector3 end = start + cam.forward * distance;
+            Vector3 rightOffset = cam.right * radius;
+            Vector3 upOffset = cam.up * radius;
+
+            Gizmos.color = sphereCastGizmoColor;
+            Gizmos.DrawWireSphere(start, radius);
+            Gizmos.DrawWireSphere(end, radius);
+            Gizmos.DrawLine(start + rightOffset, end + rightOffset);
+            Gizmos.DrawLine(start - rightOffset, end - rightOffset);
+            Gizmos.DrawLine(start + upOffset, end + upOffset);
+            Gizmos.DrawLine(start - upOffset, end - upOffset);
+        }
+
+        private void OnValidate()
+        {
+            harvestDistance = Mathf.Max(0f, harvestDistance);
+            harvestRadius = Mathf.Max(0.01f, harvestRadius);
+            harvestCooldown = Mathf.Max(0f, harvestCooldown);
+            toolUseCooldown = Mathf.Max(0f, toolUseCooldown);
+            fallbackToolDamage = Mathf.Max(1, fallbackToolDamage);
         }
     }
 }

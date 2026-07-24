@@ -180,8 +180,10 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
         Debug.Log($"감지 성공 : 현재 체력 {currentObjectHp}");
         if (currentObjectHp <= 0)
         {
-            ItemDrops(activeTool);
+            // 자원 콜라이더 위를 바닥으로 잘못 인식하지 않도록 먼저 자원을 숨긴 뒤 드롭 위치를 계산합니다.
             BeginRespawnCooldown();
+            Physics.SyncTransforms();
+            ItemDrops(activeTool);
 
             if (IsDead)
             {
@@ -268,14 +270,20 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
 
         for (int dropIndex = 0; dropIndex < dropItems.Length; dropIndex++)
         {
-            GameObject dropPrefab = dropItems[dropIndex].dropPrefab;
-            if (dropPrefab == null) continue;
+            string dropItemId = dropItems[dropIndex].itemId;
+            if (string.IsNullOrWhiteSpace(dropItemId))
+            {
+                Debug.LogWarning($"[{name}] Drop Items의 {dropIndex}번 Item Id가 비어 있어 생성을 건너뜁니다.", this);
+                continue;
+            }
 
             // 드롭 항목마다 도구의 개수 확률을 독립적으로 추첨한다.
             int dropCount = ToolDropManager.Instance != null
                 ? ToolDropManager.Instance.RollDropCount(tool)
                 : 1;
             int visualCount = Mathf.Min(Mathf.Max(1, dropCount), MaxDropVisualCount);
+            int baseAmount = dropCount / visualCount;
+            int remainder = dropCount % visualCount;
 
             for (int i = 0; i < visualCount; i++)
             {
@@ -286,20 +294,21 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
                 }
 
                 Quaternion spawnRotation = Quaternion.Euler(0f, UnityEngine.Random.Range(0f, 360f), 0f);
+                int itemAmount = baseAmount + (i < remainder ? 1 : 0);
 
-                WorldDropPool.Spawn(dropPrefab, spawnPosition, spawnRotation, autoReturnToPoolSeconds);
+                WorldDropPool.Spawn(
+                    dropItemId,
+                    itemAmount,
+                    spawnPosition,
+                    spawnRotation,
+                    autoReturnToPoolSeconds);
             }
         }
     }
 
     private void PrewarmDropPools()
     {
-        if (dropItems == null) return;
-
-        for (int i = 0; i < dropItems.Length; i++)
-        {
-            WorldDropPool.Prewarm(dropItems[i].dropPrefab, poolPrewarmCount);
-        }
+        WorldDropPool.Prewarm(poolPrewarmCount);
     }
 
     private bool TryGetDropSpawnPosition(out Vector3 spawnPosition)
@@ -324,7 +333,8 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
                 continue;
             }
 
-            spawnPosition = groundPosition + Vector3.up * Mathf.Max(0f, dropSpawnHeight);
+            // 경사면에서도 월드 아이템 루트가 표면에 붙도록 표면 노멀 방향으로 최소 간격만 둡니다.
+            spawnPosition = groundPosition + groundHit.normal * Mathf.Max(0f, dropSpawnHeight);
             return true;
         }
 
@@ -333,7 +343,7 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
     }
 
     /// <summary>
-    /// 가장 먼저 맞은 오브젝트 윗면이 아니라, 장애물 아래의 실제 바닥 후보를 선택합니다.
+    /// 자원·플레이어·기존 월드 아이템을 제외하고 현재 위치 바로 아래의 첫 유효 표면을 선택합니다.
     /// groundLayer를 바닥 전용 레이어로 설정하면 해당 레이어 안에서만 탐색합니다.
     /// </summary>
     private bool TryFindGround(Vector3 rayStart, out RaycastHit groundHit)
@@ -356,8 +366,8 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
                 continue;
             }
 
-            // 같은 수직선에 오브젝트와 바닥이 함께 있으면 가장 낮은 표면을 바닥으로 사용한다.
-            if (!found || hit.point.y < groundHit.point.y)
+            // 위에서 아래로 가장 먼저 만나는 유효 표면을 사용해 멀리 떨어진 아래층으로 내려가지 않게 합니다.
+            if (!found || hit.distance < groundHit.distance)
             {
                 groundHit = hit;
                 found = true;
@@ -374,7 +384,8 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
             || Vector3.Angle(hit.normal, Vector3.up) > maxGroundSlope
             || PlayerReferenceResolver.IsInPlayerHierarchy(hitCollider.gameObject)
             || hitCollider.GetComponentInParent<WorldItem>() != null
-            || hitCollider.GetComponentInParent<WorldObject>() != null)
+            || hitCollider.GetComponentInParent<WorldObject>() != null
+            || IsOwnResourceCollider(hitCollider))
         {
             return false;
         }
@@ -414,7 +425,30 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
 
     private bool IsOwnResourceCollider(Collider candidate)
     {
-        return candidate != null && candidate.GetComponentInParent<WorldObject>() == this;
+        if (candidate == null)
+        {
+            return false;
+        }
+
+        if (candidate.GetComponentInParent<WorldObject>() == this)
+        {
+            return true;
+        }
+
+        if (resourceColliders == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < resourceColliders.Length; i++)
+        {
+            if (resourceColliders[i] == candidate)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void BeginRespawnCooldown()

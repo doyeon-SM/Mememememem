@@ -394,7 +394,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 5839334705860194789}
-  m_Enabled: 0
+  m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 71ba7f8b197846242ad73679c034e08a, type: 3}
   m_Name: 
@@ -404,6 +404,13 @@ MonoBehaviour:
   healthSlider: {fileID: 2165679714393020350}
   healthValueText: {fileID: 4126267714883504164}
   interactionStatusText: {fileID: 2058244641031628024}
+  showHealthValueText: 0
+  chestTooltipPrefab: {fileID: 0}
+  chestInteractionSprite: {fileID: 0}
+  tooltipParent: {fileID: 0}
+  worldAnchorOffset: {x: 0, y: 0.25, z: 0}
+  worldCamera: {fileID: 0}
+  hideWhenBehindCamera: 1
   playerInteraction: {fileID: 0}
   playerInventory: {fileID: 0}
   itemCatalogManager: {fileID: 0}

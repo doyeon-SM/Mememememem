@@ -6,6 +6,24 @@ using UnityEngine;
 /// </summary>
 public class WayPointUIToggle : MonoBehaviour
 {
+    [Header("Close Input")]
+    [SerializeField] private bool closeMapOnEscape = true;
+
+    private void Update()
+    {
+        WayPointManager manager = WayPointManager.Instance;
+        if (!closeMapOnEscape || manager == null || !manager.IsMapOpen)
+        {
+            return;
+        }
+
+        UnityEngine.InputSystem.Keyboard keyboard = UnityEngine.InputSystem.Keyboard.current;
+        if (keyboard != null && keyboard.escapeKey.wasPressedThisFrame)
+        {
+            manager.CloseMap();
+        }
+    }
+
     /// <summary>탐험 출발 버튼에서 호출해 이동 가능한 지도를 엽니다.</summary>
     public void OpenTravelMap()
     {
