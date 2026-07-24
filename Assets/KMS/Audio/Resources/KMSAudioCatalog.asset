@@ -1,0 +1,151 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 98b0c707b00f6fe47b4efb8043924ddc, type: 3}
+  m_Name: KMSAudioCatalog
+  m_EditorClassIdentifier: Assembly-CSharp::KMS.Audio.KMSAudioCatalog
+  sfx:
+  - Id: 0
+    Clips: []
+    Volume: 0.75
+    PitchMin: 0.96
+    PitchMax: 1.04
+    SpatialBlend: 1
+    Cooldown: 0.08
+    MaxVoices: 2
+    Output: {fileID: 0}
+  - Id: 1
+    Clips: []
+    Volume: 1
+    PitchMin: 0.96
+    PitchMax: 1.04
+    SpatialBlend: 1
+    Cooldown: 0
+    MaxVoices: 4
+    Output: {fileID: 0}
+  - Id: 2
+    Clips: []
+    Volume: 1
+    PitchMin: 0.96
+    PitchMax: 1.04
+    SpatialBlend: 1
+    Cooldown: 0
+    MaxVoices: 4
+    Output: {fileID: 0}
+  - Id: 3
+    Clips: []
+    Volume: 1
+    PitchMin: 0.96
+    PitchMax: 1.04
+    SpatialBlend: 1
+    Cooldown: 0
+    MaxVoices: 4
+    Output: {fileID: 0}
+  - Id: 4
+    Clips: []
+    Volume: 1
+    PitchMin: 0.96
+    PitchMax: 1.04
+    SpatialBlend: 1
+    Cooldown: 0
+    MaxVoices: 4
+    Output: {fileID: 0}
+  - Id: 5
+    Clips: []
+    Volume: 0.65
+    PitchMin: 0.96
+    PitchMax: 1.04
+    SpatialBlend: 1
+    Cooldown: 0.08
+    MaxVoices: 2
+    Output: {fileID: 0}
+  - Id: 6
+    Clips: []
+    Volume: 0.8
+    PitchMin: 0.96
+    PitchMax: 1.04
+    SpatialBlend: 1
+    Cooldown: 0.06
+    MaxVoices: 2
+    Output: {fileID: 0}
+  - Id: 7
+    Clips: []
+    Volume: 1
+    PitchMin: 0.96
+    PitchMax: 1.04
+    SpatialBlend: 1
+    Cooldown: 0
+    MaxVoices: 4
+    Output: {fileID: 0}
+  - Id: 8
+    Clips: []
+    Volume: 1
+    PitchMin: 0.96
+    PitchMax: 1.04
+    SpatialBlend: 1
+    Cooldown: 0
+    MaxVoices: 4
+    Output: {fileID: 0}
+  - Id: 9
+    Clips: []
+    Volume: 1
+    PitchMin: 0.96
+    PitchMax: 1.04
+    SpatialBlend: 1
+    Cooldown: 0
+    MaxVoices: 4
+    Output: {fileID: 0}
+  - Id: 10
+    Clips: []
+    Volume: 1
+    PitchMin: 0.96
+    PitchMax: 1.04
+    SpatialBlend: 1
+    Cooldown: 0
+    MaxVoices: 4
+    Output: {fileID: 0}
+  - Id: 11
+    Clips: []
+    Volume: 0.8
+    PitchMin: 0.96
+    PitchMax: 1.04
+    SpatialBlend: 0
+    Cooldown: 0.04
+    MaxVoices: 2
+    Output: {fileID: 0}
+  - Id: 12
+    Clips: []
+    Volume: 0.8
+    PitchMin: 0.96
+    PitchMax: 1.04
+    SpatialBlend: 0
+    Cooldown: 0.04
+    MaxVoices: 2
+    Output: {fileID: 0}
+  sceneMusic:
+  - SceneName: Territory
+    Clip: {fileID: 0}
+    Volume: 0.65
+    FadeSeconds: 1.25
+    Loop: 1
+    Output: {fileID: 0}
+  - SceneName: Main_World
+    Clip: {fileID: 0}
+    Volume: 0.65
+    FadeSeconds: 1.25
+    Loop: 1
+    Output: {fileID: 0}
+  - SceneName: Main_World_2
+    Clip: {fileID: 0}
+    Volume: 0.65
+    FadeSeconds: 1.25
+    Loop: 1
+    Output: {fileID: 0}

@@ -102,7 +102,8 @@ public static class KMSPlayerUguiHudMigration
                 out TMP_Text healthText, out Image hungerFill, out TMP_Text hungerText);
             BuildNotifications(hudRoot, out RectTransform notificationContainer, out GameObject notificationTemplate);
             GameObject throwGuide = BuildThrowGuide(hudRoot);
-            BuildDefeatOverlay(hudRoot, out GameObject defeatOverlay, out TMP_Text defeatMessageText);
+            BuildDefeatOverlay(hudRoot, out GameObject defeatOverlay, out TMP_Text defeatMessageText,
+                out Button respawnButton);
 
             SerializedObject serializedView = new SerializedObject(view);
             SetReference(serializedView, "realTimeText", realTimeText);
@@ -120,6 +121,7 @@ public static class KMSPlayerUguiHudMigration
             SetReference(serializedView, "throwGuide", throwGuide);
             SetReference(serializedView, "defeatOverlay", defeatOverlay);
             SetReference(serializedView, "defeatMessageText", defeatMessageText);
+            SetReference(serializedView, "respawnButton", respawnButton);
             serializedView.ApplyModifiedPropertiesWithoutUndo();
 
             PrefabUtility.SaveAsPrefabAsset(root, CanvasPrefabPath);
@@ -292,7 +294,11 @@ public static class KMSPlayerUguiHudMigration
         return background.gameObject;
     }
 
-    private static void BuildDefeatOverlay(RectTransform parent, out GameObject overlay, out TMP_Text messageText)
+    private static void BuildDefeatOverlay(
+        RectTransform parent,
+        out GameObject overlay,
+        out TMP_Text messageText,
+        out Button respawnButton)
     {
         Image background = CreateImage("DefeatOverlay", parent, new Color(0f, 0f, 0f, 0.8f), true);
         Stretch(background.rectTransform);
@@ -306,6 +312,10 @@ public static class KMSPlayerUguiHudMigration
 
         TMP_Text countdown = CreateText("CountdownText", background.rectTransform, "5", 150f, TextAlignmentOptions.Center, Color.white, FontStyles.Bold);
         SetRect(countdown.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -20f), new Vector2(300f, 180f));
+
+        respawnButton = CreateButton("RespawnButton", background.rectTransform, "Respawn");
+        SetRect((RectTransform)respawnButton.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+            new Vector2(0f, -90f), new Vector2(220f, 64f));
 
         overlay.SetActive(false);
     }

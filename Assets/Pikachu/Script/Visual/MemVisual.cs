@@ -178,6 +178,9 @@ namespace MemSystem.Visual
 
         private Coroutine hitFlashCoroutine;
 
+        /// <summary>피격 시 밀려날 방향(모델 부모 기준 로컬). 기본값은 뒤쪽(기존 동작).</summary>
+        private Vector3 hitPushLocalDir = Vector3.back;
+
         /// <summary>PlayCaptureAbsorb 실행 중인 코루틴 핸들 (ResetVisual에서 중단용)</summary>
         private Coroutine captureAbsorbCoroutine;
 
@@ -438,6 +441,38 @@ namespace MemSystem.Visual
         /// </summary>
         public void PlayHit()
         {
+            // 방향 정보가 없으면 기존 동작(멤이 바라보는 방향의 뒤쪽으로 밀림).
+            PlayHitInternal(Vector3.back);
+        }
+
+        /// <summary>
+        /// 피격 연출 — 맞은 방향으로 밀립니다.
+        /// 멤이 바라보는 방향이 아니라 "공격이 들어온 방향"으로 밀려나게 합니다.
+        /// </summary>
+        /// <param name="pushDirectionWorld">멤이 밀려날 월드 방향(공격자 → 멤). 크기는 무시하고 방향만 사용.</param>
+        public void PlayHitFrom(Vector3 pushDirectionWorld)
+        {
+            Vector3 dir = pushDirectionWorld;
+            dir.y = 0f; // 수평으로만 밀림
+
+            if (dir.sqrMagnitude < 0.0001f) { PlayHit(); return; }
+            dir.Normalize();
+
+            // 밀림 오프셋은 모델의 localPosition에 더해지므로 부모 기준 로컬 방향으로 변환한다.
+            Transform model = currentModel != null ? currentModel.transform : null;
+            Vector3 localDir = (model != null && model.parent != null)
+                ? model.parent.InverseTransformDirection(dir)
+                : dir;
+
+            localDir.y = 0f;
+            if (localDir.sqrMagnitude < 0.0001f) { PlayHit(); return; }
+
+            PlayHitInternal(localDir.normalized);
+        }
+
+        private void PlayHitInternal(Vector3 localPushDirection)
+        {
+            hitPushLocalDir = localPushDirection;
             if (hitFlashCoroutine != null) StopCoroutine(hitFlashCoroutine);
             hitFlashCoroutine = StartCoroutine(HitFlashRoutine());
         }
@@ -648,11 +683,11 @@ namespace MemSystem.Visual
                 // 2. 밀림 처리
                 if (targetTransform != null)
                 {
-                    // Sin 궤적: 0 -> 1 -> 0 (시작 시 뒤로 밀렸다가 원위치)
+                    // Sin 궤적: 0 -> 1 -> 0 (시작 시 밀렸다가 원위치)
                     float pushProgress = Mathf.Sin(progress * Mathf.PI);
 
-                    // 로컬 Z축(뒤쪽)으로 살짝 밀림
-                    Vector3 pushbackOffset = Vector3.back * (hitPushbackDistance * pushProgress);
+                    // 맞은 방향으로 살짝 밀림 (방향 정보가 없으면 로컬 뒤쪽)
+                    Vector3 pushbackOffset = hitPushLocalDir * (hitPushbackDistance * pushProgress);
 
                     targetTransform.localPosition = originalLocalPos + pushbackOffset;
                 }

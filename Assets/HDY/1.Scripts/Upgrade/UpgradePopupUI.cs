@@ -46,12 +46,25 @@ namespace HDY.Upgrade
     /// 팝업은 구체적으로 어떤 구현체인지(예: CombinedMaterialInventory) 전혀 모르고 인터페이스만 보고
     /// 찾으므로, 재료 재고 시스템이 바뀌어도 이 클래스는 손댈 필요가 없다. 씬에 구현체가 여러 개면 그중
     /// 하나가 임의로 선택되니, 여러 개를 두고 특정 걸 쓰고 싶다면 인스펙터에서 직접 연결하면 된다(그러면
-    /// 자동 탐색은 건너뛴다). 그래도 못 찾으면(구현체 자체가 없으면) 재료 조건 검사를 건너뛰고 통과시킨다
-    /// (경고 로그만 남김) - 재료가 필요 없는 업그레이드(예: 멤창고 페이지 확장)는 이 상태로도 문제없이 동작한다.
+    /// 자동 탐색은 건너뛴다).
+    /// [HDY 요청 - 재료 미확인 시 방어] 그래도 못 찾으면(구현체 자체가 없으면), 재료가 필요 없는 업그레이드
+    /// (예: 멤창고 페이지 확장, 골드만 사용)는 문제없이 동작한다. 하지만 재료가 하나라도 필요한 업그레이드는
+    /// 재료 보유량을 확인할 방법 자체가 없으므로 아예 진행을 막는다(CanAffordMaterialRequirement 참고,
+    /// 경고 로그 남김). 예전에는 재료 인벤토리가 없으면 재료 검사를 건너뛰고 그냥 통과시켰는데, 그러면
+    /// 재료 재고 시스템을 씬에 깜빡 배치하지 않은 것만으로 재료가 공짜가 되는 문제가 있어 이렇게 바꿨다.
+    /// [HDY 요청 - 창고 없는 씬 대응] CombinedMaterialInventory는 warehouseInventory가 비어있어도(=창고가
+    /// 없어도) playerInventory만으로 안전하게 동작하므로, 창고가 없는 씬(예: 플레이어 단독 인벤토리만 있는
+    /// 씬)에서 재료가 필요한 업그레이드를 열려면 CombinedMaterialInventory를 playerInventory만 연결해서
+    /// 반드시 배치해야 한다 - 배치하지 않으면 위 방어 로직 때문에 해당 업그레이드는 항상 막힌다.
     ///
     /// [TerritoryData 자동 연결] territoryData는 인스펙터가 비어있거나(혹은 씬 전환으로 끊겼거나) 하면
     /// Awake에서 TerritoryData.Resolve(existing)로 자동으로 다시 찾는다. TerritoryData는 싱글톤
     /// (DontDestroyOnLoad)이라 이 팝업이 어느 씬에서 새로 만들어지든 항상 같은 인스턴스를 찾아 연결된다.
+    /// [HDY 요청 - 창고 없는 씬 대응] 다만 TerritoryData가 아예 생성된 적 없는 씬(창고/영지 시스템이 없는
+    /// 경우)에서는 찾지 못할 수 있다. 이 경우 골드 비용이 0인 업그레이드(재료만 필요)는 정상적으로 진행되고,
+    /// 골드 비용이 0보다 큰 업그레이드는 판단할 방법이 없으므로 아예 진행 불가로 처리한다
+    /// (CanAffordGoldRequirement 참고). 즉 "창고 없는 씬"에서는 재료만 요구하는 업그레이드만 열 수 있고,
+    /// 그마저도 재료 확인용 CombinedMaterialInventory가 배치되어 있어야 한다.
     ///
     /// [씬 싱글톤] TerritoryData처럼 DontDestroyOnLoad는 아니고, 이 씬에 하나만 배치되어 있다고
     /// 가정한다. 다른 UI가 Instance로 쉽게 접근할 수 있도록 static 참조만 제공한다.
@@ -62,7 +75,7 @@ namespace HDY.Upgrade
 
         [Header("데이터 참조")]
         [SerializeField] private TerritoryData territoryData;
-        [Tooltip("IMaterialInventory를 구현한 컴포넌트를 연결. 비워두면 Awake에서 씬을 훑어 자동으로 찾는다(FindMaterialInventorySource). 재료 재고 시스템이 아예 없다면 비워둔 채로 둬도 된다(골드만 검사).")]
+        [Tooltip("IMaterialInventory를 구현한 컴포넌트를 연결. 비워두면 Awake에서 씬을 훑어 자동으로 찾는다(FindMaterialInventorySource). 재료가 필요한 업그레이드가 이 씬에 하나도 없다면 비워둔 채로 둬도 된다(골드만 검사).")]
         [SerializeField] private MonoBehaviour materialInventorySource;
         [SerializeField] private ItemCatalogManager itemCatalogManager;
 
@@ -108,8 +121,10 @@ namespace HDY.Upgrade
 
             // TerritoryData는 싱글톤(DontDestroyOnLoad)이라, 이 팝업이 어느 씬에서 새로 만들어지든
             // Resolve로 항상 같은 인스턴스를 찾아 연결할 수 있다(씬 전환으로 인스펙터 참조가 끊긴 경우 포함).
+            // 창고/영지 시스템이 없는 씬에서는 못 찾을 수 있으며, 그 경우 CanAffordGoldRequirement가
+            // 골드 비용이 0인 업그레이드만 통과시킨다.
             territoryData = TerritoryData.Resolve(territoryData);
-            if (territoryData == null) Debug.LogWarning("[UpgradePopupUI] TerritoryData를 찾을 수 없습니다. 골드 확인/차감이 불가능합니다.", this);
+            if (territoryData == null) Debug.LogWarning("[UpgradePopupUI] TerritoryData를 찾을 수 없습니다. 골드 비용이 0보다 큰 업그레이드는 진행할 수 없습니다.", this);
 
             if (materialInventorySource == null)
             {
@@ -121,7 +136,7 @@ namespace HDY.Upgrade
                 }
                 else
                 {
-                    Debug.LogWarning("[UpgradePopupUI] 씬에서 IMaterialInventory 구현체를 찾지 못했습니다. 재료 조건 검사를 건너뜁니다.", this);
+                    Debug.LogWarning("[UpgradePopupUI] 씬에서 IMaterialInventory 구현체를 찾지 못했습니다. 재료가 필요한 업그레이드는 진행할 수 없습니다(재료가 필요 없는 업그레이드는 영향 없음).", this);
                 }
             }
             else if (MaterialInventory == null)
@@ -199,8 +214,8 @@ namespace HDY.Upgrade
         {
             if (currentTarget == null) return;
 
-            bool canUpgrade = currentTarget.CanUpgrade();
             var cost = currentTarget.GetUpgradeCost();
+            bool canUpgrade = currentTarget.CanUpgrade() && CanAffordGoldRequirement(cost) && CanAffordMaterialRequirement(cost);
 
             if (titleText != null) titleText.text = currentTarget.GetUpgradeTitle();
 
@@ -296,7 +311,7 @@ namespace HDY.Upgrade
 
             if (!TryPayCost(cost))
             {
-                Debug.LogWarning("[UpgradePopupUI] 비용이 부족해 업그레이드를 진행하지 못했습니다.", this);
+                Debug.LogWarning("[UpgradePopupUI] 비용을 지불할 수 없어 업그레이드를 진행하지 못했습니다.", this);
                 return;
             }
 
@@ -306,35 +321,68 @@ namespace HDY.Upgrade
             Hide();
         }
 
+        /// <summary>
+        /// [HDY 요청 - 창고 없는 씬 대응] territoryData가 있으면 실제 보유 골드로 판단하고, territoryData가
+        /// 없는 씬(창고/영지 시스템이 없는 경우)에서는 골드 비용을 판단할 방법이 없으므로 골드 비용이 0인
+        /// 업그레이드(재료만 필요)만 통과시킨다. 골드 비용이 0보다 크면 아예 진행 불가로 취급한다.
+        /// </summary>
+        private bool CanAffordGoldRequirement(UpgradeCost cost)
+        {
+            if (territoryData != null) return territoryData.Gold >= cost.GoldCost;
+            return cost.GoldCost <= 0;
+        }
+
+        /// <summary>
+        /// [HDY 요청 - 재료 미확인 시 방어] 이번 업그레이드에 재료 비용이 하나도 없으면 항상 통과.
+        /// 재료 비용이 있는데 materialInventorySource를 찾지 못했다면(씬에 배치 안 됨) 확인할 방법이
+        /// 없으므로 진행 불가로 취급한다(예전에는 이 경우 검사를 건너뛰고 그냥 통과시켰는데, 그러면
+        /// 재료 재고 시스템을 씬에 배치하지 않은 것만으로 재료가 공짜가 되는 문제가 있었다). 실제로
+        /// materialInventorySource가 있으면 각 재료를 충분히 갖고 있는지 그대로 확인한다.
+        /// </summary>
+        private bool CanAffordMaterialRequirement(UpgradeCost cost)
+        {
+            bool hasMaterialCosts = cost.MaterialCosts != null && cost.MaterialCosts.Count > 0;
+            if (!hasMaterialCosts) return true;
+
+            var materialInventory = MaterialInventory;
+            if (materialInventory == null) return false;
+
+            foreach (var materialCost in cost.MaterialCosts)
+            {
+                if (!materialInventory.HasEnough(materialCost.Item_ID, materialCost.Amount)) return false;
+            }
+
+            return true;
+        }
+
         /// <summary>골드 + 재료 비용을 전부 확인한 뒤, 모두 충분할 때만 실제로 차감한다(일부만 차감되는 상황 방지).</summary>
         private bool TryPayCost(UpgradeCost cost)
         {
-            if (territoryData == null)
+            if (!CanAffordGoldRequirement(cost))
             {
-                Debug.LogWarning("[UpgradePopupUI] territoryData가 비어있어 골드를 확인/차감할 수 없습니다.", this);
+                if (territoryData == null)
+                {
+                    Debug.LogWarning($"[UpgradePopupUI] territoryData가 없는 씬이라 골드 비용({cost.GoldCost})이 있는 업그레이드는 진행할 수 없습니다.", this);
+                }
+
                 return false;
             }
 
-            if (territoryData.Gold < cost.GoldCost) return false;
-
-            var materialInventory = MaterialInventory;
-            if (cost.MaterialCosts != null)
+            if (!CanAffordMaterialRequirement(cost))
             {
-                foreach (var materialCost in cost.MaterialCosts)
+                if (MaterialInventory == null)
                 {
-                    if (materialInventory == null)
-                    {
-                        // 재료 재고 시스템이 연결되지 않은 상태 - 재료 조건을 검사하지 않고 통과시킨다.
-                        Debug.LogWarning($"[UpgradePopupUI] 재료 인벤토리가 연결되지 않아 재료 조건({materialCost.Item_ID} x{materialCost.Amount})을 검사하지 않고 통과시킵니다.", this);
-                        continue;
-                    }
-
-                    if (!materialInventory.HasEnough(materialCost.Item_ID, materialCost.Amount)) return false;
+                    Debug.LogWarning("[UpgradePopupUI] materialInventorySource가 연결되지 않아 재료 비용이 있는 업그레이드를 진행할 수 없습니다. 창고가 없는 씬이라면 CombinedMaterialInventory(playerInventory만 연결)를 배치해야 합니다.", this);
                 }
+
+                return false;
             }
 
-            territoryData.TrySpendGold(cost.GoldCost);
+            // territoryData가 없는 씬에서는 위 CanAffordGoldRequirement에서 이미 GoldCost<=0인 경우만
+            // 여기까지 도달하므로, 차감할 골드가 없어 호출을 건너뛴다(null 참조 방지).
+            if (territoryData != null) territoryData.TrySpendGold(cost.GoldCost);
 
+            var materialInventory = MaterialInventory;
             if (materialInventory != null && cost.MaterialCosts != null)
             {
                 foreach (var materialCost in cost.MaterialCosts)

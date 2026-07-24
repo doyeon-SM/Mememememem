@@ -24,7 +24,8 @@ namespace Pikachu.Player
                     {
                         Debug.Log($"[테스트] 플레이어가 {mem.name} 을(를) 공격함! (데미지 1)");
                         // 멤에게 데미지 1 입히기 (테스트용)
-                        mem.TakeDamage(1);
+                        // 레이가 날아온 쪽(카메라/공격 지점)을 공격자 위치로 넘겨 "맞은 방향"으로 밀리게 한다.
+                        mem.TakeDamage(1, ray.origin);
                     }
                 }
             }
