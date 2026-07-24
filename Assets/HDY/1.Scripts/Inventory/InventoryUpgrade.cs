@@ -1,8 +1,5 @@
-using System;
-using System.Collections.Generic;
 using UnityEngine;
 using HDY.Upgrade;
-using HDY.Recipe;
 using KMS.InventoryDuped;
 
 namespace HDY.Inventory
@@ -11,37 +8,31 @@ namespace HDY.Inventory
     /// 인벤토리 칸(5칸씩) 확장을 공용 업그레이드 팝업(UpgradePopupUI)에 연결하는 어댑터.
     /// 실제 칸 언락은 PlayerInventory가 담당하고(이미 잠금/언락 칸수 개념을 갖고 있음), 이 클래스는
     /// IUpgradable을 구현해서 "이번 업그레이드에 얼마가 드는지 / 더 업그레이드할 수 있는지"만 계산한다.
-    /// WarehouseUpgrade와 완전히 동일한 패턴이다.
     ///
-    /// [비용 표] upgradeSteps의 각 원소는 "(현재 언락 칸수 - 시작 칸수) / 칸당 언락 수" 번째 업그레이드에
-    /// 필요한 골드+재료다. 재료 요구치는 RecipeRequsetItemData(HDY.Recipe.Recipe_Requset_Item_Data)를
-    /// 그대로 재사용해서 Item_ID/Amount 쌍을 새로 정의하지 않았다 - 공용 팝업이 쓰는 UpgradeMaterialCost로
-    /// 변환만 해서 넘긴다. 값은 기획 확정 전까지 인스펙터에서 직접 입력한다(창고/멤창고 업그레이드와 동일).
+    /// [비용표 공유 - InventoryUpgradeCostTable] 인벤토리 업그레이드는 어느 씬에서 실행하든(창고 패널의
+    /// 테스트용 PlayerInventory든, 실제 플레이어의 인벤토리든) 같은 플레이어의 같은 진행 상태를 다루는
+    /// 것이다(씬 전환 시 저장->로드로 데이터가 옮겨 탈 뿐, 규칙 자체는 항상 동일해야 한다). 그래서
+    /// 비용표(골드+재료 단계별 목록)는 이 컴포넌트가 직접 들고 있지 않고 공용 ScriptableObject 에셋
+    /// (InventoryUpgradeCostTable) 하나를 참조해서 읽는다 - 여러 씬의 InventoryUpgrade 컴포넌트가 같은
+    /// 에셋 파일을 함께 가리키면 비용 수정은 한 곳에서만 하면 된다.
     /// </summary>
     public class InventoryUpgrade : MonoBehaviour, IUpgradable
     {
-        /// <summary>업그레이드 한 단계에 필요한 골드 + 재료(RecipeRequsetItemData 재사용).</summary>
-        [Serializable]
-        public class InventoryUpgradeStep
-        {
-            public int GoldCost;
-            public List<Recipe_Requset_Item_Data> MaterialCosts = new List<Recipe_Requset_Item_Data>();
-        }
-
         [Header("데이터 참조")]
         [SerializeField] private PlayerInventory playerInventory;
 
-        [Header("단계별 필요 골드+재료 (시작 칸수 -> 최대 칸수까지, 순서대로 입력)")]
-        [SerializeField] private List<InventoryUpgradeStep> upgradeSteps = new List<InventoryUpgradeStep>();
+        [Header("단계별 필요 골드+재료 (공용 에셋 - 여러 씬의 InventoryUpgrade가 같은 파일을 참조해야 한다)")]
+        [SerializeField] private InventoryUpgradeCostTable costTable;
 
         private void Awake()
         {
             if (playerInventory == null) playerInventory = FindFirstObjectByType<PlayerInventory>();
 
             if (playerInventory == null) Debug.LogWarning("[InventoryUpgrade] playerInventory가 비어있습니다.", this);
+            if (costTable == null) Debug.LogWarning("[InventoryUpgrade] costTable이 비어있습니다. InventoryUpgradeCostTable 에셋을 연결하세요.", this);
         }
 
-        /// <summary>현재 언락 칸수 기준으로 몇 번째 업그레이드 단계인지(0부터 시작). 이미 최대치면 upgradeSteps 범위를 벗어난다.</summary>
+        /// <summary>현재 언락 칸수 기준으로 몇 번째 업그레이드 단계인지(0부터 시작). 이미 최대치면 costTable.Steps 범위를 벗어난다.</summary>
         private int GetCurrentStepIndex()
         {
             if (playerInventory == null) return -1;
@@ -55,24 +46,30 @@ namespace HDY.Inventory
 
         public bool CanUpgrade()
         {
-            if (playerInventory == null) return false;
+            if (playerInventory == null || costTable == null) return false;
             if (playerInventory.UnlockedInventorySlotCount >= playerInventory.MaxInventorySlotCount) return false;
 
             int stepIndex = GetCurrentStepIndex();
-            return stepIndex >= 0 && stepIndex < upgradeSteps.Count;
+            return stepIndex >= 0 && stepIndex < costTable.Steps.Count;
         }
 
         public UpgradeCost GetUpgradeCost()
         {
-            int stepIndex = GetCurrentStepIndex();
-
-            if (stepIndex < 0 || stepIndex >= upgradeSteps.Count)
+            if (costTable == null)
             {
-                Debug.LogWarning($"[InventoryUpgrade] 단계({stepIndex})에 해당하는 비용 데이터가 없습니다. upgradeSteps 크기를 확인하세요.", this);
+                Debug.LogWarning("[InventoryUpgrade] costTable이 비어있어 비용을 계산할 수 없습니다.", this);
                 return UpgradeCost.GoldOnly(0);
             }
 
-            var step = upgradeSteps[stepIndex];
+            int stepIndex = GetCurrentStepIndex();
+
+            if (stepIndex < 0 || stepIndex >= costTable.Steps.Count)
+            {
+                Debug.LogWarning($"[InventoryUpgrade] 단계({stepIndex})에 해당하는 비용 데이터가 없습니다. costTable의 Steps 크기를 확인하세요.", this);
+                return UpgradeCost.GoldOnly(0);
+            }
+
+            var step = costTable.Steps[stepIndex];
             var cost = new UpgradeCost { GoldCost = step.GoldCost };
 
             foreach (var material in step.MaterialCosts)

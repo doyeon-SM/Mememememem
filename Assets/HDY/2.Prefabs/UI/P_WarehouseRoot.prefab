@@ -612,11 +612,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HDY.Inventory.InventoryUpgrade
   playerInventory: {fileID: 0}
-  upgradeSteps:
-  - GoldCost: 0
-    MaterialCosts:
-    - Item_ID: item_iron
-      Amount: 10
+  costTable: {fileID: 11400000, guid: 1fdd13d4c2d375241a5fa9400046a89d, type: 2}
 --- !u!1 &644525364806866943
 GameObject:
   m_ObjectHideFlags: 0
