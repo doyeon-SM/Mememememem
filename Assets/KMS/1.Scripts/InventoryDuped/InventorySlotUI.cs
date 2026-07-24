@@ -22,11 +22,14 @@ public class InventorySlotUI : MonoBehaviour, IBeginDragHandler, IDragHandler, I
     public SlotGroup group;
     public int slotIndex;
 
+    [SerializeField] private GameObject emptyPlaceholder;
+
     // [HDY 요청] ItemStack.itemId(string)로 실제 ItemData(아이콘 등)를 조회하기 위한 참조.
     [SerializeField] private ItemCatalogManager catalogManager;
 
     private IInventorySlotOwner owner;
     private ItemStack currentStack;
+    private ScrollRect activeScrollRect;
 
     private void Awake()
     {
@@ -39,6 +42,11 @@ public class InventorySlotUI : MonoBehaviour, IBeginDragHandler, IDragHandler, I
         group = newGroup;
         slotIndex = index;
 
+        if (newGroup == SlotGroup.Trash && keyText != null)
+        {
+            keyText.gameObject.SetActive(false);
+        }
+
         SetSelected(false);
     }
 
@@ -47,8 +55,13 @@ public class InventorySlotUI : MonoBehaviour, IBeginDragHandler, IDragHandler, I
         currentStack = stack;
 
         bool hasItem = stack != null && !stack.IsEmpty;
+        if (emptyPlaceholder != null) emptyPlaceholder.SetActive(!hasItem);
 
-        // [HDY 요청] 슬롯에는 itemId만 있으므로 표시를 위해 카탈로그에서 ItemData를 다시 조회한다.
+        if (hasItem && catalogManager == null)
+        {
+            catalogManager = ItemCatalogManager.Resolve(null);
+        }
+
         ItemData data = (hasItem && catalogManager != null) ? catalogManager.FindItemData(stack.itemId) : null;
 
         if (itemIcon != null)
@@ -71,19 +84,37 @@ public class InventorySlotUI : MonoBehaviour, IBeginDragHandler, IDragHandler, I
 
     public void OnBeginDrag(PointerEventData eventData)
     {
-        if (owner is IInventorySlotClickOwner) return;
+        if (owner is IInventorySlotClickOwner)
+        {
+            activeScrollRect = GetComponentInParent<ScrollRect>();
+            if (activeScrollRect != null)
+            {
+                activeScrollRect.OnInitializePotentialDrag(eventData);
+                activeScrollRect.OnBeginDrag(eventData);
+            }
+            return;
+        }
         owner?.BeginSlotDrag(this, currentStack, eventData.position);
     }
 
     public void OnDrag(PointerEventData eventData)
     {
-        if (owner is IInventorySlotClickOwner) return;
+        if (owner is IInventorySlotClickOwner)
+        {
+            activeScrollRect?.OnDrag(eventData);
+            return;
+        }
         owner?.MoveSlotDrag(eventData.position);
     }
 
     public void OnEndDrag(PointerEventData eventData)
     {
-        if (owner is IInventorySlotClickOwner) return;
+        if (owner is IInventorySlotClickOwner)
+        {
+            activeScrollRect?.OnEndDrag(eventData);
+            activeScrollRect = null;
+            return;
+        }
 
         InventorySlotUI target = eventData.pointerCurrentRaycast.gameObject != null ?
             eventData.pointerCurrentRaycast.gameObject.GetComponentInParent<InventorySlotUI>() : null;

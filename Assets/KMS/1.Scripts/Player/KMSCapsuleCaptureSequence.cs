@@ -22,7 +22,7 @@ namespace KMS
         }
 
         [Header("Capture")]
-        [SerializeField] private ItemData capsuleItemData;
+        [SerializeField] private string capsuleItemId = "tool_shabby_capsule";
         [SerializeField, Min(0f)] private float judgmentDelay = 0.65f;
         [SerializeField] private JudgmentMode judgmentMode = JudgmentMode.Random;
 
@@ -39,8 +39,11 @@ namespace KMS
         private Mem targetMem;
         private ICapturable targetCapturable;
         private bool consumed;
+        private ItemCatalogManager catalogManager;
+        private bool missingCapsuleDataLogged;
 
-        public ItemData CapsuleItemData => capsuleItemData;
+        public string CapsuleItemId => capsuleItemId;
+        public ItemData CapsuleItemData => ResolveCapsuleItemData();
         public float LastCaptureRate { get; private set; }
 
         private void Awake()
@@ -51,6 +54,8 @@ namespace KMS
             {
                 captureVisual = GetComponent<KMSCapsuleCaptureVisual>();
             }
+
+            catalogManager = ItemCatalogManager.Resolve(catalogManager);
 
             if (missLifetime > 0f)
             {
@@ -119,7 +124,37 @@ namespace KMS
 
         private int ResolveCapsuleTier()
         {
-            return capsuleItemData != null ? (int)capsuleItemData.ItemClass : 0;
+            ItemData capsuleItemData = ResolveCapsuleItemData();
+            if (capsuleItemData != null)
+            {
+                return (int)capsuleItemData.ItemClass;
+            }
+
+            if (!missingCapsuleDataLogged)
+            {
+                missingCapsuleDataLogged = true;
+                Debug.LogWarning(
+                    $"[KMSCapsuleCaptureSequence] Capsule Item_ID '{capsuleItemId}' was not found. " +
+                    "The lowest capture tier will be used.",
+                    this);
+            }
+
+            return 0;
+        }
+
+        private ItemData ResolveCapsuleItemData()
+        {
+            if (string.IsNullOrWhiteSpace(capsuleItemId))
+            {
+                return null;
+            }
+
+            if (catalogManager == null)
+            {
+                catalogManager = ItemCatalogManager.Resolve(null);
+            }
+
+            return catalogManager != null ? catalogManager.FindItemData(capsuleItemId) : null;
         }
 
         private bool ResolveSuccess()

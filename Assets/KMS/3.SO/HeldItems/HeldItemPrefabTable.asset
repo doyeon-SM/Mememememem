@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 492281180768d304f82f253dc8297e8f, type: 3}
+  m_Name: HeldItemPrefabTable
+  m_EditorClassIdentifier: Assembly-CSharp::KMS.HeldItemPrefabTable
+  entries:
+  - itemId: tool_shabby_axe
+    prefab: {fileID: 7582277384154671273, guid: 9627fa440b57c6d4a826ccbe5558f873, type: 3}
+  - itemId: tool_shabby_club
+    prefab: {fileID: 9154011387141369828, guid: b888531833e9f8e41912eb5f5e5301c6, type: 3}
+  - itemId: tool_shabby_hoe
+    prefab: {fileID: 5459494061457706905, guid: 848b97bd51086c44ea3e23bbf1d4457a, type: 3}
+  - itemId: tool_shabby_pickax
+    prefab: {fileID: 4676527417749175976, guid: 43bc22c93a48f4644a2c8f3dc76d0ec1, type: 3}
+  - itemId: tool_shabby_capsule
+    prefab: {fileID: 6079612086768976235, guid: dc50c0dd03fe984448b5423e5b850d6d, type: 3}

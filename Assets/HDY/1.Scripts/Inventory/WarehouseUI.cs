@@ -30,6 +30,8 @@ namespace HDY.Inventory
     ///
     /// [트래시 슬롯] 병합 없이 무조건 덮어쓰는 임시 1칸. 손에 든 아이템을 놓을 자리가 전혀 없을 때
     /// (일반 조작이든 ESC 닫기 안전장치든) 최종적으로 강제 수납되는 곳이라 실패 케이스가 없다.
+    /// [HDY 요청 - 그리드 통일] 실제 동작은 TrashSlotController(공용)로 위임한다 - InventoryUI도 동일한
+    /// 트래시 규칙을 쓰므로 로직을 한 곳에 모았다. 다만 트래시 "내용물"은 이 패널만의 로컬 상태다.
     ///
     /// [ESC 닫기 안전장치] 이 패널은 PanelManager가 SetActive(false)로 직접 닫는 구조라 InventoryUI처럼
     /// "닫기 자체를 거부"할 수 없다. 대신 OnDisable에서 커서에 남은 아이템을 최대한 되돌리고, 그래도 안
@@ -41,6 +43,13 @@ namespace HDY.Inventory
     ///
     /// [PlayerInventory 임시 배치] 아직 씬 간 데이터 전달 시스템이 없어서, 이 씬에도 PlayerInventory를
     /// 임시로 배치해서 참조한다. 나중에 씬 이동 시 데이터를 넘겨받는 방식이 생기면 이 참조 연결 부분만 바뀌면 된다.
+    ///
+    /// [HDY 요청 - 인벤토리 정렬/업그레이드/그리드 통일] 창고 쪽(P_WarehouseUI)에 있던 정렬 버튼 + 업그레이드
+    /// 버튼을 인벤토리 쪽(P_InventoryUI)에도 동일한 레이아웃으로 배치했다. 인벤토리/퀵슬롯 그리드의 바인딩,
+    /// 갱신, 칸 잠금 표시, 정렬·업그레이드 연결은 PlayerInventoryGridController(공용)로 위임한다 - KMS의
+    /// InventoryUI(플레이어 단독 인벤토리 패널)도 완전히 동일한 컨트롤러를 사용하도록 통일해서, 두 화면이
+    /// 서로 다른 커서(든 아이템) 상태를 유지하면서도 그리드 관련 로직은 하나로 관리되게 했다. 이 클래스
+    /// 자체는 창고(Storage) 처리와 여러 그룹을 넘나드는 통합 커서, Shift/Ctrl 단축 이동만 직접 담당한다.
     /// </summary>
     public class WarehouseUI : MonoBehaviour, IInventorySlotOwner, IInventorySlotClickOwner
     {
@@ -62,20 +71,30 @@ namespace HDY.Inventory
         [Header("인벤토리 (오른쪽 위, 10x6 - 슬롯은 씬에 미리 배치)")]
         [SerializeField] private Transform inventoryGrid;
 
+        [Header("인벤토리 정렬 ([HDY 요청] 창고와 동일한 정렬 버튼을 인벤토리 쪽에도 배치)")]
+        [SerializeField] private InventorySortUI inventorySortUI;
+
+        [Header("인벤토리 업그레이드 ([HDY 요청] 5칸씩 확장)")]
+        [SerializeField] private Button inventoryUpgradeButton;
+        [SerializeField] private InventoryUpgrade inventoryUpgrade;
+        [Tooltip("아직 언락되지 않은 인벤토리 칸의 표시 투명도(0~1). 낮을수록 더 흐리게(회색처럼) 보인다.")]
+        [SerializeField] [Range(0f, 1f)] private float lockedSlotAlpha = 0.35f;
+
         [Header("퀵슬롯 (오른쪽 맨 아래, 10칸 - 슬롯은 씬에 미리 배치)")]
         [SerializeField] private Transform quickSlotRoot;
 
         [Header("트래시 (덮어쓰기 전용 임시 1칸, 씬에 미리 배치)")]
         [SerializeField] private InventorySlotUI trashSlotUI;
-        private readonly ItemStack trashStack = new ItemStack();
+        private readonly TrashSlotController trashController = new TrashSlotController();
 
         [Header("공용 (드래그 고스트 / 툴팁 / 수량 팝업)")]
         [SerializeField] private ItemDragUI itemDragUI;
         [SerializeField] private ItemTooltipUI itemTooltipUI;
 
         private InventorySlotUI[] storageSlots;
-        private InventorySlotUI[] inventorySlots;
-        private InventorySlotUI[] quickSlots;
+
+        /// <summary>[HDY 요청 - 그리드 통일] 인벤토리/퀵슬롯 그리드 관리는 공용 컨트롤러에 위임한다(InventoryUI와 동일 클래스 재사용).</summary>
+        private PlayerInventoryGridController gridController;
 
         private InventoryQuantityPopupUI quantityPopup;
 
@@ -95,10 +114,23 @@ namespace HDY.Inventory
             if (upgradeButton == null) Debug.LogWarning("[WarehouseUI] upgradeButton이 비어있습니다. 창고 업그레이드 버튼이 동작하지 않습니다.", this);
             if (warehouseUpgrade == null) Debug.LogWarning("[WarehouseUI] warehouseUpgrade가 비어있습니다. 업그레이드 팝업을 열 수 없습니다.", this);
             if (trashSlotUI == null) Debug.LogWarning("[WarehouseUI] trashSlotUI가 비어있습니다. 트래시 슬롯이 동작하지 않습니다.", this);
+            if (inventorySortUI == null) Debug.LogWarning("[WarehouseUI] inventorySortUI가 비어있습니다. 인벤토리 정렬 버튼이 동작하지 않습니다.", this);
+            if (inventoryUpgradeButton == null) Debug.LogWarning("[WarehouseUI] inventoryUpgradeButton이 비어있습니다. 인벤토리 업그레이드 버튼이 동작하지 않습니다.", this);
+            if (inventoryUpgrade == null) Debug.LogWarning("[WarehouseUI] inventoryUpgrade가 비어있어 인벤토리 업그레이드 팝업을 열 수 없습니다.", this);
+
+            if (playerInventory != null)
+            {
+                gridController = new PlayerInventoryGridController(playerInventory) { LockedSlotAlpha = lockedSlotAlpha };
+            }
 
             if (upgradeButton != null)
             {
                 upgradeButton.onClick.AddListener(HandleUpgradeButtonClicked);
+            }
+
+            if (inventoryUpgradeButton != null)
+            {
+                inventoryUpgradeButton.onClick.AddListener(HandleInventoryUpgradeButtonClicked);
             }
         }
 
@@ -110,9 +142,9 @@ namespace HDY.Inventory
                 return;
             }
 
-            BindPlayerSlots();
+            gridController.BindSlots(this, inventoryGrid, quickSlotRoot);
             EnsureStorageSlotCount();
-            trashSlotUI?.Initialize(this, SlotGroup.Trash, 0);
+            trashController.Initialize(this, trashSlotUI);
             EnsureQuantityPopup();
 
             HideItemTooltip();
@@ -123,9 +155,10 @@ namespace HDY.Inventory
         {
             if (playerInventory != null)
             {
-                playerInventory.OnInventoryChanged += RefreshInventorySlots;
-                playerInventory.OnQuickSlotChanged += RefreshQuickSlot;
-                playerInventory.OnSelectedQuickSlotChanged += RefreshSelectedQuickSlot;
+                playerInventory.OnInventoryChanged += gridController.RefreshInventorySlots;
+                playerInventory.OnQuickSlotChanged += gridController.RefreshQuickSlot;
+                playerInventory.OnSelectedQuickSlotChanged += gridController.RefreshSelectedQuickSlot;
+                playerInventory.OnInventorySlotCountChanged += HandleInventorySlotCountChanged;
             }
 
             if (warehouseInventory != null)
@@ -138,15 +171,21 @@ namespace HDY.Inventory
             {
                 sortUI.OnSortRequested += HandleSortRequested;
             }
+
+            if (inventorySortUI != null)
+            {
+                inventorySortUI.OnSortRequested += HandleInventorySortRequested;
+            }
         }
 
         private void OnDisable()
         {
             if (playerInventory != null)
             {
-                playerInventory.OnInventoryChanged -= RefreshInventorySlots;
-                playerInventory.OnQuickSlotChanged -= RefreshQuickSlot;
-                playerInventory.OnSelectedQuickSlotChanged -= RefreshSelectedQuickSlot;
+                playerInventory.OnInventoryChanged -= gridController.RefreshInventorySlots;
+                playerInventory.OnQuickSlotChanged -= gridController.RefreshQuickSlot;
+                playerInventory.OnSelectedQuickSlotChanged -= gridController.RefreshSelectedQuickSlot;
+                playerInventory.OnInventorySlotCountChanged -= HandleInventorySlotCountChanged;
             }
 
             if (warehouseInventory != null)
@@ -158,6 +197,11 @@ namespace HDY.Inventory
             if (sortUI != null)
             {
                 sortUI.OnSortRequested -= HandleSortRequested;
+            }
+
+            if (inventorySortUI != null)
+            {
+                inventorySortUI.OnSortRequested -= HandleInventorySortRequested;
             }
 
             // [ESC 닫기 안전장치] 이 패널은 PanelManager가 SetActive(false)로 직접 닫으므로 닫기 자체를
@@ -174,7 +218,7 @@ namespace HDY.Inventory
 
                 if (!heldStack.IsEmpty)
                 {
-                    ForcePlaceInTrash(heldStack);
+                    trashController.ForcePlace(heldStack);
                 }
 
                 ClearHeldItem();
@@ -229,7 +273,7 @@ namespace HDY.Inventory
             if (button != PointerEventData.InputButton.Left &&
                 button != PointerEventData.InputButton.Right &&
                 button != PointerEventData.InputButton.Middle) return;
-            if (IsLocked(slot)) return;
+            if (gridController.IsLocked(slot)) return;
 
             HideItemTooltip();
 
@@ -275,41 +319,41 @@ namespace HDY.Inventory
             RefreshHeldItem(position);
         }
 
-        // ===================== 그룹별 라우팅 (Storage/Trash는 신규 API, 나머지는 PlayerInventory 그대로) =====================
+        // ===================== 그룹별 라우팅 (Storage/Trash는 자체 처리, 나머지는 gridController에 위임) =====================
 
         private bool TryTakeFull(SlotGroup group, int index, out ItemStack taken)
         {
             if (group == SlotGroup.Storage) return warehouseInventory.TryTakeSlot(index, int.MaxValue, out taken);
-            if (group == SlotGroup.Trash) return TryTakeTrashAmount(trashStack.IsEmpty ? 0 : trashStack.amount, out taken);
-            return playerInventory.TryTakeSlot(group, index, int.MaxValue, out taken);
+            if (group == SlotGroup.Trash) return trashController.TryTakeAmount(trashController.CurrentAmount, out taken);
+            return gridController.TryTakeFull(group, index, out taken);
         }
 
         private bool TryTakeHalf(SlotGroup group, int index, out ItemStack taken)
         {
             if (group == SlotGroup.Storage) return warehouseInventory.TryTakeHalfSlot(index, out taken);
-            if (group == SlotGroup.Trash) return TryTakeTrashAmount(trashStack.IsEmpty ? 0 : Mathf.CeilToInt(trashStack.amount * 0.5f), out taken);
-            return playerInventory.TryTakeHalfSlot(group, index, out taken);
+            if (group == SlotGroup.Trash) return trashController.TryTakeAmount(Mathf.CeilToInt(trashController.CurrentAmount * 0.5f), out taken);
+            return gridController.TryTakeHalf(group, index, out taken);
         }
 
         private bool TryTakeAmount(SlotGroup group, int index, int amount, out ItemStack taken)
         {
             if (group == SlotGroup.Storage) return warehouseInventory.TryTakeSlot(index, amount, out taken);
-            if (group == SlotGroup.Trash) return TryTakeTrashAmount(amount, out taken);
-            return playerInventory.TryTakeSlot(group, index, amount, out taken);
+            if (group == SlotGroup.Trash) return trashController.TryTakeAmount(amount, out taken);
+            return gridController.TryTakeAmount(group, index, amount, out taken);
         }
 
         private bool TryPlaceFull(SlotGroup group, int index, ItemStack held)
         {
             if (group == SlotGroup.Storage) return warehouseInventory.TryPlaceHeldStack(index, held);
-            if (group == SlotGroup.Trash) return PlaceTrash(held, held.amount);
-            return playerInventory.TryPlaceHeldStack(group, index, held);
+            if (group == SlotGroup.Trash) return trashController.Place(held, held.amount);
+            return gridController.TryPlaceFull(group, index, held);
         }
 
         private bool TryPlaceOne(SlotGroup group, int index, ItemStack held)
         {
             if (group == SlotGroup.Storage) return warehouseInventory.TryPlaceHeldAmount(index, held, 1, false);
-            if (group == SlotGroup.Trash) return PlaceTrash(held, 1);
-            return playerInventory.TryPlaceHeldAmount(group, index, held, 1, false);
+            if (group == SlotGroup.Trash) return trashController.Place(held, 1);
+            return gridController.TryPlaceOne(group, index, held);
         }
 
         private bool TryGetSnapshot(SlotGroup group, int index, out ItemStack snapshot)
@@ -318,60 +362,11 @@ namespace HDY.Inventory
 
             if (group == SlotGroup.Trash)
             {
-                snapshot = trashStack.IsEmpty ? null : new ItemStack { itemId = trashStack.itemId, amount = trashStack.amount };
+                snapshot = trashController.Snapshot();
                 return snapshot != null;
             }
 
-            return playerInventory.TryGetSlotSnapshot(group, index, out snapshot);
-        }
-
-        // ===================== 트래시 슬롯 (병합 없이 무조건 덮어씀) =====================
-
-        private bool TryTakeTrashAmount(int amount, out ItemStack taken)
-        {
-            taken = null;
-            if (trashStack.IsEmpty || amount <= 0) return false;
-
-            int takenAmount = Mathf.Min(amount, trashStack.amount);
-            taken = new ItemStack { itemId = trashStack.itemId, amount = takenAmount };
-
-            trashStack.amount -= takenAmount;
-            if (trashStack.amount <= 0) trashStack.Clear();
-
-            RefreshTrashSlot();
-            return true;
-        }
-
-        /// <summary>트래시는 병합하지 않고 무조건 덮어쓴다 - 기존에 있던 아이템은 그대로 삭제되며 복구되지 않는다.</summary>
-        private bool PlaceTrash(ItemStack held, int amount)
-        {
-            if (held == null || held.IsEmpty || amount <= 0) return false;
-
-            int placeAmount = Mathf.Min(amount, held.amount);
-
-            trashStack.Set(held.itemId, placeAmount);
-            held.amount -= placeAmount;
-            if (held.amount <= 0) held.Clear();
-
-            RefreshTrashSlot();
-            return true;
-        }
-
-        private void ForcePlaceInTrash(ItemStack held)
-        {
-            if (held == null || held.IsEmpty) return;
-
-            string itemId = held.itemId;
-            int amount = held.amount;
-
-            PlaceTrash(held, held.amount);
-
-            Debug.LogWarning($"[WarehouseUI] 반환할 공간이 없어 '{itemId}' x{amount}을(를) 트래시 슬롯에 강제로 넣었습니다.");
-        }
-
-        private void RefreshTrashSlot()
-        {
-            trashSlotUI?.SetStack(trashStack);
+            return gridController.TryGetSnapshot(group, index, out snapshot);
         }
 
         // ===================== Shift/Ctrl 창고 전용 단축 조작 =====================
@@ -450,19 +445,24 @@ namespace HDY.Inventory
             }
         }
 
-        /// <summary>itemId를 병합할 수 있는 가장 낮은 index 칸을 찾고, 없으면 가장 낮은 index의 빈 칸을 찾는다. 없으면 -1.</summary>
+        /// <summary>itemId를 병합할 수 있는 가장 낮은 index 칸을 찾고, 없으면 가장 낮은 index의 빈 칸을 찾는다. 없으면 -1.
+        /// [HDY 요청 - 인벤토리 업그레이드] 목적지가 플레이어 인벤토리일 때는 아직 언락되지 않은 칸을 건너뛴다.</summary>
         private int FindBestDestinationIndex(InventoryContainer container, string itemId)
         {
             int maxStack = GetMaxStackSafe(itemId);
 
             for (int i = 0; i < container.slots.Length; i++)
             {
+                if (IsDestinationIndexLocked(container, i)) continue;
+
                 ItemStack s = container.slots[i];
                 if (!s.IsEmpty && s.itemId == itemId && s.amount < maxStack) return i;
             }
 
             for (int i = 0; i < container.slots.Length; i++)
             {
+                if (IsDestinationIndexLocked(container, i)) continue;
+
                 if (container.slots[i].IsEmpty) return i;
             }
 
@@ -506,7 +506,8 @@ namespace HDY.Inventory
             playerInventory.PublishInventoryChanged();
         }
 
-        /// <summary>destination을 낮은 index부터(병합 우선 -&gt; 빈 칸) amount만큼 채운다. 채우지 못한 나머지를 반환한다.</summary>
+        /// <summary>destination을 낮은 index부터(병합 우선 -&gt; 빈 칸) amount만큼 채운다. 채우지 못한 나머지를 반환한다.
+        /// [HDY 요청 - 인벤토리 업그레이드] destination이 플레이어 인벤토리일 때는 아직 언락되지 않은 칸을 건너뛴다.</summary>
         private int FillDestinationWithAmount(InventoryContainer destination, string itemId, int amount)
         {
             int maxStack = GetMaxStackSafe(itemId);
@@ -514,6 +515,8 @@ namespace HDY.Inventory
 
             for (int i = 0; i < destination.slots.Length && remaining > 0; i++)
             {
+                if (IsDestinationIndexLocked(destination, i)) continue;
+
                 ItemStack s = destination.slots[i];
                 if (s.IsEmpty || s.itemId != itemId) continue;
 
@@ -527,6 +530,8 @@ namespace HDY.Inventory
 
             for (int i = 0; i < destination.slots.Length && remaining > 0; i++)
             {
+                if (IsDestinationIndexLocked(destination, i)) continue;
+
                 ItemStack s = destination.slots[i];
                 if (!s.IsEmpty) continue;
 
@@ -536,6 +541,16 @@ namespace HDY.Inventory
             }
 
             return remaining;
+        }
+
+        /// <summary>
+        /// [HDY 요청 - 인벤토리 업그레이드] Shift/Ctrl 단축 이동(FindBestDestinationIndex/FillDestinationWithAmount)이
+        /// 아직 언락되지 않은 인벤토리 칸으로 아이템을 밀어넣지 못하도록, 목적지 컨테이너가 플레이어 인벤토리일 때만
+        /// 잠금 여부를 확인한다(창고/퀵슬롯은 이 잠금 개념이 없다).
+        /// </summary>
+        private bool IsDestinationIndexLocked(InventoryContainer container, int index)
+        {
+            return container == playerInventory.inventory && playerInventory.IsInventorySlotLocked(index);
         }
 
         /// <summary>sourceContainers에서 itemId를 총 amount만큼 제거한다(각 컨테이너를 순서대로 훑으며 차감).</summary>
@@ -598,7 +613,7 @@ namespace HDY.Inventory
             }
             else if (originGroup == SlotGroup.Trash)
             {
-                PlaceTrash(held, held.amount);
+                trashController.Place(held, held.amount);
             }
             else
             {
@@ -683,9 +698,23 @@ namespace HDY.Inventory
             RefreshStorageSlots();
         }
 
-        private bool IsLocked(InventorySlotUI slot)
+        // ===================== 인벤토리 정렬/업그레이드 ([HDY 요청], 실제 처리는 gridController에 위임) =====================
+
+        private void HandleInventoryUpgradeButtonClicked()
         {
-            return slot != null && slot.group == SlotGroup.QuickSlot && playerInventory.IsQuickSlotLocked(slot.slotIndex);
+            gridController.HandleUpgradeButtonClicked(inventoryUpgrade);
+        }
+
+        private void HandleInventorySlotCountChanged()
+        {
+            Debug.Log("[WarehouseUI] OnInventorySlotCountChanged 수신 -> 인벤토리 슬롯 잠금 상태 갱신");
+            gridController.RefreshInventorySlotLocks();
+        }
+
+        private void HandleInventorySortRequested(InventorySortCriteria criteria)
+        {
+            Debug.Log($"[WarehouseUI] 인벤토리 정렬 요청: {criteria}");
+            gridController.HandleSortRequested(criteria);
         }
 
         private void HandleSortRequested(ItemSortCriteria criteria)
@@ -694,7 +723,7 @@ namespace HDY.Inventory
             warehouseInventory?.ApplySort(criteria);
         }
 
-        // ===================== 슬롯 바인딩 =====================
+        // ===================== 슬롯 바인딩 (창고 전용 - 인벤토리/퀵슬롯은 gridController가 담당) =====================
 
         /// <summary>
         /// 창고 슬롯은 개수가 유동적(10 x n)이라 도감 그리드와 동일하게 필요한 만큼 런타임에 Instantiate한다.
@@ -727,39 +756,16 @@ namespace HDY.Inventory
             storageSlots = grown;
         }
 
-        /// <summary>인벤토리/퀵슬롯은 기존 컨벤션대로 씬에 미리 배치된 슬롯을 그대로 수집한다.</summary>
-        private void BindPlayerSlots()
-        {
-            inventorySlots = BindSlotGroup(inventoryGrid, playerInventory.inventory.slots.Length, SlotGroup.Inventory);
-            quickSlots = BindSlotGroup(quickSlotRoot, playerInventory.quickSlots.slots.Length, SlotGroup.QuickSlot);
-        }
-
-        private InventorySlotUI[] BindSlotGroup(Transform root, int count, SlotGroup group)
-        {
-            InventorySlotUI[] result = new InventorySlotUI[count];
-
-            if (root == null) return result;
-
-            for (int i = 0; i < count && i < root.childCount; i++)
-            {
-                InventorySlotUI slotUI = root.GetChild(i).GetComponent<InventorySlotUI>();
-                result[i] = slotUI;
-
-                if (slotUI != null) slotUI.Initialize(this, group, i);
-            }
-
-            return result;
-        }
-
         // ===================== 갱신 =====================
 
         private void RefreshAll()
         {
             RefreshStorageSlots();
-            RefreshInventorySlots();
-            RefreshQuickSlots();
-            RefreshSelectedQuickSlot(playerInventory.selectedQuickSlotIndex);
-            RefreshTrashSlot();
+            gridController.RefreshInventorySlots();
+            gridController.RefreshQuickSlots();
+            gridController.RefreshSelectedQuickSlot(playerInventory.selectedQuickSlotIndex);
+            trashController.Refresh();
+            gridController.RefreshInventorySlotLocks();
         }
 
         private void RefreshStorageSlots()
@@ -769,47 +775,6 @@ namespace HDY.Inventory
             for (int i = 0; i < storageSlots.Length; i++)
             {
                 storageSlots[i]?.SetStack(warehouseInventory.storage.slots[i]);
-            }
-        }
-
-        private void RefreshInventorySlots()
-        {
-            if (inventorySlots == null) return;
-
-            for (int i = 0; i < inventorySlots.Length; i++)
-            {
-                if (inventorySlots[i] != null)
-                {
-                    inventorySlots[i].SetStack(playerInventory.inventory.slots[i]);
-                }
-            }
-        }
-
-        private void RefreshQuickSlots()
-        {
-            if (quickSlots == null) return;
-
-            for (int i = 0; i < quickSlots.Length; i++)
-            {
-                RefreshQuickSlot(i);
-            }
-        }
-
-        private void RefreshQuickSlot(int index)
-        {
-            if (quickSlots == null || index < 0 || index >= quickSlots.Length || quickSlots[index] == null) return;
-
-            quickSlots[index].SetStack(playerInventory.quickSlots.slots[index]);
-            quickSlots[index].SetSelected(index == playerInventory.selectedQuickSlotIndex);
-        }
-
-        private void RefreshSelectedQuickSlot(int index)
-        {
-            if (quickSlots == null) return;
-
-            for (int i = 0; i < quickSlots.Length; i++)
-            {
-                if (quickSlots[i] != null) quickSlots[i].SetSelected(i == index);
             }
         }
     }

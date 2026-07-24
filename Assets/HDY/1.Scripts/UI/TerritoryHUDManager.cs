@@ -20,8 +20,14 @@ namespace HDY.UI
         [Tooltip("\"Gold: 000 \" 형식으로 표시할 TMP_Text.")]
         [SerializeField] private TMP_Text goldText;
 
+        [Header("영지 레벨 텍스트 연결")]
+        [Tooltip("\"Lv. 00 \" 형식으로 표시할 TMP_Text.")]
+        [SerializeField] private TMP_Text levelText;
+
         private int lastDisplayedGold = int.MinValue;
+        private int lastDisplayedLevel = int.MinValue;
         private bool hasDisplayedGold;
+        private bool hasDisplayedLevel;
 
         private void Awake()
         {
@@ -29,6 +35,7 @@ namespace HDY.UI
 
             if (territoryData == null) Debug.LogWarning("[TerritoryHUDManager] TerritoryData를 찾을 수 없습니다. 골드가 표시되지 않습니다.", this);
             if (goldText == null) Debug.LogWarning("[TerritoryHUDManager] goldText가 비어있습니다.", this);
+            if(levelText == null) Debug.LogWarning("[TerritoryHUDManager] levelText가 비어있습니다.", this);
         }
 
         private void Update()
@@ -40,6 +47,7 @@ namespace HDY.UI
             }
 
             RefreshGoldText(territoryData.Gold);
+            RefreshLevelText(territoryData.Level);
         }
 
         /// <summary>골드 값이 실제로 바뀐 경우에만 텍스트를 다시 대입한다.</summary>
@@ -49,7 +57,15 @@ namespace HDY.UI
 
             lastDisplayedGold = gold;
             hasDisplayedGold = true;
-            goldText.text = $"Gold: {gold} ";
+            goldText.text = $"{gold}";
+        }
+
+        private void RefreshLevelText(int level)
+        {
+            if (levelText == null || (hasDisplayedGold && level == lastDisplayedLevel)) return;
+            lastDisplayedLevel = level;
+            hasDisplayedLevel = true;
+            levelText.text = $"Lv. {level}";
         }
     }
 }

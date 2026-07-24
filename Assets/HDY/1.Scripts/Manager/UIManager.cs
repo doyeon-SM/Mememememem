@@ -10,7 +10,7 @@ using HDY.Territory;
 namespace HDY.UI
 {
     /// <summary>
-    /// HUD 버튼(상점/도감/창고/여신상/멤창고)으로 여는 최상위 UI들을 통합 관리하는 매니저.
+    /// HUD 버튼(상점/도감/창고/여신상/멤창고/대장간/탐험 등)으로 여는 최상위 UI들을 통합 관리하는 매니저.
     ///
     /// [열기] 버튼을 누르면 그 버튼에 연결된 프리팹을 uiRoot(P_UIRoot) 밑에 Instantiate하고,
     /// 로컬 좌표를 (0,0,0)으로 맞춰 중앙에 배치한다.
@@ -41,6 +41,12 @@ namespace HDY.UI
     /// 그대로 연결하면, 스택은 여전히 "열려있다"고 착각해 같은 버튼을 다시 눌러도 아무 반응이 없는
     /// 상태가 될 수 있다.
     ///
+    /// [영지 레벨 연동 - HUD 버튼 잠금 해제] hudEntries의 각 항목에 RequiredLevel(기본 0 = 항상 활성화)을
+    /// 지정할 수 있다. TerritoryData.Level이 그 값 미만이면 버튼을 비활성화(interactable=false)해두고,
+    /// TerritoryData.OnLevelChanged 이벤트를 구독해서 레벨이 오를 때마다 전체를 다시 계산한다. 매칭되는
+    /// 레벨/버튼이 나중에 바뀌거나 새 버튼이 추가돼도, 코드 수정 없이 인스펙터에서 hudEntries 항목의
+    /// RequiredLevel 값만 조정하면 된다(예: 대장간=3, 탐험=5).
+    ///
     /// [시간 데이터 연결 - GameTimeManager] 리얼타임(KST)/인게임 시간(20분=하루) 표시를 위한
     /// GameTimeManager 참조를 들고 있다. 이 매니저는 시간 데이터 계산만 담당하고 Text 갱신은 직접 하지
     /// 않으므로, 시간 표시 Text를 실제로 붙이는 작업은 GameTime 프로퍼티로 GameTimeManager에 접근해서
@@ -55,6 +61,9 @@ namespace HDY.UI
         {
             public Button button;
             public GameObject prefab;
+
+            [Tooltip("이 버튼이 활성화되는 데 필요한 영지 레벨. 0이면 레벨 제한 없이 항상 활성화(기존 5개 버튼은 0으로 둔다).")]
+            public int RequiredLevel = 0;
         }
 
         public static UIManager Instance { get; private set; }
@@ -62,8 +71,11 @@ namespace HDY.UI
         [Tooltip("UI 프리팹이 배치될 부모(P_UIRoot). 여기 밑에 로컬 좌표 (0,0,0)으로 Instantiate된다.")]
         [SerializeField] private Transform uiRoot;
 
-        [Header("HUD 버튼 <-> 프리팹 연결")]
+        [Header("HUD 버튼 <-> 프리팹 연결 (RequiredLevel로 영지 레벨 잠금 설정)")]
         [SerializeField] private List<HudEntry> hudEntries = new List<HudEntry>();
+
+        [Header("영지 레벨 참조 (비어있으면 자동 탐색)")]
+        [SerializeField] private TerritoryData territoryData;
 
         [Header("상점 전용 - 상점 창을 처음 열 때 기본으로 보여줄 상점")]
         [SerializeField] private ShopData defaultShop;
@@ -95,12 +107,50 @@ namespace HDY.UI
             gameTimeManager = GameTimeManager.Resolve(gameTimeManager);
             if (gameTimeManager == null) Debug.LogWarning("[UIManager] gameTimeManager를 찾을 수 없습니다. 시간 UI를 연결할 수 없습니다.", this);
 
+            territoryData = TerritoryData.Resolve(territoryData);
+            if (territoryData != null)
+            {
+                territoryData.OnLevelChanged += HandleTerritoryLevelChanged;
+            }
+
             foreach (var entry in hudEntries)
             {
                 if (entry == null || entry.button == null || entry.prefab == null) continue;
 
                 var prefab = entry.prefab; // 람다 클로저 캡처용 로컬 변수
                 entry.button.onClick.AddListener(() => HandleHudButtonClicked(prefab));
+            }
+
+            ApplyLevelGates();
+        }
+
+        private void OnDestroy()
+        {
+            if (territoryData != null)
+            {
+                territoryData.OnLevelChanged -= HandleTerritoryLevelChanged;
+            }
+        }
+
+        private void HandleTerritoryLevelChanged(int newLevel)
+        {
+            ApplyLevelGates();
+        }
+
+        /// <summary>
+        /// hudEntries를 훑어서 RequiredLevel을 만족하지 못하는 버튼은 비활성화(interactable=false),
+        /// 만족하는 버튼은 활성화한다. RequiredLevel이 0 이하인 항목(기존 버튼들)은 항상 활성화된다.
+        /// </summary>
+        private void ApplyLevelGates()
+        {
+            int currentLevel = territoryData != null ? territoryData.Level : int.MaxValue;
+
+            foreach (var entry in hudEntries)
+            {
+                if (entry?.button == null) continue;
+
+                bool unlocked = entry.RequiredLevel <= 0 || currentLevel >= entry.RequiredLevel;
+                entry.button.interactable = unlocked;
             }
         }
 

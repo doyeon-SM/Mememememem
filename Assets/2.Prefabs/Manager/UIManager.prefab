@@ -10,6 +10,8 @@ GameObject:
   m_Component:
   - component: {fileID: 7352502414882451616}
   - component: {fileID: 7309819358282781941}
+  - component: {fileID: 7002788530332014742}
+  - component: {fileID: 9123123546276931050}
   m_Layer: 0
   m_Name: UIManager
   m_TagString: Untagged
@@ -48,17 +50,54 @@ MonoBehaviour:
   hudEntries:
   - button: {fileID: 0}
     prefab: {fileID: 5372853951684140214, guid: ce124fbc8ffead34380770e4c882aae2, type: 3}
+    RequiredLevel: 0
   - button: {fileID: 0}
     prefab: {fileID: 6947569884078246553, guid: 73388961ba2024149adf73e0f355ad57, type: 3}
+    RequiredLevel: 0
   - button: {fileID: 0}
     prefab: {fileID: 559864545230465988, guid: 516fb1ed1fc27b8418b9aab528330db7, type: 3}
+    RequiredLevel: 0
   - button: {fileID: 0}
     prefab: {fileID: 7944377384661857056, guid: b6212d02560ad36479e08ff113730bdb, type: 3}
+    RequiredLevel: 0
   - button: {fileID: 0}
     prefab: {fileID: 6255440334052917499, guid: 3d5fa83ef86d6174e971a99b34d52881, type: 3}
+    RequiredLevel: 0
   - button: {fileID: 0}
     prefab: {fileID: 6403727798164101472, guid: 6ca16aabab4b350419d13348b36c89d6, type: 3}
+    RequiredLevel: 3
   - button: {fileID: 0}
     prefab: {fileID: 5716294849075549919, guid: cb0dbd8a9d56d2943b8806f92477dd4e, type: 3}
+    RequiredLevel: 99
+  territoryData: {fileID: 0}
   defaultShop: {fileID: 11400000, guid: 983e0923c22ef7645a1ea349678306d2, type: 2}
   gameTimeManager: {fileID: 0}
+--- !u!114 &7002788530332014742
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2024401072484678538}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ba0fc9588f25a654b89e1ab5942fad94, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HDY.UI.TerritoryHUDManager
+  territoryData: {fileID: 0}
+  goldText: {fileID: 0}
+  levelText: {fileID: 0}
+--- !u!114 &9123123546276931050
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2024401072484678538}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d8a052cc9db5af14abde1f63df2fc081, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FoodAmountUI
+  foodSlider: {fileID: 0}
+  foodAmountText: {fileID: 0}

@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fc97fba2538a2954b8a095d837ebd298, type: 3}
+  m_Name: RefinementConfig
+  m_EditorClassIdentifier: Assembly-CSharp::HDY.Forge.RefinementConfig
+  slotCountWeights:
+  - 20
+  - 20
+  - 20
+  - 20
+  - 20
+  gradeUpChance:
+  - 0.3
+  - 0.2
+  - 0.1
+  - 0.05
+  baseCostByGrade: 01000000050000000a0000000f00000014000000
+  lockCostByGrade: 0100000002000000030000000400000005000000
+  fixedGoldCost: 1000
+  refinementMaterialItemId: item_abrasive_stone_dawn
+  optionDataCsv: {fileID: 4900000, guid: e3875f10d61d7804abe90108a3dbfcd0, type: 3}

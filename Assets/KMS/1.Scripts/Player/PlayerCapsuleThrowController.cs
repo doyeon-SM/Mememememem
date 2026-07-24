@@ -14,7 +14,7 @@ namespace KMS
         [SerializeField] private PlayerHUD hud;
         [SerializeField] private PlayerCameraController cameraController;
         [SerializeField] private CapsuleTrajectoryPreview trajectoryPreview;
-        [SerializeField] private PlayerHeldItemSpriteController heldItemSprite;
+        [SerializeField] private PlayerHeldItemModelController heldItemModel;
         [SerializeField] private Animator animator;
         [SerializeField] private Transform throwOrigin;
         [SerializeField] private GameObject capsulePrefab;
@@ -57,7 +57,7 @@ namespace KMS
             if (hud == null) hud = GetComponent<PlayerHUD>();
             if (cameraController == null) cameraController = GetComponent<PlayerCameraController>();
             if (trajectoryPreview == null) trajectoryPreview = GetComponent<CapsuleTrajectoryPreview>();
-            if (heldItemSprite == null) heldItemSprite = GetComponent<PlayerHeldItemSpriteController>();
+            if (heldItemModel == null) heldItemModel = GetComponent<PlayerHeldItemModelController>();
             if (movement != null && movement.Animator != null) animator = movement.Animator;
             else if (animator == null) animator = GetComponentInChildren<Animator>();
 
@@ -214,7 +214,7 @@ namespace KMS
             IgnorePlayerCollisions(capsule);
             capsuleReleased = true;
             inventory.CommitQuickSlotUse();
-            if (heldItemSprite != null) heldItemSprite.SetThrowVisualSuppressed(true);
+            if (heldItemModel != null) heldItemModel.SetThrowVisualSuppressed(true);
         }
 
         /// <summary>사망 등 외부 상태 전환에서 진행 중인 투척을 안전하게 취소한다.</summary>
@@ -229,7 +229,7 @@ namespace KMS
             if (!capsuleReleased) ReleaseCapsuleFromAnimationEvent();
 
             inventory.EndQuickSlotUse();
-            if (heldItemSprite != null) heldItemSprite.SetThrowVisualSuppressed(false);
+            if (heldItemModel != null) heldItemModel.SetThrowVisualSuppressed(false);
             RestoreMovement();
             state = ThrowState.Idle;
             hasLockedThrowTarget = false;
@@ -338,7 +338,7 @@ namespace KMS
             if (hud != null) hud.SetThrowGuideVisible(false);
             if (trajectoryPreview != null) trajectoryPreview.Hide();
             if (cameraController != null) cameraController.SetAimZoom(false);
-            if (heldItemSprite != null) heldItemSprite.SetThrowVisualSuppressed(false);
+            if (heldItemModel != null) heldItemModel.SetThrowVisualSuppressed(false);
             if (animator != null)
             {
                 animator.SetBool(ThrowReadyHash, false);
