@@ -4193,9 +4193,6 @@ GameObject:
   - component: {fileID: 465755928046886828}
   - component: {fileID: 6508528057546326301}
   - component: {fileID: 6045921240684683706}
-  - component: {fileID: 9153635016968907579}
-  - component: {fileID: 3320064037798978294}
-  - component: {fileID: 7254449315793674648}
   m_Layer: 5
   m_Name: P_TerritoryHUD
   m_TagString: Untagged
@@ -4266,51 +4263,6 @@ MonoBehaviour:
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
   m_PixelsPerUnitMultiplier: 1
---- !u!114 &9153635016968907579
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8823808839502912356}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: ba0fc9588f25a654b89e1ab5942fad94, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::HDY.UI.TerritoryHUDManager
-  territoryData: {fileID: 0}
-  goldText: {fileID: 3688909380801761632}
-  levelText: {fileID: 8606518540314555330}
---- !u!114 &3320064037798978294
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8823808839502912356}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 877a0b44254c7dc478166460b5ba0f73, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::KMS.KMSGameClockUI
-  clockGraphic: {fileID: 2625551833530262027}
-  periodLabel: {fileID: 432742044384895342}
-  gameTimeManager: {fileID: 0}
-  createTimeSystemIfMissing: 1
---- !u!114 &7254449315793674648
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8823808839502912356}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d8a052cc9db5af14abde1f63df2fc081, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::FoodAmountUI
-  foodSlider: {fileID: 0}
-  foodAmountText: {fileID: 6455804959135644087}
 --- !u!1 &8840786306218571198
 GameObject:
   m_ObjectHideFlags: 0

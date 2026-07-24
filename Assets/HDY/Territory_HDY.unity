@@ -611,6 +611,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f8f6af1a5b3af044594d4cdae9bc96d9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlantSystem
+--- !u!114 &62493122 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 6455804959135644087, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
+  m_PrefabInstance: {fileID: 297668206}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4688fdb7df04437aeb418b961361dc5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.TextMeshPro::TMPro.TextMeshProUGUI
 --- !u!1 &72661336
 GameObject:
   m_ObjectHideFlags: 0
@@ -758,6 +769,17 @@ RectTransform:
   m_CorrespondingSourceObject: {fileID: 5184948352188630742, guid: 7d47d694a1fa95b4990850eacd0c9aa2, type: 3}
   m_PrefabInstance: {fileID: 543338613920409460}
   m_PrefabAsset: {fileID: 0}
+--- !u!114 &96770195 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 8606518540314555330, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
+  m_PrefabInstance: {fileID: 297668206}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4688fdb7df04437aeb418b961361dc5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.TextMeshPro::TMPro.TextMeshProUGUI
 --- !u!1 &109969720
 GameObject:
   m_ObjectHideFlags: 0
@@ -5685,6 +5707,17 @@ RectTransform:
   m_CorrespondingSourceObject: {fileID: 5184948352188630742, guid: 7d47d694a1fa95b4990850eacd0c9aa2, type: 3}
   m_PrefabInstance: {fileID: 4976351228008389423}
   m_PrefabAsset: {fileID: 0}
+--- !u!114 &425413050 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 2625551833530262027, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
+  m_PrefabInstance: {fileID: 297668206}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: efd575c378ebc5946ab5207821181eee, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::KMS.KMSGameClockGraphic
 --- !u!224 &430924384 stripped
 RectTransform:
   m_CorrespondingSourceObject: {fileID: 8269600135094962253, guid: 236d3979de6102f4b849f9aaec590f13, type: 3}
@@ -5843,6 +5876,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4bafc9e63828f4e4ea3743419b154f6d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ProductionMemSlotUI
+--- !u!114 &443799200 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 3688909380801761632, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
+  m_PrefabInstance: {fileID: 297668206}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4688fdb7df04437aeb418b961361dc5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.TextMeshPro::TMPro.TextMeshProUGUI
 --- !u!1 &451263787
 GameObject:
   m_ObjectHideFlags: 0
@@ -8334,6 +8378,17 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 915820900}
   m_CullTransparentMesh: 1
+--- !u!114 &924223397 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 432742044384895342, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
+  m_PrefabInstance: {fileID: 297668206}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4688fdb7df04437aeb418b961361dc5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.TextMeshPro::TMPro.TextMeshProUGUI
 --- !u!224 &925232471 stripped
 RectTransform:
   m_CorrespondingSourceObject: {fileID: 5184948352188630742, guid: 7d47d694a1fa95b4990850eacd0c9aa2, type: 3}
@@ -14361,10 +14416,26 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 1379739898}
     m_Modifications:
+    - target: {fileID: 205523006575588595, guid: 75c35a7459297f54eb5fb0c7d78daeb8, type: 3}
+      propertyPath: periodLabel
+      value: 
+      objectReference: {fileID: 924223397}
+    - target: {fileID: 205523006575588595, guid: 75c35a7459297f54eb5fb0c7d78daeb8, type: 3}
+      propertyPath: clockGraphic
+      value: 
+      objectReference: {fileID: 425413050}
     - target: {fileID: 2024401072484678538, guid: 75c35a7459297f54eb5fb0c7d78daeb8, type: 3}
       propertyPath: m_Name
       value: UIManager
       objectReference: {fileID: 0}
+    - target: {fileID: 7002788530332014742, guid: 75c35a7459297f54eb5fb0c7d78daeb8, type: 3}
+      propertyPath: goldText
+      value: 
+      objectReference: {fileID: 443799200}
+    - target: {fileID: 7002788530332014742, guid: 75c35a7459297f54eb5fb0c7d78daeb8, type: 3}
+      propertyPath: levelText
+      value: 
+      objectReference: {fileID: 96770195}
     - target: {fileID: 7309819358282781941, guid: 75c35a7459297f54eb5fb0c7d78daeb8, type: 3}
       propertyPath: uiRoot
       value: 
@@ -14392,11 +14463,27 @@ PrefabInstance:
     - target: {fileID: 7309819358282781941, guid: 75c35a7459297f54eb5fb0c7d78daeb8, type: 3}
       propertyPath: hudEntries.Array.data[5].button
       value: 
-      objectReference: {fileID: 1238775722}
+      objectReference: {fileID: 297668207}
+    - target: {fileID: 7309819358282781941, guid: 75c35a7459297f54eb5fb0c7d78daeb8, type: 3}
+      propertyPath: hudEntries.Array.data[5].prefab
+      value: 
+      objectReference: {fileID: 6403727798164101472, guid: 6ca16aabab4b350419d13348b36c89d6, type: 3}
     - target: {fileID: 7309819358282781941, guid: 75c35a7459297f54eb5fb0c7d78daeb8, type: 3}
       propertyPath: hudEntries.Array.data[6].button
       value: 
-      objectReference: {fileID: 297668207}
+      objectReference: {fileID: 1238775722}
+    - target: {fileID: 7309819358282781941, guid: 75c35a7459297f54eb5fb0c7d78daeb8, type: 3}
+      propertyPath: hudEntries.Array.data[6].prefab
+      value: 
+      objectReference: {fileID: 5716294849075549919, guid: cb0dbd8a9d56d2943b8806f92477dd4e, type: 3}
+    - target: {fileID: 7309819358282781941, guid: 75c35a7459297f54eb5fb0c7d78daeb8, type: 3}
+      propertyPath: hudEntries.Array.data[5].RequiredLevel
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 7309819358282781941, guid: 75c35a7459297f54eb5fb0c7d78daeb8, type: 3}
+      propertyPath: hudEntries.Array.data[6].RequiredLevel
+      value: 99
+      objectReference: {fileID: 0}
     - target: {fileID: 7352502414882451616, guid: 75c35a7459297f54eb5fb0c7d78daeb8, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0
@@ -14437,6 +14524,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 9123123546276931050, guid: 75c35a7459297f54eb5fb0c7d78daeb8, type: 3}
+      propertyPath: foodAmountText
+      value: 
+      objectReference: {fileID: 62493122}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
