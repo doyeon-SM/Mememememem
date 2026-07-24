@@ -11,7 +11,6 @@ GameObject:
   - component: {fileID: 7352502414882451616}
   - component: {fileID: 7309819358282781941}
   - component: {fileID: 7002788530332014742}
-  - component: {fileID: 205523006575588595}
   - component: {fileID: 9123123546276931050}
   m_Layer: 0
   m_Name: UIManager
@@ -65,11 +64,11 @@ MonoBehaviour:
     prefab: {fileID: 6255440334052917499, guid: 3d5fa83ef86d6174e971a99b34d52881, type: 3}
     RequiredLevel: 0
   - button: {fileID: 0}
-    prefab: {fileID: 5716294849075549919, guid: cb0dbd8a9d56d2943b8806f92477dd4e, type: 3}
-    RequiredLevel: 99
-  - button: {fileID: 0}
     prefab: {fileID: 6403727798164101472, guid: 6ca16aabab4b350419d13348b36c89d6, type: 3}
     RequiredLevel: 3
+  - button: {fileID: 0}
+    prefab: {fileID: 5716294849075549919, guid: cb0dbd8a9d56d2943b8806f92477dd4e, type: 3}
+    RequiredLevel: 99
   territoryData: {fileID: 0}
   defaultShop: {fileID: 11400000, guid: 983e0923c22ef7645a1ea349678306d2, type: 2}
   gameTimeManager: {fileID: 0}
@@ -88,22 +87,6 @@ MonoBehaviour:
   territoryData: {fileID: 0}
   goldText: {fileID: 0}
   levelText: {fileID: 0}
---- !u!114 &205523006575588595
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2024401072484678538}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 877a0b44254c7dc478166460b5ba0f73, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::KMS.KMSGameClockUI
-  clockGraphic: {fileID: 0}
-  periodLabel: {fileID: 0}
-  gameTimeManager: {fileID: 0}
-  createTimeSystemIfMissing: 1
 --- !u!114 &9123123546276931050
 MonoBehaviour:
   m_ObjectHideFlags: 0
