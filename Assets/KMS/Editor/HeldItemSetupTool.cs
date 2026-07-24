@@ -17,43 +17,48 @@ namespace KMS.EditorTools
             new HeldItemDefinition(
                 "tool_shabby_axe",
                 "Held_ShabbyAxe",
-                "Assets/HDY/3DAsset/shabby_axe/tripo_convert_5e62ca64-ddfa-4b56-bbd1-8f49bf812b18.fbx",
-                Vector3.zero,
-                Vector3.zero,
-                0.72f,
-                true),
+                "Assets/HDY/3.Assets/3DAsset/shabby_axe/tripo_convert_5e62ca64-ddfa-4b56-bbd1-8f49bf812b18.fbx",
+                new Vector3(0f, 0.025f, 0f),
+                new Vector3(0f, 135f, -8f),
+                0.54f,
+                true,
+                0.22f),
             new HeldItemDefinition(
                 "tool_shabby_club",
                 "Held_ShabbyClub",
-                "Assets/HDY/3DAsset/shabby_club/tripo_convert_61f8eac2-afe4-4828-99e0-59b09dc1e3b6.fbx",
-                Vector3.zero,
-                Vector3.zero,
-                0.65f,
-                true),
+                "Assets/HDY/3.Assets/3DAsset/shabby_club/tripo_convert_61f8eac2-afe4-4828-99e0-59b09dc1e3b6.fbx",
+                new Vector3(0f, 0.025f, 0f),
+                new Vector3(0f, 145f, -5f),
+                0.44f,
+                true,
+                0.25f),
             new HeldItemDefinition(
                 "tool_shabby_hoe",
                 "Held_ShabbyHoe",
-                "Assets/HDY/3DAsset/shabby_hoe/tripo_convert_6112994e-fd15-4945-bdbb-cb3eef050f7a.fbx",
-                Vector3.zero,
-                Vector3.zero,
-                0.65f,
-                true),
+                "Assets/HDY/3.Assets/3DAsset/shabby_hoe/tripo_convert_6112994e-fd15-4945-bdbb-cb3eef050f7a.fbx",
+                new Vector3(0f, 0.025f, 0f),
+                new Vector3(0f, 135f, -8f),
+                0.52f,
+                true,
+                0.22f),
             new HeldItemDefinition(
                 "tool_shabby_pickax",
                 "Held_ShabbyPickaxe",
-                "Assets/HDY/3DAsset/shabby_pickaxe/tripo_convert_49403417-b522-4c4e-8b66-e025003710fb.fbx",
-                Vector3.zero,
-                Vector3.zero,
-                0.65f,
-                true),
+                "Assets/HDY/3.Assets/3DAsset/shabby_pickaxe/tripo_convert_49403417-b522-4c4e-8b66-e025003710fb.fbx",
+                new Vector3(0f, 0.04f, 0f),
+                new Vector3(0f, 150f, -10f),
+                0.5f,
+                true,
+                0.22f),
             new HeldItemDefinition(
                 "tool_shabby_capsule",
                 "Held_ShabbyCapsule",
-                "Assets/HDY/3DAsset/Capsule/tripo_convert_939fec23-d3f6-4750-ae2d-7ff01f60ceca.fbx",
+                "Assets/HDY/3.Assets/3DAsset/Capsule/tripo_convert_939fec23-d3f6-4750-ae2d-7ff01f60ceca.fbx",
                 Vector3.zero,
                 Vector3.zero,
                 0.28f,
-                false)
+                false,
+                0f)
         };
 
         private static readonly string[] PlayerPrefabPaths =
@@ -212,8 +217,10 @@ namespace KMS.EditorTools
                 Vector3 localPosition = definition.LocalPosition;
                 if (definition.AutoAlignGrip)
                 {
-                    Vector3 gripPoint = CalculateHandleGripPoint(visual);
-                    localPosition = -(
+                    Vector3 gripPoint = CalculateHandleGripPoint(
+                        visual,
+                        definition.GripInset);
+                    localPosition += -(
                         visual.transform.localRotation *
                         (gripPoint * definition.UniformScale));
                     Debug.Log(
@@ -301,7 +308,7 @@ namespace KMS.EditorTools
         {
             const string prefabPath = "Assets/KMS/2.Prefabs/KMS_ShabbyCaptureCapsule.prefab";
             const string capsuleModelPath =
-                "Assets/HDY/3DAsset/Capsule/tripo_convert_939fec23-d3f6-4750-ae2d-7ff01f60ceca.fbx";
+                "Assets/HDY/3.Assets/3DAsset/Capsule/tripo_convert_939fec23-d3f6-4750-ae2d-7ff01f60ceca.fbx";
 
             GameObject capsuleModel = AssetDatabase.LoadAssetAtPath<GameObject>(capsuleModelPath);
             GameObject root = PrefabUtility.LoadPrefabContents(prefabPath);
@@ -380,7 +387,9 @@ namespace KMS.EditorTools
             return bounds;
         }
 
-        private static Vector3 CalculateHandleGripPoint(GameObject visual)
+        private static Vector3 CalculateHandleGripPoint(
+            GameObject visual,
+            float gripInset)
         {
             var vertices = new List<Vector3>();
             Matrix4x4 toVisualLocal = visual.transform.worldToLocalMatrix;
@@ -428,8 +437,10 @@ namespace KMS.EditorTools
             Vector3 handleEnd = minSpread <= maxSpread ? minCenter : maxCenter;
             Vector3 otherEnd = minSpread <= maxSpread ? maxCenter : minCenter;
 
-            // 절대 끝점보다 손잡이 안쪽 8% 지점을 잡아 손이 모델 밖으로 빠져나가지 않게 한다.
-            return Vector3.Lerp(handleEnd, otherEnd, 0.08f);
+            return Vector3.Lerp(
+                handleEnd,
+                otherEnd,
+                Mathf.Clamp01(gripInset));
         }
 
         private static Vector3 FindFarthestVertex(List<Vector3> vertices, Vector3 origin)
@@ -575,7 +586,8 @@ namespace KMS.EditorTools
                 Vector3 localPosition,
                 Vector3 localEulerAngles,
                 float uniformScale,
-                bool autoAlignGrip)
+                bool autoAlignGrip,
+                float gripInset)
             {
                 ItemId = itemId;
                 PrefabName = prefabName;
@@ -584,6 +596,7 @@ namespace KMS.EditorTools
                 LocalEulerAngles = localEulerAngles;
                 UniformScale = uniformScale;
                 AutoAlignGrip = autoAlignGrip;
+                GripInset = gripInset;
             }
 
             public string ItemId { get; }
@@ -593,6 +606,7 @@ namespace KMS.EditorTools
             public Vector3 LocalEulerAngles { get; }
             public float UniformScale { get; }
             public bool AutoAlignGrip { get; }
+            public float GripInset { get; }
         }
     }
 }
