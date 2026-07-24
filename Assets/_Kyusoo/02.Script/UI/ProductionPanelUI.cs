@@ -5,7 +5,6 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
-using WebSocketSharp;
 
 public class ProductionPanelUI : MonoBehaviour
 {
@@ -14,7 +13,7 @@ public class ProductionPanelUI : MonoBehaviour
     [Header("중앙 패널 - Top")]
     [SerializeField] private TextMeshProUGUI buildingName;
     [SerializeField] private TextMeshProUGUI buildingLevel;
-    [SerializeField] private Button levelUp;
+    [SerializeField] private Button levelUp; // 🌟 레벨업 버튼
 
     [Header("중앙 패널 - Center")]
     [SerializeField] private MemSlotUI[] memSlotImages = new MemSlotUI[5];
@@ -46,13 +45,17 @@ public class ProductionPanelUI : MonoBehaviour
         {
             diamondBGBtn.onClick.AddListener(OnClickCollectReward);
         }
+
+        if (levelUp != null)
+        {
+            levelUp.onClick.AddListener(OnClickLevelUp); // 🌟 레벨업 버튼 이벤트 연동
+        }
     }
 
     private void Update()
     {
         if (targetFacility == null) return;
 
-        // 🌟 [수정]: string ID 검사
         if (!string.IsNullOrEmpty(targetFacility.craftingItem) && targetFacility.totalRequiredTime > 0f)
         {
             float progressNormalized = targetFacility.currentProgressTime / targetFacility.totalRequiredTime;
@@ -82,25 +85,16 @@ public class ProductionPanelUI : MonoBehaviour
 
     public void RefreshStaticUI()
     {
-        if (targetFacility == null)
-        {
-            Debug.LogError("<color=red>[ProductionPanelUI]</color> RefreshStaticUI를 실행하려 했으나 targetFacility가 null입니다.");
-            return;
-        }
-        Debug.Log($"<color=lime>[ProductionPanelUI]</color> RefreshStaticUI 수신 성공. 대상 시설: {targetFacility.buildingData.buildingName}");
+        if (targetFacility == null) return;
 
         bodyNameTextModify();
 
+        // 🌟 레벨에 따른 슬롯 해금 계산
         int maxCapacity = ProductionCalculator.GetMaxMemCount(targetFacility.currentLevel);
-        Debug.Log($"[ProductionPanelUI] 현재 시설 최대 배치 수용량: {maxCapacity}마리 / 현재 DeployedMems 수: {targetFacility.DeployedMems.Count}");
 
         for (int i = 0; i < memSlotImages.Length; i++)
         {
-            if (memSlotImages[i] == null)
-            {
-                Debug.LogWarning($"[ProductionPanelUI] 인스펙터의 memSlotImages[{i}] 슬롯 컴포넌트 참조가 비어있습니다(Null).");
-                continue;
-            }
+            if (memSlotImages[i] == null) continue;
 
             bool isUnlocked = (i < maxCapacity);
             MemData placedMemData = null;
@@ -112,27 +106,33 @@ public class ProductionPanelUI : MonoBehaviour
                 if (i < targetFacility.DeployedMemEntries.Count) placedEntryData = targetFacility.DeployedMemEntries[i];
             }
 
-            Debug.Log($"[ProductionPanelUI -> MemSlotUI] 슬롯 인덱스 [{i}] 갱신 시도 - Unlocked: {isUnlocked}, PlacedMem: {(placedMemData != null ? placedMemData.memName : "Null(비어있음)")}");
             memSlotImages[i].RefreshStatus(isUnlocked, placedMemData, placedEntryData);
         }
     }
 
-    private void bodyNameTextModify()
+    /// <summary>
+    /// 🌟 [레벨업 버튼 클릭 핸들러]
+    /// </summary>
+    private void OnClickLevelUp()
     {
-        buildingName.text = targetFacility.buildingData.buildingName;
-        buildingLevel.text = $"Lv {targetFacility.currentLevel}";
+        if (targetFacility == null) return;
+
+        targetFacility.LevelUp();
+        RefreshStaticUI(); // UI 레벨 텍스트 및 슬롯 해금 상태 즉시 리프레시
     }
 
-    /// <summary>
-    /// 고정 매칭된 아이템의 이미지, 이름을 노출하는 함수
-    /// </summary>
+    private void bodyNameTextModify()
+    {
+        if (buildingName != null) buildingName.text = targetFacility.buildingData.buildingName;
+        if (buildingLevel != null) buildingLevel.text = $"Lv {targetFacility.currentLevel}";
+    }
+
     private void DisplayProduction()
     {
         if (targetFacility == null) return;
 
         if (defaultMode != null) defaultMode.SetActive(true);
 
-        // 🌟 [수정]: string 아이템 ID 기반으로 ItemCatalogManager에서 아이템 정보 검색
         if (!string.IsNullOrEmpty(targetFacility.craftingItem))
         {
             ItemData targetItemData = FindItemDataInCatalog(targetFacility.craftingItem);
@@ -164,9 +164,6 @@ public class ProductionPanelUI : MonoBehaviour
         UpdateStorageText();
     }
 
-    /// <summary>
-    /// ItemCatalogManager 전용 탐색 헬퍼 메서드
-    /// </summary>
     private ItemData FindItemDataInCatalog(string itemId)
     {
         if (string.IsNullOrEmpty(itemId)) return null;
@@ -177,13 +174,7 @@ public class ProductionPanelUI : MonoBehaviour
             return null;
         }
 
-        ItemData targetItem = ItemCatalogManager.Instance.FindItemData(itemId);
-        if (targetItem == null)
-        {
-            Debug.LogError($"[ItemCatalogManager] 카탈로그에서 아이템 ID '{itemId}'에 해당하는 ItemData를 찾을 수 없습니다.");
-        }
-
-        return targetItem;
+        return ItemCatalogManager.Instance.FindItemData(itemId);
     }
 
     public void TryDeployMemFromUI(MemData targetMem, CapturedMemEntry targetEntry)

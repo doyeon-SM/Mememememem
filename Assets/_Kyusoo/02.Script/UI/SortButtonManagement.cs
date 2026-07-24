@@ -30,7 +30,6 @@ public class SortButtonManagement : MonoBehaviour
             return;
         }
 
-        // 🌟 [핵심 변경]: 부모 위치(Center/Left)와 상관없이 씬 내 활성화된 모든 MemStorageUI_Sort(P_Sort) 탐색
         MemStorageUI_Sort[] activeSortComponents = Object.FindObjectsByType<MemStorageUI_Sort>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
 
         if (activeSortComponents == null || activeSortComponents.Length == 0)
@@ -39,11 +38,9 @@ public class SortButtonManagement : MonoBehaviour
             return;
         }
 
-        // 1. 시설 종류에 따른 키워드 추출
         string targetKeyword = GetKeywordFromFacility(facilityObject);
         Debug.Log($"<color=cyan>[SortButtonManagement]</color> 활성화된 P_Sort {activeSortComponents.Length}개 발견! (필터 키워드: '<b>{targetKeyword}</b>')");
 
-        // 2. 발견된 활성 P_Sort 들의 자식 버튼 SetActive 제어
         foreach (var sortComp in activeSortComponents)
         {
             if (sortComp == null || !sortComp.gameObject.activeInHierarchy) continue;
@@ -58,7 +55,6 @@ public class SortButtonManagement : MonoBehaviour
 
                 bool shouldActive = false;
 
-                // MemId와 Tier 정렬 버튼은 상시 노출
                 if (childNameLower.Contains("id") || childNameLower.Contains("tier"))
                 {
                     shouldActive = true;
@@ -72,7 +68,6 @@ public class SortButtonManagement : MonoBehaviour
                 if (shouldActive) activeCount++;
             }
 
-            // UI Layout 즉시 강제 재계산
             if (pSortTransform is RectTransform rectTransform)
             {
                 LayoutRebuilder.ForceRebuildLayoutImmediate(rectTransform);
@@ -87,9 +82,22 @@ public class SortButtonManagement : MonoBehaviour
     /// </summary>
     private string GetKeywordFromFacility(GameObject facilityObject)
     {
+        var ranchRuntime = facilityObject.GetComponentInParent<RanchFacilityRuntime>();
+        if (ranchRuntime == null) ranchRuntime = facilityObject.GetComponentInChildren<RanchFacilityRuntime>();
+        if (ranchRuntime != null && ranchRuntime.buildingData != null)
+        {
+            return GetKeywordByBuildingType(ranchRuntime.buildingData.buildingType);
+        }
+
+        var ranchUI = facilityObject.GetComponentInParent<RanchPanelUI>();
+        if (ranchUI == null) ranchUI = facilityObject.GetComponentInChildren<RanchPanelUI>();
+        if (ranchUI != null && ranchUI.TargetFacility != null && ranchUI.TargetFacility.buildingData != null)
+        {
+            return GetKeywordByBuildingType(ranchUI.TargetFacility.buildingData.buildingType);
+        }
+
         var craftRuntime = facilityObject.GetComponentInParent<ProductionCraftRuntime>();
         if (craftRuntime == null) craftRuntime = facilityObject.GetComponentInChildren<ProductionCraftRuntime>();
-
         if (craftRuntime != null && craftRuntime.buildingData != null)
         {
             return GetKeywordByBuildingType(craftRuntime.buildingData.buildingType);
@@ -97,7 +105,6 @@ public class SortButtonManagement : MonoBehaviour
 
         var facilityRuntime = facilityObject.GetComponentInParent<ProductionFacilityRuntime>();
         if (facilityRuntime == null) facilityRuntime = facilityObject.GetComponentInChildren<ProductionFacilityRuntime>();
-
         if (facilityRuntime != null && facilityRuntime.buildingData != null)
         {
             return GetKeywordByBuildingType(facilityRuntime.buildingData.buildingType);
@@ -105,7 +112,6 @@ public class SortButtonManagement : MonoBehaviour
 
         var expUI = facilityObject.GetComponentInParent<ExplorationPanelUI>();
         if (expUI == null) expUI = facilityObject.GetComponentInChildren<ExplorationPanelUI>();
-
         if (expUI != null)
         {
             return "exp";
@@ -123,6 +129,7 @@ public class SortButtonManagement : MonoBehaviour
             case BuildingType.MiningCamp: return "mining";
             case BuildingType.TransportFacility: return "trans";
             case BuildingType.Farm: return "farm";
+            case BuildingType.Ranch: return "farm"; 
             default: return "";
         }
     }

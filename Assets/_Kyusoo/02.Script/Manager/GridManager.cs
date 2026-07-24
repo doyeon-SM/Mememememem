@@ -11,7 +11,6 @@ using System.Linq;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
-using WebSocketSharp;
 
 public class GridManager : MonoBehaviour
 {
@@ -180,10 +179,13 @@ public class GridManager : MonoBehaviour
                     {
                         PanelManager.Instance.OpenProductionPanel(facility);
                     }
-
-                    if (targetObj.TryGetComponent<ProductionCraftRuntime>(out ProductionCraftRuntime craft))
+                    else if (targetObj.TryGetComponent<ProductionCraftRuntime>(out ProductionCraftRuntime craft))
                     {
                         PanelManager.Instance.OpenCraftingPanel(craft);
+                    }
+                    else if (targetObj.TryGetComponent<RanchFacilityRuntime>(out RanchFacilityRuntime ranch)) // 🌟 [추가]: 목장 클릭 시 연동
+                    {
+                        PanelManager.Instance.OpenRanchPanel(ranch);
                     }
                 }
             }
@@ -627,7 +629,6 @@ public class GridManager : MonoBehaviour
                 craftRuntime.remainingQuantity = cachedPickedUpState.facilityData.remainingQuantity;
                 craftRuntime.currentProgressTime = cachedPickedUpState.facilityData.currentProgressTime;
                 craftRuntime.currentStorageCount = cachedPickedUpState.facilityData.currentStorageCount;
-                // 🌟 [수정]: string ID 직접 할당
                 craftRuntime.currentCraftingItem = cachedPickedUpState.facilityData.currentCraftingItemId;
 
                 if (craftRuntime.DeployedMems != null && craftRuntime.DeployedMemEntries != null)
@@ -636,6 +637,16 @@ public class GridManager : MonoBehaviour
                     craftRuntime.DeployedMemEntries.Clear();
                     craftRuntime.DeployedMems.AddRange(cachedPickedUpState.deployedMems);
                     craftRuntime.DeployedMemEntries.AddRange(cachedPickedUpState.deployedMemEntries);
+                }
+            }
+            else if (realBuilding.TryGetComponent<RanchFacilityRuntime>(out RanchFacilityRuntime ranchRuntime)) // 🌟 [추가]: 목장 재배치 복원
+            {
+                ranchRuntime.buildingData = selectedBuildingData;
+                ranchRuntime.UpdateSlotCapacity();
+
+                for (int i = 0; i < cachedPickedUpState.deployedMems.Count && i < cachedPickedUpState.deployedMemEntries.Count; i++)
+                {
+                    ranchRuntime.TryAddMemToSlot(i, cachedPickedUpState.deployedMems[i], cachedPickedUpState.deployedMemEntries[i]);
                 }
             }
 
@@ -652,6 +663,11 @@ public class GridManager : MonoBehaviour
             {
                 prodRuntime.buildingData = selectedBuildingData;
                 prodRuntime.UpdateMaxStorage();
+            }
+            else if (realBuilding.TryGetComponent<RanchFacilityRuntime>(out RanchFacilityRuntime ranchRuntime)) // 🌟 [추가]: 목장 최초 배치
+            {
+                ranchRuntime.buildingData = selectedBuildingData;
+                ranchRuntime.UpdateSlotCapacity();
             }
         }
 
@@ -728,7 +744,6 @@ public class GridManager : MonoBehaviour
             cachedPickedUpState.facilityData.remainingQuantity = craft.remainingQuantity;
             cachedPickedUpState.facilityData.currentProgressTime = craft.currentProgressTime;
             cachedPickedUpState.facilityData.currentStorageCount = craft.currentStorageCount;
-            // 🌟 [수정]: craft.currentCraftingItem이 string이므로 직결 대입
             cachedPickedUpState.facilityData.currentCraftingItemId = craft.currentCraftingItem ?? "";
 
             if (craft.DeployedMems != null)
@@ -739,6 +754,22 @@ public class GridManager : MonoBehaviour
                 foreach (var entry in craft.DeployedMemEntries)
                 {
                     if (entry != null) cachedPickedUpState.facilityData.DeployedMemIDs.Add(entry.KeyId);
+                }
+            }
+        }
+        else if (targetBuilding.TryGetComponent<RanchFacilityRuntime>(out var ranch)) // 🌟 [추가]: 목장 들기 시 상태 저장
+        {
+            cachedPickedUpState.facilityData.isActive = ranch.isProducing;
+            if (ranch.Slots != null)
+            {
+                foreach (var slot in ranch.Slots)
+                {
+                    if (slot.deployedMem != null) cachedPickedUpState.deployedMems.Add(slot.deployedMem);
+                    if (slot.deployedMemEntry != null)
+                    {
+                        cachedPickedUpState.deployedMemEntries.Add(slot.deployedMemEntry);
+                        cachedPickedUpState.facilityData.DeployedMemIDs.Add(slot.deployedMemEntry.KeyId);
+                    }
                 }
             }
         }
@@ -1006,7 +1037,6 @@ public class GridManager : MonoBehaviour
                         craft.remainingQuantity = entry.remainingQuantity;
                         craft.currentProgressTime = entry.currentProgressTime;
                         craft.currentStorageCount = entry.currentStorageCount;
-                        // 🌟 [수정]: craft.currentCraftingItem이 string이므로 직접 대입
                         craft.currentCraftingItem = entry.currentCraftingItemId;
 
                         if (craft.DeployedMems != null && craft.DeployedMemEntries != null)
@@ -1015,6 +1045,16 @@ public class GridManager : MonoBehaviour
                             craft.DeployedMemEntries.Clear();
                             craft.DeployedMems.AddRange(restoredMems);
                             craft.DeployedMemEntries.AddRange(matchedEntries);
+                        }
+                    }
+                    else if (restoredBuilding.TryGetComponent<RanchFacilityRuntime>(out var ranch)) // 🌟 [추가]: 목장 롤백 복원
+                    {
+                        ranch.buildingData = snap.data;
+                        ranch.UpdateSlotCapacity();
+
+                        for (int i = 0; i < restoredMems.Count && i < matchedEntries.Count; i++)
+                        {
+                            ranch.TryAddMemToSlot(i, restoredMems[i], matchedEntries[i]);
                         }
                     }
                 }
@@ -1033,7 +1073,7 @@ public class GridManager : MonoBehaviour
     }
 
     /// <summary>
-    /// 🌟 [수정]: ItemCatalogManager에서만 ItemData SO를 탐색
+    /// ItemCatalogManager에서만 ItemData SO를 탐색합니다.
     /// </summary>
     private ItemData FindItemDataInProject(string itemId)
     {

@@ -38,7 +38,6 @@ public class ProductionFacilityRuntime : MonoBehaviour
 
     public static event Action OnMemDeploymentChanged;
 
-    // 시설에 실제 멤 UI배치와 관련하여 멤 배치/해제, 시설 가동, 가동 중단 이벤트
     public static event Action<BuildingType, MemData, bool> MemAdded;
     public static event Action<BuildingType, List<MemData>> FacilityStarted;
     public static event Action<BuildingType, List<MemData>, FacilityStopReason> FacilityStopped;
@@ -47,6 +46,16 @@ public class ProductionFacilityRuntime : MonoBehaviour
     {
         UpdateMaxStorage();
         CheckProductionCondition();
+    }
+
+    public void LevelUp()
+    {
+        currentLevel++;
+        UpdateMaxStorage();
+        CheckProductionCondition();
+
+        OnMemDeploymentChanged?.Invoke();
+        Debug.Log($"<color=lime>[생산시설 레벨업]</color> {buildingData?.buildingName} 시설 레벨이 {currentLevel}로 증가했습니다.");
     }
 
     public void UpdateMaxStorage()
@@ -71,17 +80,11 @@ public class ProductionFacilityRuntime : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// ItemCatalogManager에서 RecipeData.time을 우선 가져오며, 없을 경우 baseProductionTime을 반환합니다.
-    /// </summary>
     private float GetBaseProductionTime()
     {
         return baseProductionTime;
     }
 
-    /// <summary>
-    /// 최소 1마리의 멤이 배치되면 아이템 생산되도록 처리
-    /// </summary>
     public void CheckProductionCondition()
     {
         if (string.IsNullOrEmpty(craftingItem) || addMems.Count == 0)
@@ -125,17 +128,16 @@ public class ProductionFacilityRuntime : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// UI에서 특정 멤을 클릭하여 배치할 때 호출
-    /// </summary>
     public bool TryAddMem(MemData targetMem, CapturedMemEntry targetEntry)
     {
-        if (targetMem == null || buildingData == null) return false;
+        if (targetMem == null || targetEntry == null || buildingData == null) return false;
 
         int maxCapacity = ProductionCalculator.GetMaxMemCount(currentLevel);
-        if (addMems.Contains(targetMem))
+
+        // 🌟 [수정]: MemData/MemId 기준 검사 제거 -> KeyId 동일 개체만 중복 검사
+        if (addMemEntries.Exists(e => e != null && e.KeyId == targetEntry.KeyId))
         {
-            Debug.LogWarning($"{targetMem.memName}은 이미 이 시설에 투입되어 있습니다.");
+            Debug.LogWarning($"동일한 멤 개체(KeyID: {targetEntry.KeyId})가 이미 이 시설에 투입되어 있습니다.");
             return false;
         }
 
@@ -147,7 +149,7 @@ public class ProductionFacilityRuntime : MonoBehaviour
 
         if (addMems.Count >= maxCapacity)
         {
-            Debug.LogWarning($"배치 인원이 가득 찼습니다.");
+            Debug.LogWarning($"배치 인원이 가득 찼증니다.");
             return false;
         }
 
@@ -177,41 +179,49 @@ public class ProductionFacilityRuntime : MonoBehaviour
     }
 
     /// <summary>
-    /// 시설에 배치된 멤을 제거할 때 처리할 함수
+    /// 🌟 [추가]: CapturedMemEntry (KeyId) 기준 멤 제거
     /// </summary>
-    public void RemoveMem(MemData targetMem)
+    public void RemoveMem(CapturedMemEntry targetEntry)
     {
-        if (addMems.Contains(targetMem))
-        {
-            int index = addMems.IndexOf(targetMem);
-            if (index >= 0 && index < addMemEntries.Count)
-            {
-                addMemEntries[index].IsActive = false;
-                addMemEntries.RemoveAt(index);
-            }
-            addMems.RemoveAt(index);
+        if (targetEntry == null) return;
 
-            Debug.Log($"[생산 해제] {targetMem.memName} 시설에서 제외 완료.");
+        int index = addMemEntries.FindIndex(e => e != null && e.KeyId == targetEntry.KeyId);
+        if (index >= 0)
+        {
+            MemData removedMem = (index < addMems.Count) ? addMems[index] : null;
+
+            addMemEntries[index].IsActive = false;
+            addMemEntries.RemoveAt(index);
+            if (index < addMems.Count) addMems.RemoveAt(index);
+
+            Debug.Log($"[생산 해제] KeyID '{targetEntry.KeyId}' 시설에서 제외 완료.");
 
             CheckProductionCondition();
 
             if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
             OnMemDeploymentChanged?.Invoke();
 
-            if (buildingData != null)
+            if (buildingData != null && removedMem != null)
             {
-                MemAdded?.Invoke(buildingData.buildingType, targetMem, false);
+                MemAdded?.Invoke(buildingData.buildingType, removedMem, false);
             }
         }
     }
 
-    /// <summary>
-    /// 아이템 1개 생성이 완료되었을 때, 시설 내부에 저장되도록 처리
-    /// </summary>
+    public void RemoveMem(MemData targetMem)
+    {
+        if (targetMem == null) return;
+
+        int index = addMems.IndexOf(targetMem);
+        if (index >= 0 && index < addMemEntries.Count)
+        {
+            RemoveMem(addMemEntries[index]);
+        }
+    }
+
     private void CompleteProductionUnit()
     {
         currentStorageCount++;
-
         currentProgressTime = 0f;
 
         if (!string.IsNullOrEmpty(craftingItem))
@@ -221,19 +231,13 @@ public class ProductionFacilityRuntime : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// 시설물에서 생산된 아이템 전체를 수령할 때 호출될 함수
-    /// </summary>
     public void StoredItems()
     {
         if (currentStorageCount <= 0) return;
         if (string.IsNullOrEmpty(craftingItem)) return;
 
         ItemData targetItemData = FindItemDataInCatalog(craftingItem);
-        if (targetItemData == null)
-        {
-            return;
-        }
+        if (targetItemData == null) return;
 
         int amountToCollect = currentStorageCount;
 
@@ -245,9 +249,6 @@ public class ProductionFacilityRuntime : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// ItemCatalogManager에서만 Item_ID와 일치하는 ItemData SO를 탐색합니다.
-    /// </summary>
     private ItemData FindItemDataInCatalog(string itemId)
     {
         if (string.IsNullOrEmpty(itemId)) return null;
@@ -258,18 +259,9 @@ public class ProductionFacilityRuntime : MonoBehaviour
             return null;
         }
 
-        ItemData targetItem = ItemCatalogManager.Instance.FindItemData(itemId);
-        if (targetItem == null)
-        {
-            Debug.LogError($"[ItemCatalogManager] 카탈로그에서 아이템 ID '{itemId}'에 해당하는 ItemData를 찾을 수 없습니다.");
-        }
-
-        return targetItem;
+        return ItemCatalogManager.Instance.FindItemData(itemId);
     }
 
-    /// <summary>
-    /// 시설 가동이 시작될 때 이벤트 발행용 함수
-    /// </summary>
     private void SetProducingActive(bool value)
     {
         if (isProducing == value) return;
@@ -281,9 +273,6 @@ public class ProductionFacilityRuntime : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// 식량 부족으로 인해 가동 중지 시 가동 중지 이벤트 발행
-    /// </summary>
     public void StopWorkDueToStarvation()
     {
         if (!isProducing) return;

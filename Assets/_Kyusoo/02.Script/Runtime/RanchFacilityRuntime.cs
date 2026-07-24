@@ -1,4 +1,4 @@
-using HDY.Capture;
+ï»¿using HDY.Capture;
 using HDY.Inventory;
 using HDY.Item;
 using MemSystem.Data;
@@ -6,33 +6,27 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-/// <summary>
-/// À¯´ÏÆ¼ ÀÎ½ºÆåÅÍ ³ëÃâ ¹× Á÷·ÄÈ­¸¦ À§ÇÑ ´ÜÀÏ ¸ñÀå ½½·Ô ·±Å¸ÀÓ µ¥ÀÌÅÍ Å¬·¡½º
-/// </summary>
 [System.Serializable]
 public class RanchSlotRuntime
 {
-    [Header("½½·Ô »óÅÂ Á¤º¸")]
+    [Header("ìŠ¬ë¡¯ ìƒíƒœ ì •ë³´")]
     public int slotIndex;
     public bool isUnlocked = false;
 
-    [Header("¹èÄ¡µÈ ¸â Á¤º¸")]
+    [Header("ë°°ì¹˜ëœ ë©¤ ì •ë³´")]
     public MemData deployedMem;
     public CapturedMemEntry deployedMemEntry;
 
-    [Header("»ı»ê »óÅÂ Á¤º¸")]
+    [Header("ìƒì‚° ìƒíƒœ ì •ë³´")]
     public string craftingItemId;
     public bool isProducing = false;
     public float currentProgressTime = 0f;
     public float totalRequiredTime = 30f;
 
-    [Header("ÀÚ¿ø ÃàÀû ÇöÈ²")]
+    [Header("ìì› ì¶•ì  í˜„í™©")]
     public int currentStorageCount = 0;
-    public const int MAX_STORAGE_PER_SLOT = 100;
+    public const int maxStorage = 100;
 
-    /// <summary>
-    /// ½½·ÔÀÇ ¸â ¹èÄ¡ Á¤º¸¸¦ ÃÊ±âÈ­ÇÕ´Ï´Ù.
-    /// </summary>
     public void ClearMem()
     {
         if (deployedMemEntry != null)
@@ -50,14 +44,14 @@ public class RanchSlotRuntime
 
 public class RanchFacilityRuntime : MonoBehaviour
 {
-    [Header("½Ã¼³ ±â¹İ Á¤º¸")]
+    [Header("ì‹œì„¤ ê¸°ë°˜ ì •ë³´")]
     public BuildingData buildingData;
     public int currentLevel = 1;
 
-    [Header("±âº» »ı»ê ¼Ò¿ä ½Ã°£ (ÃÊ)")]
+    [Header("ê¸°ë³¸ ìƒì‚° ì†Œìš” ì‹œê°„ (ì´ˆ)")]
     public float baseProductionTime = 30f;
 
-    [Header("¸ñÀå ½½·Ô ¸®½ºÆ® (ÃÖ´ë 5°³ °ü¸®)")]
+    [Header("ëª©ì¥ ìŠ¬ë¡¯ ë¦¬ìŠ¤íŠ¸ (ìµœëŒ€ 5ê°œ ê´€ë¦¬)")]
     [SerializeField] private List<RanchSlotRuntime> slots = new List<RanchSlotRuntime>();
     public IReadOnlyList<RanchSlotRuntime> Slots => slots;
 
@@ -80,9 +74,6 @@ public class RanchFacilityRuntime : MonoBehaviour
         CheckAllSlotsProductionCondition();
     }
 
-    /// <summary>
-    /// ÃÖ´ë 5°³ÀÇ ³»ºÎ ½½·Ô µ¥ÀÌÅÍ ±¸Á¶Ã¼¸¦ ±âº» »ı¼ºÇÕ´Ï´Ù.
-    /// </summary>
     private void InitializeSlots()
     {
         if (slots.Count == 0)
@@ -98,9 +89,16 @@ public class RanchFacilityRuntime : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// ¸ñÀå ·¹º§¿¡ ¸ÂÃß¾î ½½·Ô ÇØ±İ(Unlock) »óÅÂ¸¦ °»½ÅÇÕ´Ï´Ù.
-    /// </summary>
+    public void LevelUp()
+    {
+        currentLevel++;
+        UpdateSlotCapacity();
+        CheckAllSlotsProductionCondition();
+
+        OnMemDeploymentChanged?.Invoke();
+        Debug.Log($"<color=lime>[ëª©ì¥ ë ˆë²¨ì—…]</color> {buildingData?.buildingName} ì‹œì„¤ ë ˆë²¨ì´ {currentLevel}ë¡œ ì¦ê°€í–ˆìŠµë‹ˆë‹¤.");
+    }
+
     public void UpdateSlotCapacity()
     {
         int maxCapacity = ProductionCalculator.GetMaxMemCount(currentLevel);
@@ -121,8 +119,7 @@ public class RanchFacilityRuntime : MonoBehaviour
 
             if (!slot.isUnlocked || !slot.isProducing || slot.deployedMem == null) continue;
 
-            // ½½·Ô´ç ÃÖ´ë 100°³ Á¦ÇÑ
-            if (slot.currentStorageCount >= RanchSlotRuntime.MAX_STORAGE_PER_SLOT)
+            if (slot.currentStorageCount >= RanchSlotRuntime.maxStorage)
             {
                 slot.isProducing = false;
                 continue;
@@ -140,21 +137,17 @@ public class RanchFacilityRuntime : MonoBehaviour
         isProducing = anyProducing;
     }
 
-    /// <summary>
-    /// ´ÜÀÏ ½½·Ô »ı»ê ¿Ï·á Ã³¸®
-    /// </summary>
     private void CompleteSlotProduction(RanchSlotRuntime slot)
     {
         slot.currentStorageCount++;
         slot.currentProgressTime = 0f;
 
-        if (slot.currentStorageCount >= RanchSlotRuntime.MAX_STORAGE_PER_SLOT)
+        if (slot.currentStorageCount >= RanchSlotRuntime.maxStorage)
         {
             slot.isProducing = false;
         }
         else
         {
-            // ¸â ´ÜÀÏ ¼Óµµ Àç°è»ê
             slot.totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(
                 baseProductionTime,
                 new List<MemData> { slot.deployedMem }
@@ -162,9 +155,6 @@ public class RanchFacilityRuntime : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// ÀüÃ¼ ½½·ÔÀÇ °¡µ¿ Á¶°ÇÀ» Ã¼Å©ÇÕ´Ï´Ù.
-    /// </summary>
     public void CheckAllSlotsProductionCondition()
     {
         bool isStarving = ConsumeFoodSystem.Instance != null && ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation;
@@ -177,13 +167,12 @@ public class RanchFacilityRuntime : MonoBehaviour
                 continue;
             }
 
-            if (slot.currentStorageCount >= RanchSlotRuntime.MAX_STORAGE_PER_SLOT)
+            if (slot.currentStorageCount >= RanchSlotRuntime.maxStorage)
             {
                 slot.isProducing = false;
                 continue;
             }
 
-            // °³º° ¸â µî±Ş ±â¹İ ½Ã°£ »êÃâ
             slot.totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(
                 baseProductionTime,
                 new List<MemData> { slot.deployedMem }
@@ -195,9 +184,6 @@ public class RanchFacilityRuntime : MonoBehaviour
         UpdateOverallProducingState();
     }
 
-    /// <summary>
-    /// UI ¶Ç´Â ½Ã½ºÅÛ¿¡¼­ Æ¯Á¤ ÀÎµ¦½ºÀÇ ½½·Ô¿¡ ¸âÀ» ¹èÄ¡ÇÒ ¶§ È£Ãâ
-    /// </summary>
     public bool TryAddMemToSlot(int slotIndex, MemData targetMem, CapturedMemEntry targetEntry)
     {
         if (targetMem == null || targetEntry == null || buildingData == null) return false;
@@ -206,45 +192,40 @@ public class RanchFacilityRuntime : MonoBehaviour
         RanchSlotRuntime targetSlot = slots[slotIndex];
         if (!targetSlot.isUnlocked)
         {
-            Debug.LogWarning("[¸ñÀå] Àá°ÜÀÖ´Â ½½·Ô¿¡´Â ¸âÀ» ¹èÄ¡ÇÒ ¼ö ¾ø½À´Ï´Ù.");
+            Debug.LogWarning("[ëª©ì¥] ì ê²¨ìˆëŠ” ìŠ¬ë¡¯ì—ëŠ” ë©¤ì„ ë°°ì¹˜í•  ìˆ˜ ì—†ìŠµë‹ˆë‹¤.");
             return false;
         }
 
-        // ÀÌ¹Ì ´Ù¸¥ ½½·Ô¿¡ ¹èÄ¡µÇ¾î ÀÖ´ÂÁö °Ë»ç
+        // ğŸŒŸ [ìˆ˜ì •]: MemData/MemId ì¤‘ë³µ ê²€ì‚¬ ì œê±° -> KeyId ë™ì¼ ê°œì²´ë§Œ ì¤‘ë³µ ê²€ì‚¬
         foreach (var slot in slots)
         {
-            if (slot.deployedMem == targetMem)
+            if (slot.deployedMemEntry != null && slot.deployedMemEntry.KeyId == targetEntry.KeyId)
             {
-                Debug.LogWarning($"{targetMem.memName}Àº ÀÌ¹Ì ÀÌ ¸ñÀåÀÇ ´Ù¸¥ ½½·Ô¿¡ ¹èÄ¡µÇ¾î ÀÖ½À´Ï´Ù.");
+                Debug.LogWarning($"í•´ë‹¹ ë©¤ ê°œì²´(KeyID: {targetEntry.KeyId})ëŠ” ì´ë¯¸ ì´ ëª©ì¥ì˜ ë‹¤ë¥¸ ìŠ¬ë¡¯ì— ë°°ì¹˜ë˜ì–´ ìˆìŠµë‹ˆë‹¤.");
                 return false;
             }
         }
 
         if (targetEntry.IsActive)
         {
-            Debug.LogWarning($"{targetMem.memName}(Àº/´Â) ÀÌ¹Ì ´Ù¸¥ ½Ã¼³ÀÌ³ª Å½Çè´ë¿¡ ¹èÄ¡µÇ¾î ÀÖ½À´Ï´Ù.");
+            Debug.LogWarning($"{targetMem.memName}(ì€/ëŠ”) ì´ë¯¸ ë‹¤ë¥¸ ì‹œì„¤ì´ë‚˜ íƒí—˜ëŒ€ì— ë°°ì¹˜ë˜ì–´ ìˆìŠµë‹ˆë‹¤.");
             return false;
         }
 
         if (!ProductionCalculator.CanDeployToFacility(targetMem, buildingData.buildingType))
         {
             ProductionStatType requiredStat = ProductionCalculator.GetRequiredStatType(buildingData.buildingType);
-            Debug.LogWarning($"{targetMem.memName}ÀÌ {requiredStat} ½ºÅÈÀÌ ¾ø¾î ¸ñÀå¿¡ ¹èÄ¡ÇÒ ¼ö ¾ø½À´Ï´Ù.");
+            Debug.LogWarning($"{targetMem.memName}ì´ {requiredStat} ìŠ¤íƒ¯ì´ ì—†ì–´ ëª©ì¥ì— ë°°ì¹˜í•  ìˆ˜ ì—†ìŠµë‹ˆë‹¤.");
             return false;
         }
 
-        // ½½·Ô µ¥ÀÌÅÍ ÇÒ´ç
         targetSlot.deployedMem = targetMem;
         targetSlot.deployedMemEntry = targetEntry;
         targetEntry.IsActive = true;
 
-        // ¸â °íÀ¯ »ı»ê ¾ÆÀÌÅÛ ID ¹ÙÀÎµù (ranchProduceItemId ¿ì¼± ÂüÁ¶, ¾øÀ» ½Ã memId)
-        //string produceItemId = !string.IsNullOrEmpty(targetMem.ranchProduceItemId) ? targetMem.ranchProduceItemId : targetMem.memId;
-        // ÀÓ½Ã ÄÚµå
-        string produceItemId = "item_wood";
+        string produceItemId = "item_wood"; // ì„ì‹œ ì„¤ì •
         targetSlot.craftingItemId = produceItemId;
 
-        // ´ÜÀÏ ¸â ±âÁØ »ı»ê½Ã°£ °è»ê (±âº» 30ÃÊ ±â¹İ)
         targetSlot.totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(
             baseProductionTime,
             new List<MemData> { targetMem }
@@ -270,15 +251,16 @@ public class RanchFacilityRuntime : MonoBehaviour
     }
 
     /// <summary>
-    /// Æ¯Á¤ ¸âÀ» ¸ñÀå ½½·Ô¿¡¼­ ÇØÁ¦ÇÒ ¶§ È£Ãâ
+    /// ğŸŒŸ [ì¶”ê°€]: CapturedMemEntry (KeyId) ê¸°ì¤€ ìŠ¬ë¡¯ í•´ì œ
     /// </summary>
-    public void RemoveMem(MemData targetMem)
+    public void RemoveMem(CapturedMemEntry targetEntry)
     {
-        if (targetMem == null) return;
+        if (targetEntry == null) return;
 
-        RanchSlotRuntime targetSlot = slots.Find(s => s.deployedMem == targetMem);
+        RanchSlotRuntime targetSlot = slots.Find(s => s.deployedMemEntry != null && s.deployedMemEntry.KeyId == targetEntry.KeyId);
         if (targetSlot != null)
         {
+            MemData removedMem = targetSlot.deployedMem;
             targetSlot.ClearMem();
 
             UpdateOverallProducingState();
@@ -286,16 +268,33 @@ public class RanchFacilityRuntime : MonoBehaviour
             if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
             OnMemDeploymentChanged?.Invoke();
 
-            if (buildingData != null)
+            if (buildingData != null && removedMem != null)
             {
-                MemAdded?.Invoke(buildingData.buildingType, targetMem, false);
+                MemAdded?.Invoke(buildingData.buildingType, removedMem, false);
             }
         }
     }
 
-    /// <summary>
-    /// ¸ğµç ½½·ÔÀÇ »ı»êÇ°À» Ã¢°í·Î ÀÏ°ı ¼ö·É
-    /// </summary>
+    public void RemoveMem(MemData targetMem)
+    {
+        if (targetMem == null) return;
+
+        RanchSlotRuntime targetSlot = slots.Find(s => s.deployedMem == targetMem);
+        if (targetSlot != null)
+        {
+            RemoveMem(targetSlot.deployedMemEntry);
+        }
+    }
+
+    public bool HasAnyCollectableItem()
+    {
+        foreach (var slot in slots)
+        {
+            if (slot.currentStorageCount > 0) return true;
+        }
+        return false;
+    }
+
     public void CollectAllItems()
     {
         WarehouseInventory warehouse = FindFirstObjectByType<WarehouseInventory>();
@@ -311,8 +310,7 @@ public class RanchFacilityRuntime : MonoBehaviour
                 int remaining = warehouse.AddItem(itemData, slot.currentStorageCount);
                 slot.currentStorageCount = remaining;
 
-                // ¼ö·®¿¡ ¿©À¯°¡ »ı±â¸é Àç°¡µ¿
-                if (slot.currentStorageCount < RanchSlotRuntime.MAX_STORAGE_PER_SLOT && slot.deployedMem != null)
+                if (slot.currentStorageCount < RanchSlotRuntime.maxStorage && slot.deployedMem != null)
                 {
                     if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
                     {
@@ -325,9 +323,6 @@ public class RanchFacilityRuntime : MonoBehaviour
         UpdateOverallProducingState();
     }
 
-    /// <summary>
-    /// ÀüÃ¼ ½½·Ô °¡µ¿ ¿©ºÎ¿¡ µû¶ó ½Ã¼³ »óÅÂ ¹× ÀÌº¥Æ® ¹ßÇà
-    /// </summary>
     private void UpdateOverallProducingState()
     {
         bool anyActive = slots.Exists(s => s.isProducing);
@@ -343,31 +338,19 @@ public class RanchFacilityRuntime : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// ItemCatalogManager Àü¿ë Å½»ö
-    /// </summary>
     private ItemData FindItemDataInCatalog(string itemId)
     {
         if (string.IsNullOrEmpty(itemId)) return null;
 
         if (ItemCatalogManager.Instance == null)
         {
-            Debug.LogError($"[ItemCatalogManager] ÀÎ½ºÅÏ½º°¡ Á¸ÀçÇÏÁö ¾Ê¾Æ ¾ÆÀÌÅÛ '{itemId}'À»(¸¦) Å½»öÇÒ ¼ö ¾ø½À´Ï´Ù.");
+            Debug.LogError($"[ItemCatalogManager] ì¸ìŠ¤í„´ìŠ¤ê°€ ì¡´ì¬í•˜ì§€ ì•Šì•„ ì•„ì´í…œ '{itemId}'ì„(ë¥¼) íƒìƒ‰í•  ìˆ˜ ì—†ìŠµë‹ˆë‹¤.");
             return null;
         }
 
-        ItemData targetItem = ItemCatalogManager.Instance.FindItemData(itemId);
-        if (targetItem == null)
-        {
-            Debug.LogError($"[ItemCatalogManager] Ä«Å»·Î±×¿¡¼­ ¾ÆÀÌÅÛ ID '{itemId}'¿¡ ÇØ´çÇÏ´Â ItemData¸¦ Ã£À» ¼ö ¾ø½À´Ï´Ù.");
-        }
-
-        return targetItem;
+        return ItemCatalogManager.Instance.FindItemData(itemId);
     }
 
-    /// <summary>
-    /// ±¾ÁÖ¸²À¸·Î ÀÛ¾÷ Áß´Ü ½Ã È£Ãâ
-    /// </summary>
     public void StopWorkDueToStarvation()
     {
         foreach (var slot in slots)

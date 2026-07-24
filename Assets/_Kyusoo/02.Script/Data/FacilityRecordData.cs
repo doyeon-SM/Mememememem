@@ -16,11 +16,14 @@ public class FacilityRecordData : MonoBehaviour, IRecord
         GridManager.OnGridDataChanged += OnFacilityDataChanged;
         ProductionFacilityRuntime.OnMemDeploymentChanged += OnFacilityDataChanged;
         ProductionCraftRuntime.OnMemDeploymentChanged += OnFacilityDataChanged;
+        RanchFacilityRuntime.OnMemDeploymentChanged += OnFacilityDataChanged; 
 
         ProductionFacilityRuntime.FacilityStarted += OnFacilityStartedHandler;
         ProductionFacilityRuntime.FacilityStopped += OnFacilityStoppedHandler;
         ProductionCraftRuntime.FacilityStarted += OnFacilityStartedHandler;
         ProductionCraftRuntime.FacilityStopped += OnFacilityStoppedHandler;
+        RanchFacilityRuntime.FacilityStarted += OnFacilityStartedHandler;     
+        RanchFacilityRuntime.FacilityStopped += OnFacilityStoppedHandler; 
     }
 
     private void OnDisable()
@@ -28,11 +31,14 @@ public class FacilityRecordData : MonoBehaviour, IRecord
         GridManager.OnGridDataChanged -= OnFacilityDataChanged;
         ProductionFacilityRuntime.OnMemDeploymentChanged -= OnFacilityDataChanged;
         ProductionCraftRuntime.OnMemDeploymentChanged -= OnFacilityDataChanged;
+        RanchFacilityRuntime.OnMemDeploymentChanged -= OnFacilityDataChanged;
 
         ProductionFacilityRuntime.FacilityStarted -= OnFacilityStartedHandler;
         ProductionFacilityRuntime.FacilityStopped -= OnFacilityStoppedHandler;
         ProductionCraftRuntime.FacilityStarted -= OnFacilityStartedHandler;
         ProductionCraftRuntime.FacilityStopped -= OnFacilityStoppedHandler;
+        RanchFacilityRuntime.FacilityStarted -= OnFacilityStartedHandler;
+        RanchFacilityRuntime.FacilityStopped -= OnFacilityStoppedHandler;
     }
 
     private void OnFacilityStartedHandler(BuildingType type, List<MemData> mems) => OnFacilityDataChanged();
@@ -98,7 +104,6 @@ public class FacilityRecordData : MonoBehaviour, IRecord
             else if (br.TryGetComponent<ProductionCraftRuntime>(out var craft))
             {
                 rData.isActive = craft.isProducing;
-                // 🌟 [수정]: craft.currentCraftingItem이 string이므로 바로 대입
                 rData.currentCraftingItemId = craft.currentCraftingItem ?? "";
                 rData.targetQuantity = craft.targetQuantity;
                 rData.remainingQuantity = craft.remainingQuantity;
@@ -111,6 +116,34 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                     rData.DeployedMemIDs = ids;
 
                     foreach (var id in ids) allDeployedMemIDs.Add(id);
+                }
+            }
+            else if (br.TryGetComponent<RanchFacilityRuntime>(out var ranch)) // 🌟 [추가]: 목장 저장 로직
+            {
+                rData.isActive = ranch.isProducing;
+                rData.ranchSlots = new List<RanchSlotSaveData>();
+
+                if (ranch.Slots != null)
+                {
+                    foreach (var slot in ranch.Slots)
+                    {
+                        var slotSave = new RanchSlotSaveData
+                        {
+                            slotIndex = slot.slotIndex,
+                            isUnlocked = slot.isUnlocked,
+                            deployedMemKeyId = slot.deployedMemEntry != null ? slot.deployedMemEntry.KeyId : "",
+                            craftingItemId = slot.craftingItemId ?? "",
+                            isProducing = slot.isProducing,
+                            currentProgressTime = slot.currentProgressTime,
+                            currentStorageCount = slot.currentStorageCount
+                        };
+                        rData.ranchSlots.Add(slotSave);
+
+                        if (!string.IsNullOrEmpty(slotSave.deployedMemKeyId))
+                        {
+                            allDeployedMemIDs.Add(slotSave.deployedMemKeyId);
+                        }
+                    }
                 }
             }
 
@@ -199,27 +232,6 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                 }
 
                 var entry = bSave.runtimeData ?? new FacilityData { Building_ID = $"{matchData.buildingName}_{bSave.gridX}_{bSave.gridZ}" };
-                List<CapturedMemEntry> matchedEntries = new List<CapturedMemEntry>();
-
-                int maxCapacity = 1;
-                if (spawnedObj.TryGetComponent<ProductionFacilityRuntime>(out var facilityComp))
-                {
-                    maxCapacity = ProductionCalculator.GetMaxMemCount(facilityComp.currentLevel);
-                }
-
-                var memManager = FindFirstObjectByType<MemCaptureManager>();
-                if (memManager != null && entry.DeployedMemIDs != null)
-                {
-                    var safeMemIDs = entry.DeployedMemIDs.Distinct().Take(maxCapacity).ToList();
-                    foreach (var savedKeyId in safeMemIDs)
-                    {
-                        var match = memManager.CapturedMems.FirstOrDefault(m => m != null && m.KeyId == savedKeyId);
-                        if (match != null)
-                        {
-                            matchedEntries.Add(match);
-                        }
-                    }
-                }
 
                 if (spawnedObj.TryGetComponent<ProductionFacilityRuntime>(out var facility))
                 {
@@ -233,12 +245,19 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                     if (facility.DeployedMems != null) facility.DeployedMems.Clear();
                     if (facility.DeployedMemEntries != null) facility.DeployedMemEntries.Clear();
 
-                    foreach (var match in matchedEntries)
+                    var memManager = FindFirstObjectByType<MemCaptureManager>();
+                    if (memManager != null && entry.DeployedMemIDs != null)
                     {
-                        MemData realMemData = MemCatalogManager.Instance != null ? MemCatalogManager.Instance.FindMemData(match.MemId) : null;
-                        if (realMemData != null)
+                        int maxCapacity = ProductionCalculator.GetMaxMemCount(facility.currentLevel);
+                        var safeMemIDs = entry.DeployedMemIDs.Distinct().Take(maxCapacity).ToList();
+                        foreach (var savedKeyId in safeMemIDs)
                         {
-                            facility.TryAddMem(realMemData, match);
+                            var match = memManager.CapturedMems.FirstOrDefault(m => m != null && m.KeyId == savedKeyId);
+                            if (match != null)
+                            {
+                                MemData realMemData = MemCatalogManager.Instance != null ? MemCatalogManager.Instance.FindMemData(match.MemId) : null;
+                                if (realMemData != null) facility.TryAddMem(realMemData, match);
+                            }
                         }
                     }
                     facility.CheckProductionCondition();
@@ -251,20 +270,62 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                     craft.remainingQuantity = entry.remainingQuantity;
                     craft.currentProgressTime = entry.currentProgressTime;
                     craft.currentStorageCount = entry.currentStorageCount;
-                    // 🌟 [수정]: craft.currentCraftingItem이 string이므로 아이템 ID 직접 대입
                     craft.currentCraftingItem = entry.currentCraftingItemId;
 
                     if (craft.DeployedMems != null) craft.DeployedMems.Clear();
                     if (craft.DeployedMemEntries != null) craft.DeployedMemEntries.Clear();
 
-                    foreach (var match in matchedEntries)
+                    var memManager = FindFirstObjectByType<MemCaptureManager>();
+                    if (memManager != null && entry.DeployedMemIDs != null)
                     {
-                        MemData realMemData = MemCatalogManager.Instance != null ? MemCatalogManager.Instance.FindMemData(match.MemId) : null;
-                        if (realMemData != null)
+                        foreach (var savedKeyId in entry.DeployedMemIDs)
                         {
-                            craft.TryAddMem(realMemData, match);
+                            var match = memManager.CapturedMems.FirstOrDefault(m => m != null && m.KeyId == savedKeyId);
+                            if (match != null)
+                            {
+                                MemData realMemData = MemCatalogManager.Instance != null ? MemCatalogManager.Instance.FindMemData(match.MemId) : null;
+                                if (realMemData != null) craft.TryAddMem(realMemData, match);
+                            }
                         }
                     }
+                }
+                else if (spawnedObj.TryGetComponent<RanchFacilityRuntime>(out var ranch)) // 🌟 [추가]: 목장 복원 로직
+                {
+                    ranch.buildingData = matchData;
+                    ranch.UpdateSlotCapacity();
+
+                    var memManager = FindFirstObjectByType<MemCaptureManager>();
+
+                    if (entry.ranchSlots != null && entry.ranchSlots.Count > 0)
+                    {
+                        foreach (var slotSave in entry.ranchSlots)
+                        {
+                            if (slotSave.slotIndex >= 0 && slotSave.slotIndex < ranch.Slots.Count)
+                            {
+                                var slotRuntime = ranch.Slots[slotSave.slotIndex];
+                                slotRuntime.isUnlocked = slotSave.isUnlocked;
+
+                                if (!string.IsNullOrEmpty(slotSave.deployedMemKeyId) && memManager != null)
+                                {
+                                    var match = memManager.CapturedMems.FirstOrDefault(m => m != null && m.KeyId == slotSave.deployedMemKeyId);
+                                    if (match != null)
+                                    {
+                                        MemData realMemData = MemCatalogManager.Instance != null ? MemCatalogManager.Instance.FindMemData(match.MemId) : null;
+                                        if (realMemData != null)
+                                        {
+                                            ranch.TryAddMemToSlot(slotSave.slotIndex, realMemData, match);
+                                        }
+                                    }
+                                }
+
+                                // 멤 추가 함수 호출 후 개별 진행 상태 복원
+                                slotRuntime.craftingItemId = slotSave.craftingItemId;
+                                slotRuntime.currentProgressTime = slotSave.currentProgressTime;
+                                slotRuntime.currentStorageCount = slotSave.currentStorageCount;
+                            }
+                        }
+                    }
+                    ranch.CheckAllSlotsProductionCondition();
                 }
 
                 for (int x = bSave.gridX; x < bSave.gridX + bWidth; x++)
@@ -289,9 +350,6 @@ public class FacilityRecordData : MonoBehaviour, IRecord
         RecordManager.Instance.RefreshActivePanelMemSlotsRealtime();
     }
 
-    /// <summary>
-    /// 🌟 [수정]: ItemCatalogManager에서만 탐색하는 방식 적용
-    /// </summary>
     private ItemData FindItemDataInProject(string itemId)
     {
         if (string.IsNullOrEmpty(itemId)) return null;

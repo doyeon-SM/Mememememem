@@ -18,6 +18,21 @@ public class FacilityData
 
     [Header("배치된 멤 정보 리스트")]
     public List<string> DeployedMemIDs = new List<string>();
+
+    [Header("목장 저장 데이터")]
+    public List<RanchSlotSaveData> ranchSlots = new List<RanchSlotSaveData>();
+}
+
+[System.Serializable]
+public class RanchSlotSaveData
+{
+    public int slotIndex;
+    public bool isUnlocked;
+    public string deployedMemKeyId;
+    public string craftingItemId;
+    public bool isProducing;
+    public float currentProgressTime;
+    public int currentStorageCount;
 }
 
 [System.Serializable]
