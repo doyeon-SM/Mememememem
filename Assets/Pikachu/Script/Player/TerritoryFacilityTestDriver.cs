@@ -43,8 +43,16 @@ using HDY.Capture;
 
 namespace Pikachu.Test
 {
+    /// <summary>
+    /// 여러 생산시설을 런타임 생성하고, 각 시설에 적합한 배회 멤을 배정해 작업시키는 테스트 드라이버.
+    /// ProductionCraftRuntime(제작대) / ProductionFacilityRuntime(벌목·채굴·밭) 모두 지원.
+    /// </summary>
     public class TerritoryFacilityTestDriver : MonoBehaviour
     {
+        // =================================================================
+        // Inspector 설정
+        // =================================================================
+
         [System.Serializable]
         public class FacilitySpawnSpec
         {
@@ -60,8 +68,8 @@ namespace Pikachu.Test
         [SerializeField] private FacilitySpawnSpec[] facilities;
 
         [Header("생산 아이템")]
-        [Tooltip("가동 시 생산할 아이템 ID(string). 예: Item_Wood, Item_Stone")]
-        [SerializeField] private string produceItem;
+        [Tooltip("가동 시 생산할 아이템(ItemData). 애니메이션 검증엔 종류 무관.")]
+        [SerializeField] private ItemData produceItem;
 
         [Header("옵션")]
         [Tooltip("Play 시작 시 모든 시설을 자동 생성합니다.")]
@@ -73,6 +81,11 @@ namespace Pikachu.Test
         [Tooltip("켜면 식량 부족(굶주림)으로 가동이 막히는 것을 우회합니다. 테스트 씬 필수.")]
         [SerializeField] private bool bypassFoodStarvation = true;
 
+        // =================================================================
+        // 내부 상태
+        // =================================================================
+
+        /// <summary>생성된 시설 하나의 런타임 정보.</summary>
         private class FacInst
         {
             public GameObject go;
@@ -96,6 +109,10 @@ namespace Pikachu.Test
         private bool stylesInitialized;
         private GUIStyle boxStyle, headerStyle, labelStyle, buttonStyle;
 
+        // =================================================================
+        // Unity Lifecycle
+        // =================================================================
+
         private void Start()
         {
             EnsureEventBridge();
@@ -114,8 +131,14 @@ namespace Pikachu.Test
             if (kb.f8Key.wasPressedThisFrame) SpawnAll();
         }
 
+        // =================================================================
+        // 시설 생성
+        // =================================================================
+
+        /// <summary>facilities 목록의 모든 시설을 (재)생성합니다. (F8)</summary>
         public void SpawnAll()
         {
+            // 기존 생성분 제거
             foreach (var inst in instances)
                 if (inst.go != null) Destroy(inst.go);
             instances.Clear();
@@ -144,10 +167,22 @@ namespace Pikachu.Test
                 });
             }
 
+            // 시설 칸들을 NavMesh 베이커에 알려 그 칸만 "시설 Area"로 다시 굽는다.
+            // → 순찰 멤은 시설 칸을 통과 못 하고, 배치 멤만 진입 가능. (구멍을 안 뚫어 navmesh는 연결 유지)
             NotifyBakerFacilityCells();
 
             lastEvent = $"🏭 시설 {instances.Count}개 생성";
             Debug.Log($"[TerritoryFacilityTestDriver] 시설 {instances.Count}개 생성 완료.");
+        }
+
+        /// <summary>
+        /// 시설을 올릴 바닥 높이(타일 윗면)를 반환합니다. NavMesh 베이커가 감지한 값을 쓰고,
+        /// 베이커가 없으면 인스펙터에 적은 y를 그대로 사용합니다.
+        /// </summary>
+        private float ResolveGroundY(float fallbackY)
+        {
+            var baker = FindFirstObjectByType<TerritoryTestNavMeshBaker>();
+            return baker != null ? baker.GroundSurfaceY : fallbackY;
         }
 
         /// <summary>
@@ -158,7 +193,8 @@ namespace Pikachu.Test
             var baker = FindFirstObjectByType<TerritoryTestNavMeshBaker>();
             if (baker == null)
             {
-                Debug.LogWarning("[TerritoryFacilityTestDriver] TerritoryTestNavMeshBaker를 찾지 못했습니다.");
+                Debug.LogWarning("[TerritoryFacilityTestDriver] TerritoryTestNavMeshBaker를 찾지 못해 " +
+                                 "시설 칸을 NavMesh Area로 표시하지 못했습니다. (순찰 차단 미적용)");
                 return;
             }
 
@@ -169,12 +205,17 @@ namespace Pikachu.Test
             baker.SetFacilityCells(centers);
         }
 
+        // =================================================================
+        // 배정 / 가동 / 중지
+        // =================================================================
+
+        /// <summary>각 시설에 적합한 배회 멤을 배정하고 가동합니다. (F6)</summary>
         public void DeployAll()
         {
-            if (string.IsNullOrEmpty(produceItem))
+            if (produceItem == null)
             {
-                lastEvent = "⚠ produceItem ID가 비어있습니다.";
-                Debug.LogWarning("[TerritoryFacilityTestDriver] produceItem ID가 필요합니다.");
+                lastEvent = "⚠ produceItem이 비어있습니다.";
+                Debug.LogWarning("[TerritoryFacilityTestDriver] produceItem이 필요합니다.");
                 return;
             }
             if (instances.Count == 0)
@@ -183,6 +224,7 @@ namespace Pikachu.Test
                 return;
             }
 
+            // 이미 배정된 멤은 중복 배정 금지
             var used = new HashSet<string>();
             foreach (var inst in instances)
                 if (inst.deployedMem != null) used.Add(inst.deployedMem.memId);
@@ -196,7 +238,7 @@ namespace Pikachu.Test
 
         private bool DeployToInstance(FacInst inst, HashSet<string> used)
         {
-            if (inst.deployedMem != null) return false;
+            if (inst.deployedMem != null) return false; // 이미 배정됨
 
             BuildingType type = inst.Type;
             MemData mem = PickDeployableMem(type, used);
@@ -237,27 +279,20 @@ namespace Pikachu.Test
                 }
             }
 
-            // 🌟 가동 시작 (string ID 기반 처리)
+            // 가동 시작
             if (inst.craft != null)
             {
-                ItemData itemData = ItemCatalogManager.Instance != null ? ItemCatalogManager.Instance.FindItemData(produceItem) : null;
-                if (itemData != null)
-                {
-                    inst.craft.SelectAndStartCrafting(itemData, 1);
-                }
-                else
-                {
-                    Debug.LogError($"[TerritoryFacilityTestDriver] ItemCatalogManager에서 '{produceItem}' 아이템을 찾을 수 없습니다.");
-                }
+                inst.craft.SelectAndStartCrafting(produceItem, 1);
             }
-            else if (inst.facility != null)
+            else
             {
-                inst.facility.craftingItem = produceItem;
+                inst.facility.craftingItem = produceItem.Item_ID;
                 inst.facility.CheckProductionCondition();
             }
             return true;
         }
 
+        /// <summary>모든 시설의 멤을 해제하고 가동을 중지합니다. (F7)</summary>
         public void StopAll()
         {
             int n = 0;
@@ -270,7 +305,7 @@ namespace Pikachu.Test
                     inst.craft.RemoveMem(inst.deployedMem);
                     inst.craft.CancelCrafting();
                 }
-                else if (inst.facility != null)
+                else
                 {
                     inst.facility.RemoveMem(inst.deployedMem);
                 }
@@ -281,6 +316,7 @@ namespace Pikachu.Test
             lastEvent = $"■ {n}개 시설 중지/해제";
         }
 
+        /// <summary>해당 시설 타입에 배정 가능하며 아직 안 쓰인 배회 멤의 MemData를 반환.</summary>
         private MemData PickDeployableMem(BuildingType type, HashSet<string> used)
         {
             if (deployMemOverride != null && !used.Contains(deployMemOverride.memId) &&
@@ -299,6 +335,10 @@ namespace Pikachu.Test
             }
             return null;
         }
+
+        // =================================================================
+        // FacilityEventBridge / 굶주림 우회
+        // =================================================================
 
         private void EnsureEventBridge()
         {
@@ -327,6 +367,10 @@ namespace Pikachu.Test
             starvationField?.SetValue(cf, false);
         }
 
+        // =================================================================
+        // OnGUI — 런타임 테스트 패널
+        // =================================================================
+
         private void OnGUI()
         {
             if (!Application.isPlaying) return;
@@ -340,10 +384,11 @@ namespace Pikachu.Test
             GUILayout.BeginArea(new Rect(x, y, w, h));
 
             GUILayout.Label("🏭 시설 구동 테스터 (다중)", headerStyle);
-            GUILayout.Label($"produceItem: {(!string.IsNullOrEmpty(produceItem) ? produceItem : "미지정 ⚠")}  |  시설 {instances.Count}개", labelStyle);
+            GUILayout.Label($"produceItem: {(produceItem != null ? produceItem.name : "미지정 ⚠")}  |  시설 {instances.Count}개", labelStyle);
             GUILayout.Label($"마지막: {lastEvent}", labelStyle);
             GUILayout.Space(4);
 
+            // 시설별 상태
             foreach (var inst in instances)
             {
                 string memName = inst.deployedMem != null ? inst.deployedMem.memName : "-";
