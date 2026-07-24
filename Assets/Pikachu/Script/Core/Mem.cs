@@ -180,12 +180,37 @@ namespace MemSystem.Core
         /// <param name="damage">가할 데미지 양</param>
         public void TakeDamage(int damage)
         {
+            // 공격자 위치를 안 넘겨준 경우: 플레이어를 공격자로 간주해 "맞은 방향"으로 밀리게 한다.
+            // (플레이어를 못 찾으면 기존 동작 - 멤이 바라보는 방향의 뒤쪽으로 밀림)
+            Transform attacker = AI != null ? AI.PlayerTransform : null;
+
+            if (attacker != null) ApplyDamage(damage, true, attacker.position);
+            else                  ApplyDamage(damage, false, Vector3.zero);
+        }
+
+        /// <summary>
+        /// 공격자 위치를 지정해 데미지를 입힙니다. 피격 연출이 "맞은 방향"으로 밀립니다.
+        /// [플레이어/공격 담당자] 공격 지점을 알고 있으면 이 오버로드를 쓰면 연출이 더 정확합니다.
+        /// </summary>
+        /// <param name="damage">가할 데미지 양</param>
+        /// <param name="attackerPosition">공격이 들어온 지점의 월드 좌표(공격자/무기 위치)</param>
+        public void TakeDamage(int damage, Vector3 attackerPosition)
+        {
+            ApplyDamage(damage, true, attackerPosition);
+        }
+
+        private void ApplyDamage(int damage, bool hasAttackerPosition, Vector3 attackerPosition)
+        {
             if (!IsActive || Stats.IsDead) return;
 
             Stats.CurrentHp = Mathf.Max(0, Stats.CurrentHp - damage);
 
-            // 피격 연출
-            if (Visual != null) Visual.PlayHit();
+            // 피격 연출 — 공격자 위치를 알면 그 반대 방향(맞은 방향)으로 밀린다.
+            if (Visual != null)
+            {
+                if (hasAttackerPosition) Visual.PlayHitFrom(transform.position - attackerPosition);
+                else                     Visual.PlayHit();
+            }
 
             // 이벤트 발행 → UI 등 외부 시스템에 알림
             MemEvents.OnMemDamaged?.Invoke(this, damage);
