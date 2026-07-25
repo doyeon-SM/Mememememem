@@ -72,6 +72,11 @@ public class WayPointMapUI : MonoBehaviour
     [Tooltip("프리뷰 모드 안내를 덧붙일 기존 TMP_Text입니다.")]
     [SerializeField] private TMP_Text previewModeText;
     [SerializeField] private string previewModeSuffix = " (프리뷰 모드)";
+    [Tooltip("프리뷰 모드에서 문구를 교체할 Description TMP_Text입니다. 이동 모드에서는 UI에 원래 입력된 문구를 유지합니다.")]
+    [SerializeField] private TMP_Text previewDescriptionText;
+    [Tooltip("프리뷰 모드에서 Description에 표시할 문구입니다. 비워 두면 원래 문구를 유지합니다.")]
+    [TextArea]
+    [SerializeField] private string previewModeDescription = "프리뷰 모드에서는 웨이포인트로 이동할 수 없습니다.";
 
     [Header("Tooltip Text")]
     [TextArea]
@@ -99,6 +104,8 @@ public class WayPointMapUI : MonoBehaviour
     private string territoryTravelButtonBaseText;
     private string previewModeOriginalText;
     private bool previewModeTextCached;
+    private string previewDescriptionOriginalText;
+    private bool previewDescriptionTextCached;
     private bool pointerOverWayPointIcon;
     private bool pointerOverTooltip;
     private bool tooltipHideRequested;
@@ -139,6 +146,7 @@ public class WayPointMapUI : MonoBehaviour
         CacheCanvasState();
         EnsureTooltip();
         CachePreviewModeText();
+        CachePreviewDescriptionText();
         BindTerritoryTravelButton();
     }
 
@@ -1317,14 +1325,23 @@ public class WayPointMapUI : MonoBehaviour
     private void RefreshPreviewModeText()
     {
         CachePreviewModeText();
-        if (!previewModeTextCached || previewModeText == null)
+        CachePreviewDescriptionText();
+
+        if (previewModeTextCached && previewModeText != null)
         {
-            return;
+            previewModeText.text = currentOpenMode == WayPointMapOpenMode.PreviewOnly
+                ? previewModeOriginalText + previewModeSuffix
+                : previewModeOriginalText;
         }
 
-        previewModeText.text = currentOpenMode == WayPointMapOpenMode.PreviewOnly
-            ? previewModeOriginalText + previewModeSuffix
-            : previewModeOriginalText;
+        if (previewDescriptionTextCached && previewDescriptionText != null)
+        {
+            bool usePreviewDescription = currentOpenMode == WayPointMapOpenMode.PreviewOnly
+                && !string.IsNullOrWhiteSpace(previewModeDescription);
+            previewDescriptionText.text = usePreviewDescription
+                ? previewModeDescription
+                : previewDescriptionOriginalText;
+        }
     }
 
     private void RestorePreviewModeText()
@@ -1333,5 +1350,21 @@ public class WayPointMapUI : MonoBehaviour
         {
             previewModeText.text = previewModeOriginalText;
         }
+
+        if (previewDescriptionTextCached && previewDescriptionText != null)
+        {
+            previewDescriptionText.text = previewDescriptionOriginalText;
+        }
+    }
+
+    private void CachePreviewDescriptionText()
+    {
+        if (previewDescriptionTextCached || previewDescriptionText == null)
+        {
+            return;
+        }
+
+        previewDescriptionOriginalText = previewDescriptionText.text;
+        previewDescriptionTextCached = true;
     }
 }

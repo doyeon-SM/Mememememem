@@ -345,6 +345,7 @@ namespace KMS.Harvesting
             harvestCooldown = Mathf.Max(0f, harvestCooldown);
             toolUseCooldown = Mathf.Max(0f, toolUseCooldown);
             fallbackToolDamage = Mathf.Max(1, fallbackToolDamage);
+        }
         private static GameSfxId? GetHarvestImpactId(ObjectType objectType)
         {
             switch (objectType)
