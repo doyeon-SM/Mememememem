@@ -23,11 +23,11 @@ namespace HDY.UI
     /// 참으로 평가되고, 그 결과 라벨 문구는 버려진 채 숫자만 표시되고 있었다(생산 줄은 추가로 farming이
     /// 아니라 transport를 잘못 참조하는 복사-붙여넣기 실수도 있었음). 이번에 두 문제 모두 고쳤다.
     ///
-    /// [정보 없을 때 개별 요소 비활성화] 아직 아무 멤도 선택되지 않은 최초 상태(또는 이후 선택이 해제된
-    /// 상태)에는 패널 전체가 아니라, 데이터가 실제로 표시되는 아이콘/텍스트 각각의 GameObject만
-    /// 비활성화한다(패널 배경, 테두리 등 레이아웃 요소는 그대로 유지). Awake()에서 우선 모두 비활성화해두고,
-    /// ShowInfo가 유효한 entry/data와 함께 호출될 때만 다시 활성화한다. 아이콘은 sprite 유무에 따라
-    /// RenderInfo 안에서 한 번 더 개별 판단한다(모델은 있는데 아이콘 렌더링에 실패한 경우 등).
+    /// [HDY 요청 - 데이터 없을 때 "??" 표시] 아직 아무 멤도 선택되지 않은 최초 상태(또는 이후 선택이
+    /// 해제된 상태), 혹은 멤 데이터(SO)가 아직 입력되지 않은 경우에는 이름/티어/스탯 6종 텍스트를
+    /// 비활성화하지 않고 계속 켜둔 채로 값만 "??"(스탯은 "라벨: ??")로 표시한다. 예전에는 이 상태에서
+    /// 텍스트 오브젝트 자체를 꺼버렸는데, 그러면 "정보가 없다"는 사실이 빈 화면으로만 보여 구분이 안 됐다.
+    /// 아이콘만 예외적으로 계속 숨긴다("??"로 대신할 만한 이미지가 없어서다).
     /// </summary>
     public class MemStorageUI_Info : MonoBehaviour
     {
@@ -48,8 +48,8 @@ namespace HDY.UI
 
         private void Awake()
         {
-            // 아직 ShowInfo가 한 번도 호출되지 않은 최초 상태 - 보여줄 정보가 없으므로 데이터 표시용
-            // 아이콘/텍스트 요소들만 감춰둔다(패널 자체는 그대로 유지).
+            // 아직 ShowInfo가 한 번도 호출되지 않은 최초 상태 - 아이콘은 숨기고, 이름/티어/스탯 텍스트는
+            // 켠 채로 "??"를 보여준다.
             HideInfo();
         }
 
@@ -62,8 +62,7 @@ namespace HDY.UI
                 return;
             }
 
-            SetElementsActive(true);
-            RenderInfo(data, entry.MemId, entry.ExplorationStat.ToString());
+            RenderInfo(data, data != null ? entry.ExplorationStat.ToString() : null);
         }
 
         /// <summary>
@@ -78,29 +77,14 @@ namespace HDY.UI
                 return;
             }
 
-            SetElementsActive(true);
-            RenderInfo(data, data.memId, BuildExplorationRangeText(data));
+            RenderInfo(data, BuildExplorationRangeText(data));
         }
 
-        /// <summary>표시할 정보가 없을 때(최초 상태, 또는 선택 해제) 데이터 표시용 아이콘/텍스트 요소들만 비활성화한다.</summary>
+        /// <summary>표시할 정보가 없을 때(최초 상태, 선택 해제, 혹은 멤 데이터 미입력) 아이콘만 숨기고
+        /// 텍스트들은 "??" 상태로 렌더링한다.</summary>
         private void HideInfo()
         {
-            SetElementsActive(false);
-        }
-
-        /// <summary>아이콘/텍스트 요소 전체의 활성 상태를 한 번에 바꾼다. 아이콘은 sprite 유무에 따라
-        /// RenderInfo에서 다시 한 번 개별 판단해 덮어쓴다(예: sprite가 없으면 활성화 후에도 다시 감춤).</summary>
-        private void SetElementsActive(bool active)
-        {
-            if (infoIconImage != null) infoIconImage.gameObject.SetActive(active);
-            if (infoNameText != null) infoNameText.gameObject.SetActive(active);
-            if (infoTierText != null) infoTierText.gameObject.SetActive(active);
-            if (infoCraftingText != null) infoCraftingText.gameObject.SetActive(active);
-            if (infoLoggingText != null) infoLoggingText.gameObject.SetActive(active);
-            if (infoMiningText != null) infoMiningText.gameObject.SetActive(active);
-            if (infoTransportText != null) infoTransportText.gameObject.SetActive(active);
-            if (infoFarmingText != null) infoFarmingText.gameObject.SetActive(active);
-            if (infoExplorationText != null) infoExplorationText.gameObject.SetActive(active);
+            RenderInfo(null, null);
         }
 
         /// <summary>MemTierTable에서 이 멤 등급의 탐험 스탯 범위를 찾아 "최소~최대" 형식으로 반환한다. 테이블/스펙이 없으면 MemData의 단일 값으로 대체(경고 로그 남김).</summary>
@@ -117,8 +101,11 @@ namespace HDY.UI
             return data.explorationStat.ToString();
         }
 
-        /// <summary>실제 텍스트/아이콘 렌더링. fallbackName은 data가 없을 때 이름 대신 표시할 값(memId), explorationDisplayText는 탐험 스탯 줄에 그대로 붙일 문자열(단일 값 또는 범위).</summary>
-        private void RenderInfo(MemData data, string fallbackName, string explorationDisplayText)
+        /// <summary>
+        /// 실제 텍스트/아이콘 렌더링. data가 null이면 아이콘은 숨기고 이름/티어/스탯 값은 전부 "??"로 표시한다.
+        /// explorationDisplayText는 탐험 스탯 줄에 그대로 붙일 문자열(단일 값 또는 범위) - data가 null이면 무시되고 "??"로 대체된다.
+        /// </summary>
+        private void RenderInfo(MemData data, string explorationDisplayText)
         {
             if (infoIconImage != null)
             {
@@ -133,42 +120,50 @@ namespace HDY.UI
 
             if (infoNameText != null)
             {
-                infoNameText.text = data != null ? data.memName : fallbackName;
+                infoNameText.gameObject.SetActive(true);
+                infoNameText.text = data != null ? data.memName : "??";
             }
 
             if (infoTierText != null)
             {
-                infoTierText.text = data != null ? data.tier.ToString() : "-";
+                infoTierText.gameObject.SetActive(true);
+                infoTierText.text = data != null ? data.tier.ToString() : "??";
             }
 
             if (infoCraftingText != null)
             {
-                infoCraftingText.text = data != null ? $"제작: {data.productionStats.crafting}" : "제작: 0";
+                infoCraftingText.gameObject.SetActive(true);
+                infoCraftingText.text = data != null ? $"제작: {data.productionStats.crafting}" : "제작: ??";
             }
 
             if (infoLoggingText != null)
             {
-                infoLoggingText.text = data != null ? $"벌목: {data.productionStats.logging}" : "벌목: 0";
+                infoLoggingText.gameObject.SetActive(true);
+                infoLoggingText.text = data != null ? $"벌목: {data.productionStats.logging}" : "벌목: ??";
             }
 
             if (infoMiningText != null)
             {
-                infoMiningText.text = data != null ? $"채광: {data.productionStats.mining}" : "채광: 0";
+                infoMiningText.gameObject.SetActive(true);
+                infoMiningText.text = data != null ? $"채광: {data.productionStats.mining}" : "채광: ??";
             }
 
             if (infoTransportText != null)
             {
-                infoTransportText.text = data != null ? $"이동: {data.productionStats.transport}" : "이동: 0";
+                infoTransportText.gameObject.SetActive(true);
+                infoTransportText.text = data != null ? $"이동: {data.productionStats.transport}" : "이동: ??";
             }
 
             if (infoFarmingText != null)
             {
-                infoFarmingText.text = data != null ? $"생산: {data.productionStats.farming}" : "생산: 0";
+                infoFarmingText.gameObject.SetActive(true);
+                infoFarmingText.text = data != null ? $"생산: {data.productionStats.farming}" : "생산: ??";
             }
 
             if (infoExplorationText != null)
             {
-                infoExplorationText.text = "탐험 : " + explorationDisplayText;
+                infoExplorationText.gameObject.SetActive(true);
+                infoExplorationText.text = "탐험 : " + (data != null ? explorationDisplayText : "??");
             }
         }
     }
