@@ -14,34 +14,124 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::HDY.Item.ItemIconTable
   fallbackIcon: {fileID: 3495086814825567685, guid: 215687feeab0b7445b4a1cd86c82c2e1, type: 3}
   entries:
-  - Item_ID: item_wood
-    Icon: {fileID: -530386777, guid: 91aaa11e9298e3846a34ded0b96883c1, type: 3}
-  - Item_ID: item_irongemstone
-    Icon: {fileID: -1106285814, guid: 0c8abcdb8931d0649bcad38e65c3f442, type: 3}
-  - Item_ID: item_berry
-    Icon: {fileID: 146473989, guid: afc833eece64144438b047fa5a0dfb6a, type: 3}
-  - Item_ID: item_berryseed
-    Icon: {fileID: -598426608, guid: c2dfb0a5e5098ac49aa1724db50a289b, type: 3}
-  - Item_ID: item_woodplank
-    Icon: {fileID: 1662158264, guid: 0ce91c2c3fc163a4b8f999456340d1c9, type: 3}
-  - Item_ID: item_iron
-    Icon: {fileID: -2054245986, guid: 3d2264414f3767d4ba4152afa281857e, type: 3}
+  - Item_ID: blueprint_amber_quarry
+    Icon: {fileID: 21300000, guid: 6bb8e0e61c759984ba18d852bdf003e8, type: 3}
   - Item_ID: blueprint_berry_farm
-    Icon: {fileID: 21300000, guid: a01d137b4ff724c46b285e36d1ece4ad, type: 3}
+    Icon: {fileID: 21300000, guid: c77adeaa979188c449fd5c57114ed174, type: 3}
+  - Item_ID: blueprint_birch_logging_farm
+    Icon: {fileID: 21300000, guid: d04f7de062278c14b9906500b1760661, type: 3}
+  - Item_ID: blueprint_campfire
+    Icon: {fileID: 21300000, guid: eb6fd1cfec7272749a476e94e6c9f04c, type: 3}
+  - Item_ID: blueprint_diamond_quarry
+    Icon: {fileID: 21300000, guid: 6bb8e0e61c759984ba18d852bdf003e8, type: 3}
   - Item_ID: blueprint_iron_ore_quarry
-    Icon: {fileID: 21300000, guid: 2db964f0ea1590641869d937e82fd18a, type: 3}
+    Icon: {fileID: 21300000, guid: 6bb8e0e61c759984ba18d852bdf003e8, type: 3}
+  - Item_ID: blueprint_livestock_farm
+    Icon: {fileID: 21300000, guid: c942df86f213dc94fbf256ce81c09f88, type: 3}
   - Item_ID: blueprint_logging_farm
-    Icon: {fileID: 21300000, guid: 9bda01580b2c3f246b1c7f4b48ab8d9e, type: 3}
+    Icon: {fileID: 21300000, guid: d04f7de062278c14b9906500b1760661, type: 3}
   - Item_ID: blueprint_production_stand
-    Icon: {fileID: 21300000, guid: 8ddec4e70b18f31408a38a80e51eecdc, type: 3}
-  - Item_ID: item_baseblueprint
-    Icon: {fileID: -928335068, guid: 794106d7bd5baa946902cedf7a230051, type: 3}
-  - Item_ID: item_salt
-    Icon: {fileID: -1404731482, guid: b7a258d2f04b7e04fa5d9f97b2cf6c6a, type: 3}
-  - Item_ID: item_sugar
-    Icon: {fileID: 357453935, guid: b7a258d2f04b7e04fa5d9f97b2cf6c6a, type: 3}
+    Icon: {fileID: 21300000, guid: 6476e9fa12c35984ba79ec9378fbaaab, type: 3}
+  - Item_ID: blueprint_wheat_farm
+    Icon: {fileID: 21300000, guid: eb6fd1cfec7272749a476e94e6c9f04c, type: 3}
+  - Item_ID: blueprint_generator
+    Icon: {fileID: 21300000, guid: 5ab4da08a597fda419f029e2ec5d3b74, type: 3}
+  - Item_ID: blueprint_kitchen
+    Icon: {fileID: 21300000, guid: 5ab4da08a597fda419f029e2ec5d3b74, type: 3}
+  - Item_ID: blueprint_transport_facility
+    Icon: {fileID: 21300000, guid: 5ab4da08a597fda419f029e2ec5d3b74, type: 3}
+  - Item_ID: tool_decent_capsule
+    Icon: {fileID: 1702411280, guid: f6884ee788d5b124f923337bd975b720, type: 3}
+  - Item_ID: tool_shabby_capsule
+    Icon: {fileID: 2038216827, guid: f6884ee788d5b124f923337bd975b720, type: 3}
   - Item_ID: item_sandwich
-    Icon: {fileID: -2006006085, guid: 524fd388eae43ff45bd5a33d3afa4a85, type: 3}
+    Icon: {fileID: 21300000, guid: 5fba4a1634441cf4a8e549808be39257, type: 3}
+  - Item_ID: item_baguette
+    Icon: {fileID: 21300000, guid: c3b741fe4aa39074a86500eccd9de567, type: 3}
+  - Item_ID: item_berry
+    Icon: {fileID: 21300000, guid: 8ffd73aebd74a804ba4d8101bc52834a, type: 3}
+  - Item_ID: item_berry_juice
+    Icon: {fileID: 21300000, guid: 579f3b8900267fa439dfbb2ef89c7f18, type: 3}
+  - Item_ID: item_berry_preserve
+    Icon: {fileID: 21300000, guid: d8a15452b3fb7a842871313ebe78e238, type: 3}
+  - Item_ID: item_oatmeal
+    Icon: {fileID: 21300000, guid: c856e5e034bea184bb9b4f5744e8d443, type: 3}
+  - Item_ID: item_wheat
+    Icon: {fileID: 21300000, guid: 2b37dccb4f59b2b43abcffb44b32d2c2, type: 3}
+  - Item_ID: item_baseblueprint
+    Icon: {fileID: 21300000, guid: eb6fd1cfec7272749a476e94e6c9f04c, type: 3}
+  - Item_ID: item_plated_plank
+    Icon: {fileID: 21300000, guid: 0d26baf88ffe7a145a219065c85ce629, type: 3}
+  - Item_ID: item_plated_white_plank
+    Icon: {fileID: 21300000, guid: aee9a4c5afa91a4439b524d290c1f5de, type: 3}
+  - Item_ID: item_amber
+    Icon: {fileID: 21300000, guid: b17f4f645100d8741b959ce176b4e2ee, type: 3}
+  - Item_ID: item_berryseed
+    Icon: {fileID: -737304256, guid: c2dfb0a5e5098ac49aa1724db50a289b, type: 3}
+  - Item_ID: item_birchwood
+    Icon: {fileID: 21300000, guid: 0bb745b7534ed2a4a8d2eb2fe577faf5, type: 3}
+  - Item_ID: item_birchwoodplank
+    Icon: {fileID: 21300000, guid: 2020a1e241d35c14db9360ad19d6c25c, type: 3}
+  - Item_ID: item_black_pepper
+    Icon: {fileID: 21300000, guid: 656207e9fa5587145acd624b538b2a15, type: 3}
+  - Item_ID: item_butter
+    Icon: {fileID: 21300000, guid: 977b11f9c246d3f479abfa262a4abd8a, type: 3}
+  - Item_ID: item_cabbage
+    Icon: {fileID: 21300000, guid: af0cd56b0293b1249bad0cf09058036a, type: 3}
+  - Item_ID: item_diamond
+    Icon: {fileID: 21300000, guid: 7e04c27535bd88c4c8dcfb63f0e0c9a5, type: 3}
+  - Item_ID: item_emerald
+    Icon: {fileID: 21300000, guid: 51cce600bc877474787eb7497d2632a4, type: 3}
+  - Item_ID: item_iron
+    Icon: {fileID: 21300000, guid: 5187b25097a92ab478fcc49039b19498, type: 3}
+  - Item_ID: item_irongemstone
+    Icon: {fileID: 21300000, guid: 84390682bf2be33409df027c6764ed1b, type: 3}
+  - Item_ID: item_processed_diamond
+    Icon: {fileID: 21300000, guid: 09265f2f20259c4449b75f69eb63bf56, type: 3}
+  - Item_ID: item_processed_plank
+    Icon: {fileID: 21300000, guid: 0664951defa9f6649bd99747face0ae1, type: 3}
+  - Item_ID: item_processed_white_plank
+    Icon: {fileID: 21300000, guid: fe84bf200944e7e4aa3c3af76f51211a, type: 3}
+  - Item_ID: item_raw_amber
+    Icon: {fileID: 21300000, guid: 095446d3539b47545bc2b180267801d0, type: 3}
+  - Item_ID: item_raw_emerald
+    Icon: {fileID: 21300000, guid: 51cce600bc877474787eb7497d2632a4, type: 3}
+  - Item_ID: item_rough_fur
+    Icon: {fileID: 0}
+  - Item_ID: item_salt
+    Icon: {fileID: 21300000, guid: 62c251f058cf8c949b2a58439a97f952, type: 3}
+  - Item_ID: item_sugar
+    Icon: {fileID: 21300000, guid: bc91e94baa2439c4ba9b42139f189870, type: 3}
+  - Item_ID: item_tomato
+    Icon: {fileID: 21300000, guid: f984cf476365d56419c3a42f789f5cc5, type: 3}
+  - Item_ID: item_whaetseed
+    Icon: {fileID: -737304256, guid: c2dfb0a5e5098ac49aa1724db50a289b, type: 3}
+  - Item_ID: item_wood
+    Icon: {fileID: 21300000, guid: 21832b33615640a4386a1505b4e1616f, type: 3}
+  - Item_ID: item_woodplank
+    Icon: {fileID: 21300000, guid: 5f0b2e1b32a3af74280f8978b5467c5c, type: 3}
+  - Item_ID: item_abrasive_stone
+    Icon: {fileID: 21300000, guid: 5c88b269f63b68a43b301bd185e14043, type: 3}
+  - Item_ID: item_intermediate_blueprint
+    Icon: {fileID: 21300000, guid: 5ab4da08a597fda419f029e2ec5d3b74, type: 3}
+  - Item_ID: item_temperedstone_dawn
+    Icon: {fileID: 21300000, guid: 81fc69abfb9ef0a439adabbee6f96839, type: 3}
+  - Item_ID: tool_decent_axe
+    Icon: {fileID: 21300000, guid: d0e604ffd1fb68b4bafaa0110154fa49, type: 3}
+  - Item_ID: tool_decent_club
+    Icon: {fileID: 21300000, guid: aaed557fbf9b66a4ba8b6397573b7e71, type: 3}
+  - Item_ID: tool_decent_hoe
+    Icon: {fileID: 21300000, guid: 4ac8a2019a1c8c1449ef284c83eff44a, type: 3}
+  - Item_ID: tool_decent_pickax
+    Icon: {fileID: 21300000, guid: 83f5f1f083c28804bb93fa00b5eec7ba, type: 3}
+  - Item_ID: tool_axe
+    Icon: {fileID: 21300000, guid: d0e604ffd1fb68b4bafaa0110154fa49, type: 3}
+  - Item_ID: tool_club
+    Icon: {fileID: 21300000, guid: aaed557fbf9b66a4ba8b6397573b7e71, type: 3}
+  - Item_ID: tool_hoe
+    Icon: {fileID: 21300000, guid: 4ac8a2019a1c8c1449ef284c83eff44a, type: 3}
+  - Item_ID: tool_pickax
+    Icon: {fileID: 21300000, guid: 83f5f1f083c28804bb93fa00b5eec7ba, type: 3}
   - Item_ID: tool_shabby_axe
     Icon: {fileID: 21300000, guid: d0e604ffd1fb68b4bafaa0110154fa49, type: 3}
   - Item_ID: tool_shabby_club
@@ -50,13 +140,3 @@ MonoBehaviour:
     Icon: {fileID: 21300000, guid: 4ac8a2019a1c8c1449ef284c83eff44a, type: 3}
   - Item_ID: tool_shabby_pickax
     Icon: {fileID: 21300000, guid: 83f5f1f083c28804bb93fa00b5eec7ba, type: 3}
-  - Item_ID: tool_shabby_capsule
-    Icon: {fileID: 2038216827, guid: f6884ee788d5b124f923337bd975b720, type: 3}
-  - Item_ID: item_abrasive_stone
-    Icon: {fileID: 4936506583271141030, guid: 215687feeab0b7445b4a1cd86c82c2e1, type: 3}
-  - Item_ID: item_temperedstone_dawn
-    Icon: {fileID: 6409830552331150148, guid: 215687feeab0b7445b4a1cd86c82c2e1, type: 3}
-  - Item_ID: tool_axe
-    Icon: {fileID: 21300000, guid: d0e604ffd1fb68b4bafaa0110154fa49, type: 3}
-  - Item_ID: item_diamond
-    Icon: {fileID: -2457531169152919533, guid: 215687feeab0b7445b4a1cd86c82c2e1, type: 3}
