@@ -2834,6 +2834,7 @@ GameObject:
   - component: {fileID: 6812409213719045062}
   - component: {fileID: 1489569411123139381}
   - component: {fileID: 2142550370433789115}
+  - component: {fileID: 7946585560164625280}
   m_Layer: 3
   m_Name: 0714_Player_KMS
   m_TagString: Player
@@ -3123,6 +3124,7 @@ MonoBehaviour:
   memMeleeItemId: tool_shabby_club
   memMeleeDistance: 5
   memMeleeHungerCost: 1
+  memHitDustPool: {fileID: 7946585560164625280}
   drawDebugRay: 1
   debugMissColor: {r: 1, g: 0, b: 0, a: 1}
   debugHitColor: {r: 0, g: 1, b: 0, a: 1}
@@ -3323,6 +3325,21 @@ MonoBehaviour:
   animator: {fileID: 1914156871709254916}
   handAnchor: {fileID: 0}
   prefabTable: {fileID: 11400000, guid: 2df0fe05f944de94394c1b2705430ece, type: 2}
+--- !u!114 &7946585560164625280
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5320301024596143200}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5ba064a732635844399215bc23eff027, type: 3}
+  m_Name: ''
+  m_EditorClassIdentifier: Assembly-CSharp::KMS.Effects.KMSMemHitDustPool
+  effectPrefab: {fileID: 5917027917102345114, guid: 1b9c86c974700d24a81640029c6fe1c3, type: 3}
+  capacity: 6
+  surfaceOffset: 0.02
 --- !u!1 &5344451024060801274
 GameObject:
   m_ObjectHideFlags: 0

@@ -1,6 +1,7 @@
 using HDY.Item;
 using KGH.Data;
 using KMS.Audio;
+using KMS.Effects;
 using UnityEngine;
 
 using HdyItemCategory = HDY.Item.ItemCategory;
@@ -36,6 +37,7 @@ namespace KMS.Harvesting
         [SerializeField] private string memMeleeItemId = "tool_shabby_club";
         [SerializeField, Min(0.1f)] private float memMeleeDistance = 5f;
         [SerializeField, Min(0f)] private float memMeleeHungerCost = 1f;
+        [SerializeField] private KMSMemHitDustPool memHitDustPool;
 
         [Header("Debug")]
         [SerializeField] private bool drawDebugRay = true;
@@ -53,6 +55,7 @@ namespace KMS.Harvesting
             movement = GetComponent<KMS.PlayerMovement>();
             inventory = GetComponent<KmsPlayerInventory>();
             playerStats = GetComponent<KMS.PlayerStats>();
+            memHitDustPool = GetComponent<KMSMemHitDustPool>();
 
             if (Camera.main != null)
             {
@@ -66,6 +69,7 @@ namespace KMS.Harvesting
             if (movement == null) movement = GetComponent<KMS.PlayerMovement>();
             if (inventory == null) inventory = GetComponent<KmsPlayerInventory>();
             if (playerStats == null) playerStats = GetComponent<KMS.PlayerStats>();
+            if (memHitDustPool == null) memHitDustPool = GetComponent<KMSMemHitDustPool>();
             if (cameraTransform == null && Camera.main != null) cameraTransform = Camera.main.transform;
             if (movement != null && movement.Animator != null) animator = movement.Animator;
 
@@ -217,16 +221,21 @@ namespace KMS.Harvesting
                 }
 
                 memTarget.TakeDamage(Mathf.Max(1, selectedItem.Value));
+                if (memHitDustPool != null)
+                {
+                    memHitDustPool.Play(hit.point, hit.normal);
+                }
                 KMSAudioService.PlayAt(GameSfxId.ClubHitMem, hit.point);
                 return;
             }
-
-            KMSAudioService.PlayAt(GameSfxId.ToolSwing, transform.position);
 
             if(WorldObjectHarvest(hit, selectedItem))
             {
                 return;
             }
+
+            KMSAudioService.PlayAt(GameSfxId.ToolSwing, transform.position);
+
             IDamageable damageable = hit.collider.GetComponentInParent<IDamageable>();
             if (damageable == null || damageable.IsDead) return;
 
@@ -256,6 +265,10 @@ namespace KMS.Harvesting
                 {
                     KMSAudioService.PlayAt(impactId.Value, hitObj.point);
                 }
+            }
+            else
+            {
+                KMSAudioService.PlayAt(GameSfxId.ToolSwing, transform.position);
             }
 
             return true;

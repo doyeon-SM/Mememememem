@@ -48,6 +48,11 @@ namespace KMS.Audio.Editor
             {
                 string folder = $"{SfxRoot}/{id}";
                 AudioClip[] clips = FindAudioClips(folder);
+                if (id == GameSfxId.AxeHitTree && clips.Length == 0)
+                {
+                    clips = FindAudioClips($"{SfxRoot}/{GameSfxId.HoeHitBush}");
+                }
+
                 if (id == GameSfxId.FootstepRun && clips.Length == 0)
                 {
                     clips = FindAudioClips($"{SfxRoot}/{GameSfxId.FootstepWalk}");
