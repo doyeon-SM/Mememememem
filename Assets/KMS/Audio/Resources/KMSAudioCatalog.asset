@@ -14,7 +14,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::KMS.Audio.KMSAudioCatalog
   sfx:
   - Id: 0
-    Clips: []
+    Clips:
+    - {fileID: 8300000, guid: c715e243cc4215145822c44853accce2, type: 3}
     Volume: 0.75
     PitchMin: 0.96
     PitchMax: 1.04
@@ -23,7 +24,8 @@ MonoBehaviour:
     MaxVoices: 2
     Output: {fileID: 0}
   - Id: 1
-    Clips: []
+    Clips:
+    - {fileID: 8300000, guid: eb5a263e361d1064f80035aedbc43094, type: 3}
     Volume: 1
     PitchMin: 0.96
     PitchMax: 1.04
@@ -32,7 +34,8 @@ MonoBehaviour:
     MaxVoices: 4
     Output: {fileID: 0}
   - Id: 2
-    Clips: []
+    Clips:
+    - {fileID: 8300000, guid: eb5a263e361d1064f80035aedbc43094, type: 3}
     Volume: 1
     PitchMin: 0.96
     PitchMax: 1.04
@@ -41,7 +44,8 @@ MonoBehaviour:
     MaxVoices: 4
     Output: {fileID: 0}
   - Id: 3
-    Clips: []
+    Clips:
+    - {fileID: 8300000, guid: eb5a263e361d1064f80035aedbc43094, type: 3}
     Volume: 1
     PitchMin: 0.96
     PitchMax: 1.04
@@ -113,7 +117,8 @@ MonoBehaviour:
     MaxVoices: 4
     Output: {fileID: 0}
   - Id: 11
-    Clips: []
+    Clips:
+    - {fileID: 8300000, guid: 34cbab4be05eb444cb94e0b65dbfb54c, type: 3}
     Volume: 0.8
     PitchMin: 0.96
     PitchMax: 1.04
