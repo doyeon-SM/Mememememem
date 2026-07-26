@@ -25,6 +25,8 @@ public class WayPointDefinition : ScriptableObject
     public WayPointMapDefinition mapDefinition;
     public Sprite unlockMapIcon;
     public Sprite activeMapIcon;
+    [Tooltip("해금된 웨이포인트의 툴팁 Image에 표시할 스프라이트입니다.")]
+    public Sprite tooltipIcon;
     public Vector2 mapPosition;
 
     [Header("Unlock")]

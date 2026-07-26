@@ -45,12 +45,12 @@ namespace KMS.InventoryDuped
             categoryButton = categorySortButton;
         }
 
-        private void RequestItemIdSort()
+        public void RequestItemIdSort()
         {
             OnSortRequested?.Invoke(InventorySortCriteria.ItemId);
         }
 
-        private void RequestCategorySort()
+        public void RequestCategorySort()
         {
             OnSortRequested?.Invoke(InventorySortCriteria.Category);
         }

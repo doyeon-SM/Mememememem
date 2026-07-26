@@ -126,22 +126,22 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 474a6e4947e4d7e48a9f5af0776e8b68, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::WorldObject
-  displayName: "\uD14C\uC2A4\uD2B8\uD2B8\uB9AC"
+  displayName: "\uB098\uBB34"
   interactionPrompt: "\uCC44\uC9D1"
   harvestWithInteractInput: 0
   myType: 1
   dropItems:
-  - dropPrefab: {fileID: 763885917023585386, guid: b4912c5615ad3054dbcfc2f3532a4926, type: 3}
-  maxObjectHp: 10
+  - itemId: item_wood
+  maxObjectHp: 5
   currentObjectHp: 0
   respawnTime: 15
   needGrade: 0
   resourceRenderers: []
   resourceColliders: []
-  dropSpawnPoint: {fileID: 0}
+  dropSpawnPoint: {fileID: 2962992641751975175}
   groundLayer:
     serializedVersion: 2
-    m_Bits: 4294967295
+    m_Bits: 33554432
   dropSpawnHeight: 0.02
   dropSpreadRadius: 4
   dropPositionAttempts: 12

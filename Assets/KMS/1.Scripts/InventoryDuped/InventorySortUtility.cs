@@ -32,12 +32,16 @@ namespace KMS.InventoryDuped
             }
 
             var totals = new Dictionary<string, long>();
+            var sortTotals = new Dictionary<string, long>();
             var unresolvedStacks = new List<ItemStack>();
             var unresolvedIds = new HashSet<string>();
 
             foreach (var slot in container.slots)
             {
                 if (slot == null || slot.IsEmpty) continue;
+
+                sortTotals.TryGetValue(slot.itemId, out long sortTotal);
+                sortTotals[slot.itemId] = sortTotal + slot.amount;
 
                 ItemData itemData = catalogManager.FindItemData(slot.itemId);
                 if (itemData == null)
@@ -80,6 +84,8 @@ namespace KMS.InventoryDuped
                 case InventorySortCriteria.Category:
                     sorted = compacted
                         .OrderBy(stack => GetCategoryOrder(stack.itemId, catalogManager))
+                        .ThenByDescending(stack => sortTotals[stack.itemId])
+                        .ThenBy(stack => stack.itemId, StringComparer.Ordinal)
                         .ThenByDescending(stack => stack.amount)
                         .ToList();
                     break;

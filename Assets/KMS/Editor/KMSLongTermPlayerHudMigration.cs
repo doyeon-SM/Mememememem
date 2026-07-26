@@ -32,9 +32,6 @@ namespace KMS.EditorTools
         private const string HeartIconPath = PackTextureRoot + "/Icon/Common/Heart Filled.png";
         private const string CloseIconPath = PackTextureRoot + "/Icon/Navigation/Close.png";
         private const string AddIconPath = PackTextureRoot + "/Icon/Navigation/Add.png";
-        private const string LeftIconPath = PackTextureRoot + "/Icon/Navigation/Arrow Simple Left.png";
-        private const string RightIconPath = PackTextureRoot + "/Icon/Navigation/Arrow Simple Right.png";
-        private const string MenuIconPath = PackTextureRoot + "/Icon/UI Elements/Context Menu.png";
 
         [MenuItem("KMS/Setup/Apply Long-term Exploration HUD")]
         public static void Run()
@@ -264,14 +261,20 @@ namespace KMS.EditorTools
 
             SerializedObject serializedInventory = new SerializedObject(inventoryUI);
             Button upgrade = serializedInventory.FindProperty("upgradeButton")?.objectReferenceValue as Button;
+            InventorySlotUI trash =
+                serializedInventory.FindProperty("trashSlotUI")?.objectReferenceValue as InventorySlotUI;
             if (upgrade == null) upgrade = Find(panel, "B_Upgrade")?.GetComponent<Button>();
             Transform sortControls = Find(panel, "P_InventorySortControls") ?? Find(panel, "InventorySortControls");
 
             Transform previousChrome = panel.Find("LongTermInventoryChrome");
             if (previousChrome != null)
             {
+                if (grid.IsChildOf(previousChrome))
+                    grid.SetParent(panel, false);
                 if (upgrade != null && upgrade.transform.IsChildOf(previousChrome))
                     upgrade.transform.SetParent(panel, false);
+                if (trash != null && trash.transform.IsChildOf(previousChrome))
+                    trash.transform.SetParent(panel, false);
                 if (sortControls != null && sortControls.IsChildOf(previousChrome))
                     sortControls.SetParent(panel, false);
                 UnityEngine.Object.DestroyImmediate(previousChrome.gameObject);
@@ -288,7 +291,7 @@ namespace KMS.EditorTools
 
             RectTransform filters = CreateRect("FilterShell", chrome);
             SetRect(filters, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(16f, -56f), new Vector2(388f, 38f));
-            string[] labels = { "ALL", "EQP", "MAT", "FOD" };
+            string[] labels = { "C", "EQP", "MAT", "FOD" };
             Button[] filterButtons = new Button[labels.Length];
             for (int i = 0; i < labels.Length; i++)
             {
@@ -297,9 +300,8 @@ namespace KMS.EditorTools
                     new Vector2(i * 76f, 0f), new Vector2(70f, 34f));
             }
 
-            Button menu = CreateButton("SortMenuButton", filters, "≡", new Color(1f, 1f, 1f, 0.22f));
+            Button menu = CreateButton("SortMenuButton", filters, "ID", new Color(1f, 1f, 1f, 0.22f));
             SetRect((RectTransform)menu.transform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), Vector2.zero, new Vector2(60f, 34f));
-            SetButtonIcon(menu, MenuIconPath, 10f);
 
             if (sortControls != null)
             {
@@ -328,29 +330,7 @@ namespace KMS.EditorTools
             ApplySquareSkin(upgrade.targetGraphic as Image, new Color32(255, 255, 255, 62));
             SetButtonIcon(upgrade, AddIconPath, 12f);
 
-            Button previous = CreateButton("PreviousPageButton", chrome, "◀", new Color(1f, 1f, 1f, 0.16f));
-            Button next = CreateButton("NextPageButton", chrome, "▶", new Color(1f, 1f, 1f, 0.16f));
-            SetButtonIcon(previous, LeftIconPath, 11f);
-            SetButtonIcon(next, RightIconPath, 11f);
-            TMP_Text page = CreateText("PageLabel", chrome, "1/2", 17f, TextAlignmentOptions.Center, Color.white);
-            SetRect((RectTransform)previous.transform, new Vector2(0.5f, 0f), new Vector2(1f, 0f), new Vector2(-36f, 14f), new Vector2(42f, 36f));
-            SetRect(page.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 14f), new Vector2(70f, 36f));
-            SetRect((RectTransform)next.transform, new Vector2(0.5f, 0f), new Vector2(0f, 0f), new Vector2(36f, 14f), new Vector2(42f, 36f));
-
-            KMSPagedInventoryView paged = panel.GetComponent<KMSPagedInventoryView>();
-            if (paged == null) paged = panel.gameObject.AddComponent<KMSPagedInventoryView>();
-            SerializedObject serializedPage = new SerializedObject(paged);
-            SetRef(serializedPage, "inventoryUI", inventoryUI);
-            SetRef(serializedPage, "inventoryGrid", inventoryUI.inventoryGrid);
-            SetRef(serializedPage, "upgradeButton", upgrade);
-            SetRef(serializedPage, "previousPageButton", previous);
-            SetRef(serializedPage, "nextPageButton", next);
-            SetRef(serializedPage, "closeButton", close);
-            SetRef(serializedPage, "pageLabel", page);
-            SetRef(serializedPage, "upgradeButtonRect", upgradeRect);
-            serializedPage.FindProperty("firstRowY").floatValue = -104f;
-            serializedPage.FindProperty("rowStep").floatValue = 66f;
-            serializedPage.ApplyModifiedPropertiesWithoutUndo();
+            KMSInventoryScrollSetup.Configure(root);
         }
 
         private static void ConfigureQuickSlots(GameObject root)
@@ -388,8 +368,9 @@ namespace KMS.EditorTools
             try
             {
                 Require(root.GetComponentInChildren<KMSExplorationClockView>(true) != null, "Exploration clock is missing.");
-                KMSPagedInventoryView paged = root.GetComponentInChildren<KMSPagedInventoryView>(true);
-                Require(paged != null, "Paged inventory is missing.");
+                KMSScrollableInventoryView scrollable =
+                    root.GetComponentInChildren<KMSScrollableInventoryView>(true);
+                Require(scrollable != null, "Scrollable inventory is missing.");
                 InventoryUI inventory = root.GetComponentInChildren<InventoryUI>(true);
                 Require(inventory.inventoryGrid.GetComponentsInChildren<InventorySlotUI>(true).Length == 60,
                     "Inventory data slots were not preserved.");

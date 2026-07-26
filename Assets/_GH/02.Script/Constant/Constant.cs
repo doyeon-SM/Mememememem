@@ -31,7 +31,8 @@ namespace KGH.Data
     [Serializable]
     public struct ObjectDropItem
     {
-        public GameObject dropPrefab;
+        [Tooltip("ItemCatalogManager에 등록된 ItemData.Item_ID를 입력합니다. 별도 월드 아이템 프리팹은 필요하지 않습니다.")]
+        public string itemId;
     }
 
     [Serializable]

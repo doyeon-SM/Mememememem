@@ -1,55 +1,82 @@
 using HDY.Item;
 using KMS.InventoryDuped;
 using UnityEngine;
-using UnityEngine.Rendering;
 
+/// <summary>
+/// 월드에 배치된 아이템의 등급 VFX와 플레이어 자동 습득을 처리합니다.
+/// 색상과 발광 강도는 <see cref="WorldItemRarityVfxManager"/> 한 곳에서 관리합니다.
+/// </summary>
 public class WorldItem : MonoBehaviour
 {
-    private const string VisualRootName = "World Item Sprite Visual";
-    private const string SpriteObjectName = "Double Sided Sprite";
+    private const string LegacySpriteRootName = "World Item Sprite Visual";
 
-    // [HDY 요청] ItemData 직접 참조 대신 Item_ID 문자열로 변경.
-    // ItemCatalogManager가 시트 기반으로 바뀌면서 런타임에 매번 새 ItemData 인스턴스를
-    // 만들기 때문에, 여기서 특정 ItemData 애셋을 직접 들고 있으면 같은 Item_ID를 가진
-    // 두 개의 서로 다른 객체가 메모리에 동시에 존재하게 되어 다른 곳(GridManager 등)의
-    // Resources.FindObjectsOfTypeAll<ItemData>() 조회가 꼬일 수 있다. ID 문자열만 들고
-    // 있다가 ItemCatalogManager.FindItemData(itemId)로 조회하는 방식으로 통일했다.
     [Header("Ref")]
     [SerializeField] private string itemId;
     [SerializeField] private int amount = 1;
 
-    [Header("Sprite Visual")]
-    [Tooltip("아이콘의 가로/세로 중 긴 쪽이 월드에서 차지할 최대 크기입니다.")]
-    [Min(0.01f)] [SerializeField] private float visualMaxSize = 0.8f;
-    [Tooltip("스프라이트 하단과 바닥 사이의 간격입니다.")]
-    [Min(0f)] [SerializeField] private float groundClearance = 0.03f;
+    [Header("Rarity VFX Visual")]
+    [Tooltip("등급 불빛 전체 크기입니다. 색상과 강도는 전역 VFX 관리자에서 관리합니다.")]
+    [Min(0.01f)]
+    [SerializeField] private float visualMaxSize = 0.8f;
+
+    [Tooltip("등급 불빛과 바닥 사이의 간격입니다.")]
+    [Min(0f)]
+    [SerializeField] private float groundClearance = 0.03f;
 
     [Header("Visual Motion")]
-    [Tooltip("활성화하면 회전 없이 위아래 부유 애니메이션만 재생합니다.")]
+    [Tooltip("활성화하면 등급 불빛이 위아래로 부유하고 천천히 회전합니다.")]
     [SerializeField] private bool animateVisual = true;
-    [Min(0f)] [SerializeField] private float bobHeight = 0.06f;
-    [Min(0f)] [SerializeField] private float bobFrequency = 1.5f;
 
-    [Header("Player Billboard")]
-    [Tooltip("비워 두면 현재 플레이어를 자동으로 찾습니다.")]
-    [SerializeField] private Transform playerTarget;
+    [Min(0f)]
+    [SerializeField] private float bobHeight = 0.06f;
+
+    [Min(0f)]
+    [SerializeField] private float bobFrequency = 1.5f;
+
+    [Min(0f)]
+    [SerializeField] private float rotationSpeed = 35f;
 
     [Header("Pickup Collider")]
-    [Tooltip("비워 두면 이 오브젝트의 BoxCollider를 자동으로 사용합니다.")]
+    [Tooltip("비어 있으면 같은 오브젝트의 BoxCollider를 자동으로 사용합니다.")]
     [SerializeField] private BoxCollider pickupCollider;
-    [Min(0f)] [SerializeField] private float colliderPadding = 0.05f;
-    [Min(0.01f)] [SerializeField] private float colliderDepth = 0.16f;
+
+    [Min(0f)]
+    [SerializeField] private float colliderPadding = 0.05f;
+
+    [Min(0.01f)]
+    [SerializeField] private float colliderDepth = 0.16f;
 
     private int initialAmount;
     private Transform visualRoot;
-    private SpriteRenderer spriteRenderer;
     private MeshRenderer[] legacyMeshRenderers;
     private bool[] legacyRendererInitialStates;
     private Vector3 initialColliderCenter;
     private Vector3 initialColliderSize;
     private float animationTime;
     private Vector3 visualBaseLocalPosition;
-    private float nextPlayerResolveTime;
+    private float nextVisualResolveTime;
+
+    /// <summary>현재 월드 아이템에 설정된 카탈로그 ID입니다.</summary>
+    public string ItemId => itemId;
+
+    /// <summary>현재 월드에 남아 있는 수량입니다.</summary>
+    public int Amount => amount;
+
+    /// <summary>
+    /// 공용 풀에서 꺼낸 오브젝트에 아이템 ID와 수량을 주입합니다.
+    /// 비활성 상태에서 호출하면 다음 OnEnable에서 해당 값으로 VFX와 습득 상태가 초기화됩니다.
+    /// </summary>
+    public void Configure(string newItemId, int newAmount)
+    {
+        itemId = string.IsNullOrWhiteSpace(newItemId) ? string.Empty : newItemId.Trim();
+        amount = Mathf.Max(1, newAmount);
+        initialAmount = amount;
+
+        if (isActiveAndEnabled)
+        {
+            RefreshVisual();
+        }
+    }
 
     private void Awake()
     {
@@ -60,10 +87,9 @@ public class WorldItem : MonoBehaviour
 
     private void OnEnable()
     {
-        // 풀에서 다시 사용될 때 프리팹에 설정된 원래 수량으로 복구한다.
+        // 풀에서 다시 사용될 때 프리팹에 설정한 원래 수량으로 복구합니다.
         amount = initialAmount;
         animationTime = Random.Range(0f, Mathf.PI * 2f);
-        ResolvePlayerTarget();
         RefreshVisual();
     }
 
@@ -71,6 +97,13 @@ public class WorldItem : MonoBehaviour
     {
         if (visualRoot == null || !visualRoot.gameObject.activeSelf)
         {
+            // ItemCatalogManager의 Awake가 더 늦게 실행된 경우 카탈로그 준비 후 다시 연결합니다.
+            if (Time.unscaledTime >= nextVisualResolveTime)
+            {
+                nextVisualResolveTime = Time.unscaledTime + 0.5f;
+                RefreshVisual();
+            }
+
             return;
         }
 
@@ -79,58 +112,27 @@ public class WorldItem : MonoBehaviour
             animationTime += Time.deltaTime;
             float bobOffset = Mathf.Sin(animationTime * bobFrequency * Mathf.PI * 2f) * bobHeight;
             visualRoot.localPosition = visualBaseLocalPosition + Vector3.up * bobOffset;
+
+            if (rotationSpeed > 0f)
+            {
+                visualRoot.Rotate(Vector3.up, rotationSpeed * Time.deltaTime, Space.Self);
+            }
         }
         else
         {
             visualRoot.localPosition = visualBaseLocalPosition;
         }
-
-        FacePlayer();
     }
 
     /// <summary>
-    /// 스프라이트의 앞면(-Z)이 플레이어를 향하도록 Y축만 회전합니다.
-    /// 플레이어의 높이와 무관하게 스프라이트가 항상 수직으로 서 있도록 피치는 적용하지 않습니다.
-    /// </summary>
-    private void FacePlayer()
-    {
-        if (playerTarget == null && Time.unscaledTime >= nextPlayerResolveTime)
-        {
-            ResolvePlayerTarget();
-        }
-
-        if (playerTarget == null)
-        {
-            return;
-        }
-
-        Vector3 awayFromPlayer = visualRoot.position - playerTarget.position;
-        awayFromPlayer.y = 0f;
-        if (awayFromPlayer.sqrMagnitude <= 0.0001f)
-        {
-            return;
-        }
-
-        visualRoot.rotation = Quaternion.LookRotation(awayFromPlayer.normalized, Vector3.up);
-    }
-
-    private void ResolvePlayerTarget()
-    {
-        playerTarget = PlayerReferenceResolver.ResolveTransform(playerTarget);
-        nextPlayerResolveTime = Time.unscaledTime + 0.5f;
-    }
-
-    /// <summary>
-    /// ItemData 아이콘으로 양면 월드 스프라이트를 만들고 표시 비율에 맞춰 픽업 콜라이더를 조정합니다.
-    /// SpriteRenderer 기본 머티리얼은 Cull Off이므로 한 장의 평면이 앞뒤 모두 표시됩니다.
+    /// ItemData의 등급을 전역 VFX 관리자에 전달하고 기존 스프라이트/메시 표현을 숨깁니다.
     /// </summary>
     private void RefreshVisual()
     {
         CacheLegacyComponents();
 
-        ItemData itemdata = ResolveItemData();
-        Sprite itemSprite = itemdata != null ? itemdata.ItemIcon : null;
-        if (itemSprite == null)
+        ItemData itemData = ResolveItemData();
+        if (itemData == null)
         {
             SetLegacyVisualVisible(true);
 
@@ -143,36 +145,37 @@ public class WorldItem : MonoBehaviour
             return;
         }
 
-        EnsureSpriteVisual();
         SetLegacyVisualVisible(false);
 
-        Bounds spriteBounds = itemSprite.bounds;
-        float longestSide = Mathf.Max(spriteBounds.size.x, spriteBounds.size.y);
-        float spriteScale = longestSide > Mathf.Epsilon ? visualMaxSize / longestSide : 1f;
-        float width = Mathf.Max(0.01f, spriteBounds.size.x * spriteScale);
-        float height = Mathf.Max(0.01f, spriteBounds.size.y * spriteScale);
+        Transform legacySpriteRoot = transform.Find(LegacySpriteRootName);
+        if (legacySpriteRoot != null)
+        {
+            legacySpriteRoot.gameObject.SetActive(false);
+        }
 
-        spriteRenderer.sprite = itemSprite;
-        spriteRenderer.transform.localScale = new Vector3(spriteScale, spriteScale, 1f);
+        visualRoot = WorldItemRarityVfxManager.Instance.ApplyTo(
+            transform,
+            itemData.ItemClass,
+            visualMaxSize,
+            groundClearance);
 
-        // 피벗이 제각각이어도 실제 스프라이트 바운드가 X축 중앙과 바닥 위에 오도록 보정한다.
-        spriteRenderer.transform.localPosition = new Vector3(
-            -spriteBounds.center.x * spriteScale,
-            groundClearance - spriteBounds.min.y * spriteScale,
-            0f);
-        spriteRenderer.transform.localRotation = Quaternion.identity;
+        if (visualRoot == null)
+        {
+            RestoreInitialCollider();
+            return;
+        }
 
-        visualBaseLocalPosition = Vector3.zero;
-        visualRoot.localPosition = visualBaseLocalPosition;
-        visualRoot.gameObject.SetActive(true);
-
-        ResizePickupCollider(width, height);
+        visualBaseLocalPosition = visualRoot.localPosition;
+        ResizePickupCollider(visualMaxSize, visualMaxSize);
     }
 
-    /// <summary>itemId로 ItemCatalogManager에서 ItemData를 조회한다. 못 찾으면 null.</summary>
+    /// <summary>itemId로 ItemCatalogManager에서 ItemData를 조회합니다.</summary>
     private ItemData ResolveItemData()
     {
-        if (string.IsNullOrEmpty(itemId)) return null;
+        if (string.IsNullOrEmpty(itemId))
+        {
+            return null;
+        }
 
         ItemCatalogManager catalogManager = ItemCatalogManager.Instance;
         if (catalogManager == null)
@@ -196,6 +199,7 @@ public class WorldItem : MonoBehaviour
             initialColliderSize = pickupCollider.size;
         }
 
+        // 등급 VFX가 생성되기 전에 기존 프리팹의 메시만 한 번 보관합니다.
         if (legacyMeshRenderers != null)
         {
             return;
@@ -206,48 +210,9 @@ public class WorldItem : MonoBehaviour
 
         for (int i = 0; i < legacyMeshRenderers.Length; i++)
         {
-            legacyRendererInitialStates[i] = legacyMeshRenderers[i] != null && legacyMeshRenderers[i].enabled;
+            legacyRendererInitialStates[i] =
+                legacyMeshRenderers[i] != null && legacyMeshRenderers[i].enabled;
         }
-    }
-
-    private void EnsureSpriteVisual()
-    {
-        if (visualRoot == null)
-        {
-            Transform existingVisual = transform.Find(VisualRootName);
-            if (existingVisual != null)
-            {
-                visualRoot = existingVisual;
-            }
-            else
-            {
-                GameObject visualObject = new GameObject(VisualRootName);
-                visualRoot = visualObject.transform;
-                visualRoot.SetParent(transform, false);
-            }
-        }
-
-        if (spriteRenderer == null)
-        {
-            Transform existingSprite = visualRoot.Find(SpriteObjectName);
-            if (existingSprite == null)
-            {
-                GameObject spriteObject = new GameObject(SpriteObjectName);
-                existingSprite = spriteObject.transform;
-                existingSprite.SetParent(visualRoot, false);
-            }
-
-            spriteRenderer = existingSprite.GetComponent<SpriteRenderer>();
-            if (spriteRenderer == null)
-            {
-                spriteRenderer = existingSprite.gameObject.AddComponent<SpriteRenderer>();
-            }
-        }
-
-        spriteRenderer.shadowCastingMode = ShadowCastingMode.Off;
-        spriteRenderer.receiveShadows = false;
-        spriteRenderer.lightProbeUsage = LightProbeUsage.Off;
-        spriteRenderer.reflectionProbeUsage = ReflectionProbeUsage.Off;
     }
 
     private void ResizePickupCollider(float width, float height)
@@ -286,7 +251,8 @@ public class WorldItem : MonoBehaviour
         {
             if (legacyMeshRenderers[i] != null)
             {
-                legacyMeshRenderers[i].enabled = visible && legacyRendererInitialStates[i];
+                legacyMeshRenderers[i].enabled =
+                    visible && legacyRendererInitialStates[i];
             }
         }
     }
@@ -318,7 +284,7 @@ public class WorldItem : MonoBehaviour
         int remaining = inventory.AddItem(itemId, amount);
         if (remaining > 0)
         {
-            // 일부만 들어갔다면 남은 수량은 월드에 유지한다.
+            // 일부만 들어갔다면 남은 수량은 월드에 유지합니다.
             amount = remaining;
             return;
         }
@@ -326,7 +292,7 @@ public class WorldItem : MonoBehaviour
         PooledWorldDrop pooledDrop = GetComponent<PooledWorldDrop>();
         if (pooledDrop == null || !pooledDrop.ReturnToPool())
         {
-            // 풀에서 생성되지 않은 씬 배치 아이템만 예외적으로 제거한다.
+            // 풀에서 생성되지 않은 씬 배치 아이템만 직접 제거합니다.
             Destroy(gameObject);
         }
     }
@@ -338,14 +304,16 @@ public class WorldItem : MonoBehaviour
         groundClearance = Mathf.Max(0f, groundClearance);
         bobHeight = Mathf.Max(0f, bobHeight);
         bobFrequency = Mathf.Max(0f, bobFrequency);
+        rotationSpeed = Mathf.Max(0f, rotationSpeed);
         colliderPadding = Mathf.Max(0f, colliderPadding);
         colliderDepth = Mathf.Max(0.01f, colliderDepth);
+
         if (!Application.isPlaying || UnityEditor.EditorUtility.IsPersistent(gameObject))
         {
             return;
         }
-        RefreshVisual();
 
+        RefreshVisual();
     }
 #endif
 }
