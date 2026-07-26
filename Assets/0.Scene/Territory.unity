@@ -8281,6 +8281,28 @@ RectTransform:
   m_CorrespondingSourceObject: {fileID: 465755928046886828, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
   m_PrefabInstance: {fileID: 297668206}
   m_PrefabAsset: {fileID: 0}
+--- !u!114 &297668210 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 8606518540314555330, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
+  m_PrefabInstance: {fileID: 297668206}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4688fdb7df04437aeb418b961361dc5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.TextMeshPro::TMPro.TextMeshProUGUI
+--- !u!114 &297668211 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 3688909380801761632, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
+  m_PrefabInstance: {fileID: 297668206}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4688fdb7df04437aeb418b961361dc5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.TextMeshPro::TMPro.TextMeshProUGUI
 --- !u!1001 &301270480
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -25007,6 +25029,14 @@ PrefabInstance:
       propertyPath: m_Name
       value: UIManager
       objectReference: {fileID: 0}
+    - target: {fileID: 7002788530332014742, guid: 75c35a7459297f54eb5fb0c7d78daeb8, type: 3}
+      propertyPath: goldText
+      value: 
+      objectReference: {fileID: 297668211}
+    - target: {fileID: 7002788530332014742, guid: 75c35a7459297f54eb5fb0c7d78daeb8, type: 3}
+      propertyPath: levelText
+      value: 
+      objectReference: {fileID: 297668210}
     - target: {fileID: 7309819358282781941, guid: 75c35a7459297f54eb5fb0c7d78daeb8, type: 3}
       propertyPath: uiRoot
       value: 
@@ -25095,7 +25125,8 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 9123123546276931050, guid: 75c35a7459297f54eb5fb0c7d78daeb8, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
