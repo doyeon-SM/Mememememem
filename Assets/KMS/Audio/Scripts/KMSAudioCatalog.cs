@@ -175,6 +175,8 @@ namespace KMS.Audio
                     break;
                 case GameSfxId.FootstepRun:
                     cue.Volume = 0.8f;
+                    cue.PitchMin = 1.04f;
+                    cue.PitchMax = 1.08f;
                     cue.Cooldown = 0.06f;
                     cue.MaxVoices = 2;
                     break;

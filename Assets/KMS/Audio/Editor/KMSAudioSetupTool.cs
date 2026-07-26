@@ -48,6 +48,16 @@ namespace KMS.Audio.Editor
             {
                 string folder = $"{SfxRoot}/{id}";
                 AudioClip[] clips = FindAudioClips(folder);
+                if (id == GameSfxId.AxeHitTree && clips.Length == 0)
+                {
+                    clips = FindAudioClips($"{SfxRoot}/{GameSfxId.HoeHitBush}");
+                }
+
+                if (id == GameSfxId.FootstepRun && clips.Length == 0)
+                {
+                    clips = FindAudioClips($"{SfxRoot}/{GameSfxId.FootstepWalk}");
+                }
+
                 catalog.SetCueClips(id, clips);
             }
 
@@ -60,9 +70,6 @@ namespace KMS.Audio.Editor
             EditorUtility.SetDirty(catalog);
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
-            Debug.Log(
-                "[KMS Audio] 폴더와 카탈로그를 갱신했습니다. " +
-                "각 Clips 하위 폴더에 오디오 파일을 넣으면 자동으로 연결됩니다.");
         }
 
         private static AudioClip[] FindAudioClips(string folder)
