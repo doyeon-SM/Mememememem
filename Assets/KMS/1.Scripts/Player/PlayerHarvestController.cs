@@ -164,7 +164,6 @@ namespace KMS.Harvesting
             bool isMemMeleeAttempt = selectedItem.Item_ID == memMeleeItemId;
 
             cooldownTimer = Mathf.Max(harvestCooldown, toolUseCooldown);
-            KMSAudioService.PlayAt(GameSfxId.ToolSwing, transform.position);
             if (animator != null)
             {
                 animator.SetTrigger(SlashHash);
@@ -190,6 +189,7 @@ namespace KMS.Harvesting
 
             if (!hasHit)
             {
+                KMSAudioService.PlayAt(GameSfxId.ToolSwing, transform.position);
                 return;
             }
 
@@ -203,8 +203,13 @@ namespace KMS.Harvesting
 
             if (memTarget != null)
             {
-                if (!isMemMeleeAttempt) return;
-                if (hit.distance > memMeleeDistance || memTarget.IsDead) return;
+                if (!isMemMeleeAttempt
+                    || hit.distance > memMeleeDistance
+                    || memTarget.IsDead)
+                {
+                    KMSAudioService.PlayAt(GameSfxId.ToolSwing, transform.position);
+                    return;
+                }
 
                 if (playerStats != null)
                 {
@@ -215,6 +220,8 @@ namespace KMS.Harvesting
                 KMSAudioService.PlayAt(GameSfxId.ClubHitMem, hit.point);
                 return;
             }
+
+            KMSAudioService.PlayAt(GameSfxId.ToolSwing, transform.position);
 
             if(WorldObjectHarvest(hit, selectedItem))
             {

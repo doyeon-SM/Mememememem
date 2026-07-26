@@ -24,8 +24,7 @@ MonoBehaviour:
     MaxVoices: 2
     Output: {fileID: 0}
   - Id: 1
-    Clips:
-    - {fileID: 8300000, guid: eb5a263e361d1064f80035aedbc43094, type: 3}
+    Clips: []
     Volume: 1
     PitchMin: 0.96
     PitchMax: 1.04
@@ -34,8 +33,7 @@ MonoBehaviour:
     MaxVoices: 4
     Output: {fileID: 0}
   - Id: 2
-    Clips:
-    - {fileID: 8300000, guid: eb5a263e361d1064f80035aedbc43094, type: 3}
+    Clips: []
     Volume: 1
     PitchMin: 0.96
     PitchMax: 1.04
@@ -54,7 +52,8 @@ MonoBehaviour:
     MaxVoices: 4
     Output: {fileID: 0}
   - Id: 4
-    Clips: []
+    Clips:
+    - {fileID: 8300000, guid: 27ccd0c787aaa9541be7bac110671d2b, type: 3}
     Volume: 1
     PitchMin: 0.96
     PitchMax: 1.04
@@ -63,7 +62,8 @@ MonoBehaviour:
     MaxVoices: 4
     Output: {fileID: 0}
   - Id: 5
-    Clips: []
+    Clips:
+    - {fileID: 8300000, guid: 7c1497224d7114e4c81fc8b45a23ed1f, type: 3}
     Volume: 0.65
     PitchMin: 0.96
     PitchMax: 1.04
@@ -72,10 +72,11 @@ MonoBehaviour:
     MaxVoices: 2
     Output: {fileID: 0}
   - Id: 6
-    Clips: []
+    Clips:
+    - {fileID: 8300000, guid: 7c1497224d7114e4c81fc8b45a23ed1f, type: 3}
     Volume: 0.8
-    PitchMin: 0.96
-    PitchMax: 1.04
+    PitchMin: 1.04
+    PitchMax: 1.08
     SpatialBlend: 1
     Cooldown: 0.06
     MaxVoices: 2
@@ -99,7 +100,8 @@ MonoBehaviour:
     MaxVoices: 4
     Output: {fileID: 0}
   - Id: 9
-    Clips: []
+    Clips:
+    - {fileID: 8300000, guid: d451ccc133f83834f9e479e687a5b6cf, type: 3}
     Volume: 1
     PitchMin: 0.96
     PitchMax: 1.04
@@ -108,7 +110,8 @@ MonoBehaviour:
     MaxVoices: 4
     Output: {fileID: 0}
   - Id: 10
-    Clips: []
+    Clips:
+    - {fileID: 8300000, guid: 5be4552ebcf485648a75a83d7ac51252, type: 3}
     Volume: 1
     PitchMin: 0.96
     PitchMax: 1.04

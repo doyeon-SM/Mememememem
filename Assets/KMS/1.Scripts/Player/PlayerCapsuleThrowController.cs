@@ -1,3 +1,4 @@
+using KMS.Audio;
 using KMS.InventoryDuped;
 using UnityEngine;
 
@@ -209,6 +210,7 @@ namespace KMS
                 return;
             }
 
+            KMSAudioService.PlayAt(GameSfxId.ToolSwing, transform.position);
             body.isKinematic = false;
             body.linearVelocity = CalculateInitialVelocity(origin, lockedThrowTarget);
             IgnorePlayerCollisions(capsule);
