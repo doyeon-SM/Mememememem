@@ -3695,7 +3695,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 2914720082914339436, guid: b58c48b7845d85847be6ed20cc9a2ad9, type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: -0.00017099293
+      value: -0.000099601435
       objectReference: {fileID: 0}
     - target: {fileID: 2938883268131566612, guid: b58c48b7845d85847be6ed20cc9a2ad9, type: 3}
       propertyPath: m_AnchorMax.y
@@ -4119,6 +4119,10 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4719812318652869892, guid: b58c48b7845d85847be6ed20cc9a2ad9, type: 3}
       propertyPath: m_AnchoredPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4719812318652869892, guid: b58c48b7845d85847be6ed20cc9a2ad9, type: 3}
+      propertyPath: m_AnchoredPosition.y
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 4846856724853572815, guid: b58c48b7845d85847be6ed20cc9a2ad9, type: 3}
@@ -4797,6 +4801,10 @@ PrefabInstance:
       propertyPath: m_TextStyleHashCode
       value: -1183493901
       objectReference: {fileID: 0}
+    - target: {fileID: 6945786786094548737, guid: b58c48b7845d85847be6ed20cc9a2ad9, type: 3}
+      propertyPath: m_Sprite
+      value: 
+      objectReference: {fileID: 21300000, guid: 65865b108b691f64e87593b9722fe3c4, type: 3}
     - target: {fileID: 7128351698055194771, guid: b58c48b7845d85847be6ed20cc9a2ad9, type: 3}
       propertyPath: m_AnchorMax.y
       value: 0
@@ -9757,6 +9765,8 @@ GameObject:
   - component: {fileID: 769802647}
   - component: {fileID: 769802646}
   - component: {fileID: 769802645}
+  - component: {fileID: 769802655}
+  - component: {fileID: 769802654}
   m_Layer: 0
   m_Name: DataSaveManager
   m_TagString: Untagged
@@ -9887,6 +9897,30 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: be8ffed51554cbe4688a27b0fecc16c4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::RecordManager
+--- !u!114 &769802654
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 769802643}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b56ffc18028cf464c8dc1794a7943fc3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ChestRecordData
+--- !u!114 &769802655
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 769802643}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ffb1e38ddd0f7e745aea6fe1d82d5427, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::WaypointRecordData
 --- !u!1001 &771515205
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -20651,10 +20685,6 @@ PrefabInstance:
     - target: {fileID: 5853145983078312645, guid: 6de5870ec7d04d44281605dd89845f95, type: 3}
       propertyPath: m_Name
       value: Chest_ToolTip
-      objectReference: {fileID: 0}
-    - target: {fileID: 5853145983078312645, guid: 6de5870ec7d04d44281605dd89845f95, type: 3}
-      propertyPath: m_IsActive
-      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 7338960177328790270, guid: 6de5870ec7d04d44281605dd89845f95, type: 3}
       propertyPath: m_Pivot.x
@@ -64942,7 +64972,7 @@ PrefabInstance:
     - target: {fileID: 7421374195801258301, guid: febfc85ee2fe53d41bc583a44d13e573, type: 3}
       propertyPath: chestInteractionSprite
       value: 
-      objectReference: {fileID: 21300000, guid: 09fbb59c863d74046879b8d24c07e3c0, type: 3}
+      objectReference: {fileID: 1117734741, guid: d75409926c860cf418debc047df9b3ce, type: 3}
     - target: {fileID: 7421374195801258301, guid: febfc85ee2fe53d41bc583a44d13e573, type: 3}
       propertyPath: chestTooltipAnchoredPosition.x
       value: -400
