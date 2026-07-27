@@ -59,6 +59,15 @@ namespace HDY.UI
     /// 레벨/버튼이 나중에 바뀌거나 새 버튼이 추가돼도, 코드 수정 없이 인스펙터에서 hudEntries 항목의
     /// RequiredLevel 값만 조정하면 된다(예: 대장간=3, 탐험=5).
     ///
+    /// [재진입 시 잠금 상태 갱신 - 버그 수정] 예전에는 ApplyLevelGates()를 Awake와 OnLevelChanged
+    /// 시점에만 호출했다. TerritoryData는 DontDestroyOnLoad 싱글톤이라 레벨 자체는 씬을 나갔다 들어와도
+    /// 정상적으로 유지되지만, 이 UIManager가 달린 HUD 오브젝트가 (완전히 Destroy/재생성되는 게 아니라)
+    /// SetActive(false) -> SetActive(true)로 껐다 켜지는 방식으로 영지에 재진입하는 경우 Awake는 최초
+    /// 1회만 실행되고 이후에는 OnEnable만 실행된다. 그 사이에 레벨이 올라가 있어도(그리고 그 시점 이후로
+    /// 레벨이 다시 바뀌지 않으면 OnLevelChanged도 재발행되지 않으므로) 버튼은 최초 Awake 때의 오래된
+    /// 잠금 상태에 그대로 머물러 있었다. OnEnable에서도 ApplyLevelGates()를 호출하도록 추가해서, 재진입
+    /// (재활성화)할 때마다 항상 최신 레벨 기준으로 다시 계산하도록 고쳤다.
+    ///
     /// [시간 데이터 연결 - GameTimeManager] 리얼타임(KST)/인게임 시간(20분=하루) 표시를 위한
     /// GameTimeManager 참조를 들고 있다. 이 매니저는 시간 데이터 계산만 담당하고 Text 갱신은 직접 하지
     /// 않으므로, 시간 표시 Text를 실제로 붙이는 작업은 GameTime 프로퍼티로 GameTimeManager에 접근해서
@@ -155,6 +164,15 @@ namespace HDY.UI
             ApplyLevelGates();
         }
 
+        /// <summary>
+        /// [버그 수정] HUD 오브젝트가 Destroy/재생성 없이 SetActive(false)->(true)로만 재진입하는 경우
+        /// Awake는 다시 실행되지 않으므로, 여기서도 최신 레벨 기준으로 다시 계산해준다.
+        /// </summary>
+        private void OnEnable()
+        {
+            ApplyLevelGates();
+        }
+
         private void OnDestroy()
         {
             if (territoryData != null)
@@ -171,9 +189,16 @@ namespace HDY.UI
         /// <summary>
         /// hudEntries를 훑어서 RequiredLevel을 만족하지 못하는 버튼은 비활성화(interactable=false),
         /// 만족하는 버튼은 활성화한다. RequiredLevel이 0 이하인 항목(기존 버튼들)은 항상 활성화된다.
+        /// territoryData가 아직 비어있으면(Awake보다 먼저 OnEnable이 불릴 일은 없지만 방어적으로) 한 번 더
+        /// 재탐색을 시도한다.
         /// </summary>
         private void ApplyLevelGates()
         {
+            if (territoryData == null)
+            {
+                territoryData = TerritoryData.Resolve(territoryData);
+            }
+
             int currentLevel = territoryData != null ? territoryData.Level : int.MaxValue;
 
             foreach (var entry in hudEntries)

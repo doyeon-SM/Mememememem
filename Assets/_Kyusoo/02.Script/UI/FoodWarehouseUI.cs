@@ -33,11 +33,17 @@ using UnityEngine.UI;
 /// 구분할 수 없다. 그래서 모든 라우팅은 slot.group이 아니라 GetContainerAndIndex()로 얻은 실제
 /// InventoryContainer 참조 동일성으로 구분한다.
 ///
-/// [슬롯 생성 방식 통일 - 신규] 퀵슬롯/인벤토리도 음식 창고/일반 창고와 동일하게 전부 런타임
-/// Instantiate 방식으로 바꿨다(예전에는 씬에 미리 배치된 고정 개수를 그대로 바인딩하는 방식이었다).
-/// 인벤토리는 playerInventory.UnlockedInventorySlotCount만큼만 생성하고, 업그레이드로 더 언락되면
-/// (OnInventorySlotCountChanged) 모자란 만큼만 추가로 Instantiate한다 - 그래서 "잠긴 칸을 흐리게
-/// 표시"하는 처리 자체가 필요 없어졌다(언락 안 된 칸은 애초에 생성되지 않는다).
+/// [슬롯 생성 방식 통일] 퀵슬롯/인벤토리도 음식 창고/일반 창고와 동일하게 전부 런타임 Instantiate
+/// 방식이다. 인벤토리는 playerInventory.UnlockedInventorySlotCount만큼만 생성하고, 업그레이드로 더
+/// 언락되면(OnInventorySlotCountChanged) 모자란 만큼만 추가로 Instantiate한다.
+///
+/// [스크롤뷰 1개로 통합 - HDY 요청] 예전에는 퀵슬롯/인벤토리/창고 영역마다 각자 ScrollRect를 두려고
+/// 했는데, 스크롤바가 여러 개 겹쳐 보여서 이동이 불편하다는 피드백을 받고 구조를 바꿨다. 이제 인벤토리
+/// 그리드와 창고 그리드는 (Text 라벨 + GridLayoutGroup + ContentSizeFitter)만 있는 "순수 그리드"이고,
+/// 실제 스크롤은 그 둘을 함께 담는 하나의 마스터 ScrollView(Vertical Layout Group Content)가 담당한다.
+/// 그래서 창고 쪽 스크롤 높이를 직접 계산해주던 UpdateWarehouseScrollHeight()/warehouseScrollViewRect는
+/// 제거했다 - 각 그리드의 ContentSizeFitter(Vertical: Preferred Size)가 자기 높이를 보고하면 마스터
+/// Content의 Vertical Layout Group이 알아서 전체 높이를 재계산한다.
 ///
 /// [트래시 슬롯 없음] WarehouseUI/InventoryUI와 달리 이 패널은 트래시(휴지통) 칸을 두지 않는다
 /// ([HDY 요청]). ESC 닫기 안전장치가 커서에 남은 아이템을 반환할 곳을 못 찾는 경우(밥통/창고/인벤토리/
@@ -73,18 +79,17 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner, IInventorySlo
     [SerializeField] private Button upgradeButton;
     [SerializeField] private WarehouseUpgrade warehouseUpgrade;
 
-    [Header("우측 퀵슬롯 (스크롤 없이 고정 10칸, 슬롯은 런타임 생성 - [HDY 요청])")]
+    [Header("우측 퀵슬롯 (고정 10칸, 슬롯은 런타임 생성 - [HDY 요청])")]
     [SerializeField] private Transform quickSlotGrid;
     [SerializeField] private InventorySlotUI quickSlotPrefab;
 
-    [Header("우측 인벤토리 (스크롤 - 언락된 칸만큼만 런타임 생성 - [HDY 요청])")]
+    [Header("우측 인벤토리 (마스터 스크롤 안 순수 그리드 - 언락된 칸만큼만 런타임 생성, [HDY 요청])")]
     [SerializeField] private Transform inventoryGrid;
     [SerializeField] private InventorySlotUI inventorySlotPrefab;
 
-    [Header("우측 일반 창고 (스크롤 - 슬롯은 런타임 생성)")]
+    [Header("우측 일반 창고 (마스터 스크롤 안 순수 그리드 - 슬롯은 런타임 생성)")]
     [SerializeField] private Transform warehouseGrid;
     [SerializeField] private InventorySlotUI warehouseSlotPrefab;
-    [SerializeField] private RectTransform warehouseScrollViewRect;// 우측 창고 Height 조절용
 
     [Header("공용 (드래그 고스트, 툴팁, 수량 팝업, 텍스트)")]
     [SerializeField] private ItemDragUI itemDragUI;
@@ -220,7 +225,7 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner, IInventorySlo
     }
 
     /// <summary>
-    /// [HDY 요청 - 신규] 우측 퀵슬롯 개수를 playerInventory.quickSlots 크기에 맞춰 런타임 생성합니다.
+    /// [HDY 요청] 우측 퀵슬롯 개수를 playerInventory.quickSlots 크기에 맞춰 런타임 생성합니다.
     /// 퀵슬롯은 업그레이드 개념이 없어 보통 한 번만 필요한 만큼 생성되고 이후 변하지 않습니다.
     /// </summary>
     private void EnsureQuickSlotCount()
@@ -251,9 +256,11 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner, IInventorySlo
     }
 
     /// <summary>
-    /// [HDY 요청 - 신규] 우측 인벤토리 슬롯 개수를 playerInventory.UnlockedInventorySlotCount(언락된 칸 수)에
+    /// [HDY 요청] 우측 인벤토리 슬롯 개수를 playerInventory.UnlockedInventorySlotCount(언락된 칸 수)에
     /// 맞춰 런타임 생성합니다. 아직 언락되지 않은 칸은 애초에 생성하지 않으므로 별도의 잠금 표시가 필요 없습니다.
     /// 업그레이드로 더 언락되면(OnInventorySlotCountChanged) 모자란 만큼만 추가로 Instantiate합니다.
+    /// inventoryGrid는 이제 자체 스크롤 없는 순수 GridLayoutGroup이라, 레이아웃 재계산이 마스터
+    /// ScrollView의 Vertical Layout Group까지 전파되도록 부모 체인까지 강제로 재빌드한다.
     /// </summary>
     private void EnsureInventorySlotCount()
     {
@@ -275,15 +282,13 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner, IInventorySlo
         }
         inventorySlots = grown;
 
-        Canvas.ForceUpdateCanvases();
-        if (inventoryGrid is RectTransform inventoryRect)
-        {
-            LayoutRebuilder.ForceRebuildLayoutImmediate(inventoryRect);
-        }
+        RebuildGridAndAncestorLayout(inventoryGrid);
     }
 
     /// <summary>
     /// 우측 일반 창고 슬롯 개수를 warehouseInventory.storage 크기에 맞춰 동적으로 확장/생성합니다.
+    /// warehouseGrid도 이제 자체 스크롤 없는 순수 GridLayoutGroup이라, 레이아웃 재계산이 마스터
+    /// ScrollView까지 전파되도록 부모 체인까지 강제로 재빌드한다(예전의 수동 높이 계산은 제거).
     /// </summary>
     private void EnsureRightWarehouseSlotCount()
     {
@@ -293,11 +298,7 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner, IInventorySlo
         int required = container.slots != null ? container.slots.Length : 0;
         int current = warehouseSlots != null ? warehouseSlots.Length : 0;
 
-        if (required <= current)
-        {
-            UpdateWarehouseScrollHeight();
-            return;
-        }
+        if (required <= current) return;
 
         var grown = new InventorySlotUI[required];
         for (int i = 0; i < current; i++) grown[i] = warehouseSlots[i];
@@ -315,32 +316,32 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner, IInventorySlo
         }
         warehouseSlots = grown;
 
-        UpdateWarehouseScrollHeight();
-
-        // 슬롯 생성 후 ScrollRect Content 레이아웃 즉시 재계산
-        Canvas.ForceUpdateCanvases();
-        if (warehouseGrid is RectTransform rectTransform)
-        {
-            LayoutRebuilder.ForceRebuildLayoutImmediate(rectTransform);
-        }
+        RebuildGridAndAncestorLayout(warehouseGrid);
     }
 
     /// <summary>
-    /// 창고 슬롯 갯수(10개당 75)에 맞춰 우측 창고 스크롤 뷰의 높이 조절
+    /// [HDY 요청] 순수 그리드(자체 ScrollRect 없음)에 슬롯을 추가한 뒤, 그리드 자신과 그 위의 모든
+    /// 조상(마스터 ScrollView의 Content 등)까지 즉시 레이아웃을 재계산한다. ContentSizeFitter는 보통
+    /// 다음 프레임에 알아서 반영되지만, 슬롯이 막 늘어난 그 프레임에 한 칸 잘려 보이는 걸 방지하기 위해
+    /// Instantiate 직후 강제로 밀어준다.
     /// </summary>
-    private void UpdateWarehouseScrollHeight()
+    private void RebuildGridAndAncestorLayout(Transform grid)
     {
-        if (warehouseScrollViewRect == null || warehouseSlots == null) return;
+        Canvas.ForceUpdateCanvases();
 
-        int slotCount = warehouseSlots.Length;
+        if (!(grid is RectTransform gridRect)) return;
 
-        float targetHeight = (slotCount / 10f) * 75f;
+        LayoutRebuilder.ForceRebuildLayoutImmediate(gridRect);
 
-        targetHeight = Mathf.Max(75f, targetHeight);
-
-        Vector2 sizeDelta = warehouseScrollViewRect.sizeDelta;
-        sizeDelta.y = targetHeight;
-        warehouseScrollViewRect.sizeDelta = sizeDelta;
+        Transform parent = gridRect.parent;
+        while (parent != null)
+        {
+            if (parent is RectTransform parentRect && parent.GetComponent<UnityEngine.UI.LayoutGroup>() != null)
+            {
+                LayoutRebuilder.ForceRebuildLayoutImmediate(parentRect);
+            }
+            parent = parent.parent;
+        }
     }
 
     /// <summary>

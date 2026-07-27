@@ -19,6 +19,14 @@ namespace HDY.Inventory
     /// 완전히 동일한 알고리즘을 여기에도 추가했다. 창고는 컨테이너가 storage 하나뿐이라 SlotGroup 파라미터가
     /// 없다는 점만 다르다. TryReturnStack은 안전장치(ESC 닫기 시 커서에 남은 아이템 반환)용이다.
     ///
+    /// [catalogManager 지연 재탐색 - 버그 수정] 예전에는 Awake에서 딱 한 번만
+    /// ItemCatalogManager.Resolve()를 시도하고 그 결과를 그대로 필드에 고정해뒀다. 이 프리팹은 인스펙터에
+    /// catalogManager가 연결되어 있지 않아서(fileID 0), 씬 로드 순서상 이 Awake가 ItemCatalogManager보다
+    /// 먼저 실행되면 그 한 번의 시도가 실패하고, 이후 영원히 null로 남아 GetMaxStack이 항상 안전값 1을
+    /// 반환했다(= 몇 개를 들고 있든 슬롯에 1개씩만 놓이는 것처럼 보이는 버그). PlayerInventory의
+    /// ResolveCatalogManager() 패턴과 동일하게, catalogManager가 필요한 시점마다(비어있으면) 다시
+    /// 탐색하도록 바꿔서 이 문제를 해결했다.
+    ///
     /// [정렬] 같은 Item_ID 스택이 여러 칸에 나뉘어 있으면(예: MaxStack 99인데 99+51로 흩어짐) 먼저 합쳐서
     /// MaxStack 기준으로 다시 압축한 뒤(99, 51 형태로), 기준(Item_ID 또는 카테고리)으로 정렬하고 동순위는
     /// 수량이 많은 순으로 배치한다.
@@ -37,7 +45,7 @@ namespace HDY.Inventory
         [Tooltip("업그레이드 없이 시작할 때 기본으로 사용 가능한 행(세로 칸) 수")]
         [SerializeField] private int startingRows = 2;
 
-        [Header("아이템 카탈로그 (Item_ID로 조회할 때 사용)")]
+        [Header("아이템 카탈로그 (Item_ID로 조회할 때 사용, 비어있으면 필요할 때마다 자동 재탐색)")]
         [SerializeField] private ItemCatalogManager catalogManager;
 
         /// <summary>업그레이드 없이 시작할 때 기본 행 수(현재 몇 번째 업그레이드 단계인지 계산할 때 기준으로 쓰임).</summary>
@@ -61,6 +69,20 @@ namespace HDY.Inventory
             catalogManager = ItemCatalogManager.Resolve(catalogManager);
         }
 
+        /// <summary>
+        /// catalogManager가 비어있으면(Awake 시점의 1회성 탐색이 실패했을 수 있으므로) 필요할 때마다
+        /// 다시 탐색한다. PlayerInventory.ResolveCatalogManager()와 동일한 패턴.
+        /// </summary>
+        private ItemCatalogManager ResolveCatalogManager()
+        {
+            if (catalogManager == null)
+            {
+                catalogManager = ItemCatalogManager.Resolve(null);
+            }
+
+            return catalogManager;
+        }
+
         // 아이템 추가
         public int AddItem(ItemData item, int amount)
         {
@@ -81,7 +103,8 @@ namespace HDY.Inventory
         {
             if (string.IsNullOrEmpty(itemId) || amount <= 0) return amount;
 
-            var itemData = catalogManager != null ? catalogManager.FindItemData(itemId) : null;
+            var catalog = ResolveCatalogManager();
+            var itemData = catalog != null ? catalog.FindItemData(itemId) : null;
 
             if (itemData == null)
             {
@@ -185,7 +208,7 @@ namespace HDY.Inventory
         /// <summary>창고 내에서 슬롯 하나를 옮긴다(자리 교환/병합). 공용 헬퍼(InventorySlotMoveHelper)에 위임.</summary>
         public bool MoveSlot(int fromIndex, int toIndex)
         {
-            bool moved = InventorySlotMoveHelper.MoveSlot(storage, fromIndex, storage, toIndex, catalogManager);
+            bool moved = InventorySlotMoveHelper.MoveSlot(storage, fromIndex, storage, toIndex, ResolveCatalogManager());
 
             if (moved) OnStorageChanged?.Invoke();
 
@@ -410,14 +433,16 @@ namespace HDY.Inventory
         /// <summary>카탈로그에서 MaxStack을 조회한다. 못 찾으면 안전하게 1(스택 불가)로 취급.</summary>
         private int GetMaxStack(string itemId)
         {
-            var data = catalogManager != null ? catalogManager.FindItemData(itemId) : null;
+            var catalog = ResolveCatalogManager();
+            var data = catalog != null ? catalog.FindItemData(itemId) : null;
             return data != null ? Mathf.Max(1, data.MaxStack) : 1;
         }
 
         /// <summary>카탈로그에서 카테고리를 조회한다. 못 찾으면 가장 낮은 우선순위(맨 뒤)로 취급.</summary>
         private int GetCategoryOrder(string itemId)
         {
-            var data = catalogManager != null ? catalogManager.FindItemData(itemId) : null;
+            var catalog = ResolveCatalogManager();
+            var data = catalog != null ? catalog.FindItemData(itemId) : null;
             return data != null ? (int)data.Category : int.MaxValue;
         }
 

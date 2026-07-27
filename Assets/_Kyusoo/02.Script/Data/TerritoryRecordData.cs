@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Collections.Generic;
 using System.Reflection;
@@ -185,6 +185,20 @@ public class TerritoryRecordData : MonoBehaviour, IRecord
                     }
                 }
             }
+
+                // [HDY 요청] level을 리플렉션으로 직접 대입하면 TerritoryData.OnLevelChanged가 발행되지
+                // 않아서 UIManager 등 레벨 변경 구독자가 복구된 값을 못 받는 문제가 있었다. 위의
+                // RecipeUnlockManager/TerritoryExpansionManager와 동일한 방식(리플렉션으로 델리게이트를
+                // 꺼내 DynamicInvoke)으로 복구가 끝난 뒤 한 번 더 발행해준다.
+                if (liveTerritoryData != null)
+                {
+                    FieldInfo levelEventField = typeof(TerritoryData).GetField("OnLevelChanged", BindingFlags.NonPublic | BindingFlags.Instance);
+                    if (levelEventField != null)
+                    {
+                        MulticastDelegate levelEvent = levelEventField.GetValue(liveTerritoryData) as MulticastDelegate;
+                        levelEvent?.DynamicInvoke(liveTerritoryData.Level);
+                    }
+                }
 
             // 2. 레시피 도감 복구
             if (liveRecipeManager != null && saveData.recipeUnlockedStates != null)
