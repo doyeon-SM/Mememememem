@@ -167,7 +167,8 @@ namespace KMS
                     collectionButtonName);
                 if (toolkitCollectionButton != null)
                 {
-                    toolkitCollectionButton.clicked += Toggle;
+                    // Temporarily disabled while testing a non-runtime-bound Collection button.
+                    // toolkitCollectionButton.clicked += Toggle;
                     return;
                 }
 
@@ -182,7 +183,8 @@ namespace KMS
                 return;
             }
 
-            collectionButton.onClick.AddListener(Toggle);
+            // Temporarily disabled so the Collection button can be tested with an Inspector-assigned OnClick event.
+            // collectionButton.onClick.AddListener(Toggle);
         }
 
         private void UnbindCollectionButton()
@@ -221,16 +223,7 @@ namespace KMS
 
         private void HandleCollectionPressed()
         {
-            if (isOpen)
-            {
-                Close();
-                return;
-            }
-
-            // 인벤토리 등 다른 모달 UI가 플레이어 입력을 막고 있으면 새 도감을 열지 않는다.
-            if (playerInput != null && playerInput.IsGameplayInputBlocked) return;
-
-            Open();
+            SceneUIManager.TryToggleManagedUI("MemDex");
         }
 
         private void EnsureRuntimeServices()

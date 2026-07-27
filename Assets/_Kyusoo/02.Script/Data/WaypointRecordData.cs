@@ -1,7 +1,8 @@
-using System;
+ï»¿using System;
 using System.IO;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public class WaypointRecordData : MonoBehaviour, IRecord
 {
@@ -26,7 +27,7 @@ public class WaypointRecordData : MonoBehaviour, IRecord
 
         if (liveWayPointManager != null)
         {
-            liveWayPointManager.OnWayPointStateChanged += OnWayPointDataChangedHandler;
+            liveWayPointManager.OnWayPointUnlocked += OnWayPointUnlockedHandler;
         }
     }
 
@@ -34,12 +35,12 @@ public class WaypointRecordData : MonoBehaviour, IRecord
     {
         if (liveWayPointManager != null)
         {
-            liveWayPointManager.OnWayPointStateChanged -= OnWayPointDataChangedHandler;
+            liveWayPointManager.OnWayPointUnlocked -= OnWayPointUnlockedHandler;
             liveWayPointManager = null;
         }
     }
 
-    private void OnWayPointDataChangedHandler(WayPointRunTime state)
+    private void OnWayPointUnlockedHandler(WayPointRunTime state)
     {
         if (RecordManager.IsLoadingData) return;
 
@@ -49,17 +50,11 @@ public class WaypointRecordData : MonoBehaviour, IRecord
         }
     }
 
-    /// <summary>
-    /// ¼¼ÀÌºê ÆÄÀÏÀÌ ¾øÀ» ¶§ ÃÊ±â ±¸Á¶ »ı¼º
-    /// </summary>
     public void InitDefaultData(ref SaveData saveData)
     {
         saveData.waypointInfo = new List<WaypointInfo>();
     }
 
-    /// <summary>
-    /// ÇöÀç WayPointManager¿¡ Á¸ÀçÇÏ´Â ¸ğµç ¿şÀÌÆ÷ÀÎÆ®ÀÇ ÇØ±İ »óÅÂ¸¦ ÀúÀå
-    /// </summary>
     public void SaveData(string saveFilePath)
     {
         if (liveWayPointManager == null) RefreshManagerReference();
@@ -83,34 +78,54 @@ public class WaypointRecordData : MonoBehaviour, IRecord
 
         currentData.lastSaveTime = DateTime.UtcNow.ToString("o");
         File.WriteAllText(saveFilePath, JsonUtility.ToJson(currentData, true));
-        Debug.Log("<color=lime>[WaypointRecordData]</color> ¿şÀÌÆ÷ÀÎÆ® ÇØ±İ »óÅÂ µ¥ÀÌÅÍ ÀúÀå ¿Ï·á!");
+        Debug.Log("<color=lime>[WaypointRecordData]</color> ì›¨ì´í¬ì¸íŠ¸ í•´ê¸ˆ ìƒíƒœ ë°ì´í„° ì €ì¥ ì™„ë£Œ!");
     }
 
-    /// <summary>
-    /// ¾À ÀüÈ¯/°ÔÀÓ Àç½ÃÀÛ ½Ã ÀúÁ¤µÈ ÇØ±İ »óÅÂ¸¦ WayPointManager¿¡ Àû¿ë
-    /// </summary>
     public void ApplyData(SaveData saveData, SceneType sceneType)
     {
         RefreshManagerReference();
         if (liveWayPointManager == null) return;
 
-        if (saveData.waypointInfo == null || saveData.waypointInfo.Count == 0) return;
-
-        foreach (var info in saveData.waypointInfo)
+        // 1. ì›¨ì´í¬ì¸íŠ¸ í•´ê¸ˆ ìƒíƒœ ë³µêµ¬
+        if (saveData.waypointInfo != null && saveData.waypointInfo.Count > 0)
         {
-            if (string.IsNullOrEmpty(info.wayPointId)) continue;
-
-            if (liveWayPointManager.StatesById.TryGetValue(info.wayPointId, out WayPointRunTime state))
+            foreach (var info in saveData.waypointInfo)
             {
-                state.IsActive = info.isUnlocked;
+                if (string.IsNullOrEmpty(info.wayPointId)) continue;
 
-                if (state.Stone != null)
+                if (liveWayPointManager.StatesById.TryGetValue(info.wayPointId, out WayPointRunTime state))
                 {
-                    state.Stone.SetUnlockedState(info.isUnlocked);
+                    state.IsActive = info.isUnlocked;
+
+                    if (state.Stone != null)
+                    {
+                        state.Stone.SetUnlockedState(info.isUnlocked);
+                    }
                 }
             }
         }
 
-        Debug.Log("<color=cyan>[WaypointRecordData]</color> ¿şÀÌÆ÷ÀÎÆ® ÇØ±İ »óÅÂ µ¥ÀÌÅÍ º¹±¸ ¿Ï·á!");
+        // ğŸŒŸ 2. WayPointMapUI ìˆ˜ì • ì—†ì´ ì™¸ë¶€ì—ì„œ Travel ëª¨ë“œë¡œ ì‚¬ì „ ë³´ì •
+        var mapUI = WayPointMapUI.Instance != null
+            ? WayPointMapUI.Instance
+            : FindFirstObjectByType<WayPointMapUI>(FindObjectsInactive.Include);
+
+        if (mapUI != null)
+        {
+            // ì˜ì§€ ì”¬ì´ê±°ë‚˜ ì´ë™ ê°€ëŠ¥ í™˜ê²½ì¸ ê²½ìš°
+            if (sceneType == SceneType.Territory || liveWayPointManager.IsTerritorySceneName(SceneManager.GetActiveScene().name))
+            {
+                bool wasVisible = mapUI.IsVisible;
+
+                mapUI.PrepareOpen(WayPointMapOpenMode.Travel, mapUI.CurrentMap);
+
+                if (!wasVisible)
+                {
+                    mapUI.PrepareClose();
+                }
+            }
+        }
+
+        Debug.Log("<color=cyan>[WaypointRecordData]</color> ì›¨ì´í¬ì¸íŠ¸ í•´ê¸ˆ ìƒíƒœ ë°ì´í„° ë° ì§€ë„ ëª¨ë“œ ë³´ì • ì™„ë£Œ!");
     }
 }

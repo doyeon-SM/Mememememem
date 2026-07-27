@@ -43,6 +43,13 @@ public class WaypointInfo
 }
 
 [Serializable]
+public class ChestInfo
+{
+    public string chestId;
+    public bool isOpen;
+}
+
+[Serializable]
 public class SaveData
 {
     public string lastSaveTime;
@@ -89,4 +96,7 @@ public class SaveData
 
     [Header("웨이포인트 해금 데이터")]
     public List<WaypointInfo> waypointInfo = new List<WaypointInfo>();
+
+    [Header("상자 개방 데이터")]
+    public List<ChestInfo> chestInfo = new List<ChestInfo>();
 }
