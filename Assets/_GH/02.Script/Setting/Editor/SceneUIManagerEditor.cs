@@ -10,6 +10,7 @@ public sealed class SceneUIManagerEditor : Editor
     private SerializedProperty managedUIObjects;
     private SerializedProperty managedUIIds;
     private SerializedProperty allowMultipleManagedUIs;
+    private SerializedProperty keepCursorVisibleInScene;
     private SerializedProperty fallbackClosedCursorLockMode;
     private SerializedProperty fallbackClosedCursorVisible;
     private SerializedProperty notifyInputManager;
@@ -23,6 +24,8 @@ public sealed class SceneUIManagerEditor : Editor
         managedUIObjects = serializedObject.FindProperty("managedUIObjects");
         managedUIIds = serializedObject.FindProperty("managedUIIds");
         allowMultipleManagedUIs = serializedObject.FindProperty("allowMultipleManagedUIs");
+        keepCursorVisibleInScene =
+            serializedObject.FindProperty("keepCursorVisibleInScene");
         fallbackClosedCursorLockMode =
             serializedObject.FindProperty("fallbackClosedCursorLockMode");
         fallbackClosedCursorVisible =
@@ -51,11 +54,23 @@ public sealed class SceneUIManagerEditor : Editor
             new GUIContent(
                 "Allow Multiple Managed UIs",
                 "체크하면 여러 UI를 동시에 열 수 있고, 해제하면 마지막으로 연 UI만 유지합니다."));
+        EditorGUILayout.PropertyField(
+            keepCursorVisibleInScene,
+            new GUIContent(
+                "Keep Cursor Visible In Scene",
+                "체크하면 Managed UI가 모두 닫힌 상태에서도 이 씬의 커서를 계속 표시합니다."));
 
         if (!allowMultipleManagedUIs.boolValue)
         {
             EditorGUILayout.HelpBox(
                 "동시 열림 제한이 활성화되었습니다. 새 UI가 열리면 기존 Managed UI는 자동으로 닫힙니다.",
+                MessageType.Info);
+        }
+
+        if (keepCursorVisibleInScene.boolValue)
+        {
+            EditorGUILayout.HelpBox(
+                "이 씬에서는 Managed UI가 모두 닫혀도 커서가 잠기거나 숨겨지지 않습니다.",
                 MessageType.Info);
         }
 

@@ -29,6 +29,9 @@ public sealed class SceneUIManager : MonoBehaviour
     [Tooltip("체크하면 여러 Managed UI를 동시에 열 수 있습니다. 체크를 해제하면 마지막으로 열린 UI만 유지합니다.")]
     [SerializeField] private bool allowMultipleManagedUIs = true;
 
+    [Tooltip("체크하면 Managed UI가 모두 닫혀 있어도 이 씬에서는 마우스 커서를 계속 표시합니다.")]
+    [SerializeField] private bool keepCursorVisibleInScene;
+
     [Header("Closed Cursor Fallback")]
     [Tooltip("정상 커서 상태를 아직 기억하지 못했을 때 사용할 잠금 상태입니다.")]
     [SerializeField] private CursorLockMode fallbackClosedCursorLockMode = CursorLockMode.Locked;
@@ -52,6 +55,7 @@ public sealed class SceneUIManager : MonoBehaviour
     private bool systemMenuWasOpenBeforeSettings;
     private bool settingsStateApplied;
     private bool managedUIStateApplied;
+    private bool persistentSceneCursorStateApplied;
 
     private CursorLockMode normalCursorLockMode;
     private bool normalCursorVisible;
@@ -78,6 +82,7 @@ public sealed class SceneUIManager : MonoBehaviour
     public bool IsSettingsOpen => IsOpen(settingsUI);
     public bool HasOpenManagedUI => FindOpenManagedUI() != null;
     public bool AllowMultipleManagedUIs => allowMultipleManagedUIs;
+    public bool KeepCursorVisibleInScene => keepCursorVisibleInScene;
 
     private void Awake()
     {
@@ -144,7 +149,7 @@ public sealed class SceneUIManager : MonoBehaviour
 
         UpdateManagedOpenSnapshot();
 
-        if (!IsSettingsOpen && !HasOpenManagedUI)
+        if (!IsSettingsOpen && !HasOpenManagedUI && !keepCursorVisibleInScene)
         {
             CaptureNormalState();
         }
@@ -498,8 +503,14 @@ public sealed class SceneUIManager : MonoBehaviour
         {
             ApplyManagedUIOpenState();
         }
+        else if (keepCursorVisibleInScene)
+        {
+            ApplyPersistentSceneCursorState(managedUIStateApplied);
+            managedUIStateApplied = false;
+        }
         else
         {
+            RestorePersistentSceneCursorState();
             RestoreManagedUIState();
         }
     }
@@ -530,6 +541,73 @@ public sealed class SceneUIManager : MonoBehaviour
         }
 
         managedUIStateApplied = false;
+    }
+
+    private void ApplyPersistentSceneCursorState(bool restoreManagedInputState)
+    {
+        KMS.PlayerInput[] playerInputs = FindKmsPlayerInputs();
+        for (int i = 0; i < playerInputs.Length; i++)
+        {
+            KMS.PlayerInput playerInput = playerInputs[i];
+            if (playerInput == null)
+            {
+                continue;
+            }
+
+            if (restoreManagedInputState)
+            {
+                playerInput.SetGameplayInputBlocked(
+                    TryGetNormalPlayerInputState(
+                        playerInput,
+                        out KmsPlayerInputState normalState)
+                        && normalState.WasGameplayInputBlocked);
+            }
+
+            playerInput.SetCursorReleased(true);
+        }
+
+        KMS.PlayerCameraController[] cameraControllers = FindKmsCameraControllers();
+        for (int i = 0; i < cameraControllers.Length; i++)
+        {
+            if (cameraControllers[i] != null)
+            {
+                cameraControllers[i].SetCursorLocked(false);
+            }
+        }
+
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+        persistentSceneCursorStateApplied = true;
+    }
+
+    private void RestorePersistentSceneCursorState()
+    {
+        if (!persistentSceneCursorStateApplied)
+        {
+            return;
+        }
+
+        RestoreNormalKmsPlayerState();
+        RestoreNormalCursorState();
+        persistentSceneCursorStateApplied = false;
+    }
+
+    private bool TryGetNormalPlayerInputState(
+        KMS.PlayerInput target,
+        out KmsPlayerInputState result)
+    {
+        for (int i = 0; i < normalKmsPlayerInputStates.Count; i++)
+        {
+            KmsPlayerInputState state = normalKmsPlayerInputStates[i];
+            if (state.Input == target)
+            {
+                result = state;
+                return true;
+            }
+        }
+
+        result = null;
+        return false;
     }
 
     private bool WasCursorReleasedBeforeManagedUI()
@@ -1048,7 +1126,21 @@ public sealed class SceneUIManager : MonoBehaviour
 
         if (managedUIStateApplied)
         {
-            RestoreManagedUIState();
+            if (keepCursorVisibleInScene)
+            {
+                RestoreNormalKmsPlayerState();
+                RestoreNormalCursorState();
+                managedUIStateApplied = false;
+            }
+            else
+            {
+                RestoreManagedUIState();
+            }
+        }
+
+        if (persistentSceneCursorStateApplied)
+        {
+            RestorePersistentSceneCursorState();
         }
     }
 
