@@ -39,6 +39,8 @@ namespace KMS
         private GameObject fallbackModalCanvasObject;
         private RectTransform modalRoot;
         private GameObject memDexInstance;
+        private CanvasGroup preplacedMemDexCanvasGroup;
+        private bool usesPreplacedMemDex;
         private bool isOpen;
         private bool openedThroughHdyUiManager;
 
@@ -127,7 +129,8 @@ namespace KMS
             }
             else if (memDexInstance != null)
             {
-                Destroy(memDexInstance);
+                if (usesPreplacedMemDex) SetPreplacedMemDexVisible(false);
+                else Destroy(memDexInstance);
             }
 
             FinishClose();
@@ -253,6 +256,8 @@ namespace KMS
 
         private bool OpenStandalone()
         {
+            if (TryOpenPreplacedMemDex()) return true;
+
             EnsureModalRoot();
             if (modalRoot == null) return false;
 
@@ -299,6 +304,44 @@ namespace KMS
 
             modalRoot = CreateModalRoot(canvasRoot);
             return true;
+        }
+
+        private bool TryOpenPreplacedMemDex()
+        {
+            ResolveReferences();
+            if (inventoryUi == null) return false;
+
+            Canvas inventoryCanvas = inventoryUi.GetComponentInParent<Canvas>(true);
+            if (inventoryCanvas == null) return false;
+
+            MemDexUI preplacedMemDex = inventoryCanvas.GetComponentInChildren<MemDexUI>(true);
+            if (preplacedMemDex == null) return false;
+
+            memDexInstance = preplacedMemDex.gameObject;
+            modalRoot = preplacedMemDex.transform.parent as RectTransform;
+            if (modalRoot != null) modalRoot.SetAsLastSibling();
+
+            preplacedMemDexCanvasGroup = modalRoot != null
+                ? modalRoot.GetComponent<CanvasGroup>()
+                : null;
+            if (preplacedMemDexCanvasGroup == null && modalRoot != null)
+            {
+                preplacedMemDexCanvasGroup = modalRoot.gameObject.AddComponent<CanvasGroup>();
+            }
+
+            usesPreplacedMemDex = true;
+            memDexInstance.SetActive(true);
+            SetPreplacedMemDexVisible(true);
+            return true;
+        }
+
+        private void SetPreplacedMemDexVisible(bool visible)
+        {
+            if (preplacedMemDexCanvasGroup == null) return;
+
+            preplacedMemDexCanvasGroup.alpha = visible ? 1f : 0f;
+            preplacedMemDexCanvasGroup.interactable = visible;
+            preplacedMemDexCanvasGroup.blocksRaycasts = visible;
         }
 
         private void CreateFallbackModalCanvas()
@@ -396,6 +439,7 @@ namespace KMS
             isOpen = false;
             openedThroughHdyUiManager = false;
             memDexInstance = null;
+            usesPreplacedMemDex = false;
 
             if (fallbackModalCanvasObject != null) fallbackModalCanvasObject.SetActive(false);
 
