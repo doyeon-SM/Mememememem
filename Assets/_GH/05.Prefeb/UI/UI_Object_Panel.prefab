@@ -243,7 +243,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &2739352800363550007
 RectTransform:
   m_ObjectHideFlags: 0
@@ -410,6 +410,8 @@ MonoBehaviour:
   tooltipParent: {fileID: 0}
   chestTooltipAnchoredPosition: {x: 0, y: 0}
   worldAnchorOffset: {x: 0, y: 0.25, z: 0}
+  targetLeftPadding: 0.25
+  fallbackPlayerHeight: 1.8
   worldCamera: {fileID: 0}
   hideWhenBehindCamera: 1
   playerInteraction: {fileID: 0}
@@ -587,7 +589,7 @@ RectTransform:
   m_Father: {fileID: 8066969930062784636}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 0, y: 1}
+  m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}

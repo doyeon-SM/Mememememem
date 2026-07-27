@@ -519,9 +519,75 @@ public sealed class SceneUIManager : MonoBehaviour
             return;
         }
 
-        RestoreNormalKmsPlayerState();
-        RestoreNormalCursorState();
+        if (WasCursorReleasedBeforeManagedUI())
+        {
+            ExitCursorReleaseToGameplayState();
+        }
+        else
+        {
+            RestoreNormalKmsPlayerState();
+            RestoreNormalCursorState();
+        }
+
         managedUIStateApplied = false;
+    }
+
+    private bool WasCursorReleasedBeforeManagedUI()
+    {
+        bool foundPlayerInputState = false;
+
+        for (int i = 0; i < normalKmsPlayerInputStates.Count; i++)
+        {
+            KmsPlayerInputState state = normalKmsPlayerInputStates[i];
+            if (state.Input == null)
+            {
+                continue;
+            }
+
+            foundPlayerInputState = true;
+
+            // Alt의 ToggleCursor 상태는 커서만 해제되고 강제 입력 차단은 적용되지 않습니다.
+            if (state.WasCursorReleased && !state.WasGameplayInputBlocked)
+            {
+                return true;
+            }
+        }
+
+        // KMS PlayerInput을 아직 찾지 못한 경우에는 저장된 Unity 커서 상태를 사용합니다.
+        return !foundPlayerInputState
+            && hasNormalCursorState
+            && (normalCursorLockMode != CursorLockMode.Locked || normalCursorVisible);
+    }
+
+    private void ExitCursorReleaseToGameplayState()
+    {
+        KMS.PlayerInput[] playerInputs = FindKmsPlayerInputs();
+        for (int i = 0; i < playerInputs.Length; i++)
+        {
+            KMS.PlayerInput playerInput = playerInputs[i];
+            if (playerInput == null)
+            {
+                continue;
+            }
+
+            playerInput.SetCursorReleased(false);
+            playerInput.SetGameplayInputBlocked(false);
+        }
+
+        KMS.PlayerCameraController[] cameraControllers = FindKmsCameraControllers();
+        for (int i = 0; i < cameraControllers.Length; i++)
+        {
+            if (cameraControllers[i] != null)
+            {
+                cameraControllers[i].SetCursorLocked(true);
+            }
+        }
+
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+
+        // 다음 Managed UI가 열릴 때 Alt 상태가 다시 복원되지 않도록 기준 상태도 갱신합니다.
+        CaptureNormalState();
     }
 
     private void EnforceExclusiveManagedUIs()
