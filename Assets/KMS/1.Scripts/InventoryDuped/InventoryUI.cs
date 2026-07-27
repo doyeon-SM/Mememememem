@@ -518,11 +518,16 @@ namespace KMS.InventoryDuped
             playerInventory.OnInventorySlotCountChanged -= gridController.RefreshInventorySlotLocks;
         }
 
+        private void HandleInventoryPressed()
+        {
+            SceneUIManager.TryToggleManagedUI("Inventory");
+        }
+
         private void SubscribeInputEvents()
         {
             if (playerInput == null) return;
 
-            playerInput.InventoryPressed += Toggle;
+            playerInput.InventoryPressed += HandleInventoryPressed;
             playerInput.QuickSlotPressed += SelectQuickSlot;
             playerInput.QuickSlotScrolled += SelectQuickSlotOffset;
         }
@@ -531,7 +536,7 @@ namespace KMS.InventoryDuped
         {
             if (playerInput == null) return;
 
-            playerInput.InventoryPressed -= Toggle;
+            playerInput.InventoryPressed -= HandleInventoryPressed;
             playerInput.QuickSlotPressed -= SelectQuickSlot;
             playerInput.QuickSlotScrolled -= SelectQuickSlotOffset;
         }
