@@ -67,20 +67,23 @@ namespace HDY.UI
             if (info == null) Debug.LogWarning("[MemDexUI] info가 비어있습니다.", this);
             if (sort == null) Debug.LogWarning("[MemDexUI] sort가 비어있습니다. 정렬 버튼이 동작하지 않습니다.", this);
 
-            if (grid != null)
-            {
-                grid.OnSlotClicked += HandleSlotClicked;
-            }
-
-            if (sort != null)
-            {
-                sort.OnSortRequested += HandleSortRequested;
-            }
         }
 
         private void OnEnable()
         {
             if (catalogManager == null) catalogManager = MemCatalogManager.Instance;
+
+            if (grid != null)
+            {
+                grid.OnSlotClicked -= HandleSlotClicked;
+                grid.OnSlotClicked += HandleSlotClicked;
+            }
+
+            if (sort != null)
+            {
+                sort.OnSortRequested -= HandleSortRequested;
+                sort.OnSortRequested += HandleSortRequested;
+            }
 
             RefreshGrid();
         }
