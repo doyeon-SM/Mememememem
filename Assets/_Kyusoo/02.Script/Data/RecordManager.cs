@@ -101,30 +101,42 @@ public class RecordManager : MonoBehaviour
 
             IsBlueprintGiven = saveData.isBlueprintGiven;
 
+            // 1. 영지 기초 데이터 복구
             var territoryRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "TerritoryRecordData");
             territoryRecord?.ApplyData(saveData, sceneType);
 
+            // 2. 웨이포인트 해금 데이터 복구
+            var waypointRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "WaypointRecordData");
+            waypointRecord?.ApplyData(saveData, sceneType);
+
+            // 3. 멤 창고 데이터 복구
             var memRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "MemRecordData");
             memRecord?.ApplyData(saveData, sceneType);
 
+            // 4. 플레이어 인벤토리 복구
             var inventoryRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "PlayerInventoryRecord");
             inventoryRecord?.ApplyData(saveData, sceneType);
 
+            // 5. 배치된 시설 복원
             var facilityRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "FacilityRecordData");
             facilityRecord?.ApplyData(saveData, sceneType);
 
+            // 6. 음식 소모 데이터 복구
             var foodRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "ConsumeFoodRecordData");
             foodRecord?.ApplyData(saveData, sceneType);
 
+            // 7. 시간 데이터 복구
             var timeRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "TimeRecordData");
             timeRecord?.ApplyData(saveData, sceneType);
 
+            // 8. 오프라인 보상 정산
             var offlineRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "OfflineRewardRecordData");
             offlineRecord?.ApplyData(saveData, sceneType);
 
+            // 9. 기타 미지정 서브 레코드 순회 처리 (중복 실행 방지 리스트 업데이트)
             foreach (var record in subRecords)
             {
-                if (record == territoryRecord || record == memRecord || record == inventoryRecord ||
+                if (record == territoryRecord || record == waypointRecord || record == memRecord || record == inventoryRecord ||
                     record == facilityRecord || record == foodRecord || record == timeRecord || record == offlineRecord)
                     continue;
 
@@ -173,7 +185,6 @@ public class RecordManager : MonoBehaviour
         else facilityDatabase.Add(buildingId, updatedData);
     }
 
-    // 🌟 [수정 위치]: 배치 취소/철거 시 씬에 없는 건물의 딕셔너리 캐시 데이터를 완전히 동기화 정제하는 메서드 추가
     public void SynchronizeFacilityDatabase(Dictionary<string, FacilityData> activeFacilities)
     {
         facilityDatabase.Clear();

@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using UnityEngine;
 using UnityEngine.UI;
-using UnityEngine.InputSystem;
 using HDY.Shop;
 using HDY.Upgrade;
 using HDY.Territory;
@@ -17,13 +17,25 @@ namespace HDY.UI
     ///
     /// [한 번에 하나만 - 다른 버튼을 누르면 기존 것을 닫고 새로 연다] 최상위 UI는 한 번에 하나만 열려
     /// 있을 수 있다. 이미 어떤 UI가 열려 있는 상태에서 "다른" 버튼을 누르면 기존 UI를 먼저 Destroy하고
-    /// 새 UI를 연다. 반대로 "이미 열려 있는 UI와 같은" 버튼을 다시 누르면 아무 동작도 하지 않는다
-    /// (기획 확정 사항 - 토글로 닫히지 않음).
+    /// 새 UI를 연다. 반대로 "이미 열려 있는 UI와 같은" 버튼을 다시 누르면, 그 패널이 여전히 활성 상태인
+    /// 한 아무 동작도 하지 않는다(기획 확정 사항 - 토글로 닫히지 않음). 다만 SceneUIManager가 ESC로
+    /// 패널을 비활성화해둔 뒤라면(아래 참고) "닫혀 있다"고 보고 다시 연다.
     ///
-    /// [ESC로 닫기 = 스택 pop] 연 순서를 Stack&lt;GameObject&gt;에 쌓아두고, ESC를 누르면 맨 위(가장
-    /// 최근에 연 것)를 pop해서 Destroy한다. 지금 정책상 한 번에 하나만 열리므로 스택에는 사실상 0개
-    /// 아니면 1개만 쌓이지만, 나중에 "여러 개 동시에" 정책으로 바뀌어도 Push/Pop 골격을 그대로 재사용할
-    /// 수 있도록 스택 구조를 유지한다.
+    /// [ESC로 닫기 - _GH SceneUIManager에 위임] 이 매니저는 더 이상 ESC 키를 직접 감지하지 않는다.
+    /// 대신 HUD 패널을 열 때마다 그 인스턴스를 _GH의 SceneUIManager가 갖고 있는 managedUIObjects
+    /// 리스트(비공개 필드)에 리플렉션으로 등록해서, 실제 ESC 입력 처리와 패널 SetActive(false)는
+    /// SceneUIManager가 대신 담당하도록 넘긴다(SceneUIManager.cs는 크로스팀 코드라 수정하지 않음).
+    ///
+    /// SceneUIManager는 패널을 닫을 때 Destroy가 아니라 SetActive(false)만 호출하므로, 그 순간에도
+    /// 이 매니저의 openStack/currentPrefabKey 상태가 실제 활성 여부와 어긋나지 않도록, Instantiate된
+    /// 패널마다 ManagedPanelCloseWatcher를 붙여 OnDisable 시점에 즉시 동기화(스택 pop + currentPrefabKey
+    /// 초기화 + Destroy)한다. 이 동기화가 중요한 이유는, KMS 쪽 코드(KMSMemDexLauncher 등)가
+    /// HasActivePanel()을 매 프레임 확인해서 자기 자신(플레이어 이동/커서 잠금)을 풀어주기 때문이다ㅡ
+    /// 상태가 어긋나면 ESC로 패널을 닫아도 플레이어가 계속 "메뉴 모드"에 갇히게 된다.
+    ///
+    /// 팀 협의 결과, _GH의 SceneUIManager가 아직 배치되지 않은 씬(예: HDY_TestScene 단독 테스트)에서는
+    /// ESC로 패널을 닫는 기능 자체가 동작하지 않는다. 그런 씬에서는 프리팹 내부의 자체 닫기(X) 버튼이나
+    /// CloseCurrent() 직접 호출로만 닫을 수 있다.
     ///
     /// [상점(ShopUI) 특이사항] 상점은 열려있는 동안 내부적으로 다른 상점(마트/식당/철물점)이나 구매/판매
     /// 탭으로 이동할 수 있는데, 그건 이 매니저가 아니라 ShopUI 자신이 처리한다(ShopUI.Open(shopData)
@@ -33,7 +45,7 @@ namespace HDY.UI
     /// [업그레이드 팝업 정리] UpgradePopupUI는 이 스택과 별개로 씬에 상시 배치된 싱글톤이라(P_UIRoot의
     /// 원래부터 있던 자식), 상위 UI(상점/여신상/창고 등)를 Destroy해도 자동으로 같이 닫히지 않는다.
     /// 그래서 CloseCurrent()에서 상위 UI를 닫기 직전에 UpgradePopupUI.Instance?.Hide()를 먼저 호출해서,
-    /// 다른 UI로 넘어가거나 ESC로 닫을 때 팝업만 화면에 덩그러니 남지 않도록 한다.
+    /// 다른 UI로 넘어가거나 닫을 때 팝업만 화면에 덩그러니 남지 않도록 한다.
     ///
     /// [프리팹 내부의 자체 닫기(X) 버튼 주의] 개별 UI 프리팹 안에 자체 닫기 버튼이 있다면, 그 버튼은
     /// 반드시 UIManager.Instance.CloseCurrent()를 호출해야 한다 - 그래야 스택 상태와 실제로 열려있는
@@ -66,6 +78,22 @@ namespace HDY.UI
             public int RequiredLevel = 0;
         }
 
+        /// <summary>
+        /// Instantiate된 HUD 패널에 붙어서, _GH SceneUIManager가 ESC로 SetActive(false)만 했을 때도
+        /// OnDisable 시점에 UIManager의 openStack/currentPrefabKey를 즉시 동기화해주는 감시자.
+        /// CloseCurrent()가 직접 Destroy해서 OnDisable이 뒤늦게(프레임 끝에) 불리는 경우에는
+        /// 이미 스택에서 빠져 있으므로(Peek 불일치) 아무 동작도 하지 않는다.
+        /// </summary>
+        private class ManagedPanelCloseWatcher : MonoBehaviour
+        {
+            public UIManager Owner;
+
+            private void OnDisable()
+            {
+                if (Owner != null) Owner.HandleManagedPanelDisabled(gameObject);
+            }
+        }
+
         public static UIManager Instance { get; private set; }
 
         [Tooltip("UI 프리팹이 배치될 부모(P_UIRoot). 여기 밑에 로컬 좌표 (0,0,0)으로 Instantiate된다.")]
@@ -87,6 +115,9 @@ namespace HDY.UI
 
         /// <summary>지금 열려있는 UI가 어떤 프리팹에서 나온 건지 식별하는 키. 같은 버튼 재클릭 판별에 사용.</summary>
         private GameObject currentPrefabKey;
+
+        /// <summary>_GH SceneUIManager의 private managedUIObjects 필드에 접근하기 위한 캐시된 FieldInfo.</summary>
+        private static FieldInfo sceneUIManagerManagedObjectsField;
 
         /// <summary>리얼타임(KST)/인게임 시간 데이터. 시간 표시 Text 연결은 이 프로퍼티로 GameTimeManager에 접근해서 진행하면 된다.</summary>
         public GameTimeManager GameTime => gameTimeManager;
@@ -154,27 +185,17 @@ namespace HDY.UI
             }
         }
 
-        private void Update()
-        {
-            if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
-            {
-                if (PanelManager.Instance != null)
-                {
-                    PanelManager.Instance.CloseAllPanels();
-                }
-                else
-                {
-                    CloseCurrent();
-                }
-            }
-        }
-
         public void HandleHudButtonClicked(GameObject prefab)
         {
             if (uiRoot == null || prefab == null) return;
 
             // 이미 열려있는 UI와 같은 버튼이면 아무 동작도 하지 않는다(기획 확정 사항).
-            if (currentPrefabKey == prefab) return;
+            // 단, SceneUIManager가 ESC로 닫아서 비활성화된 상태라면 "닫혀 있다"고 보고 다시 연다.
+            if (currentPrefabKey == prefab)
+            {
+                var currentTop = openStack.Count > 0 ? openStack.Peek() : null;
+                if (currentTop != null && currentTop.activeSelf) return;
+            }
 
             CloseCurrent();
 
@@ -189,8 +210,12 @@ namespace HDY.UI
             instanceTransform.localRotation = Quaternion.identity;
             instanceTransform.localScale = Vector3.one;
 
+            instance.AddComponent<ManagedPanelCloseWatcher>().Owner = this;
+
             openStack.Push(instance);
             currentPrefabKey = prefab;
+
+            RegisterWithSceneUIManager(instance);
 
             // 상점은 열리자마자 어떤 상점을 보여줄지 정해줘야 한다(이후 상점 내부 이동은 ShopUI 자신이 처리).
             var shopUI = instance.GetComponent<ShopUI>();
@@ -198,7 +223,7 @@ namespace HDY.UI
         }
 
         /// <summary>
-        /// 지금 열려있는 UI(스택 맨 위)를 닫는다. ESC와 프리팹 내부 닫기(X) 버튼이 이 메서드를 호출해야 한다.
+        /// 지금 열려있는 UI(스택 맨 위)를 닫는다. 프리팹 내부 닫기(X) 버튼이 이 메서드를 호출해야 한다.
         /// 업그레이드 팝업이 열려있으면 상위 UI보다 먼저 닫는다(팝업은 상위 UI의 자식이 아니라 별개의 씬
         /// 상시 배치 싱글톤이라, 상위 UI를 Destroy해도 자동으로 같이 닫히지 않기 때문).
         /// </summary>
@@ -209,9 +234,29 @@ namespace HDY.UI
             if (openStack.Count == 0) return;
 
             var top = openStack.Pop();
-            if (top != null) Destroy(top);
+            if (top != null)
+            {
+                UnregisterFromSceneUIManager(top);
+                Destroy(top);
+            }
 
             currentPrefabKey = null;
+        }
+
+        /// <summary>
+        /// ManagedPanelCloseWatcher가 OnDisable에서 호출한다. SceneUIManager가 ESC로 패널을
+        /// SetActive(false)만 해서 스택 상태와 실제 활성 여부가 어긋난 경우에만 동기화를 수행한다.
+        /// 이미 CloseCurrent()가 스택에서 빼낸(=Destroy 예정) 상태라면 Peek이 일치하지 않으므로 무시한다.
+        /// </summary>
+        private void HandleManagedPanelDisabled(GameObject panelInstance)
+        {
+            if (openStack.Count == 0 || openStack.Peek() != panelInstance) return;
+
+            openStack.Pop();
+            currentPrefabKey = null;
+
+            UnregisterFromSceneUIManager(panelInstance);
+            Destroy(panelInstance);
         }
 
         /// <summary>
@@ -220,6 +265,38 @@ namespace HDY.UI
         public bool HasActivePanel()
         {
             return openStack.Count > 0 && currentPrefabKey != null;
+        }
+
+        /// <summary>_GH SceneUIManager의 private managedUIObjects(List&lt;GameObject&gt;) 필드를 리플렉션으로 가져온다.</summary>
+        private static List<GameObject> ResolveSceneUIManagerManagedList()
+        {
+            var manager = SceneUIManager.Instance;
+            if (manager == null) return null;
+
+            if (sceneUIManagerManagedObjectsField == null)
+            {
+                sceneUIManagerManagedObjectsField = typeof(SceneUIManager).GetField(
+                    "managedUIObjects", BindingFlags.NonPublic | BindingFlags.Instance);
+            }
+
+            return sceneUIManagerManagedObjectsField?.GetValue(manager) as List<GameObject>;
+        }
+
+        /// <summary>HUD 패널 인스턴스를 SceneUIManager의 ESC 관리 대상에 등록한다(SceneUIManager가 없으면 아무 동작 안 함).</summary>
+        private static void RegisterWithSceneUIManager(GameObject uiInstance)
+        {
+            var list = ResolveSceneUIManagerManagedList();
+            if (list != null && uiInstance != null && !list.Contains(uiInstance))
+            {
+                list.Add(uiInstance);
+            }
+        }
+
+        /// <summary>HUD 패널 인스턴스를 SceneUIManager의 ESC 관리 대상에서 제거한다(SceneUIManager가 없으면 아무 동작 안 함).</summary>
+        private static void UnregisterFromSceneUIManager(GameObject uiInstance)
+        {
+            var list = ResolveSceneUIManagerManagedList();
+            list?.Remove(uiInstance);
         }
     }
 }

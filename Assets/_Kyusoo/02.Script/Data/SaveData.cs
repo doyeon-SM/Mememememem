@@ -36,6 +36,13 @@ public class GameTimeSaveData
 }
 
 [Serializable]
+public class WaypointInfo
+{
+    public string wayPointId;
+    public bool isUnlocked;
+}
+
+[Serializable]
 public class SaveData
 {
     public string lastSaveTime;
@@ -79,4 +86,7 @@ public class SaveData
 
     [Header("시간 및 일자 데이터")]
     public GameTimeSaveData timeData;
+
+    [Header("웨이포인트 해금 데이터")]
+    public List<WaypointInfo> waypointInfo = new List<WaypointInfo>();
 }

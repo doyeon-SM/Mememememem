@@ -11,7 +11,6 @@ GameObject:
   - component: {fileID: 7352502414882451616}
   - component: {fileID: 7309819358282781941}
   - component: {fileID: 7002788530332014742}
-  - component: {fileID: 9123123546276931050}
   m_Layer: 0
   m_Name: UIManager
   m_TagString: Untagged
@@ -87,17 +86,3 @@ MonoBehaviour:
   territoryData: {fileID: 0}
   goldText: {fileID: 0}
   levelText: {fileID: 0}
---- !u!114 &9123123546276931050
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2024401072484678538}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d8a052cc9db5af14abde1f63df2fc081, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::FoodAmountUI
-  foodSlider: {fileID: 0}
-  foodAmountText: {fileID: 0}
