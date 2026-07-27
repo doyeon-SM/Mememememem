@@ -109,7 +109,7 @@ public class RecordManager : MonoBehaviour
             var waypointRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "WaypointRecordData");
             waypointRecord?.ApplyData(saveData, sceneType);
 
-            // 3. 상자 개방 데이터 복구
+            // 3. 상자 개봉 데이터 복구
             var chestRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "ChestRecordData");
             chestRecord?.ApplyData(saveData, sceneType);
 
@@ -121,23 +121,27 @@ public class RecordManager : MonoBehaviour
             var inventoryRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "PlayerInventoryRecord");
             inventoryRecord?.ApplyData(saveData, sceneType);
 
-            // 6. 배치된 시설 복원
+            // 6. 플레이어 스탯(체력/허기) 데이터 복구
+            var playerStatsRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "PlayerStatsRecordData");
+            playerStatsRecord?.ApplyData(saveData, sceneType);
+
+            // 7. 배치된 시설 복원
             var facilityRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "FacilityRecordData");
             facilityRecord?.ApplyData(saveData, sceneType);
 
-            // 7. 음식 소모 데이터 복구
+            // 8. 음식 소모 데이터 복구
             var foodRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "ConsumeFoodRecordData");
             foodRecord?.ApplyData(saveData, sceneType);
 
-            // 8. 시간 데이터 복구
+            // 9. 시간 데이터 복구
             var timeRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "TimeRecordData");
             timeRecord?.ApplyData(saveData, sceneType);
 
-            // 9. 오프라인 보상 정산
+            // 10. 오프라인 보상 정산
             var offlineRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "OfflineRewardRecordData");
             offlineRecord?.ApplyData(saveData, sceneType);
 
-            // 10. 기타 미지정 서브 레코드 순회 처리 (중복 실행 방지 리스트 업데이트)
+            // 11. 기타 미지정 서브 레코드 순회 처리 (중복 실행 방지 리스트 업데이트)
             foreach (var record in subRecords)
             {
                 if (record == territoryRecord || record == waypointRecord || record == chestRecord ||
