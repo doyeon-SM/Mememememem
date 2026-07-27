@@ -11888,11 +11888,13 @@ MonoBehaviour:
   - {fileID: 2596381}
   - {fileID: 1351023028}
   - {fileID: 1855979201}
+  - {fileID: 1046052162}
   managedUIIds:
   - Map
   - Inventory
   - MemDex
-  allowMultipleManagedUIs: 0
+  - P_UpgradePopup
+  allowMultipleManagedUIs: 1
   fallbackClosedCursorLockMode: 1
   fallbackClosedCursorVisible: 0
   notifyInputManager: 1
@@ -11979,6 +11981,11 @@ PrefabInstance:
 Transform:
   m_CorrespondingSourceObject: {fileID: 6517266582206468744, guid: cab20a9a3e2206343823c22bf8b13b38, type: 3}
   m_PrefabInstance: {fileID: 1045833127}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &1046052162 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 5811768105501246593, guid: b58c48b7845d85847be6ed20cc9a2ad9, type: 3}
+  m_PrefabInstance: {fileID: 217467668}
   m_PrefabAsset: {fileID: 0}
 --- !u!1001 &1052821341
 PrefabInstance:
