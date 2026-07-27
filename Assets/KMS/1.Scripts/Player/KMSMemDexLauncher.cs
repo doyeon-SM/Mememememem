@@ -36,7 +36,7 @@ namespace KMS
 
         private Button collectionButton;
         private ToolkitButton toolkitCollectionButton;
-        private GameObject modalCanvasObject;
+        private GameObject fallbackModalCanvasObject;
         private RectTransform modalRoot;
         private GameObject memDexInstance;
         private bool isOpen;
@@ -109,7 +109,7 @@ namespace KMS
             openedThroughHdyUiManager = TryOpenThroughHdyUiManager();
             if (!openedThroughHdyUiManager && !OpenStandalone())
             {
-                RestorePlayerState();
+                RestorePlayerState(true);
                 return;
             }
 
@@ -146,7 +146,10 @@ namespace KMS
             if (playerInput == null) playerInput = GetComponent<PlayerInput>();
             if (playerMovement == null) playerMovement = GetComponent<PlayerMovement>();
             if (cameraController == null) cameraController = GetComponent<PlayerCameraController>();
-            if (inventoryUi == null) inventoryUi = FindFirstObjectByType<InventoryUI>();
+            if (inventoryUi == null)
+            {
+                inventoryUi = FindFirstObjectByType<InventoryUI>(FindObjectsInactive.Include);
+            }
         }
 
         private void BindCollectionButton()
@@ -250,10 +253,15 @@ namespace KMS
 
         private bool OpenStandalone()
         {
-            EnsureModalCanvas();
+            EnsureModalRoot();
             if (modalRoot == null) return false;
 
-            modalCanvasObject.SetActive(true);
+            if (fallbackModalCanvasObject != null)
+            {
+                fallbackModalCanvasObject.SetActive(true);
+            }
+
+            modalRoot.SetAsLastSibling();
             memDexInstance = Instantiate(memDexPrefab, modalRoot);
 
             var instanceTransform = memDexInstance.transform;
@@ -269,36 +277,65 @@ namespace KMS
             return true;
         }
 
-        private void EnsureModalCanvas()
+        private void EnsureModalRoot()
         {
             if (modalRoot != null) return;
 
-            modalCanvasObject = new GameObject(
+            if (TryCreateInventoryCanvasRoot()) return;
+
+            CreateFallbackModalCanvas();
+        }
+
+        private bool TryCreateInventoryCanvasRoot()
+        {
+            ResolveReferences();
+            if (inventoryUi == null) return false;
+
+            Canvas inventoryCanvas = inventoryUi.GetComponentInParent<Canvas>(true);
+            if (inventoryCanvas == null || inventoryCanvas.transform is not RectTransform canvasRoot)
+            {
+                return false;
+            }
+
+            modalRoot = CreateModalRoot(canvasRoot);
+            return true;
+        }
+
+        private void CreateFallbackModalCanvas()
+        {
+            fallbackModalCanvasObject = new GameObject(
                 "KMS Mem Dex Canvas",
                 typeof(RectTransform),
                 typeof(Canvas),
                 typeof(CanvasScaler),
                 typeof(GraphicRaycaster));
-            modalCanvasObject.transform.SetParent(transform, false);
+            fallbackModalCanvasObject.transform.SetParent(transform, false);
 
-            var canvas = modalCanvasObject.GetComponent<Canvas>();
+            var canvas = fallbackModalCanvasObject.GetComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             canvas.sortingOrder = modalSortingOrder;
 
-            var scaler = modalCanvasObject.GetComponent<CanvasScaler>();
+            var scaler = fallbackModalCanvasObject.GetComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1920f, 1080f);
             scaler.matchWidthOrHeight = 0.5f;
 
-            var rootObject = new GameObject("MemDexModalRoot", typeof(RectTransform));
-            modalRoot = rootObject.GetComponent<RectTransform>();
-            modalRoot.SetParent(modalCanvasObject.transform, false);
-            modalRoot.anchorMin = Vector2.zero;
-            modalRoot.anchorMax = Vector2.one;
-            modalRoot.offsetMin = Vector2.zero;
-            modalRoot.offsetMax = Vector2.zero;
+            modalRoot = CreateModalRoot(fallbackModalCanvasObject.transform);
+            fallbackModalCanvasObject.SetActive(false);
+        }
 
-            modalCanvasObject.SetActive(false);
+        private static RectTransform CreateModalRoot(Transform parent)
+        {
+            var rootObject = new GameObject("MemDexModalRoot", typeof(RectTransform));
+            rootObject.layer = parent.gameObject.layer;
+
+            var root = rootObject.GetComponent<RectTransform>();
+            root.SetParent(parent, false);
+            root.anchorMin = Vector2.zero;
+            root.anchorMax = Vector2.one;
+            root.offsetMin = Vector2.zero;
+            root.offsetMax = Vector2.zero;
+            return root;
         }
 
         private void CapturePlayerState()
@@ -328,11 +365,13 @@ namespace KMS
             }
         }
 
-        private void RestorePlayerState()
+        private void RestorePlayerState(bool restorePreviousCursor)
         {
+            bool releaseCursor = restorePreviousCursor && previousCursorReleased;
+
             if (playerInput != null)
             {
-                playerInput.SetCursorReleased(previousCursorReleased);
+                playerInput.SetCursorReleased(releaseCursor);
                 playerInput.SetGameplayInputBlocked(previousGameplayInputBlocked);
             }
 
@@ -340,11 +379,16 @@ namespace KMS
 
             if (cameraController != null)
             {
-                cameraController.SetCursorLocked(previousCursorLockMode == CursorLockMode.Locked);
+                cameraController.SetCursorLocked(
+                    restorePreviousCursor
+                        ? previousCursorLockMode == CursorLockMode.Locked
+                        : true);
             }
 
-            GameCursor.lockState = previousCursorLockMode;
-            GameCursor.visible = previousCursorVisible;
+            GameCursor.lockState = restorePreviousCursor
+                ? previousCursorLockMode
+                : CursorLockMode.Locked;
+            GameCursor.visible = restorePreviousCursor && previousCursorVisible;
         }
 
         private void FinishClose()
@@ -353,9 +397,9 @@ namespace KMS
             openedThroughHdyUiManager = false;
             memDexInstance = null;
 
-            if (modalCanvasObject != null) modalCanvasObject.SetActive(false);
+            if (fallbackModalCanvasObject != null) fallbackModalCanvasObject.SetActive(false);
 
-            RestorePlayerState();
+            RestorePlayerState(false);
         }
 
         private bool TryOpenThroughHdyUiManager()
