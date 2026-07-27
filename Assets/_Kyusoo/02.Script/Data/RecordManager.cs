@@ -144,9 +144,9 @@ public class RecordManager : MonoBehaviour
             // 11. 기타 미지정 서브 레코드 순회 처리 (중복 실행 방지 리스트 업데이트)
             foreach (var record in subRecords)
             {
-                if (record == territoryRecord || record == waypointRecord || record == chestRecord ||
-                    record == memRecord || record == inventoryRecord || record == facilityRecord ||
-                    record == foodRecord || record == timeRecord || record == offlineRecord)
+                if (record == territoryRecord || record == waypointRecord || record == chestRecord || record == memRecord ||
+                    record == inventoryRecord || record == playerStatsRecord || record == facilityRecord || record == foodRecord ||
+                    record == timeRecord || record == offlineRecord)
                     continue;
 
                 record.ApplyData(saveData, sceneType);
