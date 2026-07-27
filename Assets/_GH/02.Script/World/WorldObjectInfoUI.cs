@@ -7,7 +7,7 @@ using UnityEngine.UI;
 
 /// <summary>
 /// PlayerInteraction이 감지한 상자 또는 월드 오브젝트의 정보를 화면에 표시합니다.
-/// 상자는 별도의 툴팁 프리팹을 사용하고, 월드 오브젝트는 대상 상단에 이름과 체력만 표시합니다.
+/// 상자는 별도의 툴팁 프리팹을 사용하고, 월드 오브젝트는 플레이어 높이를 기준으로 대상 왼쪽에 표시합니다.
 /// </summary>
 [DisallowMultipleComponent]
 public class WorldObjectInfoUI : MonoBehaviour
@@ -33,8 +33,14 @@ public class WorldObjectInfoUI : MonoBehaviour
     [SerializeField] private Vector2 chestTooltipAnchoredPosition;
 
     [Header("Target Position")]
-    [Tooltip("Renderer/Collider의 최상단을 기준으로 추가할 월드 좌표 오프셋입니다.")]
+    [Tooltip("플레이어 높이를 적용한 대상 왼쪽 위치에 추가할 월드 좌표 오프셋입니다.")]
     [SerializeField] private Vector3 worldAnchorOffset = new Vector3(0f, 0.25f, 0f);
+    [Tooltip("대상의 화면 기준 왼쪽 경계에서 UI를 추가로 띄울 거리입니다.")]
+    [Min(0f)]
+    [SerializeField] private float targetLeftPadding = 0.25f;
+    [Tooltip("플레이어 CharacterController를 찾지 못했을 때 사용할 플레이어 키입니다.")]
+    [Min(0.1f)]
+    [SerializeField] private float fallbackPlayerHeight = 1.8f;
     [Tooltip("월드 좌표를 화면 좌표로 변환할 카메라입니다. 비워 두면 Main Camera를 사용합니다.")]
     [SerializeField] private Camera worldCamera;
     [SerializeField] private bool hideWhenBehindCamera = true;
@@ -56,6 +62,8 @@ public class WorldObjectInfoUI : MonoBehaviour
     private RectTransform chestTooltipRect;
     private Image chestTooltipIcon;
     private TMP_Text chestTooltipNameText;
+    private CharacterController cachedPlayerCharacterController;
+    private PlayerInteraction cachedCharacterControllerOwner;
     private float nextPlayerReferenceResolveTime;
 
     private const float PlayerReferenceRetryInterval = 0.5f;
@@ -495,7 +503,9 @@ public class WorldObjectInfoUI : MonoBehaviour
             return;
         }
 
-        Vector3 worldPosition = CalculateTargetTop(currentTarget) + worldAnchorOffset;
+        Vector3 worldPosition = CalculateTargetLeftAtPlayerHeight(
+            currentTarget,
+            cameraToUse) + worldAnchorOffset;
         Vector3 screenPosition = cameraToUse.WorldToScreenPoint(worldPosition);
         bool isBehindCamera = screenPosition.z <= 0f;
 
@@ -530,11 +540,83 @@ public class WorldObjectInfoUI : MonoBehaviour
         }
     }
 
-    private static Vector3 CalculateTargetTop(Component target)
+    private Vector3 CalculateTargetLeftAtPlayerHeight(Component target, Camera cameraToUse)
+    {
+        bool hasBounds = TryCalculateTargetBounds(target, out Bounds targetBounds);
+        Vector3 targetCenter = hasBounds
+            ? targetBounds.center
+            : target.transform.position;
+
+        Vector3 cameraRight = Vector3.ProjectOnPlane(
+            cameraToUse.transform.right,
+            Vector3.up);
+        if (cameraRight.sqrMagnitude < 0.0001f)
+        {
+            cameraRight = Vector3.right;
+        }
+        else
+        {
+            cameraRight.Normalize();
+        }
+
+        float targetLeftExtent = 0f;
+        float targetBottom = target.transform.position.y;
+
+        if (hasBounds)
+        {
+            Vector3 extents = targetBounds.extents;
+            targetLeftExtent =
+                Mathf.Abs(cameraRight.x) * extents.x
+                + Mathf.Abs(cameraRight.z) * extents.z;
+            targetBottom = targetBounds.min.y;
+        }
+
+        Vector3 anchorPosition =
+            targetCenter - cameraRight * (targetLeftExtent + targetLeftPadding);
+        anchorPosition.y = targetBottom + ResolvePlayerHeight();
+        return anchorPosition;
+    }
+
+    private float ResolvePlayerHeight()
+    {
+        if (!ReferenceEquals(cachedCharacterControllerOwner, playerInteraction)
+            || cachedPlayerCharacterController == null)
+        {
+            cachedCharacterControllerOwner = playerInteraction;
+            cachedPlayerCharacterController = null;
+
+            if (playerInteraction != null)
+            {
+                cachedPlayerCharacterController =
+                    playerInteraction.GetComponentInParent<CharacterController>();
+
+                if (cachedPlayerCharacterController == null)
+                {
+                    cachedPlayerCharacterController =
+                    playerInteraction.GetComponentInChildren<CharacterController>(true);
+                }
+            }
+        }
+
+        if (cachedPlayerCharacterController != null)
+        {
+            float scaledHeight =
+                cachedPlayerCharacterController.height
+                * Mathf.Abs(cachedPlayerCharacterController.transform.lossyScale.y);
+            if (scaledHeight > 0.1f)
+            {
+                return scaledHeight;
+            }
+        }
+
+        return Mathf.Max(0.1f, fallbackPlayerHeight);
+    }
+
+    private static bool TryCalculateTargetBounds(Component target, out Bounds combinedBounds)
     {
         Renderer[] renderers = target.GetComponentsInChildren<Renderer>(true);
         bool hasBounds = false;
-        Bounds combinedBounds = default;
+        combinedBounds = default;
 
         for (int i = 0; i < renderers.Length; i++)
         {
@@ -580,12 +662,9 @@ public class WorldObjectInfoUI : MonoBehaviour
 
         if (!hasBounds)
         {
-            return target.transform.position;
+            return false;
         }
 
-        return new Vector3(
-            combinedBounds.center.x,
-            combinedBounds.max.y,
-            combinedBounds.center.z);
+        return true;
     }
 }

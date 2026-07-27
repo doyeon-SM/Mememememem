@@ -44,6 +44,8 @@ namespace KMS
 
         private void Awake()
         {
+            EnsureCollectionButtonInputLayer();
+
             if (notificationTemplate != null)
             {
                 notificationTemplate.SetActive(false);
@@ -53,6 +55,24 @@ namespace KMS
             EnsureRespawnButton();
             SetDefeatOverlayVisible(false, string.Empty);
             UpdateResponsiveLayout();
+        }
+
+        private void EnsureCollectionButtonInputLayer()
+        {
+            if (collectionButton == null) return;
+
+            GameObject buttonObject = collectionButton.gameObject;
+            Canvas buttonCanvas = buttonObject.GetComponent<Canvas>();
+            if (buttonCanvas == null) buttonCanvas = buttonObject.AddComponent<Canvas>();
+
+            // Keep the MemDex toggle reachable while the modal is rendered above the HUD.
+            buttonCanvas.overrideSorting = true;
+            buttonCanvas.sortingOrder = 1000;
+
+            if (buttonObject.GetComponent<GraphicRaycaster>() == null)
+            {
+                buttonObject.AddComponent<GraphicRaycaster>();
+            }
         }
 
         private void OnRectTransformDimensionsChange()

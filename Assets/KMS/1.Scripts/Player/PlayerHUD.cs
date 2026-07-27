@@ -223,10 +223,11 @@ namespace KMS
             boundHudView = hudView;
             if (boundHudView == null) return;
 
-            if (boundHudView.InventoryButton != null)
-                boundHudView.InventoryButton.onClick.AddListener(HandleInventoryButtonClicked);
-            if (boundHudView.MapButton != null)
-                boundHudView.MapButton.onClick.AddListener(HandleMapButtonClicked);
+            // Temporarily disabled so the HUD buttons can be tested with Inspector-assigned OnClick events.
+            // if (boundHudView.InventoryButton != null)
+            //     boundHudView.InventoryButton.onClick.AddListener(HandleInventoryButtonClicked);
+            // if (boundHudView.MapButton != null)
+            //     boundHudView.MapButton.onClick.AddListener(HandleMapButtonClicked);
             if (boundHudView.RespawnButton != null)
                 boundHudView.RespawnButton.onClick.AddListener(HandleRespawnButtonClicked);
             boundHudView.SetSurvivalStatusVisible(isSurvivalStatusVisible);
@@ -266,8 +267,9 @@ namespace KMS
             toolkitRealTimeLabel = UnityEngine.UIElements.UQueryExtensions.Q<ToolkitLabel>(root, realTimeLabelName);
             toolkitGoldLabel = UnityEngine.UIElements.UQueryExtensions.Q<ToolkitLabel>(root, goldLabelName);
 
-            if (toolkitInventoryButton != null) toolkitInventoryButton.clicked += HandleInventoryButtonClicked;
-            if (toolkitMapButton != null) toolkitMapButton.clicked += HandleMapButtonClicked;
+            // Temporarily disabled while testing non-runtime-bound HUD buttons.
+            // if (toolkitInventoryButton != null) toolkitInventoryButton.clicked += HandleInventoryButtonClicked;
+            // if (toolkitMapButton != null) toolkitMapButton.clicked += HandleMapButtonClicked;
             if (toolkitRespawnButton != null) toolkitRespawnButton.clicked += HandleRespawnButtonClicked;
             if (toolkitSurvivalStatus != null)
                 toolkitSurvivalStatus.style.display = isSurvivalStatusVisible ? DisplayStyle.Flex : DisplayStyle.None;
@@ -301,7 +303,8 @@ namespace KMS
 
         private void HandleMapPressed()
         {
-            if (stats == null || stats.IsAlive) TogglePreviewMap();
+            if (stats == null || stats.IsAlive)
+                SceneUIManager.TryToggleManagedUI("Map");
         }
 
         private void HandleMapButtonClicked()
