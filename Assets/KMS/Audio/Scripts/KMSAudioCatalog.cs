@@ -169,12 +169,12 @@ namespace KMS.Audio
             switch (id)
             {
                 case GameSfxId.FootstepWalk:
-                    cue.Volume = 0.65f;
+                    cue.Volume = 0.4f;
                     cue.Cooldown = 0.08f;
                     cue.MaxVoices = 2;
                     break;
                 case GameSfxId.FootstepRun:
-                    cue.Volume = 0.8f;
+                    cue.Volume = 0.5f;
                     cue.PitchMin = 1.04f;
                     cue.PitchMax = 1.08f;
                     cue.Cooldown = 0.06f;
