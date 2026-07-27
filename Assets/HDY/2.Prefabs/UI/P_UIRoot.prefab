@@ -60,7 +60,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
   m_Color: {r: 1, g: 1, b: 1, a: 0}
-  m_RaycastTarget: 1
+  m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
   m_OnCullStateChanged:
@@ -212,6 +212,10 @@ PrefabInstance:
       propertyPath: m_SizeDelta.x
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 5037905350095408935, guid: 7ef13426b4d127d4c98b256a43fe0391, type: 3}
+      propertyPath: m_Sprite
+      value: 
+      objectReference: {fileID: 21300000, guid: 8938dd46676857d42861c72cf0f3c346, type: 3}
     - target: {fileID: 5587091440836191740, guid: 7ef13426b4d127d4c98b256a43fe0391, type: 3}
       propertyPath: m_Name
       value: P_UpgradePopup

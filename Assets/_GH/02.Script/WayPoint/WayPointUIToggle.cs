@@ -17,6 +17,12 @@ public class WayPointUIToggle : MonoBehaviour
             return;
         }
 
+        // SceneUIManager가 있는 씬에서는 ESC 입력을 중앙 관리자가 한 번만 처리한다.
+        if (SceneUIManager.Instance != null)
+        {
+            return;
+        }
+
         UnityEngine.InputSystem.Keyboard keyboard = UnityEngine.InputSystem.Keyboard.current;
         if (keyboard != null && keyboard.escapeKey.wasPressedThisFrame)
         {
