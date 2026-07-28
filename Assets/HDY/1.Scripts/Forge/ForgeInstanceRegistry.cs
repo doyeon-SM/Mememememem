@@ -127,5 +127,24 @@ namespace HDY.Forge
 
             return found;
         }
+
+        /// <summary>
+        /// 세이브 파일로부터 불러온 인스턴스 리스트를 메모리 딕셔너리 및 인스펙터 리스트에 재복원.
+        /// </summary>
+        public void RestoreInstances(List<ForgeInstanceData> restoredList)
+        {
+            instances.Clear();
+            instanceListView.Clear();
+
+            if (restoredList == null) return;
+
+            foreach (var data in restoredList)
+            {
+                if (data == null || string.IsNullOrEmpty(data.InstanceId)) continue;
+
+                instances[data.InstanceId] = data;
+                instanceListView.Add(data);
+            }
+        }
     }
 }

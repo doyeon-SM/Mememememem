@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using HDY.Capture;
+using HDY.Forge;
 
 [Serializable]
 public class ItemStackData
@@ -111,4 +112,7 @@ public class SaveData
 
     [Header("플레이어 스탯 데이터")]
     public PlayerInfo playerInfo = new PlayerInfo();
+
+    [Header("대장간 도구 인스턴스 데이터")]
+    public List<ForgeInstanceData> forgeInstanceDataList = new List<ForgeInstanceData>();
 }

@@ -117,27 +117,31 @@ public class RecordManager : MonoBehaviour
             var memRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "MemRecordData");
             memRecord?.ApplyData(saveData, sceneType);
 
-            // 5. 플레이어 인벤토리 복구
+            // 5. 대장간 데이터 복구
+            var forgeRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "ForgeRecordData");
+            forgeRecord?.ApplyData(saveData, sceneType);
+
+            // 6. 플레이어 인벤토리 복구
             var inventoryRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "PlayerInventoryRecord");
             inventoryRecord?.ApplyData(saveData, sceneType);
 
-            // 6. 플레이어 스탯(체력/허기) 데이터 복구
+            // 7. 플레이어 스탯 복구
             var playerStatsRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "PlayerStatsRecordData");
             playerStatsRecord?.ApplyData(saveData, sceneType);
 
-            // 7. 배치된 시설 복원
+            // 8. 배치된 시설 복원
             var facilityRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "FacilityRecordData");
             facilityRecord?.ApplyData(saveData, sceneType);
 
-            // 8. 음식 소모 데이터 복구
+            // 9. 음식 소모 데이터 복구
             var foodRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "ConsumeFoodRecordData");
             foodRecord?.ApplyData(saveData, sceneType);
 
-            // 9. 시간 데이터 복구
+            // 10. 시간 데이터 복구
             var timeRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "TimeRecordData");
             timeRecord?.ApplyData(saveData, sceneType);
 
-            // 10. 오프라인 보상 정산
+            // 11. 오프라인 보상 정산
             var offlineRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "OfflineRewardRecordData");
             offlineRecord?.ApplyData(saveData, sceneType);
 
@@ -145,7 +149,7 @@ public class RecordManager : MonoBehaviour
             foreach (var record in subRecords)
             {
                 if (record == territoryRecord || record == waypointRecord || record == chestRecord || record == memRecord ||
-                    record == inventoryRecord || record == playerStatsRecord || record == facilityRecord || record == foodRecord ||
+                    record == forgeRecord || record == inventoryRecord || record == playerStatsRecord || record == facilityRecord || record == foodRecord ||
                     record == timeRecord || record == offlineRecord)
                     continue;
 
