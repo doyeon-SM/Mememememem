@@ -37,7 +37,7 @@ namespace HDY.Forge
         [Header("연마석 재료 Item_ID (단일 아이템, 수량만 다르게 소모)")]
         [SerializeField] private string refinementMaterialItemId;
 
-        [Header("연마 옵션 데이터 (txt, 탭 구분, 컬럼: 등급/종류/수치/확률 - ItemCatalog.txt와 동일한 형식)")]
+        [Header("연마 옵션 데이터 (csv, 쉼표 구분, 컬럼: 등급/종류/수치/확률 - ItemCatalog.csv와 동일한 형식)")]
         [SerializeField] private TextAsset optionDataCsv;
 
         private RefinementOptionTable optionTable;
@@ -59,7 +59,7 @@ namespace HDY.Forge
             optionTable = new RefinementOptionTable(rows);
         }
 
-        /// <summary>옵션 테이블을 가져온다. txt가 아직 로드되지 않았으면 즉시 빌드한다.</summary>
+        /// <summary>옵션 테이블을 가져온다. csv가 아직 로드되지 않았으면 즉시 빌드한다.</summary>
         public RefinementOptionTable GetOptionTable()
         {
             if (optionTable == null) BuildOptionTable();
