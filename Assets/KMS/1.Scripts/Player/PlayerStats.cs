@@ -1,6 +1,8 @@
 using System;
 using UnityEngine;
 using KMS.Persistence;
+using MemSystem.Core;
+using MemSystem.Events;
 
 namespace KMS
 {
@@ -42,9 +44,24 @@ namespace KMS
             HungerChanged?.Invoke(CurrentHunger, maxHunger);
         }
 
+        private void OnEnable()
+        {
+            MemEvents.OnMemAttackPlayer += HandleMemAttack;
+        }
+
+        private void OnDisable()
+        {
+            MemEvents.OnMemAttackPlayer -= HandleMemAttack;
+        }
+
         private void Update()
         {
             ApplyStarvationDamage();
+        }
+
+        private void HandleMemAttack(Mem _, int damage)
+        {
+            TakeDamage(damage);
         }
 
         public void TakeDamage(float amount)

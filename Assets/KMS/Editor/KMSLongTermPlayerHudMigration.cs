@@ -15,7 +15,7 @@ namespace KMS.EditorTools
     /// </summary>
     public static class KMSLongTermPlayerHudMigration
     {
-        private const string CanvasPrefabPath = "Assets/KMS/2.Prefabs/0714_InventoryCanvas_Root.prefab";
+        private const string CanvasPrefabPath = "Assets/KMS/2.Prefabs/PlayerCanvas_Root.prefab";
         private const string KoreanFontAssetPath = "Assets/4.Font/JalnanGothic SDF.asset";
         private const string IconFolder = "Assets/KMS/3.UI/Icons";
         private const string SunIconPath = IconFolder + "/KMS_HUD_Sun.png";

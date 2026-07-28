@@ -8,7 +8,7 @@ using UIDocument = UnityEngine.UIElements.UIDocument;
 
 public static class KMSPlayerUguiHudMigration
 {
-    private const string CanvasPrefabPath = "Assets/KMS/2.Prefabs/0714_InventoryCanvas_Root.prefab";
+    private const string CanvasPrefabPath = "Assets/KMS/2.Prefabs/PlayerCanvas_Root.prefab";
     private const string LegacyPlayerPrefabPath = "Assets/KMS/2.Prefabs/0714_Player_KMS.prefab";
     private const string UguiPlayerPrefabPath = "Assets/KMS/2.Prefabs/0720_Player_KMS.prefab";
     private const string KoreanFontAssetPath = "Assets/4.Font/JalnanGothic SDF.asset";

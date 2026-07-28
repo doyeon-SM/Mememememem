@@ -3,6 +3,7 @@ using UnityEngine.UI;
 
 namespace KMS.InventoryDuped
 {
+
     /// <summary>
     /// Draws one continuous capsule mesh so translucent round ends never overlap
     /// the center and create darker seams.
@@ -10,10 +11,12 @@ namespace KMS.InventoryDuped
     [DisallowMultipleComponent]
     public sealed class KMSCapsuleGraphic : MaskableGraphic
     {
+
         private const int ArcSegments = 16;
 
         protected override void OnPopulateMesh(VertexHelper vertexHelper)
         {
+
             vertexHelper.Clear();
 
             Rect drawRect = GetPixelAdjustedRect();
@@ -29,10 +32,13 @@ namespace KMS.InventoryDuped
             int perimeterCount = (ArcSegments + 1) * 2;
             for (int i = 0; i < perimeterCount; i++)
             {
+
                 int current = i + 1;
                 int next = ((i + 1) % perimeterCount) + 1;
                 vertexHelper.AddTriangle(0, current, next);
+
             }
+
         }
 
         private static void AddArc(
@@ -43,12 +49,18 @@ namespace KMS.InventoryDuped
             float endDegrees,
             Color32 vertexColor)
         {
+
             for (int i = 0; i <= ArcSegments; i++)
             {
+
                 float angle = Mathf.Lerp(startDegrees, endDegrees, i / (float)ArcSegments) * Mathf.Deg2Rad;
                 Vector2 position = arcCenter + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * radius;
                 vertexHelper.AddVert(position, vertexColor, Vector2.zero);
+
             }
+
         }
+
     }
+
 }

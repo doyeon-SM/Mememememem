@@ -13,7 +13,7 @@ namespace KMS.Editor
     public static class KMSInventorySortSetup
     {
         private const string WarehousePrefabPath = "Assets/HDY/2.Prefabs/UI/P_WarehouseRoot.prefab";
-        private const string InventoryCanvasPath = "Assets/KMS/2.Prefabs/0714_InventoryCanvas_Root.prefab";
+        private const string InventoryCanvasPath = "Assets/KMS/2.Prefabs/PlayerCanvas_Root.prefab";
         private const string SortControlsPrefabPath = "Assets/KMS/2.Prefabs/P_InventorySortControls.prefab";
         private const string SortControlsName = "InventorySortControls";
 

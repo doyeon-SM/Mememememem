@@ -5784,6 +5784,7 @@ GameObject:
   - component: {fileID: 4599519480911800099}
   - component: {fileID: 2293218648243394288}
   - component: {fileID: 8187726077397635540}
+  - component: {fileID: 4895132538847839650}
   m_Layer: 5
   m_Name: CollectionButton
   m_TagString: Untagged
@@ -5893,7 +5894,32 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 2293218648243394288}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 4895132538847839650}
+        m_TargetAssemblyTypeName: ManagedUIButton, Assembly-CSharp
+        m_MethodName: Toggle
+        m_Mode: 0
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: 
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
+--- !u!114 &4895132538847839650
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1027061041639255244}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a6f6d73a5e914a2f9d20953d38c0326e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ManagedUIButton
+  managedUIId: MemDex
 --- !u!1 &1031845417554854193
 GameObject:
   m_ObjectHideFlags: 0
@@ -7291,7 +7317,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1933026117306466}
   m_Layer: 0
-  m_Name: 0714_InventoryCanvas_Root
+  m_Name: PlayerCanvas_Root
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -39894,6 +39920,7 @@ GameObject:
   - component: {fileID: 6704871456023443293}
   - component: {fileID: 6182984075635814267}
   - component: {fileID: 3959077024863762959}
+  - component: {fileID: 5490130576460924634}
   m_Layer: 5
   m_Name: MapButton
   m_TagString: Untagged
@@ -40003,7 +40030,32 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 6182984075635814267}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 5490130576460924634}
+        m_TargetAssemblyTypeName: ManagedUIButton, Assembly-CSharp
+        m_MethodName: Toggle
+        m_Mode: 0
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: 
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
+--- !u!114 &5490130576460924634
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7449081925156001386}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a6f6d73a5e914a2f9d20953d38c0326e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ManagedUIButton
+  managedUIId: Map
 --- !u!1 &7460988200425810228
 GameObject:
   m_ObjectHideFlags: 0
@@ -48029,6 +48081,7 @@ GameObject:
   - component: {fileID: 9018849406163336220}
   - component: {fileID: 3155215264370285530}
   - component: {fileID: 7543270631795109625}
+  - component: {fileID: 5874087392464137348}
   m_Layer: 5
   m_Name: InventoryButton
   m_TagString: Untagged
@@ -48138,7 +48191,32 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 3155215264370285530}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 5874087392464137348}
+        m_TargetAssemblyTypeName: ManagedUIButton, Assembly-CSharp
+        m_MethodName: Toggle
+        m_Mode: 0
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: 
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
+--- !u!114 &5874087392464137348
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8985722339014207143}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a6f6d73a5e914a2f9d20953d38c0326e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ManagedUIButton
+  managedUIId: Inventory
 --- !u!1 &9007077427026990490
 GameObject:
   m_ObjectHideFlags: 0

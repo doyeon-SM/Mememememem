@@ -2834,6 +2834,7 @@ GameObject:
   - component: {fileID: 6812409213719045062}
   - component: {fileID: 4783686582673597580}
   - component: {fileID: 8140761256497828183}
+  - component: {fileID: 1375091862226142176}
   m_Layer: 3
   m_Name: 0720_Player_KMS
   m_TagString: Player
@@ -3112,6 +3113,7 @@ MonoBehaviour:
   playerStats: {fileID: 4191295553828768883}
   cameraTransform: {fileID: 0}
   animator: {fileID: 1914156871709254916}
+  toolAnimationController: {fileID: 1375091862226142176}
   catalogManager: {fileID: 0}
   harvestLayer:
     serializedVersion: 2
@@ -3327,6 +3329,24 @@ MonoBehaviour:
   animator: {fileID: 1914156871709254916}
   handAnchor: {fileID: 0}
   prefabTable: {fileID: 11400000, guid: 2df0fe05f944de94394c1b2705430ece, type: 2}
+--- !u!114 &1375091862226142176
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5320301024596143200}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 25a6b2477b077dd46af1d2f6a4c060a3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::KMS.PlayerToolAnimationController
+  movement: {fileID: 757377502652196312}
+  animator: {fileID: 1914156871709254916}
+  clubItemIds:
+  - tool_shabby_club
+  - tool_decent_club
+  stateEntryTimeout: 0.75
 --- !u!1 &5344451024060801274
 GameObject:
   m_ObjectHideFlags: 0

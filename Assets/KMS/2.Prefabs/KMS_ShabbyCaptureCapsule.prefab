@@ -94,7 +94,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 4c16cf26d53449fb8b454ddb7ea83889, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::KMS.KMSCapsuleCaptureSequence
   capsuleItemId: tool_shabby_capsule
   judgmentDelay: 0.65
@@ -113,16 +113,27 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 151a210320d046bf9dd67873e0d2b9f7, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::KMS.KMSCapsuleCaptureVisual
   capsuleRenderers:
   - {fileID: 5413056583535842802}
   shakeAngle: 14
   shakeSpeed: 15
+  hoverHeight: 0.035
+  hoverSpeed: 4
   successDuration: 0.32
   failureDuration: 0.48
   successColor: {r: 1, g: 0.9, b: 0.25, a: 1}
   failureColor: {r: 1, g: 0.25, b: 0.2, a: 1}
+  successSparklePrefab: {fileID: 0}
+  successSparkleMaterial: {fileID: 2100000, guid: 16d198e5a06e30844a5dc4dd08062d75, type: 2}
+  successFlashCount: 3
+  successEmissionIntensity: 4
+  successSparkleCount: 42
+  successSparkleRadius: 0.38
+  successSparkleLifetime: 0.7
+  successSparkleSpeed: 0.95
+  successSparkleSize: 0.09
 --- !u!1001 &6691961922215790966
 PrefabInstance:
   m_ObjectHideFlags: 0

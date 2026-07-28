@@ -16,7 +16,7 @@ namespace KMS.Editor
             "Assets/KMS/1.Scripts/InventoryDuped/UI/Sprite/Rounded Filled 1024px_pp1000.png";
 
         private const string InventoryPrefabPath =
-            "Assets/KMS/2.Prefabs/0714_InventoryCanvas_Root.prefab";
+            "Assets/KMS/2.Prefabs/PlayerCanvas_Root.prefab";
 
         private static readonly HashSet<string> CategoryLabels =
             new HashSet<string>(StringComparer.Ordinal)

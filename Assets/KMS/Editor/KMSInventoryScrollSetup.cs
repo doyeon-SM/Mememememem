@@ -8,7 +8,7 @@ namespace KMS.EditorTools
 {
     public static class KMSInventoryScrollSetup
     {
-        private const string CanvasPrefabPath = "Assets/KMS/2.Prefabs/0714_InventoryCanvas_Root.prefab";
+        private const string CanvasPrefabPath = "Assets/KMS/2.Prefabs/PlayerCanvas_Root.prefab";
         private const int UiLayer = 5;
         private const string PackTextureRoot = "Assets/Pikachu/Modern UI Pack/Textures";
         private const string SquareFillPath = PackTextureRoot + "/Border/Flat/Square Filled.png";
