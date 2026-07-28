@@ -93,15 +93,7 @@ public class WaypointRecordData : MonoBehaviour, IRecord
             {
                 if (string.IsNullOrEmpty(info.wayPointId)) continue;
 
-                if (liveWayPointManager.StatesById.TryGetValue(info.wayPointId, out WayPointRunTime state))
-                {
-                    state.IsActive = info.isUnlocked;
-
-                    if (state.Stone != null)
-                    {
-                        state.Stone.SetUnlockedState(info.isUnlocked);
-                    }
-                }
+                liveWayPointManager.ApplySavedUnlockedState(info.wayPointId, info.isUnlocked);
             }
         }
 
