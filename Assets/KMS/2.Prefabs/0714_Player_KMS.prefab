@@ -3118,6 +3118,7 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 1049847
   harvestDistance: 10
+  harvestRadius: 0.45
   harvestCooldown: 0.35
   toolUseCooldown: 0.5
   fallbackToolDamage: 1
@@ -3126,8 +3127,10 @@ MonoBehaviour:
   memMeleeHungerCost: 1
   memHitDustPool: {fileID: 7946585560164625280}
   drawDebugRay: 1
+  drawSphereCastGizmo: 1
   debugMissColor: {r: 1, g: 0, b: 0, a: 1}
   debugHitColor: {r: 0, g: 1, b: 0, a: 1}
+  sphereCastGizmoColor: {r: 1, g: 0.72, b: 0.1, a: 0.85}
   logHitTarget: 1
 --- !u!114 &5415274748756277863
 MonoBehaviour:
@@ -3335,7 +3338,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 5ba064a732635844399215bc23eff027, type: 3}
-  m_Name: ''
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::KMS.Effects.KMSMemHitDustPool
   effectPrefab: {fileID: 5917027917102345114, guid: 1b9c86c974700d24a81640029c6fe1c3, type: 3}
   capacity: 6

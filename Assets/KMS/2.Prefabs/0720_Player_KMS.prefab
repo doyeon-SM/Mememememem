@@ -3117,15 +3117,19 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 1049847
   harvestDistance: 10
+  harvestRadius: 0.45
   harvestCooldown: 0.35
   toolUseCooldown: 0.5
   fallbackToolDamage: 1
   memMeleeItemId: tool_shabby_club
   memMeleeDistance: 5
   memMeleeHungerCost: 1
+  memHitDustPool: {fileID: 0}
   drawDebugRay: 1
+  drawSphereCastGizmo: 1
   debugMissColor: {r: 1, g: 0, b: 0, a: 1}
   debugHitColor: {r: 0, g: 1, b: 0, a: 1}
+  sphereCastGizmoColor: {r: 1, g: 0.72, b: 0.1, a: 0.85}
   logHitTarget: 1
 --- !u!114 &5415274748756277863
 MonoBehaviour:

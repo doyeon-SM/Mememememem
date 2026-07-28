@@ -183,6 +183,7 @@ namespace KMS.EditorTools
             SetRef(serializedView, "contentRect", content);
             SetRef(serializedView, "gridRect", grid);
             SetRef(serializedView, "upgradeButtonRect", upgradeRect);
+            serializedView.FindProperty("cellHeight").floatValue = 60f;
             serializedView.ApplyModifiedPropertiesWithoutUndo();
 
             ConfigureTrashSlot(chrome, trashSlot);
