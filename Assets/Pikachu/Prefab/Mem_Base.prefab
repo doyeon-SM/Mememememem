@@ -52,6 +52,7 @@ MonoBehaviour:
   hitPushbackDistance: 0.1
   walkClipSpeed: 0.4
   runClipSpeed: 0.8
+  stationaryRunSpeedMultiplier: 1.5
   propAxe:
     prefab: {fileID: 3483948541674283737, guid: 7d15bc495f1b8274fbdc95399a70ec7e, type: 3}
     positionOffset: {x: 0.02, y: 0.168, z: 0.14}
@@ -193,7 +194,7 @@ MonoBehaviour:
   walkSpeed: 0.8
   runSpeed: 2
   wanderRadius: 15
-  fleeDistance: 30
+  fleeDistance: 15
   pathUpdateInterval: 0.5
 --- !u!136 &4463198348554036063
 CapsuleCollider:
