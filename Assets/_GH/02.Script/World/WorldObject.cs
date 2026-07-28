@@ -3,6 +3,7 @@ using HDY.Item;
 using KGH.Data;
 using KMS.Harvesting;
 using KMS.InventoryDuped;
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>현재 장착 아이템으로 월드 오브젝트와 상호작용할 수 있는지 나타냅니다.</summary>
@@ -44,7 +45,10 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
     [SerializeField] private Transform dropSpawnPoint;
     [SerializeField] private LayerMask groundLayer = ~0;
     [SerializeField] private float dropSpawnHeight = 0.02f;
-    [SerializeField] private float dropSpreadRadius = 1.1f;
+    [Tooltip("Drop Spawn Point 기준 로컬 위치 보정값입니다. X/Z로 중심을 옮기고 Y로 높이를 조절합니다.")]
+    [SerializeField] private Vector3 dropAreaOffset;
+    [Tooltip("드롭 타원 전체 크기입니다. X는 월드 가로축, Y는 월드 Z축 크기로 사용합니다.")]
+    [SerializeField] private Vector2 dropAreaSize = new Vector2(2.2f, 2.2f);
     [Tooltip("유효한 바닥 위치를 찾기 위해 시도할 횟수입니다.")]
     [Min(1)] [SerializeField] private int dropPositionAttempts = 12;
     [Tooltip("드롭 위치 주변에 다른 오브젝트가 없어야 하는 반경입니다.")]
@@ -55,7 +59,7 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
     [Range(0f, 89f)] [SerializeField] private float maxGroundSlope = 50f;
 
     [Header("Drop Spawn Gizmo")]
-    [Tooltip("오브젝트를 선택했을 때 드롭 중심과 확산 반경을 Scene 뷰에 표시합니다.")]
+    [Tooltip("오브젝트를 선택했을 때 실제 드롭 타원과 중심 위치를 Scene 뷰에 표시합니다.")]
     [SerializeField] private bool showDropSpawnGizmo = true;
     [SerializeField] private Color dropSpawnGizmoColor = new Color(1f, 0.72f, 0.1f, 0.9f);
 
@@ -66,11 +70,6 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
     [Header("Debug")]
     [SerializeField] private bool enableDebugAutoDrop;
     [SerializeField] private float debugAutoDropInterval = 2f;
-
-    private const float GroundRaycastHeight = 3f;
-    private const float GroundRaycastDistance = 8f;
-    private const int MaxDropVisualCount = 8;
-    private const int MaxClearanceHits = 32;
 
     /// <summary>이름, 체력 또는 상호작용 상태가 바뀌었을 때 발생합니다.</summary>
     public event System.Action<WorldObject> StateChanged;
@@ -101,8 +100,6 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
     private float respawnAtTime = float.PositiveInfinity;
     private bool[] rendererInitialStates;
     private bool[] colliderInitialStates;
-    private readonly Collider[] clearanceHits = new Collider[MaxClearanceHits];
-
     private void Awake()
     {
         maxObjectHp = Mathf.Max(1, maxObjectHp);
@@ -268,6 +265,7 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
     {
         if (dropItems == null || dropItems.Length == 0) return;
 
+        Dictionary<string, int> amountsByItemId = new Dictionary<string, int>();
         for (int dropIndex = 0; dropIndex < dropItems.Length; dropIndex++)
         {
             string dropItemId = dropItems[dropIndex].itemId;
@@ -281,174 +279,40 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
             int dropCount = ToolDropManager.Instance != null
                 ? ToolDropManager.Instance.RollDropCount(tool)
                 : 1;
-            int visualCount = Mathf.Min(Mathf.Max(1, dropCount), MaxDropVisualCount);
-            int baseAmount = dropCount / visualCount;
-            int remainder = dropCount % visualCount;
 
-            for (int i = 0; i < visualCount; i++)
+            if (dropCount <= 0)
             {
-                if (!TryGetDropSpawnPosition(out Vector3 spawnPosition))
-                {
-                    Debug.LogWarning($"[{name}] 주변에서 안전한 바닥 드롭 위치를 찾지 못해 드롭 생성을 건너뜁니다.", this);
-                    continue;
-                }
-
-                Quaternion spawnRotation = Quaternion.Euler(0f, UnityEngine.Random.Range(0f, 360f), 0f);
-                int itemAmount = baseAmount + (i < remainder ? 1 : 0);
-
-                WorldDropPool.Spawn(
-                    dropItemId,
-                    itemAmount,
-                    spawnPosition,
-                    spawnRotation,
-                    autoReturnToPoolSeconds);
+                continue;
             }
+
+            string normalizedItemId = dropItemId.Trim();
+            amountsByItemId.TryGetValue(normalizedItemId, out int currentAmount);
+            amountsByItemId[normalizedItemId] = currentAmount + dropCount;
+        }
+
+        foreach (KeyValuePair<string, int> drop in amountsByItemId)
+        {
+            WorldItemDropSpawner.SpawnStack(
+                drop.Key,
+                drop.Value,
+                transform,
+                dropSpawnPoint,
+                dropAreaOffset,
+                dropAreaSize,
+                groundLayer,
+                dropSpawnHeight,
+                dropPositionAttempts,
+                dropClearanceRadius,
+                dropClearanceHeight,
+                maxGroundSlope,
+                autoReturnToPoolSeconds,
+                resourceColliders);
         }
     }
 
     private void PrewarmDropPools()
     {
         WorldDropPool.Prewarm(poolPrewarmCount);
-    }
-
-    private bool TryGetDropSpawnPosition(out Vector3 spawnPosition)
-    {
-        Vector3 origin = dropSpawnPoint != null ? dropSpawnPoint.position : transform.position;
-        int attempts = Mathf.Max(1, dropPositionAttempts);
-
-        for (int attempt = 0; attempt < attempts; attempt++)
-        {
-            Vector2 randomCircle = UnityEngine.Random.insideUnitCircle * Mathf.Max(0f, dropSpreadRadius);
-            Vector3 samplePosition = origin + new Vector3(randomCircle.x, 0f, randomCircle.y);
-            Vector3 rayStart = samplePosition + Vector3.up * GroundRaycastHeight;
-
-            if (!TryFindGround(rayStart, out RaycastHit groundHit))
-            {
-                continue;
-            }
-
-            Vector3 groundPosition = groundHit.point;
-            if (!IsDropSpaceClear(groundPosition, groundHit.collider))
-            {
-                continue;
-            }
-
-            // 경사면에서도 월드 아이템 루트가 표면에 붙도록 표면 노멀 방향으로 최소 간격만 둡니다.
-            spawnPosition = groundPosition + groundHit.normal * Mathf.Max(0f, dropSpawnHeight);
-            return true;
-        }
-
-        spawnPosition = default;
-        return false;
-    }
-
-    /// <summary>
-    /// 자원·플레이어·기존 월드 아이템을 제외하고 현재 위치 바로 아래의 첫 유효 표면을 선택합니다.
-    /// groundLayer를 바닥 전용 레이어로 설정하면 해당 레이어 안에서만 탐색합니다.
-    /// </summary>
-    private bool TryFindGround(Vector3 rayStart, out RaycastHit groundHit)
-    {
-        RaycastHit[] hits = Physics.RaycastAll(
-            rayStart,
-            Vector3.down,
-            GroundRaycastDistance,
-            groundLayer,
-            QueryTriggerInteraction.Ignore);
-
-        groundHit = default;
-        bool found = false;
-
-        for (int i = 0; i < hits.Length; i++)
-        {
-            RaycastHit hit = hits[i];
-            if (!IsValidGroundHit(hit))
-            {
-                continue;
-            }
-
-            // 위에서 아래로 가장 먼저 만나는 유효 표면을 사용해 멀리 떨어진 아래층으로 내려가지 않게 합니다.
-            if (!found || hit.distance < groundHit.distance)
-            {
-                groundHit = hit;
-                found = true;
-            }
-        }
-
-        return found;
-    }
-
-    private bool IsValidGroundHit(RaycastHit hit)
-    {
-        Collider hitCollider = hit.collider;
-        if (hitCollider == null
-            || Vector3.Angle(hit.normal, Vector3.up) > maxGroundSlope
-            || PlayerReferenceResolver.IsInPlayerHierarchy(hitCollider.gameObject)
-            || hitCollider.GetComponentInParent<WorldItem>() != null
-            || hitCollider.GetComponentInParent<WorldObject>() != null
-            || IsOwnResourceCollider(hitCollider))
-        {
-            return false;
-        }
-
-        Rigidbody attachedBody = hitCollider.attachedRigidbody;
-        return attachedBody == null || attachedBody.isKinematic;
-    }
-
-    private bool IsDropSpaceClear(Vector3 groundPosition, Collider groundCollider)
-    {
-        float radius = Mathf.Max(0.01f, dropClearanceRadius);
-        float height = Mathf.Max(radius * 2f, dropClearanceHeight);
-        Vector3 bottom = groundPosition + Vector3.up * (radius + 0.01f);
-        Vector3 top = groundPosition + Vector3.up * Mathf.Max(radius + 0.01f, height - radius);
-        int hitCount = Physics.OverlapCapsuleNonAlloc(
-            bottom,
-            top,
-            radius,
-            clearanceHits,
-            ~0,
-            QueryTriggerInteraction.Ignore);
-
-        for (int i = 0; i < hitCount; i++)
-        {
-            Collider hitCollider = clearanceHits[i];
-            clearanceHits[i] = null;
-            if (hitCollider == null || hitCollider == groundCollider || IsOwnResourceCollider(hitCollider))
-            {
-                continue;
-            }
-
-            return false;
-        }
-
-        return true;
-    }
-
-    private bool IsOwnResourceCollider(Collider candidate)
-    {
-        if (candidate == null)
-        {
-            return false;
-        }
-
-        if (candidate.GetComponentInParent<WorldObject>() == this)
-        {
-            return true;
-        }
-
-        if (resourceColliders == null)
-        {
-            return false;
-        }
-
-        for (int i = 0; i < resourceColliders.Length; i++)
-        {
-            if (resourceColliders[i] == candidate)
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private void BeginRespawnCooldown()
@@ -552,16 +416,13 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
             return;
         }
 
-        Vector3 origin = dropSpawnPoint != null ? dropSpawnPoint.position : transform.position;
-        Vector3 center = origin + Vector3.up * dropSpawnHeight;
-        float radius = Mathf.Max(0f, dropSpreadRadius);
-
-        UnityEditor.Handles.color = dropSpawnGizmoColor;
-        UnityEditor.Handles.DrawWireDisc(center, Vector3.up, radius);
-        UnityEditor.Handles.DrawLine(origin, center);
-
-        Gizmos.color = dropSpawnGizmoColor;
-        Gizmos.DrawSphere(center, Mathf.Max(0.04f, radius * 0.025f));
+        WorldItemDropSpawner.DrawDropAreaGizmo(
+            dropSpawnPoint,
+            transform,
+            dropAreaOffset,
+            dropAreaSize,
+            dropSpawnHeight,
+            dropSpawnGizmoColor);
     }
 #endif
 
