@@ -262,6 +262,7 @@ public class ConsumeFoodSystem : MonoBehaviour
 
     private void SetAllFacilitiesWorkingState(bool isWorking)
     {
+        // 1. 일반 생산 시설
         var productionFacilities = FindObjectsByType<ProductionFacilityRuntime>(FindObjectsSortMode.None);
         foreach (var facility in productionFacilities)
         {
@@ -276,6 +277,7 @@ public class ConsumeFoodSystem : MonoBehaviour
             }
         }
 
+        // 2. 제작대 시설
         var craftingFacilities = FindObjectsByType<ProductionCraftRuntime>(FindObjectsSortMode.None);
         foreach (var craft in craftingFacilities)
         {
@@ -287,6 +289,45 @@ public class ConsumeFoodSystem : MonoBehaviour
             else
             {
                 craft.ResumeWorkAfterStarvation();
+            }
+        }
+
+        // 3. 발전기 시설
+        var generators = FindObjectsByType<GeneratorRuntime>(FindObjectsSortMode.None);
+        foreach (var gen in generators)
+        {
+            if (gen == null) continue;
+            if (!isWorking) gen.StopWorkDueToStarvation();
+            else gen.CheckPowerCondition();
+        }
+
+        // 4. 목장 시설
+        var ranches = FindObjectsByType<RanchFacilityRuntime>(FindObjectsSortMode.None);
+        foreach (var ranch in ranches)
+        {
+            if (ranch == null) continue;
+            if (!isWorking)
+            {
+                ranch.StopWorkDueToStarvation();
+            }
+            else
+            {
+                ranch.CheckAllSlotsProductionCondition();
+            }
+        }
+
+        // 5. 목장 시설
+        var transportFacilities = FindObjectsByType<TransportRuntime>(FindObjectsSortMode.None);
+        foreach (var trans in transportFacilities)
+        {
+            if (trans == null) continue;
+            if (!isWorking)
+            {
+                trans.StopWorkDueToStarvation();
+            }
+            else
+            {
+                trans.CheckProductionCondition();
             }
         }
     }

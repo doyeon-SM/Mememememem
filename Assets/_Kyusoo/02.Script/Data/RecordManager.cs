@@ -286,6 +286,8 @@ public class RecordManager : MonoBehaviour
         foreach (var p in FindObjectsByType<ProductionPanelUI>(FindObjectsInactive.Include, FindObjectsSortMode.None)) if (p.gameObject.activeInHierarchy) p.RefreshUI();
         foreach (var c in FindObjectsByType<CraftingPanelUI>(FindObjectsInactive.Include, FindObjectsSortMode.None)) if (c.gameObject.activeInHierarchy) c.RefreshUI();
         foreach (var r in FindObjectsByType<RanchPanelUI>(FindObjectsInactive.Include, FindObjectsSortMode.None)) if (r.gameObject.activeInHierarchy) r.RefreshUI();
+        foreach (var g in FindObjectsByType<GeneratorPanelUI>(FindObjectsInactive.Include, FindObjectsSortMode.None)) if (g.gameObject.activeInHierarchy) g.RefreshUI();
+        foreach (var t in FindObjectsByType<TransportPanelUI>(FindObjectsInactive.Include, FindObjectsSortMode.None)) if (t.gameObject.activeInHierarchy) t.RefreshUI();
     }
 
     private IEnumerator SpawnWarehouseWanderersWithDelayRoutine()

@@ -168,6 +168,16 @@ public class GridManager : MonoBehaviour
                     {
                         PanelManager.Instance.OpenRanchPanel(ranch);
                     }
+
+                    else if (targetObj.TryGetComponent<GeneratorRuntime>(out GeneratorRuntime gen))
+                    {
+                        PanelManager.Instance.OpenGeneratorPanel(gen);
+                    }
+
+                    else if (targetObj.TryGetComponent<TransportRuntime>(out TransportRuntime transport))
+                    {
+                        PanelManager.Instance.OpenTransportPanel(transport);
+                    }
                 }
             }
         }
@@ -560,6 +570,38 @@ public class GridManager : MonoBehaviour
                     ranchRuntime.TryAddMemToSlot(i, cachedPickedUpState.deployedMems[i], cachedPickedUpState.deployedMemEntries[i]);
                 }
             }
+            else if (realBuilding.TryGetComponent<GeneratorRuntime>(out GeneratorRuntime genRuntime))
+            {
+                genRuntime.buildingData = selectedBuildingData;
+                genRuntime.isPowerGenerating = cachedPickedUpState.facilityData.isActive;
+                genRuntime.currentPowerProgressTime = cachedPickedUpState.facilityData.currentProgressTime;
+                genRuntime.currentPowerStorage = cachedPickedUpState.facilityData.currentStorageCount;
+                genRuntime.UpdateMaxPowerStorage();
+
+                if (genRuntime.DeployedMems != null && genRuntime.DeployedMemEntries != null)
+                {
+                    genRuntime.DeployedMems.Clear();
+                    genRuntime.DeployedMemEntries.Clear();
+                    genRuntime.DeployedMems.AddRange(cachedPickedUpState.deployedMems);
+                    genRuntime.DeployedMemEntries.AddRange(cachedPickedUpState.deployedMemEntries);
+                }
+                genRuntime.CheckPowerCondition();
+            }
+            else if (realBuilding.TryGetComponent<TransportRuntime>(out TransportRuntime transRuntime))
+            {
+                transRuntime.buildingData = selectedBuildingData;
+                if (cachedPickedUpState != null && cachedPickedUpState.facilityData != null)
+                {
+                    if (transRuntime.DeployedMems != null && transRuntime.DeployedMemEntries != null)
+                    {
+                        transRuntime.DeployedMems.Clear();
+                        transRuntime.DeployedMemEntries.Clear();
+                        transRuntime.DeployedMems.AddRange(cachedPickedUpState.deployedMems);
+                        transRuntime.DeployedMemEntries.AddRange(cachedPickedUpState.deployedMemEntries);
+                    }
+                    transRuntime.CheckProductionCondition();
+                }
+            }
 
             if (RecordManager.Instance != null)
             {
@@ -583,6 +625,12 @@ public class GridManager : MonoBehaviour
             {
                 ranchRuntime.buildingData = selectedBuildingData;
                 ranchRuntime.UpdateSlotCapacity();
+            }
+
+            else if (realBuilding.TryGetComponent<GeneratorRuntime>(out GeneratorRuntime genRuntime))
+            {
+                genRuntime.buildingData = selectedBuildingData;
+                genRuntime.UpdateMaxPowerStorage();
             }
         }
 
@@ -676,6 +724,35 @@ public class GridManager : MonoBehaviour
                         cachedPickedUpState.deployedMemEntries.Add(slot.deployedMemEntry);
                         cachedPickedUpState.facilityData.DeployedMemIDs.Add(slot.deployedMemEntry.KeyId);
                     }
+                }
+            }
+        }
+        else if (targetBuilding.TryGetComponent<GeneratorRuntime>(out var gen))
+        {
+            cachedPickedUpState.facilityData.isActive = gen.isPowerGenerating;
+            cachedPickedUpState.facilityData.currentProgressTime = gen.currentPowerProgressTime;
+            cachedPickedUpState.facilityData.currentStorageCount = gen.currentPowerStorage;
+            if (gen.DeployedMems != null) cachedPickedUpState.deployedMems.AddRange(gen.DeployedMems);
+            if (gen.DeployedMemEntries != null)
+            {
+                cachedPickedUpState.deployedMemEntries.AddRange(gen.DeployedMemEntries);
+                foreach (var entry in gen.DeployedMemEntries)
+                {
+                    if (entry != null) cachedPickedUpState.facilityData.DeployedMemIDs.Add(entry.KeyId);
+                }
+            }
+        }
+        else if (targetBuilding.TryGetComponent<TransportRuntime>(out var trans))
+        {
+            cachedPickedUpState.facilityData.isActive = trans.isWorking;
+            cachedPickedUpState.facilityData.currentProgressTime = trans.currentProgressTime;
+            if (trans.DeployedMems != null) cachedPickedUpState.deployedMems.AddRange(trans.DeployedMems);
+            if (trans.DeployedMemEntries != null)
+            {
+                cachedPickedUpState.deployedMemEntries.AddRange(trans.DeployedMemEntries);
+                foreach (var entry in trans.DeployedMemEntries)
+                {
+                    if (entry != null) cachedPickedUpState.facilityData.DeployedMemIDs.Add(entry.KeyId);
                 }
             }
         }
@@ -990,6 +1067,66 @@ public class GridManager : MonoBehaviour
                             }
                         }
                         ranch.CheckAllSlotsProductionCondition();
+                    }
+
+                    else if (restoredBuilding.TryGetComponent<GeneratorRuntime>(out var gen))
+                    {
+                        gen.buildingData = snap.data;
+                        gen.currentLevel = entry.currentLevel > 0 ? entry.currentLevel : 1;
+                        gen.isPowerGenerating = entry.isActive;
+                        gen.currentPowerProgressTime = entry.currentProgressTime;
+                        gen.currentPowerStorage = entry.currentStorageCount;
+                        gen.UpdateMaxPowerStorage();
+
+                        if (gen.DeployedMems != null) gen.DeployedMems.Clear();
+                        if (gen.DeployedMemEntries != null) gen.DeployedMemEntries.Clear();
+
+                        if (memManager != null && entry.DeployedMemIDs != null)
+                        {
+                            foreach (var savedKeyId in entry.DeployedMemIDs)
+                            {
+                                var match = memManager.CapturedMems.FirstOrDefault(m => m != null && m.KeyId == savedKeyId);
+                                if (match != null)
+                                {
+                                    MemData realMemData = MemCatalogManager.Instance != null ? MemCatalogManager.Instance.FindMemData(match.MemId) : null;
+                                    if (realMemData != null)
+                                    {
+                                        match.IsActive = false;
+                                        gen.TryAddMem(realMemData, match);
+                                    }
+                                }
+                            }
+                        }
+                        gen.CheckPowerCondition();
+                    }
+
+                    else if (restoredBuilding.TryGetComponent<TransportRuntime>(out var trans))
+                    {
+                        trans.buildingData = snap.data;
+                        trans.currentLevel = entry.currentLevel > 0 ? entry.currentLevel : 1;
+                        trans.isWorking = entry.isActive;
+                        trans.currentProgressTime = entry.currentProgressTime;
+                        if (trans.DeployedMems != null) trans.DeployedMems.Clear();
+                        if (trans.DeployedMemEntries != null) trans.DeployedMemEntries.Clear();
+                        if (memManager != null && entry.DeployedMemIDs != null)
+                        {
+                            int maxCapacity = ProductionCalculator.GetTransportMaxMemCount(trans.currentLevel);
+                            var safeMemIDs = entry.DeployedMemIDs.Distinct().Take(maxCapacity).ToList();
+                            foreach (var savedKeyId in safeMemIDs)
+                            {
+                                var match = memManager.CapturedMems.FirstOrDefault(m => m != null && m.KeyId == savedKeyId);
+                                if (match != null)
+                                {
+                                    MemData realMemData = MemCatalogManager.Instance != null ? MemCatalogManager.Instance.FindMemData(match.MemId) : null;
+                                    if (realMemData != null)
+                                    {
+                                        match.IsActive = false;
+                                        trans.TryAddMem(realMemData, match);
+                                    }
+                                }
+                            }
+                        }
+                        trans.CheckProductionCondition();
                     }
                 }
             }

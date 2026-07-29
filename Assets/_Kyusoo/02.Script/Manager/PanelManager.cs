@@ -7,20 +7,24 @@ public class PanelManager : MonoBehaviour
 {
     public static PanelManager Instance { get; private set; }
 
-    [Header("시설별 Panel GameObject")]
+    [Header("시설 Panel GameObject")]
     [SerializeField] private GameObject craftingPanel;
     [SerializeField] private GameObject productionPanel;
     [SerializeField] private GameObject ranchPanel;
+    [SerializeField] private GameObject generatorPanel;
+    [SerializeField] private GameObject transportPanel;
     [SerializeField] private GameObject foodWarehousePanel;
     [SerializeField] private GameObject exploreMapPanel;
     [SerializeField] private GameObject UIPanel;
 
-    [Header("시설별 UI 패널 컴포넌트")]
+    [Header("시설 UI 컴포넌트")]
     [SerializeField] private CraftingPanelUI craftingPanelUI;
     [SerializeField] private ProductionPanelUI productionPanelUI;
     [SerializeField] private RanchPanelUI ranchPanelUI;
+    [SerializeField] private GeneratorPanelUI generatorPanelUI;
+    [SerializeField] private TransportPanelUI transportPanelUI;
 
-    [Header("영지 UI 공통 제어 오브젝트: 닫기 버튼, 배치모드 버튼")]
+    [Header("공통 UI 버튼 그룹")]
     [SerializeField] private GameObject closeButtonGroup;
     [SerializeField] private GameObject placeButtonGroup;
 
@@ -30,7 +34,8 @@ public class PanelManager : MonoBehaviour
     public bool IsCraftingPanelActive => craftingPanel != null && craftingPanel.activeSelf;
     public bool IsProductionPanelActive => productionPanel != null && productionPanel.activeSelf;
     public bool IsRanchPanelActive => ranchPanel != null && ranchPanel.activeSelf;
-
+    public bool IsGeneratorPanelActive => generatorPanel != null && generatorPanel.activeSelf; 
+    public bool IsTransportPanelActive => transportPanel != null && transportPanel.activeSelf;
 
     private void Awake()
     {
@@ -62,16 +67,13 @@ public class PanelManager : MonoBehaviour
             {
                 if (CheckIsGridPlacementModeActive())
                 {
-                    Debug.Log("<color=yellow><b>[PanelManager]</b></color> ⌨️ 배치 모드 중 ESC 입력 포착 ➡️ GridManager.CancelPlacement() 강제 롤백을 집행합니다.");
+                    Debug.Log("<color=yellow><b>[PanelManager]</b></color> 배치 모드 중 ESC 입력 - GridManager.CancelPlacement() 실행.");
                     cachedGridManager.CancelPlacement();
                 }
             }
         }
     }
 
-    /// <summary>
-    /// 배치모드가 활성화되었는지 확인하기.
-    /// </summary>
     private bool CheckIsGridPlacementModeActive()
     {
         if (cachedGridManager == null)
@@ -83,22 +85,16 @@ public class PanelManager : MonoBehaviour
                     BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public);
             }
         }
-
         if (cachedGridManager != null && placementModeFieldInfo != null)
         {
             return (bool)placementModeFieldInfo.GetValue(cachedGridManager);
         }
-
         return false;
     }
 
-    /// <summary>
-    /// 제작 패널 활성화
-    /// </summary>
     public void OpenCraftingPanel(ProductionCraftRuntime facility)
     {
         if (facility == null) return;
-
         if (UIManager.Instance != null) UIManager.Instance.CloseCurrent();
         CloseAllPanels();
 
@@ -106,22 +102,16 @@ public class PanelManager : MonoBehaviour
         {
             SetCommonGroupActive(true);
             SetCameraControllersEnabled(false);
-
             UIPanel.SetActive(true);
             craftingPanel.SetActive(true);
             craftingPanelUI.OpenPanel(facility);
-
             SortButtonManagement.Instance?.UpdateSortFilters(facility.gameObject);
         }
     }
 
-    /// <summary>
-    /// 생산 패널 활성화
-    /// </summary>
     public void OpenProductionPanel(ProductionFacilityRuntime facility)
     {
         if (facility == null) return;
-
         if (UIManager.Instance != null) UIManager.Instance.CloseCurrent();
         CloseAllPanels();
 
@@ -129,22 +119,16 @@ public class PanelManager : MonoBehaviour
         {
             SetCommonGroupActive(true);
             SetCameraControllersEnabled(false);
-
             UIPanel.SetActive(true);
             productionPanel.SetActive(true);
             productionPanelUI.OpenPanel(facility);
-
             SortButtonManagement.Instance?.UpdateSortFilters(facility.gameObject);
         }
     }
 
-    /// <summary>
-    /// 목장 패널 활성화
-    /// </summary>
     public void OpenRanchPanel(RanchFacilityRuntime facility)
     {
         if (facility == null) return;
-
         if (UIManager.Instance != null) UIManager.Instance.CloseCurrent();
         CloseAllPanels();
 
@@ -152,11 +136,44 @@ public class PanelManager : MonoBehaviour
         {
             SetCommonGroupActive(true);
             SetCameraControllersEnabled(false);
-
             UIPanel.SetActive(true);
             ranchPanel.SetActive(true);
             ranchPanelUI.OpenPanel(facility);
+            SortButtonManagement.Instance?.UpdateSortFilters(facility.gameObject);
+        }
+    }
 
+    public void OpenTransportPanel(TransportRuntime facility)
+    {
+        if (facility == null) return;
+        if (UIManager.Instance != null) UIManager.Instance.CloseCurrent();
+        CloseAllPanels();
+
+        if (transportPanel != null && transportPanelUI != null)
+        {
+            SetCommonGroupActive(true);
+            SetCameraControllersEnabled(false);
+            UIPanel.SetActive(true);
+            transportPanel.SetActive(true);
+            transportPanelUI.OpenPanel(facility);
+            SortButtonManagement.Instance?.UpdateSortFilters(facility.gameObject);
+        }
+    }
+
+    // 🌟 [추가]: 발전기 패널 오픈
+    public void OpenGeneratorPanel(GeneratorRuntime facility)
+    {
+        if (facility == null) return;
+        if (UIManager.Instance != null) UIManager.Instance.CloseCurrent();
+        CloseAllPanels();
+
+        if (generatorPanel != null && generatorPanelUI != null)
+        {
+            SetCommonGroupActive(true);
+            SetCameraControllersEnabled(false);
+            UIPanel.SetActive(true);
+            generatorPanel.SetActive(true);
+            generatorPanelUI.OpenPanel(facility);
             SortButtonManagement.Instance?.UpdateSortFilters(facility.gameObject);
         }
     }
@@ -170,7 +187,6 @@ public class PanelManager : MonoBehaviour
         {
             SetCommonGroupActive(true);
             SetCameraControllersEnabled(false);
-
             foodWarehousePanel.SetActive(true);
         }
     }
@@ -184,7 +200,6 @@ public class PanelManager : MonoBehaviour
         {
             SetCommonGroupActive(true);
             SetCameraControllersEnabled(false);
-
             exploreMapPanel.SetActive(true);
             if (WayPointManager.Instance != null)
             {
@@ -193,28 +208,27 @@ public class PanelManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// UIManager를 통해 패널 활성화시 기존 시설물 창들을 세이브 후 클리어 처리, 공통 UI 닫기 버튼 On 및 카메라 차단
-    /// </summary>
     public void NotifyHUDPanelOpened()
     {
         if (craftingPanelUI != null) craftingPanelUI.ClosePanel();
         if (productionPanelUI != null) productionPanelUI.ClosePanel();
-        if (ranchPanelUI != null) ranchPanelUI.ClosePanel(); // 🌟 추가
+        if (ranchPanelUI != null) ranchPanelUI.ClosePanel();
+        if (generatorPanelUI != null) generatorPanelUI.ClosePanel();
+        if (transportPanelUI != null) transportPanelUI.ClosePanel();
+
         if (foodWarehousePanel != null) foodWarehousePanel.SetActive(false);
         if (exploreMapPanel != null) exploreMapPanel.SetActive(false);
         if (UIPanel != null) UIPanel.SetActive(false);
-
         if (craftingPanel != null) craftingPanel.SetActive(false);
         if (productionPanel != null) productionPanel.SetActive(false);
-        if (ranchPanel != null) ranchPanel.SetActive(false); // 🌟 추가
+        if (ranchPanel != null) ranchPanel.SetActive(false);
+        if (generatorPanel != null) generatorPanel.SetActive(false);
+        if (transportPanel != null) transportPanel.SetActive(false);
 
         SetCommonGroupActive(true);
         SetCameraControllersEnabled(false);
 
         var activeExplorationUI = FindFirstObjectByType<HDY.UI.ExplorationPanelUI>();
-        Debug.Log($"<color=yellow><b>[PanelManager]</b></color> NotifyHUDPanelOpened 호출됨 | activeExplorationUI 존재 여부: {(activeExplorationUI != null)}");
-
         if (activeExplorationUI != null && activeExplorationUI.gameObject.activeInHierarchy)
         {
             if (SortButtonManagement.Instance != null)
@@ -224,23 +238,23 @@ public class PanelManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// 영지관련 패널과 Close버튼 닫기 및 Place버튼 활성화
-    /// </summary>
     public void CloseAllPanels()
     {
         if (UIManager.Instance != null) UIManager.Instance.CloseCurrent();
-
         if (craftingPanelUI != null) craftingPanelUI.ClosePanel();
         if (productionPanelUI != null) productionPanelUI.ClosePanel();
-        if (ranchPanelUI != null) ranchPanelUI.ClosePanel(); // 🌟 추가
+        if (ranchPanelUI != null) ranchPanelUI.ClosePanel();
+        if (generatorPanelUI != null) generatorPanelUI.ClosePanel();
+        if (transportPanelUI != null) transportPanelUI.ClosePanel();
+
         if (foodWarehousePanel != null) foodWarehousePanel.SetActive(false);
         if (exploreMapPanel != null) exploreMapPanel.SetActive(false);
         if (UIPanel != null) UIPanel.SetActive(false);
-
         if (craftingPanel != null) craftingPanel.SetActive(false);
         if (productionPanel != null) productionPanel.SetActive(false);
-        if (ranchPanel != null) ranchPanel.SetActive(false); // 🌟 추가
+        if (ranchPanel != null) ranchPanel.SetActive(false);
+        if (generatorPanel != null) generatorPanel.SetActive(false);
+        if (transportPanel != null) transportPanel.SetActive(false);
 
         SetCommonGroupActive(false);
         SetCameraControllersEnabled(true);
@@ -250,16 +264,19 @@ public class PanelManager : MonoBehaviour
     {
         bool isCraftActive = craftingPanel != null && craftingPanel.activeSelf;
         bool isProductActive = productionPanel != null && productionPanel.activeSelf;
-        bool isRanchActive = ranchPanel != null && ranchPanel.activeSelf; // 🌟 추가
+        bool isRanchActive = ranchPanel != null && ranchPanel.activeSelf;
+        bool isGenActive = generatorPanel != null && generatorPanel.activeSelf;
+        bool isTransActive = transportPanel != null && transportPanel.activeSelf;
         bool isInventoryActive = foodWarehousePanel != null && foodWarehousePanel.activeSelf;
         bool isHUDActive = UIManager.Instance != null && UIManager.Instance.HasActivePanel();
+        bool isMapActive = exploreMapPanel != null && exploreMapPanel.activeSelf;
 
-        return isCraftActive || isProductActive || isRanchActive || isInventoryActive;
+        return isCraftActive || isProductActive || isRanchActive || isGenActive || isInventoryActive || isHUDActive || isMapActive || isTransActive;
     }
 
     private void SetCommonGroupActive(bool isPanelOpen)
     {
-        if (closeButtonGroup != null) closeButtonGroup.SetActive(isPanelOpen);
+        //if (closeButtonGroup != null) closeButtonGroup.SetActive(isPanelOpen);
         if (placeButtonGroup != null) placeButtonGroup.SetActive(!isPanelOpen);
     }
 

@@ -21,13 +21,37 @@ public class TotalHungerManager : MonoBehaviour
     private void OnEnable()
     {
         ProductionFacilityRuntime.FacilityStarted += OnFacilityStartedHandler;
+        ProductionFacilityRuntime.FacilityStopped += OnFacilityStoppedHandler;
+
         ProductionCraftRuntime.FacilityStarted += OnFacilityStartedHandler;
+        ProductionCraftRuntime.FacilityStopped += OnFacilityStoppedHandler;
+
+        GeneratorRuntime.FacilityStarted += OnFacilityStartedHandler;
+        GeneratorRuntime.FacilityStopped += OnFacilityStoppedHandler;
+
+        TransportRuntime.FacilityStarted += OnFacilityStartedHandler;
+        TransportRuntime.FacilityStopped += OnFacilityStoppedHandler;
+
+        RanchFacilityRuntime.FacilityStarted += OnFacilityStartedHandler;
+        RanchFacilityRuntime.FacilityStopped += OnFacilityStoppedHandler;
     }
 
     private void OnDisable()
     {
         ProductionFacilityRuntime.FacilityStarted -= OnFacilityStartedHandler;
+        ProductionFacilityRuntime.FacilityStopped -= OnFacilityStoppedHandler;
+
         ProductionCraftRuntime.FacilityStarted -= OnFacilityStartedHandler;
+        ProductionCraftRuntime.FacilityStopped -= OnFacilityStoppedHandler;
+
+        GeneratorRuntime.FacilityStarted -= OnFacilityStartedHandler;
+        GeneratorRuntime.FacilityStopped -= OnFacilityStoppedHandler;
+
+        TransportRuntime.FacilityStarted -= OnFacilityStartedHandler;
+        TransportRuntime.FacilityStopped -= OnFacilityStoppedHandler;
+
+        RanchFacilityRuntime.FacilityStarted -= OnFacilityStartedHandler;
+        RanchFacilityRuntime.FacilityStopped -= OnFacilityStoppedHandler;
     }
 
     private void Start()
@@ -37,52 +61,82 @@ public class TotalHungerManager : MonoBehaviour
 
     private void OnFacilityStartedHandler(BuildingType type, List<MemData> mems) => RecalculateTotalHunger();
     private void OnFacilityStartedHandler(BuildingType type) => RecalculateTotalHunger();
+    private void OnFacilityStoppedHandler(BuildingType type, List<MemData> mems, FacilityStopReason reason) => RecalculateTotalHunger();
+    private void OnFacilityStoppedHandler(BuildingType type, FacilityStopReason reason) => RecalculateTotalHunger();
 
-    /// <summary>
-    /// 실제 생산/제작 가동 중(isProducing == true)인 시설에 배치된 멤의 허기값만 합산
-    /// </summary>
     public void RecalculateTotalHunger()
     {
         int newTotalHunger = 0;
 
-        // 1. 일반 생산 시설 스캔
+        // 1. 일반 생산 시설
         var productionFacilities = FindObjectsByType<ProductionFacilityRuntime>(FindObjectsSortMode.None);
-        Debug.Log($"<color=cyan>[TotalHunger] 스캔 시작: 생산 시설 {productionFacilities.Length}개 발견</color>");
-
         foreach (var facility in productionFacilities)
         {
             if (facility == null || facility.DeployedMems == null || facility.DeployedMems.Count == 0) continue;
-            if (!facility.isProducing) continue; 
+            if (!facility.isProducing) continue;
 
             foreach (MemData mem in facility.DeployedMems)
             {
                 if (mem == null) continue;
-
                 newTotalHunger += mem.maxHunger;
-                Debug.Log($" - [생산 가동 중] 시설: {facility.name} | 멤: {mem.memName} | 허기값: {mem.maxHunger} | 누적합: {newTotalHunger}");
             }
         }
 
-        // 2. 제작 시설 스캔
+        // 2. 제작대 시설
         var craftingFacilities = FindObjectsByType<ProductionCraftRuntime>(FindObjectsSortMode.None);
-        Debug.Log($"<color=yellow>[TotalHunger] 스캔 시작: 제작 시설 {craftingFacilities.Length}개 발견</color>");
-
         foreach (var craft in craftingFacilities)
         {
             if (craft == null || craft.DeployedMems == null || craft.DeployedMems.Count == 0) continue;
-            if (!craft.isProducing) continue; // 가동 중이 아니면 합산 스킵
+            if (!craft.isProducing) continue;
 
             foreach (MemData mem in craft.DeployedMems)
             {
                 if (mem == null) continue;
-
                 newTotalHunger += mem.maxHunger;
-                Debug.Log($" - [제작 가동 중] 시설: {craft.name} | 멤: {mem.memName} | 허기값: {mem.maxHunger} | 누적합: {newTotalHunger}");
+            }
+        }
+
+        // 3. 발전기 시설
+        var generators = FindObjectsByType<GeneratorRuntime>(FindObjectsSortMode.None);
+        foreach (var gen in generators)
+        {
+            if (gen == null || gen.DeployedMems == null || gen.DeployedMems.Count == 0) continue;
+            if (!gen.isPowerGenerating) continue;
+
+            foreach (MemData mem in gen.DeployedMems)
+            {
+                if (mem == null) continue;
+                newTotalHunger += mem.maxHunger;
+            }
+        }
+
+        // 4. 운송 시설
+        var transportFacilities = FindObjectsByType<TransportRuntime>(FindObjectsSortMode.None);
+        foreach (var trans in transportFacilities)
+        {
+            if (trans == null || trans.DeployedMems == null || trans.DeployedMems.Count == 0) continue;
+            if (!trans.isWorking) continue;
+
+            foreach (MemData mem in trans.DeployedMems)
+            {
+                if (mem == null) continue;
+                newTotalHunger += mem.maxHunger;
+            }
+        }
+
+        // 5. 목장 시설 
+        var ranches = FindObjectsByType<RanchFacilityRuntime>(FindObjectsSortMode.None);
+        foreach (var ranch in ranches)
+        {
+            if (ranch == null || ranch.Slots == null) continue;
+            foreach (var slot in ranch.Slots)
+            {
+                if (slot == null || !slot.isUnlocked || !slot.isProducing || slot.deployedMem == null) continue;
+                newTotalHunger += slot.deployedMem.maxHunger;
             }
         }
 
         totalHungerPerMinute = newTotalHunger;
-        Debug.Log($"<color=green>[TotalHunger] 최종 합산 완료 (실제 가동 중인 멤 기준): {totalHungerPerMinute}</color>");
         OnTotalHungerChanged?.Invoke(totalHungerPerMinute);
     }
 }

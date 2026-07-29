@@ -71,6 +71,14 @@ public class MemSlotUI : MonoBehaviour, IDropHandler, IPointerClickHandler
         {
             ranchPanel.TryRemoveMemFromUI(currentPlacedMem);
         }
+        else if (activePanel is GeneratorPanelUI genPanel)
+        {
+            genPanel.TryRemoveMemFromUI(currentPlacedMem);
+        }
+        else if (activePanel is TransportPanelUI transPanel)
+        {
+            transPanel.TryRemoveMemFromUI(currentPlacedMem);
+        }
     }
 
     public void RefreshStatus(bool unlocked, MemData memData, CapturedMemEntry entryData)
@@ -139,6 +147,14 @@ public class MemSlotUI : MonoBehaviour, IDropHandler, IPointerClickHandler
         {
             buildingType = ranchPanel.TargetFacility.buildingData.buildingType;
         }
+        else if (activePanel is GeneratorPanelUI genPanel && genPanel.TargetFacility != null && genPanel.TargetFacility.buildingData != null)
+        {
+            buildingType = genPanel.TargetFacility.buildingData.buildingType;
+        }
+        else if (activePanel is TransportPanelUI transPanel && transPanel.TargetFacility != null && transPanel.TargetFacility.buildingData != null)
+        {
+            buildingType = transPanel.TargetFacility.buildingData.buildingType;
+        }
 
         if (buildingType.HasValue)
         {
@@ -201,6 +217,16 @@ public class MemSlotUI : MonoBehaviour, IDropHandler, IPointerClickHandler
             {
                 return RanchPanelUI.Instance;
             }
+
+            if (PanelManager.Instance.IsGeneratorPanelActive && GeneratorPanelUI.Instance != null)
+            {
+                return GeneratorPanelUI.Instance;
+            }
+
+            if (PanelManager.Instance.IsTransportPanelActive && TransportPanelUI.Instance != null)
+            {
+                return TransportPanelUI.Instance;
+            }
         }
 
         return null;
@@ -216,10 +242,8 @@ public class MemSlotUI : MonoBehaviour, IDropHandler, IPointerClickHandler
         MonoBehaviour activePanel = GetCurrentActivePanel();
         if (activePanel == null) return;
 
-        // 패널로부터 부착된 Runtime 컴포넌트를 직접 추출
         Object targetRuntime = GetRuntimeFromPanel(activePanel);
 
-        // 목장 패널이고 슬롯이 잠겨있는지 확인
         if (targetRuntime is RanchFacilityRuntime && !isUnlocked)
         {
             Debug.LogWarning($"[MemSlotUI] 잠겨있는 목장 슬롯입니다. (인덱스: {SlotIndex})");
@@ -261,6 +285,16 @@ public class MemSlotUI : MonoBehaviour, IDropHandler, IPointerClickHandler
                         isDeployedSuccess = ranchRuntime.TryAddMemToSlot(SlotIndex, warehouseData, warehouseEntry);
                         if (isDeployedSuccess && activePanel is RanchPanelUI ranchPanel) ranchPanel.RefreshStaticUI();
                     }
+                    else if (targetRuntime is GeneratorRuntime genRuntime)
+                    {
+                        isDeployedSuccess = genRuntime.TryAddMem(warehouseData, warehouseEntry);
+                        if (isDeployedSuccess && activePanel is GeneratorPanelUI genPanel) genPanel.RefreshStaticUI();
+                    }
+                    else if (targetRuntime is TransportRuntime transRuntime)
+                    {
+                        isDeployedSuccess = transRuntime.TryAddMem(warehouseData, warehouseEntry);
+                        if (isDeployedSuccess && activePanel is TransportPanelUI transPanel) transPanel.RefreshStaticUI();
+                    }
 
                     if (isDeployedSuccess)
                     {
@@ -275,14 +309,15 @@ public class MemSlotUI : MonoBehaviour, IDropHandler, IPointerClickHandler
         }
     }
 
-    // 패널 인스턴스로부터 런타임 컴포넌트를 안전하게 가져오는 헬퍼 메서드
     private Object GetRuntimeFromPanel(MonoBehaviour panel)
     {
         if (panel is ProductionPanelUI prod) return prod.TargetFacility;
         if (panel is CraftingPanelUI craft) return craft.TargetFacility;
         if (panel is RanchPanelUI ranch) return ranch.TargetFacility;
+        if (panel is GeneratorPanelUI gen) return gen.TargetFacility;
+        if (panel is TransportPanelUI trans) return trans.TargetFacility;
+
         Debug.Log($"[Panel 확인하기 {panel}]");
         return null;
     }
-
 }
