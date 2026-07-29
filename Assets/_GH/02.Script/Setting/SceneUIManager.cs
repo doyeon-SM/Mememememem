@@ -49,6 +49,15 @@ public sealed class SceneUIManager : MonoBehaviour
     [Tooltip("KMS 플레이어를 찾을 때 사용할 레이어입니다.")]
     [SerializeField] private string playerLayerName = PlayerReferenceResolver.DefaultPlayerLayerName;
 
+    [Header("배치 모드 연동 (HDY 요청)")]
+    [Tooltip("여기 등록한 오브젝트를 닫을 때는 SetActive(false) 대신 GridManager.ChangePlacementMode()를 호출해서, " +
+        "GridManager 내부의 isPlacementMode 상태와 실제 활성 여부가 어긋나지 않도록 한다(P_Placement 연결용). " +
+        "이 씬에 배치 모드 UI가 없으면 비워둔다 - 비어있으면 기존 동작(SetActive(false))과 완전히 동일하게 동작한다.")]
+    [SerializeField] private GameObject placementModeUIRoot;
+
+    /// <summary>TryClosePlacementMode에서 사용할 GridManager 캐시. placementModeUIRoot가 비어있는 씬에서는 탐색되지 않는다.</summary>
+    private GridManager cachedGridManager;
+
     private float timeScaleBeforeSettings = 1f;
     private CursorLockMode cursorLockModeBeforeSettings;
     private bool cursorVisibleBeforeSettings;
@@ -738,9 +747,38 @@ public sealed class SceneUIManager : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// [HDY 요청] 닫으려는 대상이 배치 모드 UI(P_Placement)라면, 무조건 SetActive(false) 하는 대신
+    /// GridManager.ChangePlacementMode()를 호출해서 GridManager/PlacementUI 쪽 상태(isPlacementMode)와
+    /// 실제 활성 여부가 어긋나지 않도록 위임한다. 이 함수가 호출되는 시점엔 이미 IsOpen(target)이 true로
+    /// 확인된 뒤이므로, 배치 모드가 켜져 있다고 보고 그대로 꺼주는 토글 호출이면 충분하다.
+    /// placementModeUIRoot가 비어있는 씬(=배치 모드 UI가 없는 씬)에서는 항상 false를 반환해서 기존
+    /// 동작(SetActive(false))을 그대로 유지한다.
+    /// </summary>
+    private bool TryClosePlacementMode(GameObject target)
+    {
+        if (placementModeUIRoot == null || target != placementModeUIRoot)
+        {
+            return false;
+        }
+
+        if (cachedGridManager == null)
+        {
+            cachedGridManager = FindFirstObjectByType<GridManager>();
+        }
+
+        cachedGridManager?.ChangePlacementMode();
+        return true;
+    }
+
     private void CloseSingleManagedUI(GameObject target)
     {
         if (!IsValidManagedUI(target))
+        {
+            return;
+        }
+
+        if (TryClosePlacementMode(target))
         {
             return;
         }
