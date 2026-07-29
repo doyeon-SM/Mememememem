@@ -7,17 +7,23 @@ using UnityEngine;
 namespace HDY.Item
 {
     /// <summary>
-    /// 아이템 데이터(ItemData), 제작 레시피(RecipeData), 상점 품목(ShopItemData)을 보관하는 매니저.
-    /// Item_ID / Recipe_Item_ID를 키로 하는 딕셔너리 탐색을 전제로 함.
+    /// 아이템 데이터(ItemData), 제작 레시피(RecipeData), 상점 품목(ShopItemData), 요리 레시피(CookRecipeData)를
+    /// 보관하는 매니저.
+    /// Item_ID / Recipe_Item_ID / Result_Item_ID를 키로 하는 딕셔너리 탐색을 전제로 함.
     /// 씬에 배치되어 DontDestroyOnLoad로 유지되는 파괴불가 싱글톤 (ItemCatalogManager는 계속 싱글톤 유지).
     ///
     /// [HDY 요청 - 시트 마이그레이션] 개별 ItemData/RecipeData/ShopItemData SO를 Inspector에 하나씩
-    /// 드래그하던 방식에서 시트(TextAsset, 탭 구분) 기반으로 전환했다. Awake 시 각 시트를 파싱해
-    /// 행마다 ScriptableObject.CreateInstance&lt;T&gt;()로 런타임 인스턴스를 만들어 채운다.
+    /// 드래그하던 방식에서 시트(TextAsset, 쉼표 구분 CSV) 기반으로 전환했다. Awake 시 각 시트를 파싱해
+    /// 행마다 ScriptableObject.CreateInstance<T>()로 런타임 인스턴스를 만들어 채운다.
     /// (강화 개체용 ForgeInstanceItemDataProvider가 이미 쓰던 것과 동일한 패턴.)
     /// 아이콘(Sprite)은 시트에 담을 수 없어 ItemIconTable로 따로 분리해 관리한다.
     ///
-    /// [ShopItemData 참고] ShopStockManager가 재고를 Dictionary&lt;ShopItemData, int&gt;로(=객체 동일성
+    /// [HDY 요청 - txt to csv 마이그레이션] 시트 원본 파일은 전부 tsv(탭 구분) .txt에서 csv(쉼표 구분)
+    /// .csv로 전환했다. 엑셀에서 더블클릭으로 바로 열리게 하기 위함. AssetDatabase.MoveAsset으로 확장자만
+    /// 바꿔 기존 TextAsset 참조(GUID)는 그대로 유지되므로 Inspector 재연결은 필요 없다. 데이터 자체에
+    /// 쉼표가 들어가는 필드는 없는 것을 확인했다(있으면 Split(',')에서 컬럼이 밀리므로 주의).
+    ///
+    /// [ShopItemData 참고] ShopStockManager가 재고를 Dictionary<ShopItemData, int>로(=객체 동일성
     /// 기준) 관리하기 때문에, FindShopItemData(id)는 매번 새 인스턴스를 만들지 않고 Awake 시 한 번만
     /// 만들어 캐싱한 같은 인스턴스를 계속 반환한다 - ItemData/RecipeData와 동일한 원칙.
     ///
@@ -25,6 +31,12 @@ namespace HDY.Item
     /// 일반 딕셔너리 탐색 대신 ForgeInstanceItemDataProvider에 위임해 강화 보너스가 반영된
     /// 런타임 전용 ItemData를 받아온다. 이 분기 덕분에 WorldObject/PlayerHarvestController 등
     /// 다른 팀 코드는 지금처럼 FindItemData(itemId) → Value만 읽어도 강화가 자동 반영된다.
+    ///
+    /// [HDY 요청 - 요리 레시피 추가] 제작 레시피(RecipeData)와 동일한 시트 파싱 패턴으로 요리 레시피
+    /// (CookRecipeData)를 추가했다. 제작 레시피와의 차이는 재료 쪽인데, 요리 재료는 기획상 항상 1개씩만
+    /// 소비되므로 Recipe_Requset_Item_Data(Item_ID+Amount) 대신 List&lt;string&gt;으로 단순화했다.
+    /// 요리시설(CookingFacilityData)은 ShopData와 동일하게 시트가 아니라 SO 에셋 자체에 취급 레시피
+    /// (Result_Item_ID) 목록을 직접 채우는 방식이라 여기서는 다루지 않는다.
     /// </summary>
     public class ItemCatalogManager : MonoBehaviour
     {
@@ -44,19 +56,23 @@ namespace HDY.Item
             BuildDictionary();
             BuildRecipeDictionary();
             BuildShopItemDictionary();
+            BuildCookRecipeDictionary();
         }
 
-        [Header("아이템 데이터 시트 (탭 구분 텍스트, Item_ID 기준으로 파싱)")]
+        [Header("아이템 데이터 시트 (쉼표 구분 CSV, Item_ID 기준으로 파싱)")]
         [SerializeField] private TextAsset itemCatalogSheet;
 
         [Header("아이템 아이콘 테이블 (Item_ID -> Sprite)")]
         [SerializeField] private ItemIconTable iconTable;
 
-        [Header("제작 레시피 시트 (탭 구분 텍스트, Recipe_Item_ID 기준으로 파싱)")]
+        [Header("제작 레시피 시트 (쉼표 구분 CSV, Recipe_Item_ID 기준으로 파싱)")]
         [SerializeField] private TextAsset recipeCatalogSheet;
 
-        [Header("상점 품목 시트 (탭 구분 텍스트, Item_ID 기준으로 파싱)")]
+        [Header("상점 품목 시트 (쉼표 구분 CSV, Item_ID 기준으로 파싱)")]
         [SerializeField] private TextAsset shopItemCatalogSheet;
+
+        [Header("요리 레시피 시트 (쉼표 구분 CSV, Result_Item_ID 기준으로 파싱)")]
+        [SerializeField] private TextAsset cookRecipeCatalogSheet;
 
         private readonly List<ItemData> itemDataList = new List<ItemData>();
         public IReadOnlyList<ItemData> ItemDataList => itemDataList;
@@ -75,6 +91,12 @@ namespace HDY.Item
 
         [Header("Item_ID -> ShopItemData 딕셔너리")]
         private Dictionary<string, HDY.Shop.ShopItemData> shopItemDictionary = new Dictionary<string, HDY.Shop.ShopItemData>();
+
+        private readonly List<HDY.Cook.CookRecipeData> cookRecipeDataList = new List<HDY.Cook.CookRecipeData>();
+        public IReadOnlyList<HDY.Cook.CookRecipeData> CookRecipeDataList => cookRecipeDataList;
+
+        [Header("Result_Item_ID -> CookRecipeData 딕셔너리")]
+        private Dictionary<string, HDY.Cook.CookRecipeData> cookRecipeDictionary = new Dictionary<string, HDY.Cook.CookRecipeData>();
 
         /// <summary>
         /// 시트를 파싱해 행마다 런타임 ItemData 인스턴스를 만들고 Item_ID 기준으로 딕셔너리에 채운다.
@@ -97,7 +119,7 @@ namespace HDY.Item
                 var line = lines[i].TrimEnd('\r');
                 if (string.IsNullOrWhiteSpace(line)) continue;
 
-                var cols = line.Split('\t');
+                var cols = line.Split(',');
                 if (cols.Length < 9)
                 {
                     Debug.LogWarning($"[ItemCatalogManager] 아이템 시트 {i + 1}번째 줄 컬럼 수가 부족합니다: {line}");
@@ -140,7 +162,7 @@ namespace HDY.Item
                 var line = lines[i].TrimEnd('\r');
                 if (string.IsNullOrWhiteSpace(line)) continue;
 
-                var cols = line.Split('\t');
+                var cols = line.Split(',');
                 if (cols.Length < 3)
                 {
                     Debug.LogWarning($"[ItemCatalogManager] 레시피 시트 {i + 1}번째 줄 컬럼 수가 부족합니다: {line}");
@@ -183,7 +205,7 @@ namespace HDY.Item
                 var line = lines[i].TrimEnd('\r');
                 if (string.IsNullOrWhiteSpace(line)) continue;
 
-                var cols = line.Split('\t');
+                var cols = line.Split(',');
                 if (cols.Length < 7)
                 {
                     Debug.LogWarning($"[ItemCatalogManager] 상점 품목 시트 {i + 1}번째 줄 컬럼 수가 부족합니다: {line}");
@@ -201,6 +223,49 @@ namespace HDY.Item
                 else
                 {
                     Debug.LogWarning($"[ItemCatalogManager] 상점 품목 Item_ID가 중복되었습니다: {shopItem.Item_ID} (먼저 등록된 항목을 유지합니다)");
+                }
+            }
+        }
+
+        /// <summary>
+        /// 요리 레시피 시트를 파싱해 행마다 런타임 CookRecipeData 인스턴스를 만들고 Result_Item_ID 기준으로
+        /// 딕셔너리에 채운다. Result_Item_ID가 중복되면 먼저 등록된 항목을 유지한다.
+        /// </summary>
+        private void BuildCookRecipeDictionary()
+        {
+            cookRecipeDictionary.Clear();
+            cookRecipeDataList.Clear();
+
+            if (cookRecipeCatalogSheet == null)
+            {
+                Debug.LogWarning("[ItemCatalogManager] cookRecipeCatalogSheet가 비어있습니다.");
+                return;
+            }
+
+            var lines = cookRecipeCatalogSheet.text.Split('\n');
+            for (int i = 1; i < lines.Length; i++) // 0번째 줄은 헤더라 건너뜀
+            {
+                var line = lines[i].TrimEnd('\r');
+                if (string.IsNullOrWhiteSpace(line)) continue;
+
+                var cols = line.Split(',');
+                if (cols.Length < 3)
+                {
+                    Debug.LogWarning($"[ItemCatalogManager] 요리 레시피 시트 {i + 1}번째 줄 컬럼 수가 부족합니다: {line}");
+                    continue;
+                }
+
+                var cookRecipe = ParseCookRecipeRow(cols);
+                if (cookRecipe == null || string.IsNullOrEmpty(cookRecipe.Result_Item_ID)) continue;
+
+                if (!cookRecipeDictionary.ContainsKey(cookRecipe.Result_Item_ID))
+                {
+                    cookRecipeDictionary.Add(cookRecipe.Result_Item_ID, cookRecipe);
+                    cookRecipeDataList.Add(cookRecipe);
+                }
+                else
+                {
+                    Debug.LogWarning($"[ItemCatalogManager] 요리 레시피 Result_Item_ID가 중복되었습니다: {cookRecipe.Result_Item_ID} (먼저 등록된 항목을 유지합니다)");
                 }
             }
         }
@@ -259,6 +324,21 @@ namespace HDY.Item
             shopItem.Purchase_MaxAmount = ParseInt(cols[6]);
 
             return shopItem;
+        }
+
+        /// <summary>
+        /// 요리 레시피 시트 한 줄(컬럼 배열)을 런타임 CookRecipeData로 변환한다.
+        /// 컬럼 순서: Result_Item_ID, Time, Ingredients("item_a;item_b" 형식, 재료는 항상 1개씩이라 수량 없음).
+        /// </summary>
+        private HDY.Cook.CookRecipeData ParseCookRecipeRow(string[] cols)
+        {
+            var cookRecipe = ScriptableObject.CreateInstance<HDY.Cook.CookRecipeData>();
+
+            cookRecipe.Result_Item_ID = cols[0].Trim();
+            cookRecipe.Time = ParseFloat(cols[1]);
+            cookRecipe.Ingredient_Item_IDs = ParseIngredientIds(cols[2]);
+
+            return cookRecipe;
         }
 
         private static int ParseInt(string s)
@@ -327,6 +407,28 @@ namespace HDY.Item
         }
 
         /// <summary>
+        /// "item_berry;item_sugar" 형식을 파싱한다. 요리 재료는 기획상 항상 1개씩만 소비되므로
+        /// 제작 레시피(ParseMaterials)와 달리 수량 없이 Item_ID 문자열만 리스트로 담는다.
+        /// 빈 문자열이면 빈 리스트를 반환한다.
+        /// </summary>
+        private static List<string> ParseIngredientIds(string raw)
+        {
+            var ingredients = new List<string>();
+            if (string.IsNullOrWhiteSpace(raw)) return ingredients;
+
+            var entries = raw.Split(';');
+            foreach (var entry in entries)
+            {
+                var itemId = entry.Trim();
+                if (string.IsNullOrEmpty(itemId)) continue;
+
+                ingredients.Add(itemId);
+            }
+
+            return ingredients;
+        }
+
+        /// <summary>
         /// Item_ID로 ItemData를 찾는다. 목록에 없으면 null.
         /// 합성 ID(강화 개체)면 ForgeInstanceItemDataProvider를 통해 런타임 ItemData를 반환한다.
         /// </summary>
@@ -367,6 +469,14 @@ namespace HDY.Item
             if (string.IsNullOrEmpty(itemId)) return null;
 
             return shopItemDictionary.TryGetValue(itemId, out var shopItem) ? shopItem : null;
+        }
+
+        /// <summary>Result_Item_ID로 CookRecipeData를 찾는다. 목록에 없으면 null.</summary>
+        public HDY.Cook.CookRecipeData FindCookRecipeData(string resultItemId)
+        {
+            if (string.IsNullOrEmpty(resultItemId)) return null;
+
+            return cookRecipeDictionary.TryGetValue(resultItemId, out var cookRecipe) ? cookRecipe : null;
         }
 
         /// <summary>
