@@ -84,6 +84,12 @@ namespace HDY.Mem
             entries = newEntries;
             lookup = null;
         }
+
+        /// <summary>
+        /// [HDY 요청 - 아이콘 굽기 도구 연동] 전체 항목을 읽기 전용으로 열람한다.
+        /// MemIconBaker가 "어떤 memId들에 모델이 있는지" 목록을 뽑아 굽기 대상 리스트를 만들 때 사용.
+        /// </summary>
+        public IReadOnlyList<Entry> EditorEntries => entries;
 #endif
     }
 }
