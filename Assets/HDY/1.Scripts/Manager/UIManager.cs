@@ -73,6 +73,18 @@ namespace HDY.UI
     /// 않으므로, 시간 표시 Text를 실제로 붙이는 작업은 GameTime 프로퍼티로 GameTimeManager에 접근해서
     /// (GetRealTimeText()/GetInGameTimeText() 조회 또는 OnRealTimeTextChanged/OnInGameTimeTextChanged
     /// 이벤트 구독) 별도로 진행하면 된다.
+    ///
+    /// [패널이 완전히 닫힐 때 PanelManager 상태 복구 - 버그 수정] _Kyusoo의 PanelManager는 UIManager로
+    /// HUD 패널이 열릴 때마다 NotifyHUDPanelOpened()를 통해 placeButtonGroup(P_TerritoryObjectButton)을
+    /// 꺼서 숨긴다. 그런데 이걸 다시 켜주는 PanelManager.CloseAllPanels()는 PanelManager 자신의 Open***
+    /// 계열 함수 안에서만 호출되고, UIManager 쪽에서 패널을 닫는 경로(CloseCurrent, 혹은 SceneUIManager가
+    /// ESC로 SetActive(false)한 뒤 ManagedPanelCloseWatcher가 감지하는 경로)에는 CloseAllPanels() 호출이
+    /// 전혀 없었다. 그 결과 UIManager로 HUD 패널을 한 번이라도 열면, 그 패널을 어떤 방법으로 닫든
+    /// P_TerritoryObjectButton이 다시 켜지지 않는 문제가 있었다. PanelManager.cs는 크로스팀 코드라 직접
+    /// 수정하지 않고, 대신 패널이 완전히 닫히는 두 지점(CloseCurrent, HandleManagedPanelDisabled)에서
+    /// PanelManager.CloseAllPanels()를 호출해주는 방식으로 우회한다. PanelManager.CloseAllPanels()가
+    /// 내부에서 다시 UIManager.Instance.CloseCurrent()를 호출하지만, 그 시점엔 이미 openStack이 비어있어
+    /// 곧바로 return되므로 무한 재귀로 이어지지 않는다.
     /// </summary>
     public class UIManager : MonoBehaviour
     {
@@ -266,6 +278,21 @@ namespace HDY.UI
             }
 
             currentPrefabKey = null;
+
+            NotifyPanelFullyClosed();
+        }
+
+        /// <summary>
+        /// [버그 수정] HUD 패널이 완전히 닫혔을 때 _Kyusoo PanelManager의 공통 HUD 상태(닫기/배치 버튼
+        /// 그룹, 카메라 컨트롤러 등)를 원래대로 되돌린다. PanelManager.cs는 크로스팀 코드라 직접 수정하지
+        /// 않고, PanelManager가 이미 가지고 있는 CloseAllPanels()를 그대로 호출해서 우회한다.
+        /// PanelManager.CloseAllPanels()는 내부에서 다시 UIManager.Instance.CloseCurrent()를 호출하지만,
+        /// 이 시점엔 이미 openStack이 비어있는 상태라 그 재호출은 곧바로 return되어 무한 재귀로 이어지지
+        /// 않는다. PanelManager가 없는 씬에서는 Instance가 null이라 아무 동작도 하지 않는다.
+        /// </summary>
+        private void NotifyPanelFullyClosed()
+        {
+            PanelManager.Instance?.CloseAllPanels();
         }
 
         /// <summary>
@@ -282,6 +309,8 @@ namespace HDY.UI
 
             UnregisterFromSceneUIManager(panelInstance);
             Destroy(panelInstance);
+
+            NotifyPanelFullyClosed();
         }
 
         /// <summary>
