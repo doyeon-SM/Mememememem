@@ -66,7 +66,7 @@ namespace HDY.Recipe
     /// 예정이라, 더 이상 DontDestroyOnLoad 싱글톤을 쓰지 않는다(일반 컴포넌트).
     ///
     /// [HDY 요청 - 시트 마이그레이션] recipeUnlocks는 더 이상 Inspector에서 직접 드래그/입력하지 않고,
-    /// Awake 시 recipeUnlockSheet(TextAsset, 탭 구분)를 파싱해서 채운다. IsUnlocked는 시트에 없는 컬럼이라
+    /// Awake 시 recipeUnlockSheet(TextAsset, 쉼표 구분 CSV)를 파싱해서 채운다. IsUnlocked는 시트에 없는 컬럼이라
     /// 파싱 직후에는 항상 false다(실제 해금 여부는 세이브 로드나 플레이 중 Unlock()/ApplyUnlock() 호출로
     /// 채워짐). recipeUnlocks 필드의 이름과 타입(List&lt;RecipeUnlockEntry&gt;)은 _Kyusoo의
     /// TerritoryRecordData.cs가 리플렉션으로 직접 참조하고 있어 절대 바꾸면 안 된다.
@@ -79,7 +79,7 @@ namespace HDY.Recipe
         [Header("영지 데이터 참조 (경험치 지급용, 비어있으면 자동 탐색)")]
         [SerializeField] private TerritoryData territoryData;
 
-        [Header("제작법 해금 시트 (탭 구분 텍스트: Item_ID, RequestTerritoryLevel, RequestGold, MaterialCosts, RewardExp)")]
+        [Header("제작법 해금 시트 (쉼표 구분 CSV: Item_ID, RequestTerritoryLevel, RequestGold, MaterialCosts, RewardExp)")]
         [SerializeField] private TextAsset recipeUnlockSheet;
 
         private void Awake()
@@ -123,7 +123,7 @@ namespace HDY.Recipe
                 var line = lines[i].TrimEnd('\r');
                 if (string.IsNullOrWhiteSpace(line)) continue;
 
-                var cols = line.Split('\t');
+                var cols = line.Split(',');
                 if (cols.Length < 5)
                 {
                     Debug.LogWarning($"[RecipeUnlockManager] 시트 {i + 1}번째 줄 컬럼 수가 부족합니다: {line}");

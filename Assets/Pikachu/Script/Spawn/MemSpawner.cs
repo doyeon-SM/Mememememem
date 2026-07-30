@@ -4,7 +4,7 @@
 //
 // [담당자 안내]
 // 기획서 [1. 스폰 규칙] 구현부입니다.
-// - 플레이어가 구역 반경(spawnRadius) 내에 진입 후 10~30초 체류 시 스폰 트리거
+// - 플레이어가 감지 영역(Detect Area Size) 안에 진입 후 10~30초 체류 시 스폰 트리거
 // - 스폰 쿨타임(60~120초) 적용
 // - 플레이어가 구역을 1분 이상 이탈 시 해당 구역 멤 전원 디스폰(자동 회수)
 // - 지역당 최대 20마리 제한
@@ -42,10 +42,26 @@ namespace MemSystem.Spawn
         [Tooltip("월드 시스템이 IMemSpawnPointProvider를 주입하기 전, 에디터에서 수동으로 지정한 스폰 위치들")]
         [SerializeField] private Transform[] waypoints;
 
+        [Header("감지 영역 (플레이어가 이 안에 들어오면 스폰 대기 시작)")]
+        [Tooltip("감지 영역의 가로/세로 크기. X = 월드 X축, Y = 월드 Z축 (Y축 높이는 무시하고 평면으로 판정)")]
+        [SerializeField] private Vector2 detectAreaSize = new Vector2(400f, 400f);
+
+        [Tooltip("감지 영역 중심 오프셋. X = 월드 X축, Y = 월드 Z축")]
+        [SerializeField] private Vector2 detectAreaOffset = Vector2.zero;
+
+        [Header("스폰 영역 (멤이 실제로 흩어져 나올 범위)")]
+        [Tooltip("스폰 영역의 가로/세로 크기. X = 월드 X축, Y = 월드 Z축")]
+        [SerializeField] private Vector2 spawnAreaSize = new Vector2(400f, 400f);
+
+        [Tooltip("스폰 영역 중심 오프셋. X = 월드 X축, Y = 월드 Z축")]
+        [SerializeField] private Vector2 spawnAreaOffset = Vector2.zero;
+
+        // [구버전 호환] 예전 단일 반경(spawnRadius) 세팅값을 사이즈로 1회 자동 변환하기 위해 남겨둔 필드.
+        // 기존 씬/프리팹에 직렬화된 값이 그대로 살아있으므로, 씬 파일을 직접 건드리지 않고 승계됩니다.
+        [SerializeField, HideInInspector] private float spawnRadius = 200f;
+        [SerializeField, HideInInspector] private bool areaMigrated = false;
+
         [Header("스폰 규칙")]
-        [Tooltip("플레이어를 감지할 구역 반경")]
-        [SerializeField] private float spawnRadius = 200f;
-        
         [Tooltip("이 구역에서 동시에 활성화될 수 있는 멤의 최대 수 (기획 기준 20)")]
         [SerializeField] private int maxActiveCount = 20;
 
@@ -103,6 +119,8 @@ namespace MemSystem.Spawn
 
         private void Awake()
         {
+            MigrateLegacyRadius();
+
             memPool = GetComponent<MemPool>();
             memFactory = GetComponent<MemFactory>();
         }
@@ -190,25 +208,28 @@ namespace MemSystem.Spawn
                 return;
             }
 
-            // 프로토타입용 Fallback: 가장 가까운 웨이포인트 기준으로 반경 체크
-            float minDistance = float.MaxValue;
+            // 프로토타입용 Fallback: 웨이포인트들의 감지 영역(사각형) 중 하나라도 포함하면 구역 안으로 판정
+            bool inside = false;
             if (waypoints != null && waypoints.Length > 0)
             {
                 for (int i = 0; i < waypoints.Length; i++)
                 {
                     if (waypoints[i] == null) continue;
-                    float dist = Vector3.Distance(playerTransform.position, waypoints[i].position);
-                    if (dist < minDistance) minDistance = dist;
+                    if (IsInsideArea(waypoints[i].position, detectAreaSize, detectAreaOffset, playerTransform.position))
+                    {
+                        inside = true;
+                        break;
+                    }
                 }
             }
             else
             {
                 // 웨이포인트가 없으면 스포너 자체 위치 기준
-                minDistance = Vector3.Distance(playerTransform.position, transform.position);
+                inside = IsInsideArea(transform.position, detectAreaSize, detectAreaOffset, playerTransform.position);
             }
 
             bool prevInZone = isPlayerInZone;
-            isPlayerInZone = minDistance <= spawnRadius;
+            isPlayerInZone = inside;
 
             // 구역 진입/이탈 시 타이머 초기화
             if (isPlayerInZone && !prevInZone)
@@ -391,12 +412,11 @@ namespace MemSystem.Spawn
                 if (wp != null) basePos = wp.position;
             }
 
-            // 중심점(basePos) 근방 반경 내에서 NavMesh 위 유효 위치 탐색
+            // 중심점(basePos) 기준 스폰 영역(사각형) 내에서 NavMesh 위 유효 위치 탐색
             // Edge-snapping 방지를 위해 시도 횟수를 늘립니다.
             for (int i = 0; i < 30; i++)
             {
-                Vector2 randCircle = Random.insideUnitCircle * spawnRadius;
-                Vector3 candidate = basePos + new Vector3(randCircle.x, 0, randCircle.y);
+                Vector3 candidate = GetRandomPointInArea(basePos, spawnAreaSize, spawnAreaOffset);
 
                 // 지형의 높낮이 변화를 고려하여 maxDistance를 충분히 크게 줍니다 (100f)
                 if (NavMesh.SamplePosition(candidate, out NavMeshHit hit, 100f, NavMesh.AllAreas))
@@ -418,20 +438,79 @@ namespace MemSystem.Spawn
             return basePos + new Vector3(Random.Range(-2f, 2f), 0, Random.Range(-2f, 2f));
         }
 
+        /// <summary>
+        /// 지정한 중심/사이즈/오프셋으로 만들어지는 X-Z 평면 사각 영역 안에 점이 있는지 판정합니다.
+        /// 높이(Y)는 판정에 사용하지 않습니다 — 지형 높낮이 때문에 3D 거리로 재면 경사면에서 판정이 흔들립니다.
+        /// </summary>
+        private bool IsInsideArea(Vector3 center, Vector2 size, Vector2 offset, Vector3 point)
+        {
+            float dx = point.x - (center.x + offset.x);
+            float dz = point.z - (center.z + offset.y);
+            return Mathf.Abs(dx) <= size.x * 0.5f && Mathf.Abs(dz) <= size.y * 0.5f;
+        }
+
+        /// <summary>
+        /// 지정한 중심/사이즈/오프셋의 사각 영역 안에서 랜덤한 좌표 하나를 뽑습니다. (Y는 중심 높이 유지)
+        /// </summary>
+        private Vector3 GetRandomPointInArea(Vector3 center, Vector2 size, Vector2 offset)
+        {
+            float halfX = size.x * 0.5f;
+            float halfZ = size.y * 0.5f;
+            return new Vector3(
+                center.x + offset.x + Random.Range(-halfX, halfX),
+                center.y,
+                center.z + offset.y + Random.Range(-halfZ, halfZ));
+        }
+
+        /// <summary>
+        /// [구버전 호환] 기존에 단일 반경(spawnRadius)으로 세팅돼 있던 스포너를
+        /// 동일한 커버 범위(지름 = 반경 * 2)의 사각 영역으로 1회 자동 변환합니다.
+        /// 이미 변환된(= 사이즈를 직접 만진) 스포너는 건드리지 않습니다.
+        /// </summary>
+        private void MigrateLegacyRadius()
+        {
+            if (areaMigrated) return;
+            areaMigrated = true;
+
+            if (spawnRadius <= 0f) return;
+
+            float diameter = spawnRadius * 2f;
+            detectAreaSize = new Vector2(diameter, diameter);
+            spawnAreaSize = new Vector2(diameter, diameter);
+        }
+
         // =================================================================
         // 에디터 시각화 (Gizmos)
         // =================================================================
 #if UNITY_EDITOR
+        private void OnValidate()
+        {
+            MigrateLegacyRadius();
+
+            // 음수 사이즈는 영역이 뒤집혀 판정이 항상 실패하므로 0 이상으로 고정
+            detectAreaSize.x = Mathf.Max(0f, detectAreaSize.x);
+            detectAreaSize.y = Mathf.Max(0f, detectAreaSize.y);
+            spawnAreaSize.x = Mathf.Max(0f, spawnAreaSize.x);
+            spawnAreaSize.y = Mathf.Max(0f, spawnAreaSize.y);
+        }
+
         private void OnDrawGizmosSelected()
         {
-            if (waypoints != null)
+            // 감지 영역(청록) / 스폰 영역(노랑)을 웨이포인트마다 그려줍니다.
+            // 웨이포인트가 없으면 스포너 자기 위치 기준으로 한 개만 그립니다.
+            if (waypoints != null && waypoints.Length > 0)
             {
-                Gizmos.color = new Color(0, 1, 0, 0.2f);
                 foreach (var wp in waypoints)
                 {
-                    if (wp != null)
-                        Gizmos.DrawWireSphere(wp.position, spawnRadius);
+                    if (wp == null) continue;
+                    DrawAreaGizmo(wp.position, detectAreaSize, detectAreaOffset, Color.cyan);
+                    DrawAreaGizmo(wp.position, spawnAreaSize, spawnAreaOffset, Color.yellow);
                 }
+            }
+            else
+            {
+                DrawAreaGizmo(transform.position, detectAreaSize, detectAreaOffset, Color.cyan);
+                DrawAreaGizmo(transform.position, spawnAreaSize, spawnAreaOffset, Color.yellow);
             }
 
             Gizmos.color = Color.yellow;
@@ -440,6 +519,21 @@ namespace MemSystem.Spawn
                 if (mem != null)
                     Gizmos.DrawWireCube(mem.transform.position + Vector3.up, Vector3.one * 0.5f);
             }
+        }
+
+        /// <summary>영역을 씬 뷰에 납작한 박스로 그립니다. (높이는 시인성용 고정값)</summary>
+        private void DrawAreaGizmo(Vector3 center, Vector2 size, Vector2 offset, Color color)
+        {
+            if (size.x <= 0f || size.y <= 0f) return;
+
+            Vector3 c = new Vector3(center.x + offset.x, center.y, center.z + offset.y);
+            Vector3 s = new Vector3(size.x, 0.1f, size.y);
+
+            Gizmos.color = new Color(color.r, color.g, color.b, 0.12f);
+            Gizmos.DrawCube(c, s);
+
+            Gizmos.color = color;
+            Gizmos.DrawWireCube(c, s);
         }
 #endif
     }

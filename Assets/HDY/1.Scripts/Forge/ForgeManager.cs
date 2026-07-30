@@ -1,8 +1,8 @@
-using System.Collections.Generic;
 using HDY.Item;
 using HDY.Territory;
 using HDY.Upgrade;
 using KMS.InventoryDuped;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace HDY.Forge
@@ -148,6 +148,9 @@ namespace HDY.Forge
         [SerializeField] private float overheatEpsilon = 0.01f;
 
         private Dictionary<ForgeToolType, ForgeToolTypeData> toolTypeLookup;
+
+        [Tooltip("대장간 데이터 변경 시 발행되는 이벤트로 강화, 승급, 연마, 전승이 이루어질 때 이벤트 발행")]
+        public static event System.Action OnForgeDataChanged;
 
         private void Awake()
         {
@@ -683,6 +686,9 @@ namespace HDY.Forge
                 itemDataProvider.RefreshRuntimeItemData(stack.itemId);
             }
 
+            // 연마 정보 저장을 위한 이벤트 발행
+            NotifyForgeDataChanged();
+
             return new RefinementOutcome(true, RefinementFailReason.None, instance.RefinementSlots);
         }
 
@@ -743,6 +749,9 @@ namespace HDY.Forge
             {
                 itemDataProvider.RefreshRuntimeItemData(targetStack.itemId);
             }
+
+            // 전승시 이벤트 발행을 통해 데이터 저장
+            NotifyForgeDataChanged();
 
             return InheritanceOutcome.Success;
         }
@@ -813,6 +822,11 @@ namespace HDY.Forge
             {
                 itemDataProvider.RefreshRuntimeItemData(stack.itemId);
             }
+
+            var playerInv = FindFirstObjectByType<KMS.InventoryDuped.PlayerInventory>();
+            playerInv?.PublishInventoryChanged();
+
+            NotifyForgeDataChanged();
         }
 
         private bool HasEnoughMaterialAndGold(string materialItemId, int materialCost, int goldCost, out ForgeFailReason shortageReason)
@@ -854,6 +868,11 @@ namespace HDY.Forge
         private bool ValidateDependencies()
         {
             return tierData != null && enhancementTable != null && instanceRegistry != null && catalogManager != null;
+        }
+
+        public void NotifyForgeDataChanged() 
+        {
+            OnForgeDataChanged?.Invoke();
         }
     }
 }

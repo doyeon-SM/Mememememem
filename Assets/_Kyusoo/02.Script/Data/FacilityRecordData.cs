@@ -370,6 +370,19 @@ public class FacilityRecordData : MonoBehaviour, IRecord
         RecordManager.Instance.SetPrivateFieldSafely(gridManager, "buildingObjectsGrid", buildingObjectsGrid);
         RecordManager.Instance.SetPrivateFieldSafely(gridManager, "buildingDataGrid", buildingDataGrid);
         RecordManager.Instance.RefreshActivePanelMemSlotsRealtime();
+
+        var territoryDataObj = HDY.Territory.TerritoryData.Resolve(null);
+        if (gridManager != null && territoryDataObj != null)
+        {
+            int calculatedSatisfaction = gridManager.GetTotalSatisfactionFromGrid();
+            RecordManager.Instance.SetPrivateFieldSafely(territoryDataObj, "satisfaction", calculatedSatisfaction);
+
+            var satisfactionUI = FindFirstObjectByType<SatisFactoryUI>();
+            if (satisfactionUI != null)
+            {
+                satisfactionUI.RecalculateSatisfaction();
+            }
+        }
     }
 
     private ItemData FindItemDataInProject(string itemId)

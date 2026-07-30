@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using HDY.Capture;
+using HDY.Forge;
 
 [Serializable]
 public class ItemStackData
@@ -47,6 +48,15 @@ public class ChestInfo
 {
     public string chestId;
     public bool isOpen;
+}
+
+[Serializable]
+public class PlayerInfo
+{
+    public float maxHealth = 100f;
+    public float maxHunger = 100f;
+    public float currentHealth = 100f;
+    public float currentHunger = 100f;
 }
 
 [Serializable]
@@ -99,4 +109,10 @@ public class SaveData
 
     [Header("상자 개방 데이터")]
     public List<ChestInfo> chestInfo = new List<ChestInfo>();
+
+    [Header("플레이어 스탯 데이터")]
+    public PlayerInfo playerInfo = new PlayerInfo();
+
+    [Header("대장간 도구 인스턴스 데이터")]
+    public List<ForgeInstanceData> forgeInstanceDataList = new List<ForgeInstanceData>();
 }

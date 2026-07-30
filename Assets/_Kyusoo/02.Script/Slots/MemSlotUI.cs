@@ -246,7 +246,6 @@ public class MemSlotUI : MonoBehaviour, IDropHandler, IPointerClickHandler
 
                     bool isDeployedSuccess = false;
 
-                    // 🌟 [핵심]: UI 패널 클래스가 아니라, 부착된 Runtime 타입에 따라 직접 분기 및 처리
                     if (targetRuntime is ProductionFacilityRuntime prodRuntime)
                     {
                         isDeployedSuccess = prodRuntime.TryAddMem(warehouseData, warehouseEntry);
