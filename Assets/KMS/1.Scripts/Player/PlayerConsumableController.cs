@@ -14,7 +14,24 @@ namespace KMS
         [SerializeField] private PlayerInput input;
         [SerializeField] private PlayerInventory inventory;
         [SerializeField] private PlayerStats stats;
+        [SerializeField] private PlayerMovement movement;
+        [SerializeField] private Animator animator;
         [SerializeField] private ItemCatalogManager catalogManager;
+
+        [Header("Animation")]
+        [SerializeField, Min(0.1f)] private float stateEntryTimeout = 0.75f;
+
+        public bool IsConsuming => actionRequested || actionStateActive || HasPendingConsume;
+
+        private static readonly int LocomotionStateHash = Animator.StringToHash("Locomotion");
+        private static readonly int EatHash = Animator.StringToHash("Eat");
+
+        private bool actionRequested;
+        private bool actionStateActive;
+        private bool consumeCommitted;
+        private float requestTime;
+        private string pendingItemId;
+        private float pendingSatietyAmount;
 
         private void Awake()
         {
@@ -37,6 +54,16 @@ namespace KMS
             {
                 input.PrimaryActionPressed -= TryConsumeSelectedFood;
             }
+
+            CancelPendingConsume();
+        }
+
+        private void Update()
+        {
+            if (!actionRequested || actionStateActive) return;
+            if (Time.unscaledTime - requestTime <= stateEntryTimeout) return;
+
+            CancelPendingConsume();
         }
 
         private void ResolveReferences()
@@ -44,13 +71,16 @@ namespace KMS
             if (input == null) input = GetComponent<PlayerInput>();
             if (inventory == null) inventory = GetComponent<PlayerInventory>();
             if (stats == null) stats = GetComponent<PlayerStats>();
+            if (movement == null) movement = GetComponent<PlayerMovement>();
+            if (movement != null && movement.Animator != null) animator = movement.Animator;
+            if (animator == null) animator = GetComponentInChildren<Animator>(true);
 
             catalogManager = ItemCatalogManager.Resolve(catalogManager);
         }
 
         private void TryConsumeSelectedFood()
         {
-            if (inventory == null || stats == null)
+            if (IsConsuming || inventory == null || stats == null || animator == null)
             {
                 return;
             }
@@ -76,7 +106,14 @@ namespace KMS
 
             float satietyAmount = GetTotalSatiety(selectedItem);
             if (satietyAmount <= MinimumEffectiveSatiety
-                || stats.CurrentHunger >= stats.MaxHunger - MinimumEffectiveSatiety)
+                || !stats.IsAlive
+                || !stats.CanApplyFood(selectedItem, satietyAmount))
+            {
+                return;
+            }
+
+            AnimatorStateInfo currentState = animator.GetCurrentAnimatorStateInfo(0);
+            if (animator.IsInTransition(0) || currentState.shortNameHash != LocomotionStateHash)
             {
                 return;
             }
@@ -86,37 +123,107 @@ namespace KMS
                 return;
             }
 
-            try
+            pendingItemId = selectedStack.itemId;
+            pendingSatietyAmount = satietyAmount;
+            consumeCommitted = false;
+            actionRequested = true;
+            actionStateActive = false;
+            requestTime = Time.unscaledTime;
+
+            animator.ResetTrigger(EatHash);
+            animator.SetTrigger(EatHash);
+        }
+
+        public void NotifyConsumeActionEntered()
+        {
+            if (!HasPendingConsume) return;
+
+            actionRequested = false;
+            actionStateActive = true;
+        }
+
+        public void NotifyConsumeActionCompleted()
+        {
+            if (!HasPendingConsume || consumeCommitted) return;
+
+            if (catalogManager == null)
             {
-                if (!inventory.TryReserveQuickSlotItem(1))
-                {
-                    return;
-                }
-
-                /*
-                 * Future eating-animation integration point:
-                 *
-                 * 1. Cache selectedItem and satietyAmount as the pending food use.
-                 * 2. Trigger the eating animation instead of applying the effect immediately.
-                 * 3. Call ApplySatietyAndCommit(...) from an Animation Event at the bite frame.
-                 * 4. If the animation is interrupted, call RollbackQuickSlotUse() and EndQuickSlotUse().
-                 *
-                 * animator.SetTrigger(EatHash);
-                 * return;
-                 */
-
-                if (!inventory.CommitQuickSlotUse())
-                {
-                    return;
-                }
-
-                stats.RestoreHunger(satietyAmount);
+                catalogManager = ItemCatalogManager.Resolve(catalogManager);
             }
-            finally
+
+            ItemData consumedItem = catalogManager != null
+                ? catalogManager.FindItemData(pendingItemId)
+                : null;
+
+            if (inventory == null
+                || stats == null
+                || consumedItem == null
+                || !stats.IsAlive
+                || pendingSatietyAmount <= MinimumEffectiveSatiety
+                || !stats.CanApplyFood(consumedItem, pendingSatietyAmount)
+                || inventory.GetQuickSlotUseItemId() != pendingItemId)
+            {
+                CancelPendingConsume();
+                return;
+            }
+
+            if (!inventory.TryReserveQuickSlotItem(1)
+                || !inventory.CommitQuickSlotUse())
+            {
+                CancelPendingConsume();
+                return;
+            }
+
+            consumeCommitted = true;
+            stats.ApplyFood(consumedItem, pendingSatietyAmount);
+            FinishPendingConsume();
+        }
+
+        public void NotifyConsumeActionExited()
+        {
+            if (!HasPendingConsume) return;
+
+            if (!consumeCommitted)
+            {
+                CancelPendingConsume();
+            }
+        }
+
+        public void CancelPendingConsume()
+        {
+            if (animator != null)
+            {
+                animator.ResetTrigger(EatHash);
+            }
+
+            if (inventory != null && HasPendingConsume)
             {
                 inventory.EndQuickSlotUse();
             }
+
+            ClearPendingState();
         }
+
+        private void FinishPendingConsume()
+        {
+            if (inventory != null)
+            {
+                inventory.EndQuickSlotUse();
+            }
+
+            ClearPendingState();
+        }
+
+        private void ClearPendingState()
+        {
+            actionRequested = false;
+            actionStateActive = false;
+            consumeCommitted = false;
+            pendingItemId = null;
+            pendingSatietyAmount = 0f;
+        }
+
+        private bool HasPendingConsume => !string.IsNullOrEmpty(pendingItemId);
 
         private static float GetTotalSatiety(ItemData item)
         {
@@ -139,6 +246,11 @@ namespace KMS
             }
 
             return total;
+        }
+
+        private void OnValidate()
+        {
+            stateEntryTimeout = Mathf.Max(0.1f, stateEntryTimeout);
         }
     }
 }

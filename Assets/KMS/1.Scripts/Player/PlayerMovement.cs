@@ -17,6 +17,7 @@ namespace KMS
         [SerializeField] private PlayerInput input;
         [SerializeField] private CharacterController characterController;
         [SerializeField] private PlayerStats stats;
+        [SerializeField] private KMSFoodEffectController foodEffects;
         [SerializeField] private Transform cameraTransform;
         [SerializeField] private Transform rotationTransform;
         [SerializeField] private Animator animator;
@@ -29,6 +30,14 @@ namespace KMS
         [SerializeField] private float deceleration = 22f;
         [SerializeField] private float rotationSmoothTime = 0.08f;
         [SerializeField] private bool rotateTowardsMovement = true;
+
+        [Header("Step Traversal")]
+        [Tooltip("점프 없이 자동으로 넘어갈 수 있는 최대 단차 높이(m)입니다. CharacterController Step Offset과 동기화됩니다.")]
+        [SerializeField, Min(0f)] private float maxStepHeight = 0.25f;
+        [Tooltip("단차를 올라갈 때 캐릭터 모델이 새 높이에 자연스럽게 따라가는 데 걸리는 시간(초)입니다.")]
+        [SerializeField, Min(0.01f)] private float stepSmoothTime = 0.08f;
+        [Tooltip("단차 보간을 적용할 시각 모델 루트입니다. 비어 있으면 Animator의 최상위 시각 루트를 자동으로 찾습니다.")]
+        [SerializeField] private Transform stepVisualRoot;
 
         [Header("Jump And Gravity")]
         [SerializeField] private float jumpHeight = 1.2f;
@@ -65,6 +74,8 @@ namespace KMS
         public float VerticalVelocity => verticalVelocity;
         public Vector3 LastMoveDirection { get; private set; } = Vector3.forward;
         public bool IsDead => isDead;
+        public float MaxStepHeight => maxStepHeight;
+        public float CurrentStepVisualOffset => stepVisualOffset;
 
         private static readonly int SpeedHash = Animator.StringToHash("Speed");
         private static readonly int GroundedHash = Animator.StringToHash("Grounded");
@@ -80,14 +91,21 @@ namespace KMS
         private LadderVolume candidateLadder;
         private LadderVolume activeLadder;
         private bool isDead;
+        private Vector3 stepVisualBaseLocalPosition;
+        private float stepVisualOffset;
+        private float stepVisualOffsetVelocity;
+        private bool isStepVisualInitialized;
 
         private void Reset()
         {
             characterController = GetComponent<CharacterController>();
             input = GetComponent<PlayerInput>();
             stats = GetComponent<PlayerStats>();
+            foodEffects = GetComponent<KMSFoodEffectController>();
             rotationTransform = transform;
             animator = GetComponentInChildren<Animator>();
+            stepVisualRoot = FindStepVisualRoot();
+            SyncStepHeight();
         }
 
         private void Awake()
@@ -95,9 +113,14 @@ namespace KMS
             if (characterController == null) characterController = GetComponent<CharacterController>();
             if (input == null) input = GetComponent<PlayerInput>();
             if (stats == null) stats = GetComponent<PlayerStats>();
+            if (foodEffects == null) foodEffects = GetComponent<KMSFoodEffectController>();
             if (rotationTransform == null) rotationTransform = transform;
             if (animator == null) animator = GetComponentInChildren<Animator>();
             if (cameraTransform == null && Camera.main != null) cameraTransform = Camera.main.transform;
+            if (stepVisualRoot == null) stepVisualRoot = FindStepVisualRoot();
+
+            SyncStepHeight();
+            InitializeStepVisual();
         }
 
         private void OnEnable()
@@ -114,6 +137,16 @@ namespace KMS
             {
                 input.JumpPressed -= QueueJump;
             }
+
+            ResetStepVisual();
+        }
+
+        private void OnValidate()
+        {
+            maxStepHeight = Mathf.Max(0f, maxStepHeight);
+            stepSmoothTime = Mathf.Max(0.01f, stepSmoothTime);
+            if (characterController == null) characterController = GetComponent<CharacterController>();
+            SyncStepHeight();
         }
 
         private void Update()
@@ -138,6 +171,24 @@ namespace KMS
             }
 
             UpdateAnimator();
+        }
+
+        private void LateUpdate()
+        {
+            if (!isStepVisualInitialized || stepVisualRoot == null) return;
+
+            stepVisualOffset = Mathf.SmoothDamp(
+                stepVisualOffset,
+                0f,
+                ref stepVisualOffsetVelocity,
+                stepSmoothTime);
+
+            if (Mathf.Abs(stepVisualOffset) < 0.0001f)
+            {
+                stepVisualOffset = 0f;
+            }
+
+            ApplyStepVisualOffset();
         }
 
         public void SetPosition(Vector3 position)
@@ -278,7 +329,10 @@ namespace KMS
                 IsSprinting = stats.ConsumeHunger(cost);
             }
 
-            float targetSpeed = hasMoveInput ? (IsSprinting ? sprintSpeed : moveSpeed) * inputMagnitude : 0f;
+            float movementMultiplier = ResolveMoveSpeedMultiplier();
+            float targetSpeed = hasMoveInput
+                ? (IsSprinting ? sprintSpeed : moveSpeed) * movementMultiplier * inputMagnitude
+                : 0f;
             float speedRate = targetSpeed > CurrentSpeed ? acceleration : deceleration;
             CurrentSpeed = Mathf.MoveTowards(CurrentSpeed, targetSpeed, speedRate * Time.deltaTime);
 
@@ -300,7 +354,18 @@ namespace KMS
             Vector3 horizontalVelocity = hasMoveInput ? moveDirection * CurrentSpeed : Vector3.zero;
             Vector3 velocity = horizontalVelocity + externalVelocity + Vector3.up * verticalVelocity;
 
+            float previousHeight = transform.position.y;
             characterController.Move(velocity * Time.deltaTime);
+
+            float upwardStep = transform.position.y - previousHeight;
+            if (IsGrounded
+                && hasMoveInput
+                && verticalVelocity <= 0f
+                && upwardStep > 0.01f
+                && upwardStep <= maxStepHeight + characterController.skinWidth + 0.01f)
+            {
+                AddStepVisualOffset(-upwardStep);
+            }
         }
 
         private void HandleLadderMovement()
@@ -387,7 +452,10 @@ namespace KMS
         {
             if (animator == null) return;
 
-            float normalizedSpeed = Mathf.Approximately(sprintSpeed, 0f) ? 0f : CurrentSpeed / sprintSpeed;
+            float effectiveSprintSpeed = sprintSpeed * ResolveMoveSpeedMultiplier();
+            float normalizedSpeed = Mathf.Approximately(effectiveSprintSpeed, 0f)
+                ? 0f
+                : CurrentSpeed / effectiveSprintSpeed;
             animator.SetFloat(SpeedHash, CurrentSpeed);
             animator.SetFloat(MotionSpeedHash, Mathf.Clamp01(normalizedSpeed));
             animator.SetBool(GroundedHash, IsGrounded);
@@ -395,10 +463,98 @@ namespace KMS
             animator.SetBool(FreeFallHash, !IsGrounded && verticalVelocity < 0f);
         }
 
+        private float ResolveMoveSpeedMultiplier()
+        {
+            if (foodEffects == null)
+            {
+                foodEffects = stats != null ? stats.FoodEffects : GetComponent<KMSFoodEffectController>();
+            }
+
+            return foodEffects != null ? foodEffects.MoveSpeedMultiplier : 1f;
+        }
+
+        private void SyncStepHeight()
+        {
+            if (characterController == null) return;
+
+            float controllerHeight = Mathf.Max(0f, characterController.height);
+            characterController.stepOffset = Mathf.Clamp(maxStepHeight, 0f, controllerHeight);
+        }
+
+        private Transform FindStepVisualRoot()
+        {
+            Transform namedVisual = transform.Find("PlayerVisual_Dodo");
+            if (namedVisual != null) return namedVisual;
+
+            if (animator == null) animator = GetComponentInChildren<Animator>();
+            if (animator == null) return null;
+
+            Transform candidate = animator.transform;
+            while (candidate.parent != null && candidate.parent != transform)
+            {
+                candidate = candidate.parent;
+            }
+
+            return candidate != transform ? candidate : animator.transform;
+        }
+
+        private void InitializeStepVisual()
+        {
+            if (stepVisualRoot == null || stepVisualRoot == transform) return;
+
+            stepVisualBaseLocalPosition = stepVisualRoot.localPosition;
+            stepVisualOffset = 0f;
+            stepVisualOffsetVelocity = 0f;
+            isStepVisualInitialized = true;
+        }
+
+        private void AddStepVisualOffset(float offset)
+        {
+            if (!isStepVisualInitialized || stepVisualRoot == null) return;
+
+            stepVisualOffset = Mathf.Clamp(
+                stepVisualOffset + offset,
+                -maxStepHeight,
+                maxStepHeight);
+            ApplyStepVisualOffset();
+        }
+
+        private void ApplyStepVisualOffset()
+        {
+            if (!isStepVisualInitialized || stepVisualRoot == null) return;
+
+            stepVisualRoot.localPosition =
+                stepVisualBaseLocalPosition + Vector3.up * stepVisualOffset;
+        }
+
+        private void ResetStepVisual()
+        {
+            if (isStepVisualInitialized && stepVisualRoot != null)
+            {
+                stepVisualRoot.localPosition = stepVisualBaseLocalPosition;
+            }
+
+            stepVisualOffset = 0f;
+            stepVisualOffsetVelocity = 0f;
+        }
+
         private void OnDrawGizmosSelected()
         {
             Gizmos.color = IsGrounded ? Color.green : Color.yellow;
             Gizmos.DrawWireSphere(transform.position + Vector3.up * groundedOffset, groundedRadius);
+
+            if (characterController != null)
+            {
+                Vector3 center = transform.TransformPoint(characterController.center);
+                float bottom = center.y - characterController.height * 0.5f;
+                Gizmos.color = new Color(0.1f, 0.75f, 1f, 1f);
+                Gizmos.DrawWireCube(
+                    new Vector3(center.x, bottom + maxStepHeight * 0.5f, center.z),
+                    new Vector3(
+                        characterController.radius * 2f,
+                        Mathf.Max(0.01f, maxStepHeight),
+                        characterController.radius * 2f));
+            }
         }
 
         private void OnTriggerEnter(Collider other)

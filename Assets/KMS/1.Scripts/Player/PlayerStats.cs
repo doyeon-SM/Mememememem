@@ -1,4 +1,5 @@
 using System;
+using HDY.Item;
 using UnityEngine;
 using KMS.Persistence;
 using MemSystem.Core;
@@ -16,11 +17,13 @@ namespace KMS
         [SerializeField] private float maxHunger = 100f;
         [SerializeField] private float startingHunger = 100f;
         [SerializeField] private float starvationDamagePerSecond = 5f;
+        [SerializeField] private KMSFoodEffectController foodEffects;
 
         public float MaxHealth => maxHealth;
         public float CurrentHealth { get; private set; }
         public float MaxHunger => maxHunger;
         public float CurrentHunger { get; private set; }
+        public KMSFoodEffectController FoodEffects => foodEffects;
         public bool IsAlive { get; private set; } = true;
         public bool IsInvulnerable { get; private set; }
 
@@ -36,6 +39,9 @@ namespace KMS
             CurrentHealth = Mathf.Clamp(startingHealth, 0f, maxHealth);
             CurrentHunger = Mathf.Clamp(startingHunger, 0f, maxHunger);
             IsAlive = CurrentHealth > 0f;
+
+            ResolveFoodEffects();
+            foodEffects.InitializeAsNormal(CurrentHunger, false);
         }
 
         private void Start()
@@ -99,7 +105,9 @@ namespace KMS
             if (amount <= 0f) return true;
             if (CurrentHunger <= 0f) return false;
 
+            float previous = CurrentHunger;
             CurrentHunger = Mathf.Max(0f, CurrentHunger - amount);
+            foodEffects?.ConsumeSatiety(previous - CurrentHunger);
             HungerChanged?.Invoke(CurrentHunger, maxHunger);
 
             return true;
@@ -110,12 +118,44 @@ namespace KMS
             return CurrentHunger >= amount;
         }
 
-        public void RestoreHunger(float amount)
+        public float RestoreHunger(float amount)
         {
-            if (amount <= 0f) return;
+            if (amount <= 0f) return 0f;
 
+            float previous = CurrentHunger;
             CurrentHunger = Mathf.Min(maxHunger, CurrentHunger + amount);
+            float restored = CurrentHunger - previous;
+            foodEffects?.RegisterNormalRestoration(restored);
             HungerChanged?.Invoke(CurrentHunger, maxHunger);
+            return restored;
+        }
+
+        public bool CanApplyFood(ItemData item, float satietyAmount)
+        {
+            ResolveFoodEffects();
+            return foodEffects.CanApplyFood(
+                item,
+                satietyAmount,
+                maxHunger,
+                CurrentHunger);
+        }
+
+        public bool ApplyFood(ItemData item, float satietyAmount)
+        {
+            ResolveFoodEffects();
+            if (!foodEffects.ApplyFood(
+                    item,
+                    satietyAmount,
+                    maxHunger,
+                    CurrentHunger,
+                    out float resultingHunger))
+            {
+                return false;
+            }
+
+            CurrentHunger = resultingHunger;
+            HungerChanged?.Invoke(CurrentHunger, maxHunger);
+            return true;
         }
 
         public void Revive(float healthPercent = 1f)
@@ -125,6 +165,7 @@ namespace KMS
             IsAlive = true;
             CurrentHealth = maxHealth * healthPercent;
             CurrentHunger = maxHunger;
+            foodEffects?.InitializeAsNormal(CurrentHunger);
 
             Revived?.Invoke();
             HealthChanged?.Invoke(CurrentHealth, maxHealth);
@@ -146,7 +187,8 @@ namespace KMS
             return new PlayerStatsSaveData
             {
                 currentHealth = CurrentHealth,
-                currentHunger = CurrentHunger
+                currentHunger = CurrentHunger,
+                foodEffects = foodEffects != null ? foodEffects.CaptureSaveData() : null
             };
         }
 
@@ -158,6 +200,8 @@ namespace KMS
             CurrentHealth = Mathf.Clamp(data.currentHealth, 0f, maxHealth);
             CurrentHunger = Mathf.Clamp(data.currentHunger, 0f, maxHunger);
             IsAlive = CurrentHealth > 0f;
+            ResolveFoodEffects();
+            foodEffects.RestoreSaveData(data.foodEffects, CurrentHunger);
 
             HealthChanged?.Invoke(CurrentHealth, maxHealth);
             HungerChanged?.Invoke(CurrentHunger, maxHunger);
@@ -172,6 +216,12 @@ namespace KMS
             if (CurrentHunger > 0f) return;
 
             TakeDamage(starvationDamagePerSecond * Time.deltaTime);
+        }
+
+        private void ResolveFoodEffects()
+        {
+            if (foodEffects == null) foodEffects = GetComponent<KMSFoodEffectController>();
+            if (foodEffects == null) foodEffects = gameObject.AddComponent<KMSFoodEffectController>();
         }
     }
 }

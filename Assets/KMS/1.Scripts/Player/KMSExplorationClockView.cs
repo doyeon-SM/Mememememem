@@ -22,6 +22,18 @@ namespace KMS
         [SerializeField] private GameObject sunIcon;
         [SerializeField] private GameObject moonIcon;
         [SerializeField] private RectTransform phaseFill;
+        [Header("Celestial Orbit")]
+        [Tooltip("Assigned clocks use the orbit presentation. Unassigned legacy HUDs keep the old phase-fill presentation.")]
+        [SerializeField] private RectTransform celestialOrbit;
+        [SerializeField, Min(0f)] private float orbitRadius = 32f;
+        [SerializeField, Range(-180f, 180f)] private float dayStartAngle = 25f;
+        [SerializeField] private bool clockwise;
+        [SerializeField] private bool keepIconsUpright = true;
+        [Header("Editor Time Preview")]
+        [Tooltip("Overrides the clock only inside the Unity Editor so the orbit can be inspected without waiting.")]
+        [SerializeField] private bool previewTimeInEditor;
+        [Tooltip("Scrub the complete 20-minute day/night cycle. 0 and 20 represent the same cycle boundary.")]
+        [SerializeField, Range(0f, 20f)] private float previewMinute;
         [SerializeField] private GameTimeManager gameTimeManager;
         [SerializeField, Min(1f)] private float collapsedWidth = 250f;
         [SerializeField, Min(1f)] private float expandedWidth = 360f;
@@ -29,11 +41,13 @@ namespace KMS
 
         private bool isHovered;
         private float expansion;
+        private KMSCelestialOrbitGraphic celestialOrbitGraphic;
 
         private void Awake()
         {
             if (root == null) root = transform as RectTransform;
             ResolveTimeManager();
+            PrepareOrbit();
             SetPresentation(0f);
         }
 
@@ -80,6 +94,10 @@ namespace KMS
             float fullCycle = Mathf.Max(0.01f, gameTimeManager.DayLengthSeconds);
             float halfCycle = fullCycle * 0.5f;
             float timeOfDay = Mathf.Repeat(gameTimeManager.InGameTimeOfDaySeconds, fullCycle);
+#if UNITY_EDITOR
+            if (previewTimeInEditor)
+                timeOfDay = Mathf.Repeat(previewMinute * 60f, fullCycle);
+#endif
             bool isDay = timeOfDay < halfCycle;
             float halfTime = Mathf.Repeat(timeOfDay, halfCycle);
 
@@ -87,17 +105,70 @@ namespace KMS
             if (gameTimeText != null)
                 gameTimeText.text = $"{totalSeconds / 60:00}:{totalSeconds % 60:00}";
 
-            if (sunIcon != null) sunIcon.SetActive(isDay);
-            if (moonIcon != null) moonIcon.SetActive(!isDay);
-
-            if (phaseFill != null)
+            if (celestialOrbit != null)
             {
-                Vector2 anchors = phaseFill.anchorMax;
-                anchors.y = Mathf.Clamp01(halfTime / halfCycle);
-                phaseFill.anchorMax = anchors;
-                phaseFill.anchoredPosition = Vector2.zero;
-                phaseFill.sizeDelta = Vector2.zero;
+                ApplyOrbit(timeOfDay / fullCycle);
             }
+            else
+            {
+                if (sunIcon != null) sunIcon.SetActive(isDay);
+                if (moonIcon != null) moonIcon.SetActive(!isDay);
+
+                if (phaseFill != null)
+                {
+                    Vector2 anchors = phaseFill.anchorMax;
+                    anchors.y = Mathf.Clamp01(halfTime / halfCycle);
+                    phaseFill.anchorMax = anchors;
+                    phaseFill.anchoredPosition = Vector2.zero;
+                    phaseFill.sizeDelta = Vector2.zero;
+                }
+            }
+        }
+
+        private void PrepareOrbit()
+        {
+            if (celestialOrbit == null) return;
+
+            celestialOrbitGraphic = celestialOrbit.GetComponent<KMSCelestialOrbitGraphic>();
+            if (celestialOrbitGraphic != null)
+                celestialOrbitGraphic.SetDayCenterAngle(dayStartAngle);
+
+            PositionIconOnOrbit(sunIcon, dayStartAngle);
+            PositionIconOnOrbit(moonIcon, dayStartAngle + 180f);
+            ApplyOrbit(0f);
+        }
+
+        private void PositionIconOnOrbit(GameObject icon, float angleDegrees)
+        {
+            if (icon == null || !(icon.transform is RectTransform iconRect)) return;
+
+            float angleRadians = angleDegrees * Mathf.Deg2Rad;
+            iconRect.anchoredPosition = new Vector2(
+                Mathf.Cos(angleRadians),
+                Mathf.Sin(angleRadians)) * orbitRadius;
+        }
+
+        private void ApplyOrbit(float normalizedProgress)
+        {
+            float direction = clockwise ? -1f : 1f;
+            float orbitAngle = Mathf.Repeat(normalizedProgress, 1f) * 360f * direction;
+            celestialOrbit.localRotation = Quaternion.Euler(0f, 0f, orbitAngle);
+            if (celestialOrbitGraphic != null)
+                celestialOrbitGraphic.SetOrbitAngle(orbitAngle);
+
+            SetOrbitIconPresentation(sunIcon, orbitAngle);
+            SetOrbitIconPresentation(moonIcon, orbitAngle);
+        }
+
+        private void SetOrbitIconPresentation(GameObject icon, float orbitAngle)
+        {
+            if (icon == null) return;
+
+            // Both bodies remain on the same orbit. Counter-rotation prevents their
+            // artwork from tilting while the parent transform revolves.
+            if (!icon.activeSelf) icon.SetActive(true);
+            if (keepIconsUpright)
+                icon.transform.localRotation = Quaternion.Euler(0f, 0f, -orbitAngle);
         }
 
         private void SetPresentation(float value)
@@ -114,5 +185,27 @@ namespace KMS
                 gameTimeGroup.blocksRaycasts = false;
             }
         }
+
+#if UNITY_EDITOR
+        private void OnValidate()
+        {
+            orbitRadius = Mathf.Max(0f, orbitRadius);
+            previewMinute = Mathf.Clamp(previewMinute, 0f, 20f);
+
+            if (celestialOrbit == null) return;
+
+            PrepareOrbit();
+            if (previewTimeInEditor)
+            {
+                ApplyOrbit(Mathf.Repeat(previewMinute / 20f, 1f));
+
+                int halfCycleSeconds = 10 * 60;
+                int totalSeconds = Mathf.FloorToInt(
+                    Mathf.Repeat(previewMinute * 60f, halfCycleSeconds));
+                if (gameTimeText != null)
+                    gameTimeText.text = $"{totalSeconds / 60:00}:{totalSeconds % 60:00}";
+            }
+        }
+#endif
     }
 }

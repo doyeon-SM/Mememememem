@@ -2835,6 +2835,7 @@ GameObject:
   - component: {fileID: 4783686582673597580}
   - component: {fileID: 8140761256497828183}
   - component: {fileID: 1375091862226142176}
+  - component: {fileID: 7938680308663795052}
   m_Layer: 3
   m_Name: 0720_Player_KMS
   m_TagString: Player
@@ -2940,6 +2941,7 @@ MonoBehaviour:
   maxHunger: 100
   startingHunger: 100
   starvationDamagePerSecond: 5
+  foodEffects: {fileID: 7938680308663795052}
 --- !u!114 &757377502652196312
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2955,6 +2957,7 @@ MonoBehaviour:
   input: {fileID: 2825149733357899923}
   characterController: {fileID: 7190759329429898678}
   stats: {fileID: 4191295553828768883}
+  foodEffects: {fileID: 7938680308663795052}
   cameraTransform: {fileID: 0}
   rotationTransform: {fileID: 9028560332686509555}
   animator: {fileID: 1914156871709254916}
@@ -2965,6 +2968,9 @@ MonoBehaviour:
   deceleration: 22
   rotationSmoothTime: 0.08
   rotateTowardsMovement: 1
+  maxStepHeight: 0.25
+  stepSmoothTime: 0.08
+  stepVisualRoot: {fileID: 7095467059112644028}
   jumpHeight: 1.2
   gravity: -20
   groundedStickForce: -2
@@ -3051,6 +3057,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::KMS.PlayerHUD
   stats: {fileID: 4191295553828768883}
+  foodEffects: {fileID: 7938680308663795052}
   playerInput: {fileID: 0}
   hudView: {fileID: 0}
   uiDocument: {fileID: 2704758107374107572}
@@ -3198,7 +3205,10 @@ MonoBehaviour:
   input: {fileID: 2825149733357899923}
   inventory: {fileID: 9124669202358280069}
   stats: {fileID: 4191295553828768883}
+  movement: {fileID: 757377502652196312}
+  animator: {fileID: 1914156871709254916}
   catalogManager: {fileID: 0}
+  stateEntryTimeout: 0.75
 --- !u!114 &816496616688076247
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3347,6 +3357,21 @@ MonoBehaviour:
   - tool_shabby_club
   - tool_decent_club
   stateEntryTimeout: 0.75
+--- !u!114 &7938680308663795052
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5320301024596143200}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 98c3b47d082ab4c4eb288404a2ccbe7b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::KMS.KMSFoodEffectController
+  stats: {fileID: 4191295553828768883}
+  normalSatiety: 0
+  effectSegments: []
 --- !u!1 &5344451024060801274
 GameObject:
   m_ObjectHideFlags: 0

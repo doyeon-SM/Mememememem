@@ -317,12 +317,12 @@ RectTransform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 4080428015707724159}
+  m_Father: {fileID: 670854212898765595}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.14, y: 0.14}
-  m_AnchorMax: {x: 0.86, y: 0.86}
-  m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 0, y: 0}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: 29.001848, y: 13.523785}
+  m_SizeDelta: {x: 26, y: 26}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &572244929364178974
 CanvasRenderer:
@@ -3299,7 +3299,14 @@ MonoBehaviour:
   gameTimeGroup: {fileID: 8764736622194584421}
   sunIcon: {fileID: 79823421623752062}
   moonIcon: {fileID: 1912906581119032545}
-  phaseFill: {fileID: 670854212898765595}
+  phaseFill: {fileID: 0}
+  celestialOrbit: {fileID: 670854212898765595}
+  orbitRadius: 32
+  dayStartAngle: 25
+  clockwise: 0
+  keepIconsUpright: 1
+  previewTimeInEditor: 0
+  previewMinute: 0
   gameTimeManager: {fileID: 0}
   collapsedWidth: 250
   expandedWidth: 360
@@ -11137,12 +11144,12 @@ RectTransform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 4080428015707724159}
+  m_Father: {fileID: 670854212898765595}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.16, y: 0.16}
-  m_AnchorMax: {x: 0.84, y: 0.84}
-  m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 0, y: 0}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: -29.00185, y: -13.523785}
+  m_SizeDelta: {x: 26, y: 26}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &6060632959998038951
 CanvasRenderer:
@@ -13342,8 +13349,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0.5}
   m_AnchorMax: {x: 0, y: 0.5}
-  m_AnchoredPosition: {x: 238, y: 0}
-  m_SizeDelta: {x: 112, y: 44}
+  m_AnchoredPosition: {x: 92, y: 0}
+  m_SizeDelta: {x: 58, y: 50}
   m_Pivot: {x: 0, y: 0.5}
 --- !u!225 &8764736622194584421
 CanvasGroup:
@@ -19424,8 +19431,9 @@ GameObject:
   - component: {fileID: 4080428015707724159}
   - component: {fileID: 281910494781308522}
   - component: {fileID: 5712009500055719574}
+  - component: {fileID: 1308054649129999177}
   m_Layer: 5
-  m_Name: DayNightIcon
+  m_Name: CelestialViewport
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -19444,15 +19452,13 @@ RectTransform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 670854212898765595}
-  - {fileID: 193152366655108167}
-  - {fileID: 4882335825053747466}
   m_Father: {fileID: 957014975266938767}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0.5}
   m_AnchorMax: {x: 0, y: 0.5}
-  m_AnchoredPosition: {x: 5, y: 0}
-  m_SizeDelta: {x: 48, y: 44}
-  m_Pivot: {x: 0, y: 0.5}
+  m_AnchoredPosition: {x: 45, y: 0}
+  m_SizeDelta: {x: 96, y: 50}
+  m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &281910494781308522
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -19468,7 +19474,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 3431039095416129409}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
   m_Name: 
@@ -19491,6 +19497,20 @@ MonoBehaviour:
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
   m_PixelsPerUnitMultiplier: 1
+--- !u!114 &1308054649129999177
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3431039095416129409}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3312d7739989d2b4e91e6319e9a96d76, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.RectMask2D
+  m_Padding: {x: 0, y: 0, z: 0, w: 0}
+  m_Softness: {x: 0, y: 2}
 --- !u!1 &3436169054884207261
 GameObject:
   m_ObjectHideFlags: 0
@@ -25497,9 +25517,9 @@ GameObject:
   m_Component:
   - component: {fileID: 670854212898765595}
   - component: {fileID: 8137658244485656687}
-  - component: {fileID: 1546629663422145962}
+  - component: {fileID: 1228397892096679193}
   m_Layer: 5
-  m_Name: PhaseFill
+  m_Name: CelestialOrbit
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -25516,14 +25536,16 @@ RectTransform:
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children: []
+  m_Children:
+  - {fileID: 193152366655108167}
+  - {fileID: 4882335825053747466}
   m_Father: {fileID: 4080428015707724159}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 1, y: 0}
-  m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 0, y: 0}
-  m_Pivot: {x: 0.5, y: 0}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: 0, y: -25.5}
+  m_SizeDelta: {x: 86, y: 86}
+  m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &8137658244485656687
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -25532,7 +25554,7 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 4304470671074735095}
   m_CullTransparentMesh: 1
---- !u!114 &1546629663422145962
+--- !u!114 &1228397892096679193
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -25541,27 +25563,23 @@ MonoBehaviour:
   m_GameObject: {fileID: 4304470671074735095}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
+  m_Script: {fileID: 11500000, guid: ddc31e75a34b63448a2816de4528cfe5, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
+  m_EditorClassIdentifier: Assembly-CSharp::KMS.KMSCelestialOrbitGraphic
   m_Material: {fileID: 0}
-  m_Color: {r: 0, g: 0, b: 0, a: 0.32}
-  m_RaycastTarget: 1
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 0}
-  m_Type: 0
-  m_PreserveAspect: 0
-  m_FillCenter: 1
-  m_FillMethod: 4
-  m_FillAmount: 1
-  m_FillClockwise: 1
-  m_FillOrigin: 0
-  m_UseSpriteMesh: 0
-  m_PixelsPerUnitMultiplier: 1
+  radius: 32
+  segments: 96
+  glowWidth: 5.5
+  dayColor: {r: 0.34, g: 0.78, b: 1, a: 0.42}
+  nightColor: {r: 0.12, g: 0.2, b: 0.52, a: 0.46}
+  dayCenterAngle: 25
 --- !u!1 &4365317976652818703
 GameObject:
   m_ObjectHideFlags: 0
@@ -29655,6 +29673,8 @@ MonoBehaviour:
   healthText: {fileID: 2608202076707316005}
   hungerFill: {fileID: 8845219350886783499}
   hungerText: {fileID: 6247689741914192748}
+  speedFoodEffectColor: {r: 1, g: 0.5176471, b: 0.16862746, a: 1}
+  otherFoodEffectColor: {r: 0.68235296, g: 0.36078432, b: 1, a: 1}
   notificationContainer: {fileID: 2555023231255049678}
   notificationTemplate: {fileID: 1695341065313117452}
   throwGuide: {fileID: 2077198469279828025}

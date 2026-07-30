@@ -11,6 +11,7 @@ namespace KMS.EditorTools
     {
         private const string ControllerPath =
             "Assets/KMS/4.Animation/Dodo/Controllers/KMS_DodoAnimator.controller";
+        private const float ToolActionDuration = 0.5f;
 
         private static readonly string[] PlayerPrefabPaths =
         {
@@ -20,10 +21,19 @@ namespace KMS.EditorTools
 
         private static readonly ToolStateDefinition[] ToolStates =
         {
-            new ToolStateDefinition("Tool_Axe", ToolMotionType.Axe),
-            new ToolStateDefinition("Tool_Club", ToolMotionType.Club),
-            new ToolStateDefinition("Tool_Hoe", ToolMotionType.Hoe),
-            new ToolStateDefinition("Tool_Pickaxe", ToolMotionType.Pickaxe)
+            new ToolStateDefinition(
+                "Tool_Axe",
+                ToolMotionType.Axe,
+                "Assets/KMS/4.Animation/Dodo/Clips/Tool_Animation/axe.anim"),
+            new ToolStateDefinition("Tool_Club", ToolMotionType.Club, null),
+            new ToolStateDefinition(
+                "Tool_Hoe",
+                ToolMotionType.Hoe,
+                "Assets/KMS/4.Animation/Dodo/Clips/Tool_Animation/hoe.anim"),
+            new ToolStateDefinition(
+                "Tool_Pickaxe",
+                ToolMotionType.Pickaxe,
+                "Assets/KMS/4.Animation/Dodo/Clips/Tool_Animation/pickax.anim")
         };
 
         [MenuItem("KMS/Setup/Apply Tool Animation Structure")]
@@ -37,10 +47,12 @@ namespace KMS.EditorTools
             }
 
             ConfigureAnimator(controller);
+            KMSConsumableAnimationSetup.ConfigureAnimator(controller);
 
             foreach (string prefabPath in PlayerPrefabPaths)
             {
                 ConfigurePlayerPrefab(prefabPath);
+                KMSConsumableAnimationSetup.ConfigurePlayerPrefab(prefabPath);
             }
 
             AssetDatabase.SaveAssets();
@@ -76,17 +88,25 @@ namespace KMS.EditorTools
                     stateMachine,
                     toolState,
                     new Vector3(690f, 360f + i * 100f, 0f));
-                if (created || toolState.motion == null)
+
+                AnimationClip toolClip = string.IsNullOrEmpty(definition.ClipPath)
+                    ? null
+                    : AssetDatabase.LoadAssetAtPath<AnimationClip>(definition.ClipPath);
+                if (!string.IsNullOrEmpty(definition.ClipPath) && toolClip == null)
                 {
-                    // Assign the current Slash only as a placeholder. A later setup run must
-                    // preserve the final tool-specific clip placed in this state.
-                    toolState.motion = slash.motion;
+                    throw new InvalidOperationException(
+                        $"Tool animation clip not found: {definition.ClipPath}");
                 }
 
-                // The source Slash is 2.2 seconds long. Its existing 4.4 speed produces the
-                // intended 0.5-second tool action, matching PlayerHarvestController's cooldown.
-                if (toolState.motion == slash.motion)
+                if (toolClip != null)
                 {
+                    toolState.motion = toolClip;
+                    toolState.speed = Mathf.Max(0.01f, toolClip.length / ToolActionDuration);
+                }
+                else if (created || toolState.motion == null)
+                {
+                    // Club has no dedicated motion yet, so it keeps the existing Slash motion.
+                    toolState.motion = slash.motion;
                     toolState.speed = slash.speed;
                 }
                 toolState.tag = "ToolAction";
@@ -250,14 +270,19 @@ namespace KMS.EditorTools
 
         private readonly struct ToolStateDefinition
         {
-            public ToolStateDefinition(string stateName, ToolMotionType motionType)
+            public ToolStateDefinition(
+                string stateName,
+                ToolMotionType motionType,
+                string clipPath)
             {
                 StateName = stateName;
                 MotionType = motionType;
+                ClipPath = clipPath;
             }
 
             public string StateName { get; }
             public ToolMotionType MotionType { get; }
+            public string ClipPath { get; }
         }
     }
 }
