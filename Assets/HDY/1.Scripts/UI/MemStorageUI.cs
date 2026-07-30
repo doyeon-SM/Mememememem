@@ -78,6 +78,19 @@ namespace HDY.UI
     /// 이동해도 유지되지만, 이 컴포넌트는 씬에 배치된 오브젝트라서 씬이 다시 로드되면 인스펙터 참조가 끊길 수
     /// 있다. (씬 파일에 같이 저장된 매니저 오브젝트는 재로드 시 새로 생기지만, 싱글톤 중복 검사로 즉시
     /// 파괴되기 때문) Awake/OnEnable에서 참조가 끊겨 있으면(null) 싱글톤 Instance로 자동 재할당한다.
+    ///
+    /// [버그 수정 - 그리드/정렬/업그레이드 버튼 구독은 Awake가 아니라 OnEnable에서] UIManager는 HUD 패널들을
+    /// Awake 시점에 전부 미리 Instantiate해두고 곧바로 SetActive(false)로 숨겨둔다(CreateManagedPanels 참고).
+    /// 그런데 Instantiate 직후 SetActive(false)가 호출되는 그 순간에도 Awake -> OnEnable -> OnDisable이
+    /// 한 번에 실행된다 - 예전에는 grid.OnSlotClicked/OnSwapRequested/OnReleaseRequested 구독과
+    /// upgradeButton.onClick 리스너 등록을 Awake에서 했는데, OnDisable에서 이걸 전부 해제해버려서 이
+    /// 최초 1회 SetActive(false) 때 구독이 통째로 끊긴 채 다시는 복구되지 않는 문제가 있었다(Awake는
+    /// 오브젝트 생애주기에 단 한 번만 실행되므로, 이후 플레이어가 실제로 패널을 열어도(OnEnable) 재구독되지
+    /// 않음). 그 결과 슬롯 클릭(정보 패널 표시), 드래그앤드롭(실제 데이터 반영), 업그레이드 버튼이 전부
+    /// 반응하지 않게 되지만, 그리드 자신의 Awake에서 붙이고 아무도 떼지 않는 페이지 이전/다음 버튼과 휠
+    /// 스크롤(OnScroll)은 영향 없이 정상 동작했다 - 딱 이 비대칭(구독은 1회성 Awake, 해제는 매번 OnDisable)이
+    /// 원인이었다. 그래서 이 구독들을 OnEnable로 옮기고(열 때마다 다시 구독), isSubscribedToUIEvents로 중복
+    /// 구독을 막는다 - MemStorageUI_Grid.isSubscribedToCaptureEvents와 동일한 패턴이다.
     /// </summary>
     public class MemStorageUI : MonoBehaviour
     {
@@ -114,6 +127,11 @@ namespace HDY.UI
         // 대신 활성 멤은 시설/탐험 아이콘 표시). OnEnable마다(그리드를 다시 열 때마다) null로 리셋된다.
         private MemSortCriteria? activeSortCriteria;
 
+        // [버그 수정] grid/sort 이벤트 구독과 upgradeButton 리스너 등록이 이미 되어 있는지 여부. OnEnable이
+        // 여러 번 호출돼도(패널을 여러 번 열어도) 중복 구독하지 않도록 막는다. OnDisable에서 실제로
+        // 구독을 해제할 때 다시 false로 되돌린다.
+        private bool isSubscribedToUIEvents;
+
         private void Awake()
         {
             // 씬 재로드 등으로 인스펙터 참조가 끊겼으면 파괴불가 싱글톤에서 다시 가져온다.
@@ -128,23 +146,6 @@ namespace HDY.UI
             if (sort == null) Debug.LogWarning("[MemStorageUI] sort가 비어있습니다. 정렬 버튼이 동작하지 않습니다.", this);
             if (upgradeButton == null) Debug.LogWarning("[MemStorageUI] upgradeButton이 비어있습니다. 업그레이드 버튼이 동작하지 않습니다.", this);
             if (storageUpgrade == null) Debug.LogWarning("[MemStorageUI] storageUpgrade가 비어있습니다. 업그레이드 팝업을 열 수 없습니다.", this);
-
-            if (grid != null)
-            {
-                grid.OnSlotClicked += HandleSlotClicked;
-                grid.OnSwapRequested += HandleSwapRequested;
-                grid.OnReleaseRequested += HandleReleaseRequested;
-            }
-
-            if (sort != null)
-            {
-                sort.OnSortRequested += HandleSortRequested;
-            }
-
-            if (upgradeButton != null)
-            {
-                upgradeButton.onClick.AddListener(HandleUpgradeButtonClicked);
-            }
         }
 
         private void OnEnable()
@@ -153,6 +154,33 @@ namespace HDY.UI
             if (captureManager == null) captureManager = MemCaptureManager.Instance;
             if (catalogManager == null) catalogManager = MemCatalogManager.Instance;
             explorationRuntime = ExplorationRuntime.Resolve(explorationRuntime);
+
+            // [버그 수정] 그리드/정렬/업그레이드 버튼 이벤트 구독은 Awake가 아니라 여기(OnEnable)에서 한다.
+            // UIManager가 패널을 미리 Instantiate한 직후 곧바로 SetActive(false)하면서 이미 한 번
+            // OnDisable이 지나갔을 수 있으므로, Awake에서만 구독하면 그 최초 1회 disable 때 구독이 끊긴 채
+            // 영원히 복구되지 않는다(Awake는 생애주기에 단 한 번만 실행됨). isSubscribedToUIEvents로
+            // 중복 구독은 막는다.
+            if (!isSubscribedToUIEvents)
+            {
+                if (grid != null)
+                {
+                    grid.OnSlotClicked += HandleSlotClicked;
+                    grid.OnSwapRequested += HandleSwapRequested;
+                    grid.OnReleaseRequested += HandleReleaseRequested;
+                }
+
+                if (sort != null)
+                {
+                    sort.OnSortRequested += HandleSortRequested;
+                }
+
+                if (upgradeButton != null)
+                {
+                    upgradeButton.onClick.AddListener(HandleUpgradeButtonClicked);
+                }
+
+                isSubscribedToUIEvents = true;
+            }
 
             // [그리드를 다시 열면 활성 멤은 다시 시설/탐험 아이콘으로] 이전에 골라뒀던 정렬 기준은 이 화면을
             // 닫았다 다시 열면 더 이상 유지하지 않는다 - 그래야 활성 멤이 다시 "어디서 일하는지" 아이콘부터
@@ -192,6 +220,8 @@ namespace HDY.UI
             {
                 upgradeButton.onClick.RemoveListener(HandleUpgradeButtonClicked);
             }
+
+            isSubscribedToUIEvents = false;
 
             if (captureManager != null)
             {
