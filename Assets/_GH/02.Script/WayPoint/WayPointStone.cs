@@ -48,13 +48,15 @@ public class WayPointStone : MonoBehaviour, IInteractable
     [Header("Area Entry Notification")]
     [Tooltip("활성화하면 플레이어가 스톤 주변 범위에 진입할 때 웨이포인트 이름을 표시합니다.")]
     [SerializeField] private bool enableAreaNotification = true;
-    [Tooltip("범위 감지용 Sphere Trigger입니다. 비워 두면 같은 오브젝트에서 찾고, 실행 시 없으면 자동으로 추가합니다.")]
-    [SerializeField] private SphereCollider areaNotificationTrigger;
+    [Tooltip("범위 감지용 Box Trigger입니다. 비워 두면 같은 오브젝트에서 찾고, 실행 시 없으면 자동으로 추가합니다.")]
+    [SerializeField] private BoxCollider areaNotificationBoxTrigger;
     [Tooltip("스톤의 로컬 좌표를 기준으로 한 감지 범위 중심입니다.")]
     [SerializeField] private Vector3 areaNotificationCenter;
-    [Tooltip("감지 범위의 로컬 반경입니다. Transform Scale이 적용된 크기가 실제 월드 범위가 됩니다.")]
-    [Min(0.1f)]
-    [SerializeField] private float areaNotificationRadius = 30f;
+    [Tooltip("감지 박스의 로컬 전체 크기입니다. X/Y/Z를 각각 설정할 수 있으며 Transform Scale이 적용된 크기가 실제 월드 범위가 됩니다. 0 이하인 축은 기존 Radius의 지름을 사용합니다.")]
+    [SerializeField] private Vector3 areaNotificationSize;
+    // 기존 씬과 프리팹 오버라이드의 직렬화 경로를 보존하기 위해 이름을 유지한다.
+    [SerializeField, HideInInspector] private SphereCollider areaNotificationTrigger;
+    [SerializeField, HideInInspector] private float areaNotificationRadius = 30f;
     [Tooltip("웨이포인트 이름을 표시할 전용 TMP 텍스트입니다.")]
     [SerializeField] private TMP_Text areaNotificationText;
     [Tooltip("함께 표시하거나 숨길 UI 루트입니다. 비워 두면 TMP Text 오브젝트만 사용합니다.")]
@@ -321,25 +323,48 @@ public class WayPointStone : MonoBehaviour, IInteractable
 
     private void ConfigureAreaNotificationTrigger(bool createIfMissing)
     {
-        if (areaNotificationTrigger == null)
+        if (areaNotificationBoxTrigger == null)
         {
-            areaNotificationTrigger = GetComponent<SphereCollider>();
+            BoxCollider[] boxColliders = GetComponents<BoxCollider>();
+            foreach (BoxCollider boxCollider in boxColliders)
+            {
+                if (boxCollider.isTrigger)
+                {
+                    areaNotificationBoxTrigger = boxCollider;
+                    break;
+                }
+            }
         }
 
-        if (areaNotificationTrigger == null && createIfMissing)
+        if (areaNotificationBoxTrigger == null && createIfMissing)
         {
-            areaNotificationTrigger = gameObject.AddComponent<SphereCollider>();
+            areaNotificationBoxTrigger = gameObject.AddComponent<BoxCollider>();
         }
 
-        if (areaNotificationTrigger == null)
+        // 이전 버전에서 사용하던 Sphere Trigger가 함께 동작하면 진입 이벤트가
+        // 중복으로 발생하므로 마이그레이션 이후에는 사용하지 않는다.
+        if (createIfMissing && areaNotificationTrigger != null)
         {
-            return;
+            areaNotificationTrigger.enabled = false;
         }
 
-        areaNotificationTrigger.isTrigger = true;
-        areaNotificationTrigger.center = areaNotificationCenter;
-        areaNotificationTrigger.radius = Mathf.Max(0.1f, areaNotificationRadius);
-        areaNotificationTrigger.enabled = enableAreaNotification;
+        if (areaNotificationBoxTrigger != null)
+        {
+            areaNotificationBoxTrigger.isTrigger = true;
+            areaNotificationBoxTrigger.center = areaNotificationCenter;
+            areaNotificationBoxTrigger.size = GetAreaNotificationSize();
+            areaNotificationBoxTrigger.enabled = enableAreaNotification;
+        }
+    }
+
+    // 0인 축은 기존 Radius의 지름을 사용해 씬/프리팹별 오버라이드 크기를 보존한다.
+    private Vector3 GetAreaNotificationSize()
+    {
+        float legacyDiameter = Mathf.Max(0.1f, areaNotificationRadius) * 2f;
+        return new Vector3(
+            areaNotificationSize.x > 0f ? Mathf.Max(0.1f, areaNotificationSize.x) : legacyDiameter,
+            areaNotificationSize.y > 0f ? Mathf.Max(0.1f, areaNotificationSize.y) : legacyDiameter,
+            areaNotificationSize.z > 0f ? Mathf.Max(0.1f, areaNotificationSize.z) : legacyDiameter);
     }
 
     // 런타임에서 도착 위치 Transform을 바꿀 때 사용한다.
@@ -397,7 +422,6 @@ public class WayPointStone : MonoBehaviour, IInteractable
 
     private void OnValidate()
     {
-        areaNotificationRadius = Mathf.Max(0.1f, areaNotificationRadius);
         areaNotificationDuration = Mathf.Max(0.1f, areaNotificationDuration);
         ConfigureAreaNotificationTrigger(false);
     }
@@ -409,7 +433,7 @@ public class WayPointStone : MonoBehaviour, IInteractable
 
         Gizmos.matrix = transform.localToWorldMatrix;
         Gizmos.color = areaNotificationGizmoColor;
-        Gizmos.DrawWireSphere(areaNotificationCenter, Mathf.Max(0.1f, areaNotificationRadius));
+        Gizmos.DrawWireCube(areaNotificationCenter, GetAreaNotificationSize());
 
         Gizmos.matrix = previousMatrix;
         Gizmos.color = previousColor;

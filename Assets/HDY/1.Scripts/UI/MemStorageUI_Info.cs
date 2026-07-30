@@ -28,6 +28,9 @@ namespace HDY.UI
     /// 비활성화하지 않고 계속 켜둔 채로 값만 "??"(스탯은 "라벨: ??")로 표시한다. 예전에는 이 상태에서
     /// 텍스트 오브젝트 자체를 꺼버렸는데, 그러면 "정보가 없다"는 사실이 빈 화면으로만 보여 구분이 안 됐다.
     /// 아이콘만 예외적으로 계속 숨긴다("??"로 대신할 만한 이미지가 없어서다).
+    ///
+    /// [HDY 요청 - 해상도 분리] 상세정보 패널이라 512px(GetIcon512)을 사용한다. 도감 슬롯(MemDexSlotUI)은
+    /// 128px, 창고 그리드 슬롯(MemSlotUI)은 64px을 쓰는 것과 구분된다.
     /// </summary>
     public class MemStorageUI_Info : MonoBehaviour
     {
@@ -110,8 +113,9 @@ namespace HDY.UI
             if (infoIconImage != null)
             {
                 // MemIconRenderer가 modelPrefab을 촬영해서 만든 아이콘을 memId로 조회한다(없으면 감춤).
+                // [HDY 요청 - 해상도 분리] 상세정보 패널이라 512px(GetIcon512)을 사용한다.
                 var sprite = (data != null && MemIconRenderer.Instance != null)
-                    ? MemIconRenderer.Instance.GetIcon(data.memId)
+                    ? MemIconRenderer.Instance.GetIcon512(data.memId)
                     : null;
 
                 infoIconImage.sprite = sprite;

@@ -28,6 +28,7 @@ namespace KMS
 
         [Header("References")]
         [SerializeField] private PlayerStats stats;
+        [SerializeField] private KMSFoodEffectController foodEffects;
         [SerializeField] private PlayerInput playerInput;
         [SerializeField] private KMSPlayerHudView hudView;
 
@@ -84,6 +85,7 @@ namespace KMS
         private void Reset()
         {
             stats = GetComponent<PlayerStats>();
+            foodEffects = GetComponent<KMSFoodEffectController>();
             playerInput = GetComponent<PlayerInput>();
             uiDocument = GetComponent<UIDocument>();
         }
@@ -91,6 +93,8 @@ namespace KMS
         private void Awake()
         {
             if (stats == null) stats = GetComponent<PlayerStats>();
+            if (foodEffects == null)
+                foodEffects = stats != null ? stats.FoodEffects : GetComponent<KMSFoodEffectController>();
             if (playerInput == null) playerInput = GetComponent<PlayerInput>();
             if (uiDocument == null) uiDocument = GetComponent<UIDocument>();
             if (inventoryUi == null) inventoryUi = FindFirstObjectByType<KMS.InventoryDuped.InventoryUI>();
@@ -109,6 +113,7 @@ namespace KMS
                 stats.Died += HandleDied;
                 stats.Revived += HandleRevived;
             }
+            if (foodEffects != null) foodEffects.Changed += HandleFoodEffectsChanged;
 
             if (playerInput != null) playerInput.MapPressed += HandleMapPressed;
 
@@ -150,6 +155,7 @@ namespace KMS
                 stats.Died -= HandleDied;
                 stats.Revived -= HandleRevived;
             }
+            if (foodEffects != null) foodEffects.Changed -= HandleFoodEffectsChanged;
         }
 
         public void ShowNotification(string message)
@@ -507,8 +513,14 @@ namespace KMS
             else
             {
                 ResolveHudView();
-                hudView?.SetHunger(current, max);
+                hudView?.SetHunger(current, max, foodEffects);
             }
+        }
+
+        private void HandleFoodEffectsChanged()
+        {
+            if (stats == null) return;
+            HandleHungerChanged(stats.CurrentHunger, stats.MaxHunger);
         }
 
         private void HandleDied()

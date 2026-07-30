@@ -10,7 +10,7 @@ GameObject:
   m_Component:
   - component: {fileID: 8336609518723523873}
   - component: {fileID: 2784617436911970599}
-  - component: {fileID: 6880000000000000001}
+  - component: {fileID: 6880000000000000002}
   m_Layer: 0
   m_Name: WayPointStone
   m_TagString: Untagged
@@ -36,27 +36,6 @@ Transform:
   - {fileID: 1566666452015634520}
   m_Father: {fileID: 3091529913205340530}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!135 &6880000000000000001
-SphereCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3739936227618631845}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 1
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Radius: 30
-  m_Center: {x: 0, y: 0, z: 0}
 --- !u!114 &2784617436911970599
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -82,8 +61,10 @@ MonoBehaviour:
   isUnlocked: 0
   unlockedVisualObject: {fileID: 5639438237192359835}
   enableAreaNotification: 1
-  areaNotificationTrigger: {fileID: 6880000000000000001}
+  areaNotificationBoxTrigger: {fileID: 6880000000000000002}
   areaNotificationCenter: {x: 0, y: 0, z: 0}
+  areaNotificationSize: {x: 0, y: 0, z: 0}
+  areaNotificationTrigger: {fileID: 0}
   areaNotificationRadius: 30
   areaNotificationText: {fileID: 0}
   areaNotificationRoot: {fileID: 0}
@@ -95,6 +76,27 @@ MonoBehaviour:
   showAreaNotificationGizmoOnlyWhenSelected: 1
   areaNotificationGizmoColor: {r: 0.2, g: 0.8, b: 1, a: 0.35}
   interactionPrompt: "\uC6E8\uC774\uD3EC\uC778\uD2B8 \uC9C0\uB3C4 \uC5F4\uAE30"
+--- !u!65 &6880000000000000002
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3739936227618631845}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 60, y: 60, z: 60}
+  m_Center: {x: 0, y: 0, z: 0}
 --- !u!1 &3805869655428665757
 GameObject:
   m_ObjectHideFlags: 0

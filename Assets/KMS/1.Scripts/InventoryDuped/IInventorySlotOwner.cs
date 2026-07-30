@@ -2,6 +2,7 @@ using UnityEngine;
 
 namespace KMS.InventoryDuped
 {
+
     /// <summary>
     /// 인벤토리 슬롯이 어느 컨테이너 그룹에 속하는지 구분한다.
     /// [HDY 요청] 기존에는 bool(isQuickSlot) 하나로 인벤토리/퀵슬롯 2그룹만 구분했는데,
@@ -11,10 +12,12 @@ namespace KMS.InventoryDuped
     /// </summary>
     public enum SlotGroup
     {
+
         Inventory,
         QuickSlot,
         Storage,
         Trash
+
     }
 
     /// <summary>
@@ -26,12 +29,14 @@ namespace KMS.InventoryDuped
     /// </summary>
     public interface IInventorySlotOwner
     {
+
         void BeginSlotDrag(InventorySlotUI source, ItemStack stack, Vector2 position);
         void MoveSlotDrag(Vector2 position);
         void EndSlotDrag(InventorySlotUI target);
         void ShowItemTooltip(ItemStack stack, Vector2 position);
         void MoveItemTooltip(Vector2 position);
         void HideItemTooltip();
+
     }
 
     /// <summary>
@@ -41,6 +46,9 @@ namespace KMS.InventoryDuped
     /// </summary>
     public interface IInventorySlotClickOwner
     {
+
         void ClickSlot(InventorySlotUI slot, UnityEngine.EventSystems.PointerEventData.InputButton button, Vector2 position);
+
     }
+
 }

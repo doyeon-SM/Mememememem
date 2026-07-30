@@ -1,4 +1,6 @@
 using System.Collections;
+using System.Collections.Generic;
+using HDY.Item;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -23,6 +25,8 @@ namespace KMS
         [SerializeField] private TMP_Text healthText;
         [SerializeField] private Image hungerFill;
         [SerializeField] private TMP_Text hungerText;
+        [SerializeField] private Color speedFoodEffectColor = new Color32(255, 132, 43, 255);
+        [SerializeField] private Color otherFoodEffectColor = new Color32(174, 92, 255, 255);
 
         [Header("Transient UI")]
         [SerializeField] private RectTransform notificationContainer;
@@ -41,6 +45,8 @@ namespace KMS
         public Button InventoryButton => inventoryButton;
         public Button MapButton => mapButton;
         public Button RespawnButton => respawnButton;
+
+        private readonly List<Image> hungerEffectSegmentImages = new List<Image>();
 
         private void Awake()
         {
@@ -85,9 +91,13 @@ namespace KMS
             SetProgress(healthFill, healthText, current, max);
         }
 
-        public void SetHunger(float current, float max)
+        public void SetHunger(
+            float current,
+            float max,
+            KMSFoodEffectController foodEffects = null)
         {
             SetProgress(hungerFill, hungerText, current, max);
+            RenderHungerEffectSegments(foodEffects, max);
         }
 
         public void SetRealTime(string value)
@@ -220,6 +230,87 @@ namespace KMS
                 fillRect.sizeDelta = Vector2.zero;
             }
             if (label != null) label.text = $"{Mathf.CeilToInt(current)}/{Mathf.CeilToInt(max)}";
+        }
+
+        private void RenderHungerEffectSegments(
+            KMSFoodEffectController foodEffects,
+            float maxHunger)
+        {
+            int requiredCount = foodEffects != null ? foodEffects.EffectSegments.Count : 0;
+            EnsureHungerEffectSegmentCount(requiredCount);
+
+            float cursor = 0f;
+            for (int i = 0; i < hungerEffectSegmentImages.Count; i++)
+            {
+                Image image = hungerEffectSegmentImages[i];
+                if (image == null) continue;
+
+                if (i >= requiredCount || maxHunger <= 0f)
+                {
+                    image.gameObject.SetActive(false);
+                    continue;
+                }
+
+                KMSFoodEffectSegment segment = foodEffects.EffectSegments[i];
+                if (segment == null || segment.RemainingSatiety <= 0f)
+                {
+                    image.gameObject.SetActive(false);
+                    continue;
+                }
+
+                float start = Mathf.Clamp01(cursor / maxHunger);
+                cursor += segment.RemainingSatiety;
+                float end = Mathf.Clamp01(cursor / maxHunger);
+
+                RectTransform rect = image.rectTransform;
+                rect.anchorMin = new Vector2(start, 0f);
+                rect.anchorMax = new Vector2(end, 1f);
+                rect.anchoredPosition = Vector2.zero;
+                rect.sizeDelta = Vector2.zero;
+                image.color = GetFoodEffectColor(segment);
+                image.gameObject.SetActive(end > start);
+            }
+        }
+
+        private void EnsureHungerEffectSegmentCount(int count)
+        {
+            if (hungerFill == null || hungerFill.rectTransform.parent == null) return;
+
+            while (hungerEffectSegmentImages.Count < count)
+            {
+                var segmentObject = new GameObject(
+                    $"FoodEffectSegment_{hungerEffectSegmentImages.Count}",
+                    typeof(RectTransform),
+                    typeof(CanvasRenderer),
+                    typeof(Image));
+                segmentObject.layer = hungerFill.gameObject.layer;
+                segmentObject.transform.SetParent(hungerFill.rectTransform.parent, false);
+
+                Image image = segmentObject.GetComponent<Image>();
+                image.raycastTarget = false;
+                image.maskable = hungerFill.maskable;
+                image.sprite = null;
+                image.type = Image.Type.Simple;
+                hungerEffectSegmentImages.Add(image);
+            }
+
+            int firstSibling = hungerFill.transform.GetSiblingIndex() + 1;
+            for (int i = 0; i < hungerEffectSegmentImages.Count; i++)
+            {
+                Image image = hungerEffectSegmentImages[i];
+                if (image != null)
+                {
+                    image.transform.SetSiblingIndex(
+                        Mathf.Min(firstSibling + i, image.transform.parent.childCount - 1));
+                }
+            }
+        }
+
+        private Color GetFoodEffectColor(KMSFoodEffectSegment segment)
+        {
+            return segment != null && segment.GetEffectTotal(EffectType.Speed) > 0f
+                ? speedFoodEffectColor
+                : otherFoodEffectColor;
         }
 
         private static IEnumerator FadeOut(CanvasGroup canvasGroup, float duration)

@@ -20,6 +20,7 @@ namespace KMS.Harvesting
         [SerializeField] private KMS.PlayerStats playerStats;
         [SerializeField] private Transform cameraTransform;
         [SerializeField] private Animator animator;
+        [SerializeField] private KMS.PlayerToolAnimationController toolAnimationController;
 
         // [HDY 요청] 선택된 퀵슬롯(ItemStack)에는 itemId만 있으므로, 실제 ItemData(Category/Value/ObjectType 등)를
         // 조회하기 위한 참조.
@@ -65,6 +66,7 @@ namespace KMS.Harvesting
             inventory = GetComponent<KmsPlayerInventory>();
             playerStats = GetComponent<KMS.PlayerStats>();
             memHitDustPool = GetComponent<KMSMemHitDustPool>();
+            toolAnimationController = GetComponent<KMS.PlayerToolAnimationController>();
 
             if (Camera.main != null)
             {
@@ -79,6 +81,10 @@ namespace KMS.Harvesting
             if (inventory == null) inventory = GetComponent<KmsPlayerInventory>();
             if (playerStats == null) playerStats = GetComponent<KMS.PlayerStats>();
             if (memHitDustPool == null) memHitDustPool = GetComponent<KMSMemHitDustPool>();
+            if (toolAnimationController == null)
+            {
+                toolAnimationController = GetComponent<KMS.PlayerToolAnimationController>();
+            }
             if (cameraTransform == null && Camera.main != null) cameraTransform = Camera.main.transform;
             if (movement != null && movement.Animator != null) animator = movement.Animator;
 
@@ -176,11 +182,17 @@ namespace KMS.Harvesting
 
             bool isMemMeleeAttempt = selectedItem.Item_ID == memMeleeItemId;
 
-            cooldownTimer = Mathf.Max(harvestCooldown, toolUseCooldown);
-            if (animator != null)
+            if (toolAnimationController != null)
             {
+                if (!toolAnimationController.TryPlay(selectedItem)) return;
+            }
+            else if (animator != null)
+            {
+                // Older KMS player prefabs keep the previous motion until the migration tool is applied.
                 animator.SetTrigger(SlashHash);
             }
+
+            cooldownTimer = Mathf.Max(harvestCooldown, toolUseCooldown);
 
             Ray ray = new Ray(cameraTransform.position, cameraTransform.forward);
             bool hasHit = TryGetClosestSphereCastHit(ray, out RaycastHit hit);

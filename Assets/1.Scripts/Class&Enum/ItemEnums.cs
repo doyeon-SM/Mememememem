@@ -29,6 +29,7 @@ namespace HDY.Item
     public enum EffectType
     {
         Satiety,
-        Speed
+        Speed,
+        Fulling
     }
 }
