@@ -184,10 +184,6 @@ namespace HDY.Forge
                 itemDataProvider = ForgeInstanceItemDataProvider.Instance;
             }
 
-            if (materialInventorySource == null)
-            {
-                materialInventorySource = FindMaterialInventorySource();
-            }
             else if (MaterialInventory == null)
             {
                 Debug.LogWarning("[ForgeManager] materialInventorySource가 IMaterialInventory를 구현하지 않습니다.", this);

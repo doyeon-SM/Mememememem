@@ -104,6 +104,22 @@ public class BuildingRuntime : MonoBehaviour
             }
         }
 
+        // 6. 모닥불(요리) 시설
+        if (TryGetComponent<CampFireRuntime>(out var campFireRuntime))
+        {
+            if (campFireRuntime.DeployedMemEntries.Contains(entry))
+            {
+                Debug.Log("<color=cyan>[BuildingRuntime]</color> CampFireRuntime에서 멤 해제.");
+                campFireRuntime.RemoveMem(data);
+                entry.IsActive = false;
+                if (CampFirePanelUI.Instance != null && CampFirePanelUI.Instance.gameObject.activeSelf)
+                {
+                    CampFirePanelUI.Instance.RefreshStaticUI();
+                }
+                return true;
+            }
+        }
+
         return false;
     }
 }

@@ -34,6 +34,9 @@ public class TotalHungerManager : MonoBehaviour
 
         RanchFacilityRuntime.FacilityStarted += OnFacilityStartedHandler;
         RanchFacilityRuntime.FacilityStopped += OnFacilityStoppedHandler;
+
+        CampFireRuntime.FacilityStarted += OnFacilityStartedHandler;
+        CampFireRuntime.FacilityStopped += OnFacilityStoppedHandler;
     }
 
     private void OnDisable()
@@ -52,6 +55,9 @@ public class TotalHungerManager : MonoBehaviour
 
         RanchFacilityRuntime.FacilityStarted -= OnFacilityStartedHandler;
         RanchFacilityRuntime.FacilityStopped -= OnFacilityStoppedHandler;
+
+        CampFireRuntime.FacilityStarted -= OnFacilityStartedHandler;
+        CampFireRuntime.FacilityStopped -= OnFacilityStoppedHandler;
     }
 
     private void Start()
@@ -133,6 +139,20 @@ public class TotalHungerManager : MonoBehaviour
             {
                 if (slot == null || !slot.isUnlocked || !slot.isProducing || slot.deployedMem == null) continue;
                 newTotalHunger += slot.deployedMem.maxHunger;
+            }
+        }
+
+        // 6. 모닥불(요리) 시설 식량 소모 합산
+        var campFires = FindObjectsByType<CampFireRuntime>(FindObjectsSortMode.None);
+        foreach (var cf in campFires)
+        {
+            if (cf == null || cf.DeployedMems == null || cf.DeployedMems.Count == 0) continue;
+            if (!cf.isCooking) continue;
+
+            foreach (MemData mem in cf.DeployedMems)
+            {
+                if (mem == null) continue;
+                newTotalHunger += mem.maxHunger;
             }
         }
 

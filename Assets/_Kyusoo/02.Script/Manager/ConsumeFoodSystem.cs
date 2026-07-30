@@ -24,12 +24,10 @@ public class ConsumeFoodSystem : MonoBehaviour
     private InventoryContainer foodStorageContainer = new InventoryContainer { width = 5, height = 2 };
     private InventoryContainer foodBagContainer = new InventoryContainer { width = 10, height = 7 };
 
-    /// <summary>현재 음식이 부족하여 영지 전체가 중지되었는지 여부 반환</summary>
     public bool IsWorkStoppedDueToStarvation => isWorkStoppedDueToStarvation;
     public int MaxSatiety => maxSatiety;
     public int CurrentSatiety => currentSatiety;
 
-    // RecordManager 및 FoodWarehouseUI가 직접 공유하여 링크할 프로퍼티 통로 개방
     public InventoryContainer FoodStorageContainer => foodStorageContainer;
     public InventoryContainer FoodBagContainer => foodBagContainer;
 
@@ -42,7 +40,6 @@ public class ConsumeFoodSystem : MonoBehaviour
             Instance = this;
             DontDestroyOnLoad(gameObject);
 
-            // 장부 슬롯 배정 구조 초기화 완수
             foodStorageContainer.Initialize();
             foodBagContainer.Initialize();
         }
@@ -76,9 +73,6 @@ public class ConsumeFoodSystem : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// 음식 소모 차감 연산 및 포만감 강제 실시간 정산 통제 총괄 엔진
-    /// </summary>
     public void ProcessFoodConsumption(bool isManualChange = false)
     {
         if (foodWarehouseUI == null) foodWarehouseUI = FindFirstObjectByType<FoodWarehouseUI>();
@@ -215,9 +209,6 @@ public class ConsumeFoodSystem : MonoBehaviour
         return sumSatiety;
     }
 
-    /// <summary>
-    /// 왼쪽 위(0번 슬롯)부터 필요 허기량을 채우기 위해 정수 개수 단위로 음식을 소모합니다.
-    /// </summary>
     private void ConsumeFoodFromStorage(int hungerToConsume, List<int> foodIndices)
     {
         if (foodStorageContainer == null || foodStorageContainer.slots == null) return;
@@ -267,14 +258,8 @@ public class ConsumeFoodSystem : MonoBehaviour
         foreach (var facility in productionFacilities)
         {
             if (facility == null) continue;
-            if (!isWorking)
-            {
-                facility.StopWorkDueToStarvation();
-            }
-            else
-            {
-                facility.CheckProductionCondition();
-            }
+            if (!isWorking) facility.StopWorkDueToStarvation();
+            else facility.CheckProductionCondition();
         }
 
         // 2. 제작대 시설
@@ -282,14 +267,8 @@ public class ConsumeFoodSystem : MonoBehaviour
         foreach (var craft in craftingFacilities)
         {
             if (craft == null) continue;
-            if (!isWorking)
-            {
-                craft.StopWorkDueToStarvation();
-            }
-            else
-            {
-                craft.ResumeWorkAfterStarvation();
-            }
+            if (!isWorking) craft.StopWorkDueToStarvation();
+            else craft.ResumeWorkAfterStarvation();
         }
 
         // 3. 발전기 시설
@@ -306,29 +285,26 @@ public class ConsumeFoodSystem : MonoBehaviour
         foreach (var ranch in ranches)
         {
             if (ranch == null) continue;
-            if (!isWorking)
-            {
-                ranch.StopWorkDueToStarvation();
-            }
-            else
-            {
-                ranch.CheckAllSlotsProductionCondition();
-            }
+            if (!isWorking) ranch.StopWorkDueToStarvation();
+            else ranch.CheckAllSlotsProductionCondition();
         }
 
-        // 5. 목장 시설
+        // 5. 운송 시설
         var transportFacilities = FindObjectsByType<TransportRuntime>(FindObjectsSortMode.None);
         foreach (var trans in transportFacilities)
         {
             if (trans == null) continue;
-            if (!isWorking)
-            {
-                trans.StopWorkDueToStarvation();
-            }
-            else
-            {
-                trans.CheckProductionCondition();
-            }
+            if (!isWorking) trans.StopWorkDueToStarvation();
+            else trans.CheckProductionCondition();
+        }
+
+        // 6. 모닥불(요리) 시설 기아 조치
+        var campFires = FindObjectsByType<CampFireRuntime>(FindObjectsSortMode.None);
+        foreach (var cf in campFires)
+        {
+            if (cf == null) continue;
+            if (!isWorking) cf.StopWorkDueToStarvation();
+            else cf.ResumeWorkAfterStarvation();
         }
     }
 
@@ -336,14 +312,12 @@ public class ConsumeFoodSystem : MonoBehaviour
     {
         int remainingSatiety = satietyToConsume;
 
-        // 창고 슬롯을 순회하며 음식 소모
         foreach (var slot in foodStorageContainer.slots)
         {
             if (slot == null || slot.IsEmpty) continue;
 
-            // 아이템 정보 조회 (아이템 카탈로그 연동)
             var itemData = foodWarehouseUI.CatalogManager.FindItemData(slot.itemId);
-            int itemSatiety = GetSatietyValue(itemData); // 아이템 데이터에서 포만감 수치 추출하는 함수
+            int itemSatiety = GetSatietyValue(itemData);
 
             if (itemSatiety <= 0) continue;
 
@@ -357,7 +331,6 @@ public class ConsumeFoodSystem : MonoBehaviour
             if (remainingSatiety <= 0) break;
         }
 
-        // UI 갱신 및 상태 동기화
         currentSatiety = CalculateTotalStorageSatiety(out _);
         NotifyFoodStatusChanged();
     }

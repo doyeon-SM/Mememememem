@@ -3,7 +3,6 @@ using System.IO;
 using System.Linq;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using HDY.Capture;
 using MemSystem.Data;
 using HDY.Mem;
@@ -20,6 +19,7 @@ public class FacilityRecordData : MonoBehaviour, IRecord
         RanchFacilityRuntime.OnMemDeploymentChanged += OnFacilityDataChanged;
         GeneratorRuntime.OnMemDeploymentChanged += OnFacilityDataChanged;
         TransportRuntime.OnMemDeploymentChanged += OnFacilityDataChanged;
+        CampFireRuntime.OnMemDeploymentChanged += OnFacilityDataChanged; 
 
         ProductionFacilityRuntime.FacilityStarted += OnFacilityStartedHandler;
         ProductionFacilityRuntime.FacilityStopped += OnFacilityStoppedHandler;
@@ -30,11 +30,14 @@ public class FacilityRecordData : MonoBehaviour, IRecord
         RanchFacilityRuntime.FacilityStarted += OnFacilityStartedHandler;
         RanchFacilityRuntime.FacilityStopped += OnFacilityStoppedHandler;
 
-        GeneratorRuntime.FacilityStarted += OnFacilityStartedHandler; 
+        GeneratorRuntime.FacilityStarted += OnFacilityStartedHandler;
         GeneratorRuntime.FacilityStopped += OnFacilityStoppedHandler;
 
         TransportRuntime.FacilityStarted += OnFacilityStartedHandler;
         TransportRuntime.FacilityStopped += OnFacilityStoppedHandler;
+
+        CampFireRuntime.FacilityStarted += OnFacilityStartedHandler; 
+        CampFireRuntime.FacilityStopped += OnFacilityStoppedHandler; 
     }
 
     private void OnDisable()
@@ -46,21 +49,25 @@ public class FacilityRecordData : MonoBehaviour, IRecord
         RanchFacilityRuntime.OnMemDeploymentChanged -= OnFacilityDataChanged;
         GeneratorRuntime.OnMemDeploymentChanged -= OnFacilityDataChanged;
         TransportRuntime.OnMemDeploymentChanged -= OnFacilityDataChanged;
+        CampFireRuntime.OnMemDeploymentChanged -= OnFacilityDataChanged; 
 
         ProductionFacilityRuntime.FacilityStarted -= OnFacilityStartedHandler;
         ProductionFacilityRuntime.FacilityStopped -= OnFacilityStoppedHandler;
-        
+
         ProductionCraftRuntime.FacilityStarted -= OnFacilityStartedHandler;
         ProductionCraftRuntime.FacilityStopped -= OnFacilityStoppedHandler;
-        
+
         RanchFacilityRuntime.FacilityStarted -= OnFacilityStartedHandler;
         RanchFacilityRuntime.FacilityStopped -= OnFacilityStoppedHandler;
-        
-        GeneratorRuntime.FacilityStarted -= OnFacilityStartedHandler; 
+
+        GeneratorRuntime.FacilityStarted -= OnFacilityStartedHandler;
         GeneratorRuntime.FacilityStopped -= OnFacilityStoppedHandler;
 
         TransportRuntime.FacilityStarted -= OnFacilityStartedHandler;
         TransportRuntime.FacilityStopped -= OnFacilityStoppedHandler;
+
+        CampFireRuntime.FacilityStarted -= OnFacilityStartedHandler; 
+        CampFireRuntime.FacilityStopped -= OnFacilityStoppedHandler;
     }
 
     private void OnFacilityStartedHandler(BuildingType type, List<MemData> mems) => OnFacilityDataChanged();
@@ -200,6 +207,23 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                     foreach (var id in ids) allDeployedMemIDs.Add(id);
                 }
             }
+            else if (br.TryGetComponent<CampFireRuntime>(out var campFire))
+            {
+                rData.currentLevel = 1;
+                rData.isActive = campFire.isCooking;
+                rData.currentCraftingItemId = campFire.currentCookingItem ?? "";
+                rData.targetQuantity = campFire.targetQuantity;
+                rData.remainingQuantity = campFire.remainingQuantity;
+                rData.currentProgressTime = campFire.currentProgressTime;
+                rData.currentStorageCount = campFire.currentStorageCount;
+
+                if (campFire.DeployedMemEntries != null)
+                {
+                    var ids = campFire.DeployedMemEntries.Where(e => e != null && !string.IsNullOrEmpty(e.KeyId)).Select(e => e.KeyId).ToList();
+                    rData.DeployedMemIDs = ids;
+                    foreach (var id in ids) allDeployedMemIDs.Add(id);
+                }
+            }
 
             bSave.runtimeData = rData;
             currentData.placedBuildings.Add(bSave);
@@ -224,7 +248,7 @@ public class FacilityRecordData : MonoBehaviour, IRecord
 
         currentData.lastSaveTime = DateTime.UtcNow.ToString("o");
         File.WriteAllText(saveFilePath, JsonUtility.ToJson(currentData, true));
-        Debug.Log("<color=lime>[FacilityLayoutRecord]</color> 발전기 포함 시설 데이터 저장 완료!");
+        Debug.Log("<color=lime>[FacilityLayoutRecord]</color> 모닥불 포함 시설 데이터 저장 완료!");
     }
 
     public void ApplyData(SaveData saveData, SceneType sceneType)
@@ -378,7 +402,12 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                                         }
                                     }
                                 }
-                                slotRuntime.craftingItemId = slotSave.craftingItemId;
+
+                                string produceItemId = !string.IsNullOrEmpty(slotSave.craftingItemId)
+                                    ? slotSave.craftingItemId
+                                    : (slotRuntime.deployedMem != null ? ranch.GetRanchProduceItemId(slotRuntime.deployedMem) : string.Empty);
+
+                                slotRuntime.craftingItemId = produceItemId;
                                 slotRuntime.currentProgressTime = slotSave.currentProgressTime;
                                 slotRuntime.currentStorageCount = slotSave.currentStorageCount;
                                 slotRuntime.isProducing = slotSave.isProducing;
@@ -446,6 +475,37 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                         }
                     }
                     trans.CheckProductionCondition();
+                }
+                // 6. 모닥불 시설 데이터 복원
+                else if (spawnedObj.TryGetComponent<CampFireRuntime>(out var campFire))
+                {
+                    campFire.buildingData = matchData;
+                    campFire.isCooking = entry.isActive;
+                    campFire.targetQuantity = entry.targetQuantity;
+                    campFire.remainingQuantity = entry.remainingQuantity;
+                    campFire.currentProgressTime = entry.currentProgressTime;
+                    campFire.currentStorageCount = entry.currentStorageCount;
+                    campFire.currentCookingItem = entry.currentCraftingItemId;
+
+                    if (campFire.DeployedMems != null) campFire.DeployedMems.Clear();
+                    if (campFire.DeployedMemEntries != null) campFire.DeployedMemEntries.Clear();
+
+                    if (memManager != null && entry.DeployedMemIDs != null)
+                    {
+                        foreach (var savedKeyId in entry.DeployedMemIDs)
+                        {
+                            var match = memManager.CapturedMems.FirstOrDefault(m => m != null && m.KeyId == savedKeyId);
+                            if (match != null)
+                            {
+                                MemData realMemData = MemCatalogManager.Instance != null ? MemCatalogManager.Instance.FindMemData(match.MemId) : null;
+                                if (realMemData != null)
+                                {
+                                    match.IsActive = false;
+                                    campFire.TryAddMem(realMemData, match);
+                                }
+                            }
+                        }
+                    }
                 }
 
                 for (int x = bSave.gridX; x < bSave.gridX + bWidth; x++)
