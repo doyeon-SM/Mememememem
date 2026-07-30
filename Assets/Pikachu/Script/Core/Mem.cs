@@ -113,6 +113,7 @@ namespace MemSystem.Core
         /// 1. Stats.Initialize(data) — SO 데이터 복사
         /// 2. Stats.ApplyTierSpec(spec) — 등급별 고정값 적용
         /// 3. Visual.SetupModel(modelPrefab) — 등급별 모델 스왑
+        ///    Visual.ApplyAccessories(accessories) — 악세서리 부착
         /// 4. AI.Initialize(this) — FSM 초기 상태(Idle) 진입
         /// </summary>
         /// <param name="data">멤 정적 데이터</param>
@@ -131,10 +132,12 @@ namespace MemSystem.Core
                 Stats.ApplyTierSpec(spec);
             }
 
-            // 3. 외형 세팅 (등급별 모델)
+            // 3. 외형 세팅 (등급별 모델 + 악세서리)
+            //    악세서리는 모델의 뼈에 붙으므로 반드시 SetupModel 이후에 적용해야 합니다.
             if (Visual != null && data.modelPrefab != null)
             {
                 Visual.SetupModel(data.modelPrefab);
+                Visual.ApplyAccessories(data.accessories);
             }
 
             // 4. AI 초기 상태
