@@ -142,7 +142,20 @@ namespace HDY.Forge
         [Tooltip("IMaterialInventory를 구현한 컴포넌트를 연결. 비워두면 Awake에서 씬을 훑어 자동으로 찾는다 " +
                  "(UpgradePopupUI와 동일한 패턴 - CombinedMaterialInventory가 인벤토리+창고를 합산해서 확인/차감해준다).")]
         [SerializeField] private MonoBehaviour materialInventorySource;
-        private IMaterialInventory MaterialInventory => materialInventorySource as IMaterialInventory;
+        // [KKS 수정]
+        // 탐험Scene에서 최초 찾은 Inventory가 씬전환시 파괴되지만 싱글톤이 유지되기 때문에 다시 찾지않는 문제가 발생.
+        // 이를 해결하기 위해 씬 전환 시 파괴된 인벤토리를 자동으로 재탐색하도록 처리
+        private IMaterialInventory MaterialInventory
+        {
+            get
+            {
+                if (materialInventorySource == null)
+                {
+                    materialInventorySource = FindMaterialInventorySource();
+                }
+                return materialInventorySource as IMaterialInventory;
+            }
+        }
 
         [Tooltip("과열 수치 비교 시 부동소수점 오차를 흡수하기 위한 여유값 (예: 33.3% x 3 = 99.9%를 100%로 취급)")]
         [SerializeField] private float overheatEpsilon = 0.01f;
@@ -171,10 +184,6 @@ namespace HDY.Forge
                 itemDataProvider = ForgeInstanceItemDataProvider.Instance;
             }
 
-            if (materialInventorySource == null)
-            {
-                materialInventorySource = FindMaterialInventorySource();
-            }
             else if (MaterialInventory == null)
             {
                 Debug.LogWarning("[ForgeManager] materialInventorySource가 IMaterialInventory를 구현하지 않습니다.", this);
