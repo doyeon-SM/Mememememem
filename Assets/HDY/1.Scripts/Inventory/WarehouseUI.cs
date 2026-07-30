@@ -58,6 +58,13 @@ namespace HDY.Inventory
     /// 넣는다. 다음 언락 인덱스(UnlockedInventorySlotCount)를 10(그리드 너비)으로 나눈 몫/나머지가 각각
     /// 행/열이 되고, slotsPerInventoryUpgrade가 5라서 항상 열 0 또는 5에서 시작해 행 경계를 걸치지 않는다.
     /// 더 이상 언락할 칸이 없으면(최대치) 버튼 자체를 비활성화한다.
+    ///
+    /// [버그 수정 - 패널 재사용 대응] UIManager가 이 패널을 열 때마다 새로 Instantiate/Destroy하지 않고,
+    /// 미리 만들어둔 인스턴스를 SetActive로 껐다 켰다 하는 방식으로 바뀌었다. 그래서 Start()는 오브젝트
+    /// 일생에 최초 1회만 실행되고, 두 번째로 열 때부터는 OnEnable만 실행된다. Start()에만 있던
+    /// HideItemTooltip()/RefreshAll() 호출을 그대로 두면 두 번째 오픈부터 내용물이 갱신되지 않으므로,
+    /// hasCompletedInitialSetup 플래그로 "최초 셋업 이후"를 판별해서 OnEnable에서도 동일하게 다시
+    /// 갱신하도록 했다(MemStorageUI_Grid.OnEnable의 재갱신 패턴과 동일한 접근).
     /// </summary>
     public class WarehouseUI : MonoBehaviour, IInventorySlotOwner, IInventorySlotClickOwner
     {
@@ -113,6 +120,10 @@ namespace HDY.Inventory
         private SlotGroup heldOriginGroup;
         private int heldOriginIndex = -1;
 
+        /// <summary>[버그 수정 - 패널 재사용 대응] Start()의 최초 1회 셋업이 끝났는지 여부. true가 된 이후부터만
+        /// OnEnable에서 HideItemTooltip()/RefreshAll() 재갱신을 수행한다(최초 활성화 시점의 중복 실행 방지용).</summary>
+        private bool hasCompletedInitialSetup;
+
         private void Awake()
         {
             if (playerInventory == null) playerInventory = FindFirstObjectByType<PlayerInventory>();
@@ -158,6 +169,8 @@ namespace HDY.Inventory
             trashController.Initialize(this, trashSlotUI);
             EnsureQuantityPopup();
 
+            hasCompletedInitialSetup = true;
+
             HideItemTooltip();
             RefreshAll();
         }
@@ -186,6 +199,18 @@ namespace HDY.Inventory
             if (inventorySortUI != null)
             {
                 inventorySortUI.OnSortRequested += HandleInventorySortRequested;
+            }
+
+            // [버그 수정 - 패널 재사용 대응] UIManager가 이 패널을 Destroy하지 않고 SetActive로만 재사용하는
+            // 구조로 바뀌면서 Start()는 오브젝트 일생에 최초 1회만 실행된다. 두 번째로 열 때부터도 창고를
+            // 닫아둔 동안 놓친 변경사항(예: 다른 화면에서 아이템이 늘거나 준 경우)을 반영하도록, 최초 셋업이
+            // 끝난 뒤에는 열릴 때마다(OnEnable) 여기서도 다시 갱신한다. 최초 활성화 시점(Awake -> OnEnable ->
+            // Start 순서)에는 hasCompletedInitialSetup이 아직 false라서 Start()의 최초 갱신과 중복 실행되지
+            // 않는다.
+            if (hasCompletedInitialSetup)
+            {
+                HideItemTooltip();
+                RefreshAll();
             }
         }
 

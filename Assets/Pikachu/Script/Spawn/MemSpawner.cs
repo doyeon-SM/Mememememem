@@ -8,6 +8,11 @@
 // - 스폰 쿨타임(60~120초) 적용
 // - 플레이어가 구역을 1분 이상 이탈 시 해당 구역 멤 전원 디스폰(자동 회수)
 // - 지역당 최대 20마리 제한
+//
+// [HDY 요청 - ID 기반 전환] spawnTable(MemData[]) 필드가 개별 SO 에셋을 인스펙터에
+// 직접 드래그하는 방식이었으나, 멤 카탈로그가 CSV 시트 기반으로 이관되면서 개별 SO
+// 에셋이 삭제될 예정이라 spawnTableIds(string[])로 바꿨다. 실제 사용 시점(SpawnOneMem)에는
+// HDY.Mem.MemCatalogManager로 조회해 캐싱해둔 resolvedSpawnTable을 사용한다.
 // ============================================================================
 using System.Collections.Generic;
 using UnityEngine;
@@ -35,8 +40,8 @@ namespace MemSystem.Spawn
         [SerializeField] private MemFactory memFactory;
 
         [Header("스폰 대상 (이 구역에 나올 멤들)")]
-        [Tooltip("이 스파우너가 생성할 수 있는 멤 데이터 목록. 가중치 기반으로 랜덤 선택됩니다.")]
-        [SerializeField] private MemData[] spawnTable;
+        [Tooltip("이 스파우너가 생성할 수 있는 멤 ID 목록. MemCatalogManager.FindMemData로 조회한 뒤 가중치 기반으로 랜덤 선택됩니다.")]
+        [SerializeField] private string[] spawnTableIds;
 
         [Header("임시 스폰 위치 (월드 연동 전)")]
         [Tooltip("월드 시스템이 IMemSpawnPointProvider를 주입하기 전, 에디터에서 수동으로 지정한 스폰 위치들")]
@@ -93,6 +98,9 @@ namespace MemSystem.Spawn
         // =================================================================
 
         private IMemSpawnPointProvider spawnPointProvider;
+
+        // [HDY 요청 - ID 기반 전환] spawnTableIds를 조회해 캐싱한 실제 MemData 목록 (Start에서 채워짐)
+        private MemData[] resolvedSpawnTable;
         
         [Header("플레이어 참조")]
         [Tooltip("플레이어 Transform (미할당 시 태그로 자동 탐색)")]
@@ -127,6 +135,10 @@ namespace MemSystem.Spawn
 
         private void Start()
         {
+            // [HDY 요청 - ID 기반 전환] MemCatalogManager는 다른 오브젝트의 Awake에서 초기화되므로,
+            // 모든 Awake가 끝난 뒤 실행되는 Start에서 조회해야 안전하다(Awake 시점 순서 보장 안 됨).
+            ResolveSpawnTable();
+
             // 플레이어 자동 탐색
             var player = GameObject.FindGameObjectWithTag("Player");
             if (player != null) playerTransform = player.transform;
@@ -179,6 +191,46 @@ namespace MemSystem.Spawn
         public void SetSpawnPointProvider(IMemSpawnPointProvider provider)
         {
             spawnPointProvider = provider;
+        }
+
+        // =================================================================
+        // 멤 ID 조회 (카탈로그 연동)
+        // =================================================================
+
+        /// <summary>
+        /// [HDY 요청 - ID 기반 전환] spawnTableIds(문자열 배열)를 MemCatalogManager를 통해
+        /// 실제 MemData 인스턴스로 변환해 캐싱한다. 개별 SO 에셋을 인스펙터에 직접 드래그하던
+        /// 방식에서 memId 조회 방식으로 바꾼 것 - 멤 카탈로그가 CSV 시트 기반으로 이관되면서
+        /// 개별 SO 에셋이 삭제될 예정이라, 더 이상 인스펙터가 SO 에셋을 직접 들고 있으면 안 되기 때문이다.
+        /// </summary>
+        private void ResolveSpawnTable()
+        {
+            var list = new List<MemData>();
+            var catalog = HDY.Mem.MemCatalogManager.Resolve(null);
+
+            if (catalog == null)
+            {
+                Debug.LogWarning("[MemSpawner] MemCatalogManager를 찾을 수 없어 spawnTableIds를 조회하지 못했습니다.");
+            }
+            else if (spawnTableIds != null)
+            {
+                foreach (var id in spawnTableIds)
+                {
+                    if (string.IsNullOrEmpty(id)) continue;
+
+                    var data = catalog.FindMemData(id);
+                    if (data != null)
+                    {
+                        list.Add(data);
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"[MemSpawner] spawnTableIds의 '{id}'에 해당하는 MemData를 찾을 수 없습니다.");
+                    }
+                }
+            }
+
+            resolvedSpawnTable = list.ToArray();
         }
 
         // =================================================================
@@ -303,7 +355,7 @@ namespace MemSystem.Spawn
             if (memPool == null || memFactory == null) return;
 
             // 1. Factory를 이용해 가중치 기반 랜덤 데이터 선택
-            MemData data = memFactory.SelectRandomMemData(spawnTable);
+            MemData data = memFactory.SelectRandomMemData(resolvedSpawnTable);
             if (data == null) return;
 
             // 2. 랜덤 위치 탐색 (NavMesh 위)
