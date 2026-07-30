@@ -168,6 +168,19 @@ public class GridManager : MonoBehaviour
                     {
                         PanelManager.Instance.OpenRanchPanel(ranch);
                     }
+                    else if (targetObj.TryGetComponent<GeneratorRuntime>(out GeneratorRuntime gen))
+                    {
+                        PanelManager.Instance.OpenGeneratorPanel(gen);
+                    }
+                    else if (targetObj.TryGetComponent<TransportRuntime>(out TransportRuntime transport))
+                    {
+                        PanelManager.Instance.OpenTransportPanel(transport);
+                    }
+                    // 🌟 [추가]: 모닥불 시설 좌클릭 시 패널 오픈
+                    else if (targetObj.TryGetComponent<CampFireRuntime>(out CampFireRuntime campFire))
+                    {
+                        PanelManager.Instance.OpenCampFirePanel(campFire);
+                    }
                 }
             }
         }
@@ -560,6 +573,57 @@ public class GridManager : MonoBehaviour
                     ranchRuntime.TryAddMemToSlot(i, cachedPickedUpState.deployedMems[i], cachedPickedUpState.deployedMemEntries[i]);
                 }
             }
+            else if (realBuilding.TryGetComponent<GeneratorRuntime>(out GeneratorRuntime genRuntime))
+            {
+                genRuntime.buildingData = selectedBuildingData;
+                genRuntime.isPowerGenerating = cachedPickedUpState.facilityData.isActive;
+                genRuntime.currentPowerProgressTime = cachedPickedUpState.facilityData.currentProgressTime;
+                genRuntime.currentPowerStorage = cachedPickedUpState.facilityData.currentStorageCount;
+                genRuntime.UpdateMaxPowerStorage();
+
+                if (genRuntime.DeployedMems != null && genRuntime.DeployedMemEntries != null)
+                {
+                    genRuntime.DeployedMems.Clear();
+                    genRuntime.DeployedMemEntries.Clear();
+                    genRuntime.DeployedMems.AddRange(cachedPickedUpState.deployedMems);
+                    genRuntime.DeployedMemEntries.AddRange(cachedPickedUpState.deployedMemEntries);
+                }
+                genRuntime.CheckPowerCondition();
+            }
+            else if (realBuilding.TryGetComponent<TransportRuntime>(out TransportRuntime transRuntime))
+            {
+                transRuntime.buildingData = selectedBuildingData;
+                if (cachedPickedUpState != null && cachedPickedUpState.facilityData != null)
+                {
+                    if (transRuntime.DeployedMems != null && transRuntime.DeployedMemEntries != null)
+                    {
+                        transRuntime.DeployedMems.Clear();
+                        transRuntime.DeployedMemEntries.Clear();
+                        transRuntime.DeployedMems.AddRange(cachedPickedUpState.deployedMems);
+                        transRuntime.DeployedMemEntries.AddRange(cachedPickedUpState.deployedMemEntries);
+                    }
+                    transRuntime.CheckProductionCondition();
+                }
+            }
+            // 🌟 [추가]: 모닥불 시설 이동 복원
+            else if (realBuilding.TryGetComponent<CampFireRuntime>(out CampFireRuntime campFireRuntime))
+            {
+                campFireRuntime.buildingData = selectedBuildingData;
+                campFireRuntime.isCooking = cachedPickedUpState.facilityData.isActive;
+                campFireRuntime.targetQuantity = cachedPickedUpState.facilityData.targetQuantity;
+                campFireRuntime.remainingQuantity = cachedPickedUpState.facilityData.remainingQuantity;
+                campFireRuntime.currentProgressTime = cachedPickedUpState.facilityData.currentProgressTime;
+                campFireRuntime.currentStorageCount = cachedPickedUpState.facilityData.currentStorageCount;
+                campFireRuntime.currentCookingItem = cachedPickedUpState.facilityData.currentCraftingItemId;
+
+                if (campFireRuntime.DeployedMems != null && campFireRuntime.DeployedMemEntries != null)
+                {
+                    campFireRuntime.DeployedMems.Clear();
+                    campFireRuntime.DeployedMemEntries.Clear();
+                    campFireRuntime.DeployedMems.AddRange(cachedPickedUpState.deployedMems);
+                    campFireRuntime.DeployedMemEntries.AddRange(cachedPickedUpState.deployedMemEntries);
+                }
+            }
 
             if (RecordManager.Instance != null)
             {
@@ -583,6 +647,16 @@ public class GridManager : MonoBehaviour
             {
                 ranchRuntime.buildingData = selectedBuildingData;
                 ranchRuntime.UpdateSlotCapacity();
+            }
+
+            else if (realBuilding.TryGetComponent<GeneratorRuntime>(out GeneratorRuntime genRuntime))
+            {
+                genRuntime.buildingData = selectedBuildingData;
+                genRuntime.UpdateMaxPowerStorage();
+            }
+            else if (realBuilding.TryGetComponent<CampFireRuntime>(out CampFireRuntime campFireRuntime))
+            {
+                campFireRuntime.buildingData = selectedBuildingData;
             }
         }
 
@@ -679,6 +753,54 @@ public class GridManager : MonoBehaviour
                 }
             }
         }
+        else if (targetBuilding.TryGetComponent<GeneratorRuntime>(out var gen))
+        {
+            cachedPickedUpState.facilityData.isActive = gen.isPowerGenerating;
+            cachedPickedUpState.facilityData.currentProgressTime = gen.currentPowerProgressTime;
+            cachedPickedUpState.facilityData.currentStorageCount = gen.currentPowerStorage;
+            if (gen.DeployedMems != null) cachedPickedUpState.deployedMems.AddRange(gen.DeployedMems);
+            if (gen.DeployedMemEntries != null)
+            {
+                cachedPickedUpState.deployedMemEntries.AddRange(gen.DeployedMemEntries);
+                foreach (var entry in gen.DeployedMemEntries)
+                {
+                    if (entry != null) cachedPickedUpState.facilityData.DeployedMemIDs.Add(entry.KeyId);
+                }
+            }
+        }
+        else if (targetBuilding.TryGetComponent<TransportRuntime>(out var trans))
+        {
+            cachedPickedUpState.facilityData.isActive = trans.isWorking;
+            cachedPickedUpState.facilityData.currentProgressTime = trans.currentProgressTime;
+            if (trans.DeployedMems != null) cachedPickedUpState.deployedMems.AddRange(trans.DeployedMems);
+            if (trans.DeployedMemEntries != null)
+            {
+                cachedPickedUpState.deployedMemEntries.AddRange(trans.DeployedMemEntries);
+                foreach (var entry in trans.DeployedMemEntries)
+                {
+                    if (entry != null) cachedPickedUpState.facilityData.DeployedMemIDs.Add(entry.KeyId);
+                }
+            }
+        }
+        else if (targetBuilding.TryGetComponent<CampFireRuntime>(out var campFire))
+        {
+            cachedPickedUpState.facilityData.isActive = campFire.isCooking;
+            cachedPickedUpState.facilityData.targetQuantity = campFire.targetQuantity;
+            cachedPickedUpState.facilityData.remainingQuantity = campFire.remainingQuantity;
+            cachedPickedUpState.facilityData.currentProgressTime = campFire.currentProgressTime;
+            cachedPickedUpState.facilityData.currentStorageCount = campFire.currentStorageCount;
+            cachedPickedUpState.facilityData.currentCraftingItemId = campFire.currentCookingItem ?? "";
+
+            if (campFire.DeployedMems != null) cachedPickedUpState.deployedMems.AddRange(campFire.DeployedMems);
+            if (campFire.DeployedMemEntries != null)
+            {
+                cachedPickedUpState.deployedMemEntries.AddRange(campFire.DeployedMemEntries);
+                foreach (var entry in campFire.DeployedMemEntries)
+                {
+                    if (entry != null) cachedPickedUpState.facilityData.DeployedMemIDs.Add(entry.KeyId);
+                }
+            }
+        }
 
         for (int i = 0; i < currentWidth; i++)
         {
@@ -693,7 +815,6 @@ public class GridManager : MonoBehaviour
             }
         }
 
-        // 🌟 [핵심 수정]: 즉시 비활성화 후 파괴
         targetBuilding.SetActive(false);
         Destroy(targetBuilding);
 
@@ -794,10 +915,8 @@ public class GridManager : MonoBehaviour
         if (!isPlacementMode) return;
         if (buildRecordManager == null) return;
 
-        // 🌟 1. 씬 내 모든 기존 건축물 완전 제거
         ClearAllPlacedBuildings();
 
-        // 🌟 2. 배치 모드 진입 직전 스냅샷 복원
         List<BuildingSnapshot> rollbackData = buildRecordManager.Rollback();
         RestoreRollbackData(rollbackData);
 
@@ -814,15 +933,10 @@ public class GridManager : MonoBehaviour
 
         TriggerSatisfactionUpdate();
 
-        // 🌟 3. 복원 완료 후 1대1 싱크 이벤트 재발행
         OnGridDataChanged?.Invoke();
         TotalHungerManager.Instance?.RecalculateTotalHunger();
     }
 
-    /// <summary>
-    /// 🌟 [수정]: 씬 상에 존재하는 모든 BuildingRuntime 오브젝트를 전수 조사하여 삭제합니다.
-    /// 그리드 배열 참소 손상으로 인한 고스트 오브젝트 생성을 차단합니다.
-    /// </summary>
     private void ClearAllPlacedBuildings()
     {
         var allBuildings = FindObjectsByType<BuildingRuntime>(FindObjectsSortMode.None);
@@ -900,7 +1014,6 @@ public class GridManager : MonoBehaviour
                                 {
                                     mData.maxHunger = template.maxHunger;
                                     mData.productionStats = template.productionStats;
-                                    // 임시: MemData 내 ranchProduceItemId 필드가 추가되기 전까지 RanchFacilityRuntime.GetRanchProduceItemId(memData)로 매핑하여 처리
                                     mData.modelPrefab = template.modelPrefab;
                                 }
 
@@ -977,7 +1090,6 @@ public class GridManager : MonoBehaviour
                                         }
                                     }
 
-                                    // 임시: 저장 데이터의 craftingItemId가 없는 경우 memId 기반 GetRanchProduceItemId로 생산 품목 매핑
                                     string produceItemId = !string.IsNullOrEmpty(slotSave.craftingItemId)
                                         ? slotSave.craftingItemId
                                         : (slotRuntime.deployedMem != null ? ranch.GetRanchProduceItemId(slotRuntime.deployedMem) : string.Empty);
@@ -990,6 +1102,94 @@ public class GridManager : MonoBehaviour
                             }
                         }
                         ranch.CheckAllSlotsProductionCondition();
+                    }
+                    else if (restoredBuilding.TryGetComponent<GeneratorRuntime>(out var gen))
+                    {
+                        gen.buildingData = snap.data;
+                        gen.currentLevel = entry.currentLevel > 0 ? entry.currentLevel : 1;
+                        gen.isPowerGenerating = entry.isActive;
+                        gen.currentPowerProgressTime = entry.currentProgressTime;
+                        gen.currentPowerStorage = entry.currentStorageCount;
+                        gen.UpdateMaxPowerStorage();
+
+                        if (gen.DeployedMems != null) gen.DeployedMems.Clear();
+                        if (gen.DeployedMemEntries != null) gen.DeployedMemEntries.Clear();
+
+                        if (memManager != null && entry.DeployedMemIDs != null)
+                        {
+                            foreach (var savedKeyId in entry.DeployedMemIDs)
+                            {
+                                var match = memManager.CapturedMems.FirstOrDefault(m => m != null && m.KeyId == savedKeyId);
+                                if (match != null)
+                                {
+                                    MemData realMemData = MemCatalogManager.Instance != null ? MemCatalogManager.Instance.FindMemData(match.MemId) : null;
+                                    if (realMemData != null)
+                                    {
+                                        match.IsActive = false;
+                                        gen.TryAddMem(realMemData, match);
+                                    }
+                                }
+                            }
+                        }
+                        gen.CheckPowerCondition();
+                    }
+                    else if (restoredBuilding.TryGetComponent<TransportRuntime>(out var trans))
+                    {
+                        trans.buildingData = snap.data;
+                        trans.currentLevel = entry.currentLevel > 0 ? entry.currentLevel : 1;
+                        trans.isWorking = entry.isActive;
+                        trans.currentProgressTime = entry.currentProgressTime;
+                        if (trans.DeployedMems != null) trans.DeployedMems.Clear();
+                        if (trans.DeployedMemEntries != null) trans.DeployedMemEntries.Clear();
+                        if (memManager != null && entry.DeployedMemIDs != null)
+                        {
+                            int maxCapacity = ProductionCalculator.GetTransportMaxMemCount(trans.currentLevel);
+                            var safeMemIDs = entry.DeployedMemIDs.Distinct().Take(maxCapacity).ToList();
+                            foreach (var savedKeyId in safeMemIDs)
+                            {
+                                var match = memManager.CapturedMems.FirstOrDefault(m => m != null && m.KeyId == savedKeyId);
+                                if (match != null)
+                                {
+                                    MemData realMemData = MemCatalogManager.Instance != null ? MemCatalogManager.Instance.FindMemData(match.MemId) : null;
+                                    if (realMemData != null)
+                                    {
+                                        match.IsActive = false;
+                                        trans.TryAddMem(realMemData, match);
+                                    }
+                                }
+                            }
+                        }
+                        trans.CheckProductionCondition();
+                    }
+                    else if (restoredBuilding.TryGetComponent<CampFireRuntime>(out var campFire))
+                    {
+                        campFire.buildingData = snap.data;
+                        campFire.isCooking = entry.isActive;
+                        campFire.targetQuantity = entry.targetQuantity;
+                        campFire.remainingQuantity = entry.remainingQuantity;
+                        campFire.currentProgressTime = entry.currentProgressTime;
+                        campFire.currentStorageCount = entry.currentStorageCount;
+                        campFire.currentCookingItem = entry.currentCraftingItemId;
+
+                        if (campFire.DeployedMems != null) campFire.DeployedMems.Clear();
+                        if (campFire.DeployedMemEntries != null) campFire.DeployedMemEntries.Clear();
+
+                        if (memManager != null && entry.DeployedMemIDs != null)
+                        {
+                            foreach (var savedKeyId in entry.DeployedMemIDs)
+                            {
+                                var match = memManager.CapturedMems.FirstOrDefault(m => m != null && m.KeyId == savedKeyId);
+                                if (match != null)
+                                {
+                                    MemData realMemData = MemCatalogManager.Instance != null ? MemCatalogManager.Instance.FindMemData(match.MemId) : null;
+                                    if (realMemData != null)
+                                    {
+                                        match.IsActive = false;
+                                        campFire.TryAddMem(realMemData, match);
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }

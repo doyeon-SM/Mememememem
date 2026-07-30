@@ -396,6 +396,7 @@ namespace HDY.UI
         /// </summary>
         public bool HasActivePanel()
         {
+            Debug.Log($"패널 열림확인 { openStack.Count > 0 && currentPrefabKey != null}");
             return openStack.Count > 0 && currentPrefabKey != null;
         }
 

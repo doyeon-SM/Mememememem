@@ -18,10 +18,6 @@ public class SortButtonManagement : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// 현재 씬에서 활성화된 P_Sort(MemStorageUI_Sort)를 전부 찾아, 
-    /// 대상 시설(facilityObject)에 맞는 정렬 버튼만 활성화합니다.
-    /// </summary>
     public void UpdateSortFilters(GameObject facilityObject)
     {
         if (facilityObject == null)
@@ -31,15 +27,13 @@ public class SortButtonManagement : MonoBehaviour
         }
 
         MemStorageUI_Sort[] activeSortComponents = Object.FindObjectsByType<MemStorageUI_Sort>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
-
         if (activeSortComponents == null || activeSortComponents.Length == 0)
         {
-            Debug.LogWarning("[SortButtonManagement] 씬에서 현재 활성화된 P_Sort(MemStorageUI_Sort)를 찾지 못했습니다.");
+            Debug.LogWarning("[SortButtonManagement] 활성화된 P_Sort(MemStorageUI_Sort)를 찾을 수 없습니다.");
             return;
         }
 
         string targetKeyword = GetKeywordFromFacility(facilityObject);
-        Debug.Log($"<color=cyan>[SortButtonManagement]</color> 활성화된 P_Sort {activeSortComponents.Length}개 발견! (필터 키워드: '<b>{targetKeyword}</b>')");
 
         foreach (var sortComp in activeSortComponents)
         {
@@ -54,7 +48,6 @@ public class SortButtonManagement : MonoBehaviour
                 string childNameLower = child.name.ToLower();
 
                 bool shouldActive = false;
-
                 if (childNameLower.Contains("id") || childNameLower.Contains("tier"))
                 {
                     shouldActive = true;
@@ -72,16 +65,53 @@ public class SortButtonManagement : MonoBehaviour
             {
                 LayoutRebuilder.ForceRebuildLayoutImmediate(rectTransform);
             }
-
-            Debug.Log($"<color=lime>[SortButtonManagement]</color> '{pSortTransform.name}' (위치: {pSortTransform.parent?.name}) 정렬 필터 적용 완료! (활성 버튼 {activeCount}개)");
         }
     }
 
-    /// <summary>
-    /// 시설/패널 오브젝트(또는 그 부모/자식)에서 정렬 키워드 추출
-    /// </summary>
     private string GetKeywordFromFacility(GameObject facilityObject)
     {
+        var campFireRuntime = facilityObject.GetComponentInParent<CampFireRuntime>();
+        if (campFireRuntime == null) campFireRuntime = facilityObject.GetComponentInChildren<CampFireRuntime>();
+        if (campFireRuntime != null && campFireRuntime.buildingData != null)
+        {
+            return GetKeywordByBuildingType(campFireRuntime.buildingData.buildingType);
+        }
+
+        var campFireUI = facilityObject.GetComponentInParent<CampFirePanelUI>();
+        if (campFireUI == null) campFireUI = facilityObject.GetComponentInChildren<CampFirePanelUI>();
+        if (campFireUI != null && campFireUI.TargetFacility != null && campFireUI.TargetFacility.buildingData != null)
+        {
+            return GetKeywordByBuildingType(campFireUI.TargetFacility.buildingData.buildingType);
+        }
+
+        var transportRuntime = facilityObject.GetComponentInParent<TransportRuntime>();
+        if (transportRuntime == null) transportRuntime = facilityObject.GetComponentInChildren<TransportRuntime>();
+        if (transportRuntime != null && transportRuntime.buildingData != null)
+        {
+            return GetKeywordByBuildingType(transportRuntime.buildingData.buildingType);
+        }
+
+        var transportUI = facilityObject.GetComponentInParent<TransportPanelUI>();
+        if (transportUI == null) transportUI = facilityObject.GetComponentInChildren<TransportPanelUI>();
+        if (transportUI != null && transportUI.TargetFacility != null && transportUI.TargetFacility.buildingData != null)
+        {
+            return GetKeywordByBuildingType(transportUI.TargetFacility.buildingData.buildingType);
+        }
+
+        var genRuntime = facilityObject.GetComponentInParent<GeneratorRuntime>();
+        if (genRuntime == null) genRuntime = facilityObject.GetComponentInChildren<GeneratorRuntime>();
+        if (genRuntime != null && genRuntime.buildingData != null)
+        {
+            return GetKeywordByBuildingType(genRuntime.buildingData.buildingType);
+        }
+
+        var genUI = facilityObject.GetComponentInParent<GeneratorPanelUI>();
+        if (genUI == null) genUI = facilityObject.GetComponentInChildren<GeneratorPanelUI>();
+        if (genUI != null && genUI.TargetFacility != null && genUI.TargetFacility.buildingData != null)
+        {
+            return GetKeywordByBuildingType(genUI.TargetFacility.buildingData.buildingType);
+        }
+
         var ranchRuntime = facilityObject.GetComponentInParent<RanchFacilityRuntime>();
         if (ranchRuntime == null) ranchRuntime = facilityObject.GetComponentInChildren<RanchFacilityRuntime>();
         if (ranchRuntime != null && ranchRuntime.buildingData != null)
@@ -128,9 +158,10 @@ public class SortButtonManagement : MonoBehaviour
             case BuildingType.LoggingCamp: return "log";
             case BuildingType.MiningCamp: return "mining";
             case BuildingType.TransportFacility: return "trans";
+            case BuildingType.Generator: return "trans";
             case BuildingType.Farm: return "farm";
-            case BuildingType.Ranch: return "farm"; 
-            default: return "";
+            case BuildingType.Ranch: return "farm";
+            default: return "craft";
         }
     }
 }
