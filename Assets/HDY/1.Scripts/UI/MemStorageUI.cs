@@ -58,6 +58,11 @@ namespace HDY.UI
     /// HandleReleaseRequested 맨 앞에서 ExplorationRuntime.TryGetExplorationInfo로 먼저 확인하고, 탐험 중이면
     /// 경고 로그만 남기고 그대로 무시한다(탐험 취소/완료는 오직 탐험 패널의 버튼으로만 가능).
     ///
+    /// [HDY 요청 - 창고에서 완전 삭제(방출)] 비활성 멤을 우클릭 -> 방출하기 버튼 클릭 시 grid.OnDiscardRequested가
+    /// 발생한다. 위의 배치 해제(entry.IsActive만 되돌림)와 달리, 이쪽은 MemCaptureManager.TryDiscardEntry로
+    /// 항목 자체를 창고에서 완전히 지운다(빈 칸으로 되돌림). 재확인 절차 없이 즉시 처리되며, 그리드는
+    /// TryDiscardEntry 내부에서 발행되는 OnCapturedMemsChanged 구독으로 알아서 다시 그려진다.
+    ///
     /// [Mem스탯/티어 표시] 현재 어떤 기준으로 정렬되어 있는지(activeSortCriteria)를 여기서 기억해두고,
     /// - Mem스탯(제작/벌목/채광/이동/생산/탐험) 기준이면 그 스탯의 아이콘 + 숫자를,
     /// - 티어 기준이면 티어 아이콘 + 등급 앞글자 대문자(R/E/U/L/M)를
@@ -90,7 +95,8 @@ namespace HDY.UI
     /// 반응하지 않게 되지만, 그리드 자신의 Awake에서 붙이고 아무도 떼지 않는 페이지 이전/다음 버튼과 휠
     /// 스크롤(OnScroll)은 영향 없이 정상 동작했다 - 딱 이 비대칭(구독은 1회성 Awake, 해제는 매번 OnDisable)이
     /// 원인이었다. 그래서 이 구독들을 OnEnable로 옮기고(열 때마다 다시 구독), isSubscribedToUIEvents로 중복
-    /// 구독을 막는다 - MemStorageUI_Grid.isSubscribedToCaptureEvents와 동일한 패턴이다.
+    /// 구독을 막는다 - MemStorageUI_Grid.isSubscribedToCaptureEvents와 동일한 패턴이다. OnDiscardRequested도
+    /// 이 구독 그룹에 함께 넣는다.
     /// </summary>
     public class MemStorageUI : MonoBehaviour
     {
@@ -167,6 +173,7 @@ namespace HDY.UI
                     grid.OnSlotClicked += HandleSlotClicked;
                     grid.OnSwapRequested += HandleSwapRequested;
                     grid.OnReleaseRequested += HandleReleaseRequested;
+                    grid.OnDiscardRequested += HandleDiscardRequested;
                 }
 
                 if (sort != null)
@@ -209,6 +216,7 @@ namespace HDY.UI
                 grid.OnSlotClicked -= HandleSlotClicked;
                 grid.OnSwapRequested -= HandleSwapRequested;
                 grid.OnReleaseRequested -= HandleReleaseRequested;
+                grid.OnDiscardRequested -= HandleDiscardRequested;
             }
 
             if (sort != null)
@@ -337,6 +345,28 @@ namespace HDY.UI
             {
                 grid.NotifyDataChanged(captureManager.CapturedMems, FindMemData, GetStatDisplayInfo, captureManager.UnlockedPageCount);
             }
+        }
+
+        /// <summary>
+        /// [HDY 요청] 그리드에서 방출(창고에서 완전 삭제)이 요청되었을 때 호출된다. 배치 해제와 달리
+        /// 어느 시설에 배치되어 있는지 찾을 필요가 없다 - 애초에 비활성(IsActive=false) 멤에서만 발생하는
+        /// 이벤트이므로 어디에도 배치되어 있지 않다는 게 이미 보장되어 있다. 재확인 절차 없이 즉시
+        /// MemCaptureManager.TryDiscardEntry를 호출한다. 그 안에서 OnCapturedMemsChanged가 발행되므로
+        /// 그리드는 자체 구독으로 알아서 다시 그려지고, 저장 시스템(있다면)도 같은 이벤트로 반응한다.
+        /// </summary>
+        private void HandleDiscardRequested(CapturedMemEntry entry, MemData data)
+        {
+            if (entry == null) return;
+
+            Debug.Log($"[MemStorageUI] 창고 방출 요청 수신: MemId={entry.MemId}");
+
+            if (captureManager == null)
+            {
+                Debug.LogWarning("[MemStorageUI] captureManager가 비어있어 방출을 처리할 수 없습니다.", this);
+                return;
+            }
+
+            captureManager.TryDiscardEntry(entry);
         }
 
 
