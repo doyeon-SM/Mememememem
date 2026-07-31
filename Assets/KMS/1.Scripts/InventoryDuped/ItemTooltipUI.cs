@@ -69,6 +69,13 @@ namespace KMS.InventoryDuped
 
             CreateTag(item.ItemName, nameBackgroundColor, darkTextColor);
             CreateTag($"종류: {GetCategoryText(item.Category)}", categoryBackgroundColor, lightTextColor);
+
+            // [HDY 요청 - 크기 표시] Size가 있는 아이템(설계도 등)은 크기 태그를 한 칸 추가로 보여준다.
+            if (!string.IsNullOrEmpty(item.Size))
+            {
+                CreateTag($"크기: {item.Size}", categoryBackgroundColor, lightTextColor);
+            }
+
             CreateEffectTags(item);
 
             LayoutRebuilder.ForceRebuildLayoutImmediate(rectTransform);
