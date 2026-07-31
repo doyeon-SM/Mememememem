@@ -1,5 +1,6 @@
 ﻿using DG.Tweening;
 using HDY.Capture;
+using HDY.Inventory;
 using HDY.Item;
 using HDY.Mem;
 using KMS.InventoryDuped;
@@ -31,10 +32,13 @@ public class GridManager : MonoBehaviour
     [SerializeField] private Material previewMaterial;
     [SerializeField] private Material gridMaterialPrefab;
 
-    [Header("타일 색상 정보: 배치 가능, 배치 불가, 점유된 타일")]
+    [Header("타일 색상 정보: 배치 가능, 배치 불가")]
     [SerializeField] private Color buildableColor = new Color(0f, 0.5f, 1f, 0.4f);
     [SerializeField] private Color unbuildableColor = new Color(1f, 0f, 0f, 0.4f);
-    [SerializeField] private Color occupiedTileColor = new Color(0.25f, 0.25f, 0.25f, 1f); // 🌟 배치 모드 중 이미 배치된 건물 타일 색상
+
+    [Header("점유 타일 테두리 설정 (인스펙터 조절 가능)")]
+    [SerializeField] private Color occupiedBorderColor = new Color(0.9f, 0.3f, 0.3f, 0.85f); // 🌟 점유 타일 테두리 색상
+    [SerializeField][Range(1, 10)] private int occupiedBorderWidth = 3; // 🌟 점유 타일 테두리 두께 (픽셀)
 
     private BuildingData selectedBuildingData;
     private GameObject currentPreviewInstance;
@@ -61,6 +65,8 @@ public class GridManager : MonoBehaviour
 
     private Material placeModeMaterial;
     private bool isPlacementMode = false;
+
+    private Texture2D cachedOccupiedBorderTexture; // 🌟 테두리 전용 동적 텍스처 캐시
 
     private BuildRecordManager buildRecordManager;
 
@@ -369,20 +375,52 @@ public class GridManager : MonoBehaviour
 
         if (globalGridOverlay != null) globalGridOverlay.SetActive(isPlacementMode);
 
-        // 🌟 타일 점유 색상 하이라이트/원복 처리
+        // 🌟 타일 테두리 하이라이트/복구
         UpdateTileOccupiedVisuals();
 
         Debug.Log($"배치 모드 상태 변경: {isPlacementMode} | 배치 가능 건물 수: {currentAvailableBuildings.Count}개");
     }
 
     /// <summary>
-    /// 🌟 배치 모드일 때 이미 건물이 올라간 타일들의 색상을 하이라이트하고, 모드가 끝나거나 건물이 들려지면 원래대로 복구합니다.
+    /// 중앙은 투명하고 외곽선만 존재하는 테두리 텍스처 생성
+    /// </summary>
+    private Texture2D GetOccupiedBorderTexture()
+    {
+        if (cachedOccupiedBorderTexture == null)
+        {
+            cachedOccupiedBorderTexture = new Texture2D(64, 64, TextureFormat.RGBA32, false)
+            {
+                filterMode = FilterMode.Point,
+                wrapMode = TextureWrapMode.Repeat
+            };
+
+            Color whiteColor = Color.white;
+            Color transparentColor = new Color(0f, 0f, 0f, 0f);
+
+            int bw = Mathf.Clamp(occupiedBorderWidth, 1, 16);
+
+            for (int y = 0; y < 64; y++)
+            {
+                for (int x = 0; x < 64; x++)
+                {
+                    bool isBorder = (x < bw || x >= 64 - bw || y < bw || y >= 64 - bw);
+                    cachedOccupiedBorderTexture.SetPixel(x, y, isBorder ? whiteColor : transparentColor);
+                }
+            }
+            cachedOccupiedBorderTexture.Apply();
+        }
+        return cachedOccupiedBorderTexture;
+    }
+
+    /// <summary>
+    /// 배치 모드일 때 점유된 타일의 테두리에만 인스펙터 지정 색상을 적용
     /// </summary>
     private void UpdateTileOccupiedVisuals()
     {
         if (tileGrid == null) return;
 
         MaterialPropertyBlock mpb = new MaterialPropertyBlock();
+        Texture2D borderTex = GetOccupiedBorderTexture();
 
         for (int x = 0; x < currentWidth; x++)
         {
@@ -397,13 +435,15 @@ public class GridManager : MonoBehaviour
 
                     if (isPlacementMode && occupiedCells[x, z])
                     {
-                        mpb.SetColor("_BaseColor", occupiedTileColor);
-                        mpb.SetColor("_Color", occupiedTileColor);
+                        mpb.SetTexture("_BaseMap", borderTex);
+                        mpb.SetTexture("_MainTex", borderTex);
+                        mpb.SetColor("_BaseColor", occupiedBorderColor);
+                        mpb.SetColor("_Color", occupiedBorderColor);
                         r.SetPropertyBlock(mpb);
                     }
                     else
                     {
-                        // 배치 모드가 아니거나 점유되지 않은 타일은 원본 메터리얼 색상으로 복구
+                        // 배치 모드가 아니거나 빈 타일은 원본으로 원복
                         r.SetPropertyBlock(null);
                     }
                 }
@@ -469,7 +509,13 @@ public class GridManager : MonoBehaviour
         if (canPlaceCurrent && !string.IsNullOrEmpty(selectedBuildingData.requireBlueprint))
         {
             var inventory = FindFirstObjectByType<PlayerInventory>();
-            if (inventory == null || inventory.GetItemAmount(selectedBuildingData.requireBlueprint) <= 0)
+            var warehouse = FindFirstObjectByType<WarehouseInventory>();
+
+            int totalBlueprintCount = 0;
+            if (inventory != null) totalBlueprintCount += inventory.GetItemAmount(selectedBuildingData.requireBlueprint);
+            if (warehouse != null) totalBlueprintCount += warehouse.GetItemAmount(selectedBuildingData.requireBlueprint);
+
+            if (totalBlueprintCount <= 0)
             {
                 canPlaceCurrent = false;
             }
@@ -736,19 +782,28 @@ public class GridManager : MonoBehaviour
         if (!string.IsNullOrEmpty(selectedBuildingData.requireBlueprint))
         {
             var inventory = FindFirstObjectByType<PlayerInventory>();
-            if (inventory != null)
+            var warehouse = FindFirstObjectByType<WarehouseInventory>();
+            string bpId = selectedBuildingData.requireBlueprint;
+
+            int invCount = inventory != null ? inventory.GetItemAmount(bpId) : 0;
+
+            if (invCount >= 1)
             {
-                inventory.RemoveItem(selectedBuildingData.requireBlueprint, 1);
-                ItemData bpItem = FindItemDataInProject(selectedBuildingData.requireBlueprint);
-                if (bpItem != null) sessionRemovedBlueprints.Add(bpItem);
+                inventory.RemoveItem(bpId, 1);
             }
+            else if (warehouse != null && warehouse.GetItemAmount(bpId) >= 1)
+            {
+                warehouse.RemoveItem(bpId, 1);
+            }
+
+            ItemData bpItem = FindItemDataInProject(bpId);
+            if (bpItem != null) sessionRemovedBlueprints.Add(bpItem);
         }
 
         ClearPreview();
         currentAvailableBuildings = GetAvailableBuildingsFromInventory();
         OnPlacementModeChanged?.Invoke(isPlacementMode, currentAvailableBuildings);
 
-        // 🌟 건물 배치 후 타일 점유 색상 갱신
         UpdateTileOccupiedVisuals();
 
         OnGridDataChanged?.Invoke();
@@ -920,7 +975,6 @@ public class GridManager : MonoBehaviour
         currentAvailableBuildings = GetAvailableBuildingsFromInventory();
         OnPlacementModeChanged?.Invoke(isPlacementMode, currentAvailableBuildings);
 
-        // 🌟 건물 선택 해제(프리뷰 전환) 후 타일 점유 색상 즉시 복구 갱신
         UpdateTileOccupiedVisuals();
 
         OnGridDataChanged?.Invoke();
@@ -1414,12 +1468,23 @@ public class GridManager : MonoBehaviour
     {
         List<BuildingData> filteredList = new List<BuildingData>();
         PlayerInventory inventory = FindFirstObjectByType<PlayerInventory>();
+        WarehouseInventory warehouse = FindFirstObjectByType<WarehouseInventory>();
 
         foreach (var bData in buildings)
         {
             if (bData == null) continue;
 
-            if (string.IsNullOrEmpty(bData.requireBlueprint) || (inventory != null && inventory.GetItemAmount(bData.requireBlueprint) > 0))
+            if (string.IsNullOrEmpty(bData.requireBlueprint))
+            {
+                filteredList.Add(bData);
+                continue;
+            }
+
+            int totalBlueprintCount = 0;
+            if (inventory != null) totalBlueprintCount += inventory.GetItemAmount(bData.requireBlueprint);
+            if (warehouse != null) totalBlueprintCount += warehouse.GetItemAmount(bData.requireBlueprint);
+
+            if (totalBlueprintCount > 0)
             {
                 filteredList.Add(bData);
             }
