@@ -6,6 +6,10 @@
 // - Mem2_Rig.fbx에 내장된 애니메이션 클립을 Animator Controller로 제어합니다.
 // - PlayXXX() 메서드가 Animator 파라미터를 설정합니다.
 // - 피격 플래시(PlayHit)는 Animator와 무관하게 머티리얼 색상으로 처리합니다.
+// - 악세서리(모자·안경 등)는 슬롯별 뼈에 자식으로 붙습니다.
+//   EquipAccessory / UnequipAccessory / ApplyAccessories 참고.
+//   컬러 프리팹(Mem_Rig_Blue 등) × 악세서리 조합으로 외형을 늘리는 구조라,
+//   조합마다 새 프리팹을 만들 필요가 없습니다.
 //
 // [Animator Controller 설정 안내]
 // Assets/Pikachu/Resource/Mem_AnimatorController 기준:
@@ -23,6 +27,8 @@
 // ============================================================================
 using UnityEngine;
 using System.Collections;
+using System.Collections.Generic;
+using MemSystem.Data;
 
 namespace MemSystem.Visual
 {
@@ -140,6 +146,29 @@ namespace MemSystem.Visual
         [SerializeField] private string mountBoneName = "LowerArm.L";
 
         // =================================================================
+        // 악세서리(Accessory) 설정
+        // =================================================================
+
+        /// <summary>
+        /// 악세서리 슬롯 → 부착 뼈 이름 매핑 오버라이드 1건.
+        /// 리그 뼈 이름이 바뀐 모델을 쓸 때만 채우면 되고, 비워두면 기본 매핑이 적용됩니다.
+        /// </summary>
+        [System.Serializable]
+        public class AccessoryBoneBinding
+        {
+            [Tooltip("매핑을 덮어쓸 슬롯")]
+            public MemAccessorySlot slot;
+
+            [Tooltip("이 슬롯을 붙일 뼈 이름")]
+            public string boneName;
+        }
+
+        [Header("악세서리 슬롯 → 뼈 매핑 (비워두면 기본값 사용)")]
+        [Tooltip("Mem_Rig 기본 매핑: Head/Face→Head, Body/Back→Spine, HandL→LowerArm.L, HandR→LowerArm.R\n" +
+                 "다른 뼈 이름을 쓰는 모델일 때만 여기에 항목을 추가해 덮어쓰세요.")]
+        [SerializeField] private AccessoryBoneBinding[] accessoryBoneOverrides;
+
+        // =================================================================
         // 현재 애니메이션 상태 (외부 참조용)
         // =================================================================
 
@@ -190,6 +219,18 @@ namespace MemSystem.Visual
         private Transform propMountPoint;
         private GameObject currentPropInstance;
 
+        /// <summary>슬롯별 부착 뼈 Transform. SetupModel에서 모델 1회 탐색 후 캐싱합니다.</summary>
+        private readonly Dictionary<MemAccessorySlot, Transform> accessoryMountPoints
+            = new Dictionary<MemAccessorySlot, Transform>();
+
+        /// <summary>슬롯별로 현재 장착된 악세서리 인스턴스.</summary>
+        private readonly Dictionary<MemAccessorySlot, GameObject> accessoryInstances
+            = new Dictionary<MemAccessorySlot, GameObject>();
+
+        /// <summary>슬롯별로 현재 장착된 악세서리의 원본 데이터 (색상 연출 포함 여부 판단용).</summary>
+        private readonly Dictionary<MemAccessorySlot, MemAccessoryData> accessoryData
+            = new Dictionary<MemAccessorySlot, MemAccessoryData>();
+
         // Animator 파라미터 해시 (성능 최적화: 문자열 → int 해시)
         private int hashAnimState;
         private int hashAttack;
@@ -219,12 +260,24 @@ namespace MemSystem.Visual
         public void SetupModel(GameObject modelPrefab)
         {
             // 기존 모델 제거
+            // (악세서리·도구는 모델의 뼈 자식이라 모델과 함께 파괴되므로, 참조만 비워둡니다)
             if (currentModel != null)
             {
                 Destroy(currentModel);
             }
 
-            if (modelPrefab == null) return;
+            accessoryInstances.Clear();
+            accessoryData.Clear();
+            accessoryMountPoints.Clear();
+            currentPropInstance = null;
+
+            if (modelPrefab == null)
+            {
+                currentModel = null;
+                modelRenderers = null;
+                originalColors = null;
+                return;
+            }
 
             // 새 모델 생성
             currentModel = Instantiate(modelPrefab, transform);
@@ -250,20 +303,73 @@ namespace MemSystem.Visual
                 Debug.LogWarning($"[MemVisual] 도구 장착점 '{mountBoneName}'을(를) 찾을 수 없습니다.");
             }
 
-            // 렌더러와 원래 색상 캐싱 (피격 플래시 용도)
-            modelRenderers = currentModel.GetComponentsInChildren<Renderer>();
+            // 악세서리 장착점(뼈)들을 미리 캐싱.
+            // 악세서리를 붙이기 "전"에 한 번만 탐색해야, 이름이 비슷한 악세서리 오브젝트를
+            // 뼈로 잘못 집는 일이 없습니다.
+            CacheAccessoryMountPoints();
 
-            if (modelRenderers != null && modelRenderers.Length > 0)
+            // 렌더러와 원래 색상 캐싱 (피격 플래시 용도)
+            RefreshRendererCache();
+        }
+
+        /// <summary>
+        /// 색상 연출(피격 플래시·포획 빛남)의 대상 렌더러와 원색을 다시 수집합니다.
+        /// 모델 교체 시, 그리고 악세서리 장착/해제 시마다 호출됩니다.
+        ///
+        /// 원색은 sharedMaterial에서 읽습니다.
+        /// (연출 도중 악세서리를 갈아끼워도 "플래시 중인 색"을 원색으로 잘못 저장하지 않기 위함)
+        /// </summary>
+        private void RefreshRendererCache()
+        {
+            if (currentModel == null)
             {
-                originalColors = new Color[modelRenderers.Length];
-                for (int i = 0; i < modelRenderers.Length; i++)
-                {
-                    if (modelRenderers[i].material.HasProperty("_Color"))
-                        originalColors[i] = modelRenderers[i].material.color;
-                    else
-                        originalColors[i] = Color.white;
-                }
+                modelRenderers = null;
+                originalColors = null;
+                return;
             }
+
+            List<Renderer> targets = new List<Renderer>();
+
+            foreach (Renderer r in currentModel.GetComponentsInChildren<Renderer>())
+            {
+                if (r == null) continue;
+                if (!IsRendererColorEffectTarget(r)) continue;
+                targets.Add(r);
+            }
+
+            modelRenderers = targets.ToArray();
+            originalColors = new Color[modelRenderers.Length];
+
+            for (int i = 0; i < modelRenderers.Length; i++)
+            {
+                Material shared = modelRenderers[i].sharedMaterial;
+                originalColors[i] = (shared != null && shared.HasProperty("_Color"))
+                    ? shared.color
+                    : Color.white;
+            }
+        }
+
+        /// <summary>
+        /// 이 렌더러가 색상 연출 대상인지 판정합니다.
+        /// includeInColorEffects가 꺼진 악세서리에 속한 렌더러는 제외됩니다.
+        /// </summary>
+        private bool IsRendererColorEffectTarget(Renderer r)
+        {
+            foreach (var pair in accessoryInstances)
+            {
+                GameObject instance = pair.Value;
+                if (instance == null) continue;
+
+                // 이 렌더러가 해당 악세서리 인스턴스 하위에 속하는지 확인
+                if (!r.transform.IsChildOf(instance.transform)) continue;
+
+                if (accessoryData.TryGetValue(pair.Key, out MemAccessoryData data) && data != null)
+                    return data.includeInColorEffects;
+
+                return true;
+            }
+
+            return true; // 악세서리가 아닌 본체 렌더러
         }
 
         /// <summary>
@@ -302,6 +408,9 @@ namespace MemSystem.Visual
 
             RestoreColors();
             UnequipProp();
+
+            // 악세서리 해제 — 풀에서 재사용될 때 이전 멤의 악세서리가 남지 않게 합니다.
+            ClearAccessories();
 
             // Animator를 Idle 상태로 리셋
             if (animator != null)
@@ -590,6 +699,229 @@ namespace MemSystem.Visual
             foreach (Transform child in root)
             {
                 Transform found = FindMountPoint(child, boneName);
+                if (found != null) return found;
+            }
+            return null;
+        }
+
+        // =================================================================
+        // 악세서리(Accessory) 제어
+        //
+        // [사용법]
+        //   // 멤 데이터에 지정된 기본 악세서리 일괄 장착 (Mem.Initialize에서 자동 호출)
+        //   visual.ApplyAccessories(memData.accessories);
+        //
+        //   // 런타임 개별 착탈 (코스튬 변경 등)
+        //   visual.EquipAccessory(hatData);
+        //   visual.UnequipAccessory(MemAccessorySlot.Head);
+        //   visual.ClearAccessories();
+        //
+        // [동작] 슬롯에 매핑된 "뼈"의 자식으로 붙으므로 애니메이션을 자동으로 따라갑니다.
+        //        도구 프랍(PlayChop 등)과는 별개로 관리되어 작업 중에도 유지됩니다.
+        // =================================================================
+
+        /// <summary>
+        /// 악세서리 목록을 일괄 적용합니다. 기존 악세서리는 모두 제거됩니다.
+        /// Mem.Initialize()에서 MemData.accessories를 넘겨 호출합니다.
+        /// </summary>
+        /// <param name="accessories">장착할 악세서리 목록 (null 또는 빈 배열이면 전부 해제만 수행)</param>
+        public void ApplyAccessories(IList<MemAccessoryData> accessories)
+        {
+            ClearAccessoriesInternal();
+
+            if (accessories != null)
+            {
+                for (int i = 0; i < accessories.Count; i++)
+                {
+                    EquipAccessoryInternal(accessories[i]);
+                }
+            }
+
+            RefreshRendererCache();
+        }
+
+        /// <summary>
+        /// 악세서리 하나를 장착합니다. 같은 슬롯에 이미 장착된 것이 있으면 교체됩니다.
+        /// </summary>
+        /// <param name="accessory">장착할 악세서리 데이터</param>
+        /// <returns>생성된 악세서리 인스턴스 (실패 시 null)</returns>
+        public GameObject EquipAccessory(MemAccessoryData accessory)
+        {
+            GameObject instance = EquipAccessoryInternal(accessory);
+            RefreshRendererCache();
+            return instance;
+        }
+
+        /// <summary>
+        /// 지정 슬롯의 악세서리를 해제합니다.
+        /// </summary>
+        public void UnequipAccessory(MemAccessorySlot slot)
+        {
+            if (UnequipAccessoryInternal(slot))
+                RefreshRendererCache();
+        }
+
+        /// <summary>
+        /// 장착된 모든 악세서리를 해제합니다. (풀 반환 시 자동 호출)
+        /// </summary>
+        public void ClearAccessories()
+        {
+            ClearAccessoriesInternal();
+            RefreshRendererCache();
+        }
+
+        /// <summary>
+        /// 지정 슬롯에 현재 장착된 악세서리 인스턴스를 반환합니다. 없으면 null.
+        /// 오프셋 실시간 조정(MemAccessoryTester) 등에 사용합니다.
+        /// </summary>
+        public GameObject GetAccessoryInstance(MemAccessorySlot slot)
+        {
+            accessoryInstances.TryGetValue(slot, out GameObject instance);
+            return instance;
+        }
+
+        // -----------------------------------------------------------------
+        // 악세서리 내부 구현 (RefreshRendererCache를 호출하지 않는 버전)
+        // 일괄 처리 시 렌더러 캐시를 여러 번 다시 만들지 않도록 분리했습니다.
+        // -----------------------------------------------------------------
+
+        private GameObject EquipAccessoryInternal(MemAccessoryData accessory)
+        {
+            if (accessory == null) return null;
+
+            if (accessory.prefab == null)
+            {
+                Debug.LogWarning($"[MemVisual] 악세서리 '{accessory.name}'에 prefab이 지정되지 않았습니다.");
+                return null;
+            }
+
+            // 같은 슬롯의 기존 악세서리 제거
+            UnequipAccessoryInternal(accessory.slot);
+
+            if (!accessoryMountPoints.TryGetValue(accessory.slot, out Transform mount) || mount == null)
+            {
+                Debug.LogWarning($"[MemVisual] 악세서리 '{accessory.name}'의 부착 뼈를 찾을 수 없습니다. " +
+                                 $"슬롯: {accessory.slot}, 기대 뼈 이름: '{ResolveBoneName(accessory.slot)}'");
+                return null;
+            }
+
+            GameObject instance = Instantiate(accessory.prefab, mount);
+            instance.transform.localPosition = accessory.positionOffset;
+            instance.transform.localRotation = Quaternion.Euler(accessory.rotationOffset);
+            instance.transform.localScale =
+                Vector3.Scale(accessory.prefab.transform.localScale, accessory.scaleMultiplier);
+
+            accessoryInstances[accessory.slot] = instance;
+            accessoryData[accessory.slot] = accessory;
+
+            return instance;
+        }
+
+        /// <returns>실제로 해제된 것이 있으면 true</returns>
+        private bool UnequipAccessoryInternal(MemAccessorySlot slot)
+        {
+            if (!accessoryInstances.TryGetValue(slot, out GameObject instance))
+                return false;
+
+            if (instance != null)
+            {
+                // Destroy는 프레임 끝에 처리되므로, 비활성화해서 같은 프레임의
+                // GetComponentsInChildren(기본: 비활성 제외) 결과에서 즉시 빠지게 합니다.
+                instance.SetActive(false);
+                Destroy(instance);
+            }
+
+            accessoryInstances.Remove(slot);
+            accessoryData.Remove(slot);
+            return true;
+        }
+
+        private void ClearAccessoriesInternal()
+        {
+            foreach (var pair in accessoryInstances)
+            {
+                if (pair.Value == null) continue;
+                pair.Value.SetActive(false);
+                Destroy(pair.Value);
+            }
+
+            accessoryInstances.Clear();
+            accessoryData.Clear();
+        }
+
+        /// <summary>
+        /// 현재 모델에서 슬롯별 부착 뼈를 찾아 캐싱합니다. SetupModel에서 1회 호출됩니다.
+        /// </summary>
+        private void CacheAccessoryMountPoints()
+        {
+            accessoryMountPoints.Clear();
+            if (currentModel == null) return;
+
+            foreach (MemAccessorySlot slot in System.Enum.GetValues(typeof(MemAccessorySlot)))
+            {
+                string boneName = ResolveBoneName(slot);
+                if (string.IsNullOrEmpty(boneName)) continue;
+
+                Transform bone = FindMountPoint(currentModel.transform, boneName);
+                if (bone != null)
+                    accessoryMountPoints[slot] = bone;
+            }
+        }
+
+        /// <summary>
+        /// 슬롯이 붙을 뼈 이름을 결정합니다.
+        /// Inspector의 accessoryBoneOverrides에 항목이 있으면 그것을, 없으면 기본 매핑을 씁니다.
+        /// </summary>
+        private string ResolveBoneName(MemAccessorySlot slot)
+        {
+            if (accessoryBoneOverrides != null)
+            {
+                foreach (var binding in accessoryBoneOverrides)
+                {
+                    if (binding != null && binding.slot == slot && !string.IsNullOrEmpty(binding.boneName))
+                        return binding.boneName;
+                }
+            }
+
+            return GetDefaultBoneName(slot);
+        }
+
+        /// <summary>
+        /// Mem_Rig.fbx 기준 슬롯별 기본 부착 뼈 이름.
+        ///
+        /// 뼈 구성:
+        /// Armature > Spine > Head / UpperArm.L·R > LowerArm.L·R / UpperLeg.L·R > LowerLeg.L·R
+        ///
+        /// 에디터 도구(MemAccessoryEditorWindow)도 이 매핑을 참조하므로,
+        /// 런타임과 편집기의 부착 위치가 항상 일치합니다.
+        /// </summary>
+        public static string GetDefaultBoneName(MemAccessorySlot slot)
+        {
+            return slot switch
+            {
+                MemAccessorySlot.Head  => "Head",
+                MemAccessorySlot.Face  => "Head",
+                MemAccessorySlot.Body  => "Spine",
+                MemAccessorySlot.Back  => "Spine",
+                MemAccessorySlot.HandL => "LowerArm.L",
+                MemAccessorySlot.HandR => "LowerArm.R",
+                _ => null
+            };
+        }
+
+        /// <summary>
+        /// 지정한 모델 루트에서 이름으로 뼈 Transform을 찾습니다.
+        /// 에디터 도구가 런타임과 동일한 탐색 규칙을 쓰도록 공개합니다.
+        /// </summary>
+        public static Transform FindBone(Transform modelRoot, string boneName)
+        {
+            if (modelRoot == null || string.IsNullOrEmpty(boneName)) return null;
+
+            if (modelRoot.name.Contains(boneName)) return modelRoot;
+
+            foreach (Transform child in modelRoot)
+            {
+                Transform found = FindBone(child, boneName);
                 if (found != null) return found;
             }
             return null;
