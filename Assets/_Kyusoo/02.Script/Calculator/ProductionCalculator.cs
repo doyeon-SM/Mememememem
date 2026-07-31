@@ -1,27 +1,42 @@
-using System.Collections.Generic;
+ï»¿using System.Collections.Generic;
 using UnityEngine;
 using MemSystem.Data;
 
 public static class ProductionCalculator
 {
     /// <summary>
-    /// ½Ã¼³ Á¾·ù¿¡ ¸ÅÄ¡µÇ´Â ¸âÀÇ »ı»ê ½ºÅÈ Á¾·ù ¸ÅÄªÇÔ¼ö
+    /// ì‹œì„¤ ì¢…ë¥˜ì— ë§¤ì¹˜ë˜ëŠ” ë©¤ì˜ ìƒì‚° ìŠ¤íƒ¯ ì¢…ë¥˜ ë§¤ì¹­í•¨ìˆ˜
     /// </summary>
     public static ProductionStatType GetRequiredStatType(BuildingType buildingType)
     {
-        return buildingType switch
+        switch (buildingType)
         {
-            BuildingType.Workshop => ProductionStatType.Crafting,
-            BuildingType.LoggingCamp => ProductionStatType.Logging,
-            BuildingType.MiningCamp => ProductionStatType.Mining,
-            BuildingType.Farm or BuildingType.Ranch => ProductionStatType.Farming,
-            BuildingType.TransportFacility or BuildingType.Generator => ProductionStatType.Transport,
-            _ => ProductionStatType.Crafting
-        };
+            case BuildingType.Workshop:
+            case BuildingType.CampFire: 
+            case BuildingType.Kitchen:  
+                return ProductionStatType.Crafting;
+
+            case BuildingType.LoggingCamp:
+                return ProductionStatType.Logging;
+
+            case BuildingType.MiningCamp:
+                return ProductionStatType.Mining;
+
+            case BuildingType.TransportFacility:
+            case BuildingType.Generator:
+                return ProductionStatType.Transport;
+
+            case BuildingType.Farm:
+            case BuildingType.Ranch:
+                return ProductionStatType.Farming;
+
+            default:
+                return ProductionStatType.Crafting;
+        }
     }
 
     /// <summary>
-    /// ½Ã¼³ ·¹º§¿¡ µû¸¥ ÃÖ´ë ¹èÄ¡ °¡´É ¸â ¼ıÀÚ °è»ê (1, 3, 5, 7, 9·¹º§¿¡¼­ È®Àå)
+    /// ì‹œì„¤ ë ˆë²¨ì— ë”°ë¥¸ ìµœëŒ€ ë°°ì¹˜ ê°€ëŠ¥ ë©¤ ìˆ«ì ê³„ì‚° (1, 3, 5, 7, 9ë ˆë²¨ì—ì„œ í™•ì¥)
     /// </summary>
     public static int GetMaxMemCount(int facilityLevel)
     {
@@ -30,8 +45,8 @@ public static class ProductionCalculator
     }
 
     /// <summary>
-    /// Æ¯Á¤ ½Ã¼³¿¡ ¸âÀ» ¹èÄ¡ÇÒ ¼ö ÀÖ´ÂÁö ÀÚ°İ °ËÁõÇÏ´Â ÇÔ¼ö
-    /// GetStat ¸Ş¼Òµå¸¦ È°¿ëÇÏ¿© ÃÖ¼Ò 1´Ü°èÀÌ»ó ¸ÅÄ¡µÇ´ÂÁö È®ÀÎ
+    /// íŠ¹ì • ì‹œì„¤ì— ë©¤ì„ ë°°ì¹˜í•  ìˆ˜ ìˆëŠ”ì§€ ìê²© ê²€ì¦í•˜ëŠ” í•¨ìˆ˜
+    /// GetStat ë©”ì†Œë“œë¥¼ í™œìš©í•˜ì—¬ ìµœì†Œ 1ë‹¨ê³„ì´ìƒ ë§¤ì¹˜ë˜ëŠ”ì§€ í™•ì¸
     /// </summary>
     public static bool CanDeployToFacility(MemData memData, BuildingType buildingType)
     {
@@ -43,9 +58,9 @@ public static class ProductionCalculator
     }
 
     /// <summary>
-    /// ¸â ¹èÄ¡¼ö, ¸â µî±ŞÀ» ±â¹İÀ¸·Î ÃÖÁ¾ »ı»ê ¼Ò¿ä ½Ã°£À» °è»êÇÏ´Â ¸¶½ºÅÍ °ø½Ä
-    /// ¸â ¹èÄ¡º° 2ÃÊ¾¿ °¨¼Ò(1¸¶¸® = 0ÃÊ, 5¸¶¸® = 10ÃÊ)
-    /// ¸â µî±Şº° 2ÃÊ¾¿ °¨¼Ò(Rare = 0ÃÊ, Mythic = 10ÃÊ)
+    /// ë©¤ ë°°ì¹˜ìˆ˜, ë©¤ ë“±ê¸‰ì„ ê¸°ë°˜ìœ¼ë¡œ ìµœì¢… ìƒì‚° ì†Œìš” ì‹œê°„ì„ ê³„ì‚°í•˜ëŠ” ë§ˆìŠ¤í„° ê³µì‹
+    /// ë©¤ ë°°ì¹˜ë³„ 2ì´ˆì”© ê°ì†Œ(1ë§ˆë¦¬ = 0ì´ˆ, 5ë§ˆë¦¬ = 10ì´ˆ)
+    /// ë©¤ ë“±ê¸‰ë³„ 2ì´ˆì”© ê°ì†Œ(Rare = 0ì´ˆ, Mythic = 10ì´ˆ)
     /// </summary>
     public static float CalculateFinalProductionTime(float baseItemTime, List<MemData> assignedMems)
     {

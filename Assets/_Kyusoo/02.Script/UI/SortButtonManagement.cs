@@ -29,7 +29,7 @@ public class SortButtonManagement : MonoBehaviour
         MemStorageUI_Sort[] activeSortComponents = Object.FindObjectsByType<MemStorageUI_Sort>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
         if (activeSortComponents == null || activeSortComponents.Length == 0)
         {
-            Debug.LogWarning("[SortButtonManagement] 활성화된 P_Sort(MemStorageUI_Sort)를 찾을 수 없습니다.");
+            Debug.LogWarning("[SortButtonManagement] 활성화된 P_Sort(MemStorageUI_Sort)가 없습니다.");
             return;
         }
 
@@ -154,8 +154,8 @@ public class SortButtonManagement : MonoBehaviour
             return GetKeywordByBuildingType(facilityRuntime.buildingData.buildingType);
         }
 
-        var expUI = facilityObject.GetComponentInParent<ExplorationPanelUI>();
-        if (expUI == null) expUI = facilityObject.GetComponentInChildren<ExplorationPanelUI>();
+        var expUI = facilityObject.GetComponentInParent<HDY.UI.ExplorationPanelUI>();
+        if (expUI == null) expUI = facilityObject.GetComponentInChildren<HDY.UI.ExplorationPanelUI>();
         if (expUI != null)
         {
             return "exp";
@@ -168,14 +168,27 @@ public class SortButtonManagement : MonoBehaviour
     {
         switch (type)
         {
-            case BuildingType.Workshop: return "craft";
-            case BuildingType.LoggingCamp: return "log";
-            case BuildingType.MiningCamp: return "mining";
-            case BuildingType.TransportFacility: return "trans";
-            case BuildingType.Generator: return "trans";
-            case BuildingType.Farm: return "farm";
-            case BuildingType.Ranch: return "farm";
-            default: return "farm";
+            case BuildingType.Workshop:
+            case BuildingType.CampFire: 
+            case BuildingType.Kitchen:  
+                return "craft";
+
+            case BuildingType.LoggingCamp:
+                return "log";
+
+            case BuildingType.MiningCamp:
+                return "mining";
+
+            case BuildingType.TransportFacility:
+            case BuildingType.Generator:
+                return "trans";
+
+            case BuildingType.Farm:
+            case BuildingType.Ranch:
+                return "farm";
+
+            default:
+                return "Error: Empty Type";
         }
     }
 }

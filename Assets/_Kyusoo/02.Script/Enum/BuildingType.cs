@@ -6,5 +6,7 @@ public enum BuildingType
     Farm = 3,              // 밭 
     Ranch = 4,             // 목장 
     TransportFacility = 5, // 운반시설 
-    Generator = 6          // 발전기
+    Generator = 6,         // 발전기
+    Kitchen = 7,           // 주방   
+    CampFire = 8,          // 모닥불 
 }
