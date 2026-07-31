@@ -37,8 +37,9 @@ public class GridManager : MonoBehaviour
     [SerializeField] private Color unbuildableColor = new Color(1f, 0f, 0f, 0.4f);
 
     [Header("점유 타일 테두리 설정 (인스펙터 조절 가능)")]
-    [SerializeField] private Color occupiedBorderColor = new Color(0.9f, 0.3f, 0.3f, 0.85f); // 🌟 점유 타일 테두리 색상
-    [SerializeField][Range(1, 10)] private int occupiedBorderWidth = 3; // 🌟 점유 타일 테두리 두께 (픽셀)
+    [SerializeField] private Material occupiedMaterialPrefab; 
+    [SerializeField] private Color occupiedBorderColor = new Color(0.95f, 0.65f, 0.2f, 0.85f); 
+    [SerializeField][Range(1, 16)] private int occupiedBorderWidth = 3; 
 
     private BuildingData selectedBuildingData;
     private GameObject currentPreviewInstance;
@@ -55,6 +56,11 @@ public class GridManager : MonoBehaviour
     private GameObject[,] buildingObjectsGrid;
     private BuildingData[,] buildingDataGrid;
 
+    // 점유 타일 전용 투명 테두리 오버레이 배열
+    private GameObject[,] occupiedOverlayGrid;
+    private Material occupiedOverlayMaterial;
+    private Texture2D[] cachedBorderTextures = new Texture2D[16]; // 🌟 상/하/좌/우 조합별 16가지 마스크 텍스처 캐시
+
     private int currentStartGridX;
     private int currentStartGridZ;
     private int currentTargetWidth;
@@ -65,8 +71,6 @@ public class GridManager : MonoBehaviour
 
     private Material placeModeMaterial;
     private bool isPlacementMode = false;
-
-    private Texture2D cachedOccupiedBorderTexture; // 🌟 테두리 전용 동적 텍스처 캐시
 
     private BuildRecordManager buildRecordManager;
 
@@ -375,23 +379,61 @@ public class GridManager : MonoBehaviour
 
         if (globalGridOverlay != null) globalGridOverlay.SetActive(isPlacementMode);
 
-        // 🌟 타일 테두리 하이라이트/복구
+        // 🌟 점유 타일 테두리 하이라이트/복구
         UpdateTileOccupiedVisuals();
 
         Debug.Log($"배치 모드 상태 변경: {isPlacementMode} | 배치 가능 건물 수: {currentAvailableBuildings.Count}개");
     }
 
-    /// <summary>
-    /// 중앙은 투명하고 외곽선만 존재하는 테두리 텍스처 생성
-    /// </summary>
-    private Texture2D GetOccupiedBorderTexture()
+    private Material GetOccupiedOverlayMaterial()
     {
-        if (cachedOccupiedBorderTexture == null)
+        if (occupiedOverlayMaterial == null)
         {
-            cachedOccupiedBorderTexture = new Texture2D(64, 64, TextureFormat.RGBA32, false)
+            if (occupiedMaterialPrefab != null)
+            {
+                occupiedOverlayMaterial = new Material(occupiedMaterialPrefab);
+            }
+            else
+            {
+                Shader shader = Shader.Find("Universal Render Pipeline/Unlit")
+                             ?? Shader.Find("Unlit/Transparent")
+                             ?? Shader.Find("Sprites/Default");
+
+                occupiedOverlayMaterial = new Material(shader);
+
+                if (shader.name.Contains("Universal Render Pipeline"))
+                {
+                    occupiedOverlayMaterial.SetFloat("_Surface", 1f); // Transparent
+                    occupiedOverlayMaterial.SetFloat("_Blend", 0f);   // Alpha
+                    occupiedOverlayMaterial.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                    occupiedOverlayMaterial.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                    occupiedOverlayMaterial.SetInt("_ZWrite", 0);
+                    occupiedOverlayMaterial.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+                    occupiedOverlayMaterial.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent + 150;
+                }
+            }
+        }
+        return occupiedOverlayMaterial;
+    }
+
+    /// <summary>
+    /// 🌟 상/하/좌/우 이웃 조건에 맞게 외곽 테두리선만 존재하는 텍스처를 생성합니다.
+    /// </summary>
+    private Texture2D GetBorderTexture(bool left, bool right, bool bottom, bool top)
+    {
+        int mask = (left ? 1 : 0) | (right ? 2 : 0) | (bottom ? 4 : 0) | (top ? 8 : 0);
+
+        if (cachedBorderTextures == null || cachedBorderTextures.Length != 16)
+        {
+            cachedBorderTextures = new Texture2D[16];
+        }
+
+        if (cachedBorderTextures[mask] == null)
+        {
+            Texture2D tex = new Texture2D(64, 64, TextureFormat.RGBA32, false)
             {
                 filterMode = FilterMode.Point,
-                wrapMode = TextureWrapMode.Repeat
+                wrapMode = TextureWrapMode.Clamp
             };
 
             Color whiteColor = Color.white;
@@ -403,48 +445,92 @@ public class GridManager : MonoBehaviour
             {
                 for (int x = 0; x < 64; x++)
                 {
-                    bool isBorder = (x < bw || x >= 64 - bw || y < bw || y >= 64 - bw);
-                    cachedOccupiedBorderTexture.SetPixel(x, y, isBorder ? whiteColor : transparentColor);
+                    bool isLeft = left && (x < bw);
+                    bool isRight = right && (x >= 64 - bw);
+                    bool isBottom = bottom && (y < bw);
+                    bool isTop = top && (y >= 64 - bw);
+
+                    bool isBorder = isLeft || isRight || isBottom || isTop;
+                    tex.SetPixel(x, y, isBorder ? whiteColor : transparentColor);
                 }
             }
-            cachedOccupiedBorderTexture.Apply();
+            tex.Apply();
+            cachedBorderTextures[mask] = tex;
         }
-        return cachedOccupiedBorderTexture;
+
+        return cachedBorderTextures[mask];
     }
 
     /// <summary>
-    /// 배치 모드일 때 점유된 타일의 테두리에만 인스펙터 지정 색상을 적용
+    /// 🌟 배치 모드일 때 시설의 내부 선은 없애고, 시설의 전체 외곽 테두리 선만 출력합니다.
     /// </summary>
     private void UpdateTileOccupiedVisuals()
     {
-        if (tileGrid == null) return;
+        if (currentWidth == 0 || currentHeight == 0) return;
 
-        MaterialPropertyBlock mpb = new MaterialPropertyBlock();
-        Texture2D borderTex = GetOccupiedBorderTexture();
+        if (occupiedOverlayGrid == null || occupiedOverlayGrid.GetLength(0) != currentWidth || occupiedOverlayGrid.GetLength(1) != currentHeight)
+        {
+            if (occupiedOverlayGrid != null)
+            {
+                foreach (var obj in occupiedOverlayGrid)
+                {
+                    if (obj != null) Destroy(obj);
+                }
+            }
+            occupiedOverlayGrid = new GameObject[currentWidth, currentHeight];
+        }
+
+        Material baseMat = GetOccupiedOverlayMaterial();
 
         for (int x = 0; x < currentWidth; x++)
         {
             for (int z = 0; z < currentHeight; z++)
             {
-                if (tileGrid[x, z] == null) continue;
+                bool shouldShow = isPlacementMode && occupiedCells[x, z];
 
-                var renderers = tileGrid[x, z].GetComponentsInChildren<MeshRenderer>();
-                foreach (var r in renderers)
+                if (shouldShow)
                 {
-                    if (r == null) continue;
+                    GameObject currentBuilding = buildingObjectsGrid[x, z];
 
-                    if (isPlacementMode && occupiedCells[x, z])
+                    // 🌟 이웃 타일이 동일 건물인지 검사하여 외곽 테두리 여부 판별
+                    bool borderLeft = (x == 0 || buildingObjectsGrid[x - 1, z] != currentBuilding);
+                    bool borderRight = (x == currentWidth - 1 || buildingObjectsGrid[x + 1, z] != currentBuilding);
+                    bool borderBottom = (z == 0 || buildingObjectsGrid[x, z - 1] != currentBuilding);
+                    bool borderTop = (z == currentHeight - 1 || buildingObjectsGrid[x, z + 1] != currentBuilding);
+
+                    Texture2D borderTex = GetBorderTexture(borderLeft, borderRight, borderBottom, borderTop);
+
+                    if (occupiedOverlayGrid[x, z] == null)
                     {
-                        mpb.SetTexture("_BaseMap", borderTex);
-                        mpb.SetTexture("_MainTex", borderTex);
-                        mpb.SetColor("_BaseColor", occupiedBorderColor);
-                        mpb.SetColor("_Color", occupiedBorderColor);
-                        r.SetPropertyBlock(mpb);
+                        GameObject quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
+                        quad.name = $"OccupiedOverlay_({x},{z})";
+                        if (quad.TryGetComponent<Collider>(out var col)) Destroy(col);
+
+                        quad.transform.SetParent(floorContainer != null ? floorContainer : transform);
+                        quad.transform.position = new Vector3(x + 0.5f, gridOverlayY + 0.003f, z + 0.5f);
+                        quad.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+
+                        MeshRenderer mr = quad.GetComponent<MeshRenderer>();
+                        mr.material = new Material(baseMat);
+
+                        occupiedOverlayGrid[x, z] = quad;
                     }
-                    else
+
+                    var renderer = occupiedOverlayGrid[x, z].GetComponent<MeshRenderer>();
+                    if (renderer != null && renderer.material != null)
                     {
-                        // 배치 모드가 아니거나 빈 타일은 원본으로 원복
-                        r.SetPropertyBlock(null);
+                        renderer.material.SetTexture("_BaseMap", borderTex);
+                        renderer.material.SetTexture("_MainTex", borderTex);
+                        renderer.material.SetColor("_BaseColor", occupiedBorderColor);
+                        renderer.material.SetColor("_Color", occupiedBorderColor);
+                    }
+                    occupiedOverlayGrid[x, z].SetActive(true);
+                }
+                else
+                {
+                    if (occupiedOverlayGrid[x, z] != null)
+                    {
+                        occupiedOverlayGrid[x, z].SetActive(false);
                     }
                 }
             }
@@ -1032,8 +1118,28 @@ public class GridManager : MonoBehaviour
     private void RotatePreview()
     {
         if (currentPreviewInstance == null) return;
-        float currentY = currentPreviewInstance.transform.eulerAngles.y;
-        float rotateY = (currentY > 45f) ? 0f : 90f;
+
+        float baseY = 0f;
+        if (selectedBuildingData != null && selectedBuildingData.buildingPrefab != null)
+        {
+            baseY = Mathf.Repeat(selectedBuildingData.buildingPrefab.transform.eulerAngles.y, 360f);
+        }
+
+        float targetAngle1 = baseY;
+        float targetAngle2 = Mathf.Repeat(baseY + 90f, 360f);
+
+        float currentY = Mathf.Repeat(currentPreviewInstance.transform.eulerAngles.y, 360f);
+
+        float rotateY;
+        if (Mathf.Abs(Mathf.DeltaAngle(currentY, targetAngle1)) < 1f)
+        {
+            rotateY = targetAngle2;
+        }
+        else
+        {
+            rotateY = targetAngle1;
+        }
+
         currentPreviewInstance.transform.rotation = Quaternion.Euler(0f, rotateY, 0f);
         UpdatePreviewPosition();
     }
@@ -1518,10 +1624,13 @@ public class GridManager : MonoBehaviour
     {
         if (gridOverlayY < innerPlaneY) gridOverlayY = innerPlaneY + 0.001f;
 
+        cachedBorderTextures = new Texture2D[16];
+
         if (Application.isPlaying)
         {
             UpdateInnerSurfacePlane();
             UpdateGlobalGridOverlay();
+            UpdateTileOccupiedVisuals();
         }
     }
 
