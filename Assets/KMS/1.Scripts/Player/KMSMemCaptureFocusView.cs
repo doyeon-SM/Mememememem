@@ -23,6 +23,8 @@ namespace KMS
         [Header("Layout")]
         [SerializeField] private Vector2 panelSize = new Vector2(230f, 72f);
         [SerializeField, Min(0f)] private float worldYOffset = 0.28f;
+        [SerializeField] private Vector2 diagonalScreenOffset = new Vector2(155f, 28f);
+        [SerializeField, Min(0f)] private float sideSwitchDeadZone = 100f;
         [SerializeField, Min(0f)] private float followSmoothTime = 0.055f;
         [SerializeField, Min(0f)] private float screenMargin = 8f;
         [SerializeField] private int sortingOrder = 1100;
@@ -38,6 +40,8 @@ namespace KMS
         private bool hasPosition;
         private Vector2 currentPosition;
         private Vector2 positionVelocity;
+        private bool hasPlacementSide;
+        private int placementSide = 1;
 
         private void Awake()
         {
@@ -82,9 +86,15 @@ namespace KMS
                 return;
             }
 
+            UpdatePlacementSide(screenPosition.x);
+            Vector2 diagonalPosition = localPosition + new Vector2(
+                Mathf.Abs(diagonalScreenOffset.x) * placementSide,
+                diagonalScreenOffset.y);
+            diagonalPosition = ClampPanelToCanvas(diagonalPosition);
+
             if (!hasPosition || followSmoothTime <= 0f)
             {
-                currentPosition = localPosition;
+                currentPosition = diagonalPosition;
                 positionVelocity = Vector2.zero;
                 hasPosition = true;
             }
@@ -92,7 +102,7 @@ namespace KMS
             {
                 currentPosition = Vector2.SmoothDamp(
                     currentPosition,
-                    localPosition,
+                    diagonalPosition,
                     ref positionVelocity,
                     followSmoothTime,
                     Mathf.Infinity,
@@ -148,6 +158,7 @@ namespace KMS
             targetRenderers = null;
             hasPosition = false;
             positionVelocity = Vector2.zero;
+            hasPlacementSide = false;
             SetPanelActive(false);
         }
 
@@ -162,6 +173,72 @@ namespace KMS
             targetRenderers = target != null ? target.GetComponentsInChildren<Renderer>(true) : null;
             hasPosition = false;
             positionVelocity = Vector2.zero;
+            hasPlacementSide = false;
+        }
+
+        private void UpdatePlacementSide(float anchorScreenX)
+        {
+            float screenCenterX = Screen.width * 0.5f;
+            float horizontalOffset = Mathf.Abs(diagonalScreenOffset.x);
+            float halfPanelWidth = panelSize.x * 0.5f;
+            float requiredRoom = horizontalOffset + halfPanelWidth + screenMargin;
+
+            // 화면 가장자리에서는 패널이 화면 안쪽을 향하도록 우선 배치합니다.
+            if (anchorScreenX + requiredRoom > Screen.width)
+            {
+                placementSide = -1;
+                hasPlacementSide = true;
+                return;
+            }
+
+            if (anchorScreenX - requiredRoom < 0f)
+            {
+                placementSide = 1;
+                hasPlacementSide = true;
+                return;
+            }
+
+            // 화면 중앙 부근에서 카메라가 조금 흔들릴 때 좌우가 계속 뒤집히지 않도록
+            // 데드존을 두고, 대상을 새로 잡았을 때는 여유 공간이 더 많은 쪽을 선택합니다.
+            if (!hasPlacementSide)
+            {
+                placementSide = anchorScreenX <= screenCenterX ? 1 : -1;
+                hasPlacementSide = true;
+                return;
+            }
+
+            if (placementSide > 0 && anchorScreenX > screenCenterX + sideSwitchDeadZone)
+            {
+                placementSide = -1;
+            }
+            else if (placementSide < 0 && anchorScreenX < screenCenterX - sideSwitchDeadZone)
+            {
+                placementSide = 1;
+            }
+        }
+
+        private Vector2 ClampPanelToCanvas(Vector2 position)
+        {
+            Rect canvasBounds = canvasRect.rect;
+            Rect panelBounds = panelRect.rect;
+            Vector2 pivot = panelRect.pivot;
+
+            float minX = canvasBounds.xMin + panelBounds.width * pivot.x + screenMargin;
+            float maxX = canvasBounds.xMax - panelBounds.width * (1f - pivot.x) - screenMargin;
+            float minY = canvasBounds.yMin + panelBounds.height * pivot.y + screenMargin;
+            float maxY = canvasBounds.yMax - panelBounds.height * (1f - pivot.y) - screenMargin;
+
+            if (minX <= maxX)
+            {
+                position.x = Mathf.Clamp(position.x, minX, maxX);
+            }
+
+            if (minY <= maxY)
+            {
+                position.y = Mathf.Clamp(position.y, minY, maxY);
+            }
+
+            return position;
         }
 
         private static string GetTierMarker(Mem mem)

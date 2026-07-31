@@ -27,6 +27,8 @@ namespace KMS
         private static readonly int LocomotionStateHash = Animator.StringToHash("Locomotion");
         private static readonly int ToolActionHash = Animator.StringToHash("ToolAction");
         private static readonly int ToolMotionTypeHash = Animator.StringToHash("ToolMotionType");
+        private static readonly int ToolActionPlaybackRateHash =
+            Animator.StringToHash("ToolActionPlaybackRate");
 
         private bool actionRequested;
         private bool actionStateActive;
@@ -55,10 +57,13 @@ namespace KMS
             CancelToolAction();
         }
 
-        public bool TryPlay(ItemData itemData)
+        public bool TryPlay(ItemData itemData, float actionDuration)
         {
             ToolMotionType motionType = ResolveMotionType(itemData);
-            if (motionType == ToolMotionType.None || animator == null || IsToolActionPlaying)
+            if (motionType == ToolMotionType.None
+                || animator == null
+                || IsToolActionPlaying
+                || actionDuration <= 0f)
             {
                 return false;
             }
@@ -74,6 +79,7 @@ namespace KMS
             requestTime = Time.unscaledTime;
 
             animator.ResetTrigger(ToolActionHash);
+            animator.SetFloat(ToolActionPlaybackRateHash, 1f / actionDuration);
             animator.SetInteger(ToolMotionTypeHash, (int)motionType);
             animator.SetTrigger(ToolActionHash);
             return true;

@@ -3127,9 +3127,9 @@ MonoBehaviour:
     m_Bits: 1049847
   harvestDistance: 10
   harvestRadius: 0.45
-  harvestCooldown: 0.35
-  toolUseCooldown: 0.5
   fallbackToolDamage: 1
+  baseToolUseCooldown: 1
+  minimumToolUseCooldown: 0.1
   memMeleeItemId: tool_shabby_club
   memMeleeDistance: 5
   memMeleeHungerCost: 1
@@ -3296,6 +3296,8 @@ MonoBehaviour:
   highRateColor: {r: 0.12, g: 0.65, b: 0.25, a: 1}
   panelSize: {x: 230, y: 72}
   worldYOffset: 0.28
+  diagonalScreenOffset: {x: 155, y: 28}
+  sideSwitchDeadZone: 100
   followSmoothTime: 0.055
   screenMargin: 8
   sortingOrder: 1100
