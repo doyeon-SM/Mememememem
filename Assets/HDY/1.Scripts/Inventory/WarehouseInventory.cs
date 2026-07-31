@@ -425,6 +425,16 @@ namespace HDY.Inventory
                         .ThenByDescending(s => s.amount)
                         .ToList();
 
+                // [HDY 요청 - 카테고리 우선순위 정렬] 특정 카테고리 몇 개만 앞으로 배치하고 나머지는
+                // 원래 카테고리 순서를 그대로 따르는 정렬 3종.
+                case ItemSortCriteria.ToolPriority:
+                case ItemSortCriteria.MaterialPriority:
+                case ItemSortCriteria.FoodPriority:
+                    return stacks
+                        .OrderBy(s => GetPriorityOrder(s.itemId, criteria))
+                        .ThenByDescending(s => s.amount)
+                        .ToList();
+
                 default:
                     return stacks;
             }
@@ -444,6 +454,70 @@ namespace HDY.Inventory
             var catalog = ResolveCatalogManager();
             var data = catalog != null ? catalog.FindItemData(itemId) : null;
             return data != null ? (int)data.Category : int.MaxValue;
+        }
+
+        /// <summary>
+        /// [HDY 요청 - 카테고리 우선순위 정렬] criteria에 맞는 카테고리 순위표로 itemId의 카테고리를
+        /// 매핑한다. 카탈로그에서 못 찾으면 가장 낮은 우선순위(맨 뒤)로 취급.
+        /// </summary>
+        private int GetPriorityOrder(string itemId, ItemSortCriteria criteria)
+        {
+            var catalog = ResolveCatalogManager();
+            var data = catalog != null ? catalog.FindItemData(itemId) : null;
+            if (data == null) return int.MaxValue;
+
+            switch (criteria)
+            {
+                case ItemSortCriteria.ToolPriority: return GetToolPriorityOrder(data.Category);
+                case ItemSortCriteria.MaterialPriority: return GetMaterialPriorityOrder(data.Category);
+                case ItemSortCriteria.FoodPriority: return GetFoodPriorityOrder(data.Category);
+                default: return int.MaxValue;
+            }
+        }
+
+        /// <summary>도구우선: 도구 -> 캡슐 -> 설계도 -> 이후 카테고리순(음식, 재료, 굿즈).</summary>
+        private static int GetToolPriorityOrder(ItemCategory category)
+        {
+            switch (category)
+            {
+                case ItemCategory.Tool: return 0;
+                case ItemCategory.Capsule: return 1;
+                case ItemCategory.BluePrint: return 2;
+                case ItemCategory.Food: return 3;
+                case ItemCategory.Material: return 4;
+                case ItemCategory.Goods: return 5;
+                default: return int.MaxValue;
+            }
+        }
+
+        /// <summary>재료우선: 굿즈 -> 재료 -> 이후 카테고리순(음식, 캡슐, 도구, 설계도).</summary>
+        private static int GetMaterialPriorityOrder(ItemCategory category)
+        {
+            switch (category)
+            {
+                case ItemCategory.Goods: return 0;
+                case ItemCategory.Material: return 1;
+                case ItemCategory.Food: return 2;
+                case ItemCategory.Capsule: return 3;
+                case ItemCategory.Tool: return 4;
+                case ItemCategory.BluePrint: return 5;
+                default: return int.MaxValue;
+            }
+        }
+
+        /// <summary>음식우선: 음식 -> 이후 카테고리순(재료, 굿즈, 캡슐, 도구, 설계도).</summary>
+        private static int GetFoodPriorityOrder(ItemCategory category)
+        {
+            switch (category)
+            {
+                case ItemCategory.Food: return 0;
+                case ItemCategory.Material: return 1;
+                case ItemCategory.Goods: return 2;
+                case ItemCategory.Capsule: return 3;
+                case ItemCategory.Tool: return 4;
+                case ItemCategory.BluePrint: return 5;
+                default: return int.MaxValue;
+            }
         }
 
         private int AddToExistingStacks(ItemData item, int amount)

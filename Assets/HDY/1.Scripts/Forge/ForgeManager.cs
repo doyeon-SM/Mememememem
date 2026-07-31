@@ -524,6 +524,32 @@ namespace HDY.Forge
         }
 
         /// <summary>
+        /// [HDY 요청 - 초반 지급 아이템 등 고정 연마 구성용] 무작위 판정 없이, 지정한 등급/종류/수치로
+        /// 연마칸을 정확히 1칸만 강제 구성한다. PlayerDefaultItemTest처럼 "항상 동일한 연마 상태"로
+        /// 도구를 지급하고 싶은 곳에서 사용한다(예: Rare/DamageIncrease/1로 초반 도구를 고정 구성).
+        /// 기존 연마칸(있었다면)은 전부 버려지고 이 1칸으로 교체된다.
+        /// 강화/승급과 동일하게 TryGetOrCreateInstance로 강화 개체를 얻고(없으면 새로 등록),
+        /// ApplyInstanceToSlot으로 합성 ID를 커밋한다. 대장간 대상이 아닌 아이템(예: 몽둥이)이면 false.
+        /// </summary>
+        public bool TryAssignFixedRefinement(ItemStack stack, CommonClass grade, string optionType, string displayName, float value)
+        {
+            if (!ValidateDependencies() || refinementConfig == null) return false;
+
+            if (!TryGetOrCreateInstance(stack, out var instance, out _))
+            {
+                return false;
+            }
+
+            instance.RefinementSlots = new ForgeRefinementSlotData[]
+            {
+                new ForgeRefinementSlotData(grade, optionType, displayName, value)
+            };
+
+            ApplyInstanceToSlot(stack, instance);
+            return true;
+        }
+
+        /// <summary>
         /// 강화 시스템과 동일한 인스턴스를 재사용하되, 연마 슬롯이 비어있으면 방어적으로 채워준다.
         ///
         /// [버그 수정] 이 stack이 아직 합성 ID가 아니었다면(일반 아이템), TryGetOrCreateInstance는 매번

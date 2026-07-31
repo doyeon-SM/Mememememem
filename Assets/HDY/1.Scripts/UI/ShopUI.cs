@@ -9,6 +9,7 @@ using HDY.Shop;
 using HDY.Upgrade;
 using HDY.Territory;
 using HDY.Inventory;
+using HDY.Cook;
 using KMS.InventoryDuped;
 
 namespace HDY.UI
@@ -83,6 +84,15 @@ namespace HDY.UI
     /// currentShop.Items를 직접 순회하지 않고 stockManager.GetShopItems(currentShop)을 사용한다 -
     /// ShopStockManager가 ItemIds를 카탈로그에서 resolve해 캐싱해둔 같은 인스턴스를 반환해줘야
     /// 재고 딕셔너리 조회(Dictionary&lt;ShopItemData,int&gt;)가 정상 동작하기 때문이다.
+    ///
+    /// [HDY 요청 - 식당 cook_recipebook 특수 처리] Item_ID가 "cook_recipebook"인 품목은 일반 아이템처럼
+    /// 창고/인벤토리에 지급하지 않는다. 대신 구매 수량만큼 CookRecipeUnlockManager.TryUnlockRandom을
+    /// 반복 호출해서 아직 해금되지 않은 요리 레시피를 무작위로(중복 없이) 해금하고, 해금된 레시피들을
+    /// recipeUnlockPopup 큐에 쌓아 순서대로 보여준다. 더 이상 해금할 레시피가 없으면 그 시점부터 남은
+    /// 수량만큼 골드를 즉시 환불하고("해금가능한 레시피가 없어 000원이 환불되었습니다" 안내를 큐 맨
+    /// 마지막에 추가), 팝업은 해금된 레시피들을 전부 보여준 뒤 환불 안내가 마지막에 나오는 순서로
+    /// 진행된다. 재료로 구매하도록 설정된 경우(HasMaterialCost)는 IMaterialInventory에 재료를 돌려주는
+    /// API가 없어 자동 환불을 지원하지 않는다 - 골드 전용 판매를 전제로 한다.
     /// </summary>
     public class ShopUI : MonoBehaviour
     {
@@ -96,6 +106,9 @@ namespace HDY.UI
 
         public static ShopUI Instance { get; private set; }
 
+        // [HDY 요청 - 식당 cook_recipebook 특수 처리] 이 Item_ID로 구매를 특수 분기한다.
+        private const string CookRecipeBookItemId = "cook_recipebook";
+
         [Header("데이터 참조")]
         [SerializeField] private TerritoryData territoryData;
         [Tooltip("IMaterialInventory를 구현한 컴포넌트. 비워두면 Awake에서 씬을 훑어 자동으로 찾는다(UpgradePopupUI와 동일한 방식).")]
@@ -108,6 +121,11 @@ namespace HDY.UI
         [SerializeField] private PlayerInventory playerInventory;
         [Tooltip("골드 가격/판매 대가를 표시할 때 쓰는 공용 골드 아이콘.")]
         [SerializeField] private Sprite goldIcon;
+
+        [Header("요리 레시피 해금 (식당의 cook_recipebook 전용, 비어있으면 자동 탐색)")]
+        [SerializeField] private CookRecipeUnlockManager cookRecipeUnlockManager;
+        [Tooltip("cook_recipebook 구매 시 해금/환불 안내를 보여줄 팝업. 상점 프리팹에 미리 배치되어 있어야 한다(직접 연결 필요).")]
+        [SerializeField] private CookRecipeUnlockPopupUI recipeUnlockPopup;
 
         [Header("팝업 루트 (상점 창 전체 - 평소에는 꺼져 있다가 Open()에서 켜짐)")]
         [SerializeField] private GameObject popupRoot;
@@ -173,6 +191,7 @@ namespace HDY.UI
 
             itemCatalogManager = ItemCatalogManager.Resolve(itemCatalogManager);
             stockManager = ShopStockManager.Resolve(stockManager);
+            cookRecipeUnlockManager = CookRecipeUnlockManager.Resolve(cookRecipeUnlockManager);
 
             if (warehouseInventory == null) warehouseInventory = FindFirstObjectByType<WarehouseInventory>();
             if (warehouseInventory == null) Debug.LogWarning("[ShopUI] warehouseInventory가 비어있습니다. 구매한 아이템이 창고를 거치지 않고 바로 인벤토리로 들어갑니다.", this);
@@ -181,6 +200,7 @@ namespace HDY.UI
             if (playerInventory == null) Debug.LogWarning("[ShopUI] playerInventory가 비어있습니다. 구매한 아이템을 지급할 수 없습니다.", this);
 
             if (transactionPopup == null) Debug.LogWarning("[ShopUI] transactionPopup이 비어있습니다. 슬롯을 클릭해도 팝업이 열리지 않습니다.", this);
+            if (recipeUnlockPopup == null) Debug.LogWarning("[ShopUI] recipeUnlockPopup이 비어있습니다. cook_recipebook 구매 시 해금/환불 안내가 표시되지 않습니다.", this);
 
             if (stockManager != null)
             {
@@ -486,7 +506,8 @@ namespace HDY.UI
 
         /// <summary>
         /// 실제 구매를 실행한다(팝업 확인 버튼의 콜백으로 호출됨). 구매 재고 확인 -> 결제 -> 재고 차감 ->
-        /// 인벤토리 지급 순서로 진행하고, 성공 여부를 반환해서 팝업이 닫힐지 결정하게 한다.
+        /// 지급(cook_recipebook이면 레시피 해금, 아니면 일반 인벤토리 지급) 순서로 진행하고, 성공 여부를
+        /// 반환해서 팝업이 닫힐지 결정하게 한다.
         /// </summary>
         private bool ExecuteBuy(ShopItemData itemData, int quantity)
         {
@@ -505,12 +526,92 @@ namespace HDY.UI
             }
 
             stockManager?.ConsumePurchaseStock(itemData, quantity);
-            GrantPurchasedItem(itemData, quantity);
+
+            // [HDY 요청 - 식당 cook_recipebook 특수 처리] 일반 아이템처럼 지급하지 않고, 구매 수량만큼
+            // 요리 레시피를 무작위로 해금한다(해금 실패분은 환불).
+            if (itemData.Item_ID == CookRecipeBookItemId)
+            {
+                HandleCookRecipeBookPurchase(itemData, quantity);
+            }
+            else
+            {
+                GrantPurchasedItem(itemData, quantity);
+            }
 
             Debug.Log($"[ShopUI] 구매 완료: {itemData.Item_ID} x{quantity}");
 
             RefreshBuyList();
             return true;
+        }
+
+        /// <summary>
+        /// [HDY 요청 - 식당 cook_recipebook 특수 처리] 구매 수량만큼 CookRecipeUnlockManager.TryUnlockRandom을
+        /// 반복 호출한다. 성공할 때마다 recipeUnlockPopup 큐에 해금된 레시피(아이콘+이름)를 쌓고, 더 이상
+        /// 해금할 레시피가 없으면 그 시점에서 멈추고 남은 수량만큼 환불 처리(RefundUnprocessedRecipeBooks)한다.
+        /// 마지막에 Present()를 호출해서 큐에 쌓인 항목을 순서대로(해금 -> 환불 안내 순) 보여준다.
+        /// </summary>
+        private void HandleCookRecipeBookPurchase(ShopItemData itemData, int quantity)
+        {
+            if (cookRecipeUnlockManager == null || itemCatalogManager == null)
+            {
+                Debug.LogWarning("[ShopUI] cookRecipeUnlockManager 또는 itemCatalogManager가 비어있어 cook_recipebook 구매를 처리하지 못했습니다.", this);
+                return;
+            }
+
+            int unlockedCount = 0;
+
+            for (int i = 0; i < quantity; i++)
+            {
+                if (!cookRecipeUnlockManager.TryUnlockRandom(out var recipe))
+                {
+                    break; // 해금 가능한 레시피가 더 이상 없음 - 나머지는 환불
+                }
+
+                unlockedCount++;
+
+                var recipeItemData = itemCatalogManager.FindItemData(recipe.Result_Item_ID);
+                var icon = recipeItemData != null ? recipeItemData.ItemIcon : null;
+                var name = recipeItemData != null ? recipeItemData.ItemName : recipe.Result_Item_ID;
+
+                recipeUnlockPopup?.EnqueueRecipeUnlocked(icon, name);
+            }
+
+            int remaining = quantity - unlockedCount;
+            if (remaining > 0)
+            {
+                RefundUnprocessedRecipeBooks(itemData, remaining);
+            }
+
+            if (recipeUnlockPopup != null)
+            {
+                recipeUnlockPopup.Present();
+            }
+        }
+
+        /// <summary>
+        /// [HDY 요청 - 해금할 레시피가 없을 때 환불] cook_recipebook 중 해금 처리되지 못한 나머지 수량만큼
+        /// 결제했던 비용을 돌려준다. 골드로 구매한 경우만 자동 환불을 지원한다 - 재료로 구매하도록
+        /// 설정되어 있으면(HasMaterialCost) IMaterialInventory에 재료를 돌려주는 API가 없어(HasEnough/
+        /// Consume/GetAmount만 존재) 자동 환불이 불가능하므로 경고만 남긴다(cook_recipebook은 골드
+        /// 전용 판매를 전제로 한다).
+        /// </summary>
+        private void RefundUnprocessedRecipeBooks(ShopItemData itemData, int remainingCount)
+        {
+            if (HasMaterialCost(itemData))
+            {
+                Debug.LogWarning($"[ShopUI] cook_recipebook이 재료로 구매되도록 설정되어 있어 {remainingCount}개 분량을 자동 환불하지 못했습니다(재료 환불 API 없음). 골드 전용 판매로 설정해주세요.", this);
+                return;
+            }
+
+            int unitGoldPrice = itemData.Purchase_Price_Golds;
+            int refundAmount = unitGoldPrice * remainingCount;
+
+            territoryData?.AddGold(refundAmount);
+
+            Debug.Log($"[ShopUI] cook_recipebook {remainingCount}개 분량 환불: {refundAmount}골드");
+
+            string refundMessage = $"해금가능한 레시피가 없어 {refundAmount}원이 환불되었습니다";
+            recipeUnlockPopup?.EnqueueRefundNotice(refundMessage);
         }
 
         /// <summary>

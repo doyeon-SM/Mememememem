@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
+using TMPro;
 using MemSystem.Data;
 using HDY.Capture;
 using HDY.Exploration;
@@ -62,7 +63,7 @@ namespace HDY.UI
     /// [자동 갱신 - 데이터 변경 이벤트 직접 구독] 이 그리드는 MemStorageUI(컨트롤러) 없이 여러 화면(멤창고,
     /// 제작대/생산시설의 "멤 배치용 창고 선택 그리드" 등)에 독립적으로 배치되어 재사용된다. 그래서 이 그리드가
     /// 아래 5개 이벤트를 전부 직접 구독한다(OnEnable/OnDisable):
-    /// - MemCaptureManager.OnCapturedMemsChanged (포획/스왑/정렬 등으로 목록 자체가 바뀔 때)
+    /// - MemCaptureManager.OnCapturedMemsChanged (포획/스왑/정렬/방출 등으로 목록 자체가 바뀔 때)
     /// - MemCaptureManager.OnStorageCapacityChanged (멤창고 업그레이드로 언락 페이지 수가 바뀔 때)
     /// - ProductionFacilityRuntime.OnMemDeploymentChanged (정적 이벤트 - 생산 시설에 멤이 배치/해제되어
     ///   entry.IsActive가 바뀔 때. _Kyusoo 쪽 코드라 목록 자체는 안 바뀌므로 위 두 이벤트로는 감지되지 않는다)
@@ -92,13 +93,19 @@ namespace HDY.UI
     /// ProductionFacilityRuntime/ProductionCraftRuntime/ExplorationRuntime의 정적 이벤트는 captureManager와
     /// 무관하게(각 클래스 자체의 정적 이벤트라 인스턴스 타이밍 문제가 없음) OnEnable에서 항상 구독한다.
     ///
-    /// [배치 해제 버튼] 활성화(IsActive)된 멤을 우클릭하면 releaseButton 하나를 그 슬롯의 아이콘 위치로 옮겨
-    /// 보여준다(슬롯마다 버튼을 두지 않고 하나를 재사용). 버튼을 클릭하면 OnReleaseRequested로 (entry, data)를
-    /// 올리고, 실제로 어느 시설에서 해제할지/IsActive를 어떻게 되돌릴지는 MemStorageUI(컨트롤러)가 처리한다.
-    /// MemStorageUI 없이 이 그리드만 단독으로 배치된 화면에서는 OnReleaseRequested를 구독하는 쪽이 없다면
-    /// 해제하기 버튼을 눌러도 아무 효과가 없다(버튼 자체는 감춰지지만 실제 배치 해제는 일어나지 않는다) -
-    /// 그런 화면에서는 별도로 OnReleaseRequested를 구독해 처리해줘야 한다.
-    /// 페이지 이동이나 다른 슬롯 좌클릭 시, 또는 해제 버튼 자체를 누른 뒤에는 버튼을 다시 숨긴다.
+    /// [배치 해제 / 방출 버튼 - HDY 요청] 슬롯을 우클릭하면 releaseButton 하나를 그 슬롯의 아이콘 위치로 옮겨
+    /// 보여준다(슬롯마다 버튼을 두지 않고 하나를 재사용). 채워진 칸일 때만 뜨고, 활성화(IsActive) 여부에 따라
+    /// 버튼의 동작과 텍스트(releaseButtonLabel)가 완전히 달라진다:
+    /// - 활성 멤(IsActive=true, 시설/탐험에 배치되어 근무 중): "해제하기" 표시. 누르면 OnReleaseRequested가
+    ///   발행되고, MemStorageUI가 그 시설에서 배치를 해제해 entry.IsActive만 false로 되돌린다(항목 자체는 창고에 그대로 남음).
+    /// - 비활성 멤(IsActive=false, 어디에도 배치되지 않음): "방출하기" 표시. 누르면 OnDiscardRequested가
+    ///   발행되고, MemStorageUI가 MemCaptureManager.TryDiscardEntry를 호출해 그 항목 자체를 창고에서
+    ///   완전히 삭제한다(빈 칸으로 되돌림). 재확인 절차 없이 즉시 처리된다.
+    /// 탐험 배치도 entry.IsActive를 true로 만들므로, 탐험 중인 멤은 항상 "해제하기" 쪽으로만 분류되어
+    /// 방출하기 버튼이 뜰 일이 없다 - 실수로 탐험 중인 멤이 방출되는 상황 자체가 애초에 생기지 않는다.
+    /// MemStorageUI 없이 이 그리드만 단독으로 배치된 화면에서는 두 이벤트를 구독하는 쪽이 없다면 버튼을 눌러도
+    /// 아무 효과가 없다(버튼 자체는 감춰지지만 실제 처리는 일어나지 않는다) - 그런 화면에서는 별도로 구독해 처리해줘야 한다.
+    /// 페이지 이동이나 다른 슬롯 좌클릭 시, 또는 버튼 자체를 누른 뒤에는 버튼을 다시 숨긴다.
     /// releaseButton 프리팹의 pivot은 좌상단(0, 1)으로 설정해야 "멤 아이콘 중앙 = 버튼의 왼쪽 위 모서리"로
     /// 배치된다(에디터에서 설정 필요, 코드에서는 위치만 아이콘 중앙으로 맞춘다).
     ///
@@ -118,6 +125,9 @@ namespace HDY.UI
         public const int PageSize = Columns * Rows;
         private const int MaxPageDots = 10;
 
+        private const string ReleaseButtonLabel_Release = "해제하기";
+        private const string ReleaseButtonLabel_Discard = "방출하기";
+
         [Header("그리드 (6x8 - 미리 배치된 슬롯의 부모)")]
         [SerializeField] private Transform gridParent;
 
@@ -130,8 +140,11 @@ namespace HDY.UI
         [SerializeField] private float dotNormalScale = 1f;
         [SerializeField] private float dotActiveScale = 1.4f;
 
-        [Header("배치 해제 버튼 (우클릭 시 활성 멤 위에 표시, 슬롯마다 두지 않고 하나를 재사용)")]
+        [Header("배치 해제/방출 버튼 (우클릭 시 채워진 슬롯 위에 표시, 슬롯마다 두지 않고 하나를 재사용)")]
         [SerializeField] private Button releaseButton;
+        [Tooltip("releaseButton의 라벨 텍스트. 활성 멤이면 \"해제하기\", 비활성 멤이면 \"방출하기\"로 바뀐다. " +
+                 "비워두면 releaseButton의 자식에서 자동으로 찾는다(그래도 없으면 텍스트만 못 바꾸고 기능은 그대로 동작).")]
+        [SerializeField] private TMP_Text releaseButtonLabel;
 
         [Header("데이터 참조 (이 그리드만 단독으로 사용할 때도 자동 갱신되도록 직접 구독)")]
         [Tooltip("비워두면 MemCaptureManager.Instance로 자동 보정한다. MemStorageUI(컨트롤러) 없이 이 그리드만 사용하는 화면에서도, 포획/스왑/정렬/업그레이드/시설 배치 등으로 데이터가 바뀌면 스스로 다시 그려지도록 여기서 직접 구독한다.")]
@@ -162,9 +175,13 @@ namespace HDY.UI
         // 드래그 시작 시점에 기억해두는 "지금 옮기는 항목"의 전체 목록 기준 인덱스. 드래그 중이 아니면 -1.
         private int draggingSourceGlobalIndex = -1;
 
-        // 해제하기 버튼이 현재 가리키고 있는 대상. 버튼이 꺼져있으면(눌리지 않은 상태) 둘 다 null.
+        // 해제/방출 버튼이 현재 가리키고 있는 대상. 버튼이 꺼져있으면(눌리지 않은 상태) 둘 다 null.
         private CapturedMemEntry pendingReleaseEntry;
         private MemData pendingReleaseData;
+
+        // [HDY 요청] 지금 띄운 버튼이 "해제하기"(false)인지 "방출하기"(true)인지 기억한다.
+        // HandleReleaseButtonClicked이 이 값을 보고 OnReleaseRequested/OnDiscardRequested 중 하나만 올린다.
+        private bool pendingReleaseIsDiscard;
 
         // 페이지 이동(이전/다음) 및 데이터 변경 이벤트로 인한 자동 갱신 시 다시 그리기 위해
         // 마지막으로 받은 데이터/콜백을 캐싱해둔다.
@@ -186,16 +203,31 @@ namespace HDY.UI
         public event Action<int, int> OnSwapRequested;
 
         /// <summary>
-        /// 해제하기 버튼이 클릭되어 배치 해제가 요청되었을 때 발생. MemStorageUI(컨트롤러)가 구독해서 실제로
-        /// 어느 시설(ProductionFacilityRuntime)에서 해제할지 찾아 처리한다.
+        /// "해제하기" 버튼이 클릭되어 배치 해제가 요청되었을 때 발생(활성 멤 전용). MemStorageUI(컨트롤러)가
+        /// 구독해서 실제로 어느 시설(ProductionFacilityRuntime 등)에서 해제할지 찾아 처리한다. 항목 자체는
+        /// 창고에 그대로 남고 entry.IsActive만 false로 되돌아간다.
         /// </summary>
         public event Action<CapturedMemEntry, MemData> OnReleaseRequested;
+
+        /// <summary>
+        /// [HDY 요청] "방출하기" 버튼이 클릭되어 창고에서 완전 삭제가 요청되었을 때 발생(비활성 멤 전용).
+        /// MemStorageUI(컨트롤러)가 구독해서 MemCaptureManager.TryDiscardEntry로 항목 자체를 창고에서 지운다.
+        /// 재확인 절차 없이 즉시 처리된다.
+        /// </summary>
+        public event Action<CapturedMemEntry, MemData> OnDiscardRequested;
 
         private void Awake()
         {
             if (gridParent == null) Debug.LogWarning("[MemStorageUI_Grid] gridParent가 비어있습니다. 미리 배치된 슬롯을 찾을 수 없습니다.", this);
             if (pageDotsParent == null) Debug.LogWarning("[MemStorageUI_Grid] pageDotsParent가 비어있습니다. 페이지 점이 표시되지 않습니다.", this);
-            if (releaseButton == null) Debug.LogWarning("[MemStorageUI_Grid] releaseButton이 비어있습니다. 배치 해제 버튼이 동작하지 않습니다.", this);
+            if (releaseButton == null) Debug.LogWarning("[MemStorageUI_Grid] releaseButton이 비어있습니다. 배치 해제/방출 버튼이 동작하지 않습니다.", this);
+
+            // [HDY 요청] releaseButtonLabel을 인스펙터에서 비워뒀다면 버튼 자식에서 한 번 자동으로 찾아본다.
+            // 그래도 못 찾으면 텍스트만 못 바꿀 뿐 기능(클릭 처리) 자체는 그대로 동작한다.
+            if (releaseButtonLabel == null && releaseButton != null)
+            {
+                releaseButtonLabel = releaseButton.GetComponentInChildren<TMP_Text>(true);
+            }
 
             EnsureCaptureManager();
             explorationRuntime = ExplorationRuntime.Resolve(explorationRuntime);
@@ -351,18 +383,18 @@ namespace HDY.UI
 
         private void HandleSlotClicked(CapturedMemEntry entry, MemData data)
         {
-            // 다른 슬롯을 좌클릭하면 열려있던 해제하기 버튼은 의미가 없으므로 감춘다.
+            // 다른 슬롯을 좌클릭하면 열려있던 해제/방출 버튼은 의미가 없으므로 감춘다.
             HideReleaseButton();
             OnSlotClicked?.Invoke(entry, data);
         }
 
         /// <summary>
-        /// 슬롯 우클릭 처리. 채워져 있고 활성화(IsActive)된 멤일 때만 해제하기 버튼을 그 슬롯의 아이콘
-        /// 위치에 띄운다. 빈 칸이거나 비활성 상태인 멤이면 버튼을 감춘다(해제할 대상이 아니므로).
+        /// 슬롯 우클릭 처리. 빈 칸이면 버튼을 감춘다. 채워져 있으면 IsActive 여부에 따라 버튼을
+        /// "해제하기"(활성) 또는 "방출하기"(비활성)로 라벨/모드를 바꿔서 그 슬롯의 아이콘 위치에 띄운다.
         /// </summary>
         private void HandleSlotRightClicked(MemSlotUI slot, CapturedMemEntry entry, MemData data)
         {
-            if (entry == null || entry.IsEmpty || !entry.IsActive)
+            if (entry == null || entry.IsEmpty)
             {
                 HideReleaseButton();
                 return;
@@ -370,6 +402,12 @@ namespace HDY.UI
 
             pendingReleaseEntry = entry;
             pendingReleaseData = data;
+            pendingReleaseIsDiscard = !entry.IsActive;
+
+            if (releaseButtonLabel != null)
+            {
+                releaseButtonLabel.text = pendingReleaseIsDiscard ? ReleaseButtonLabel_Discard : ReleaseButtonLabel_Release;
+            }
 
             PositionReleaseButtonAtSlot(slot);
 
@@ -377,7 +415,7 @@ namespace HDY.UI
         }
 
         /// <summary>
-        /// 해제하기 버튼을 우클릭된 슬롯의 아이콘 위치로 옮긴다. 버튼 프리팹의 pivot을 좌상단(0,1)으로
+        /// 해제/방출 버튼을 우클릭된 슬롯의 아이콘 위치로 옮긴다. 버튼 프리팹의 pivot을 좌상단(0,1)으로
         /// 설정해두면 "멤 아이콘 중앙 = 버튼의 왼쪽 위 모서리"가 되도록 배치된다(에디터 설정 필요).
         /// </summary>
         private void PositionReleaseButtonAtSlot(MemSlotUI slot)
@@ -393,22 +431,33 @@ namespace HDY.UI
             }
         }
 
-        /// <summary>확인(해제하기) 버튼 클릭 시 실제 해제 요청을 상위(MemStorageUI)로 올린다. 처리 결과와 무관하게 버튼은 숨긴다.</summary>
+        /// <summary>
+        /// 확인 버튼 클릭 시, 현재 모드(pendingReleaseIsDiscard)에 따라 OnReleaseRequested(해제) 또는
+        /// OnDiscardRequested(방출) 중 하나만 상위(MemStorageUI)로 올린다. 처리 결과와 무관하게 버튼은 숨긴다.
+        /// </summary>
         private void HandleReleaseButtonClicked()
         {
             if (pendingReleaseEntry != null)
             {
-                OnReleaseRequested?.Invoke(pendingReleaseEntry, pendingReleaseData);
+                if (pendingReleaseIsDiscard)
+                {
+                    OnDiscardRequested?.Invoke(pendingReleaseEntry, pendingReleaseData);
+                }
+                else
+                {
+                    OnReleaseRequested?.Invoke(pendingReleaseEntry, pendingReleaseData);
+                }
             }
 
             HideReleaseButton();
         }
 
-        /// <summary>해제하기 버튼을 감추고 기억해둔 대상을 정리한다.</summary>
+        /// <summary>해제/방출 버튼을 감추고 기억해둔 대상/모드를 정리한다.</summary>
         private void HideReleaseButton()
         {
             pendingReleaseEntry = null;
             pendingReleaseData = null;
+            pendingReleaseIsDiscard = false;
 
             if (releaseButton != null) releaseButton.gameObject.SetActive(false);
         }
@@ -529,7 +578,7 @@ namespace HDY.UI
             CollectSlots();
             CollectPageDots();
 
-            // 페이지/데이터가 다시 그려지면 이전에 우클릭해서 띄워둔 해제하기 버튼은 엉뚱한 슬롯을 가리키게 되므로 감춘다.
+            // 페이지/데이터가 다시 그려지면 이전에 우클릭해서 띄워둔 해제/방출 버튼은 엉뚱한 슬롯을 가리키게 되므로 감춘다.
             HideReleaseButton();
 
             cachedCapturedMems = capturedMems;
