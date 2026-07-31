@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 3381872}
   - component: {fileID: 2398714}
   - component: {fileID: 6400306}
+  - component: {fileID: 1350007}
   m_Layer: 0
   m_Name: DoubleRockShape_High
   m_TagString: Untagged
@@ -73,8 +74,8 @@ MeshFilter:
   m_PrefabInternal: {fileID: 100100000}
   m_GameObject: {fileID: 182630}
   m_Mesh: {fileID: 4300000, guid: aec763d38034de5449022359da899e72, type: 3}
---- !u!64 &6400306
-MeshCollider:
+--- !u!65 &6400306
+BoxCollider:
   m_ObjectHideFlags: 1
   m_PrefabParentObject: {fileID: 0}
   m_PrefabInternal: {fileID: 100100000}
@@ -82,11 +83,21 @@ MeshCollider:
   m_Material: {fileID: 0}
   m_IsTrigger: 0
   m_Enabled: 1
-  serializedVersion: 3
-  m_Convex: 1
-  m_CookingOptions: 14
-  m_SkinWidth: 0.01
-  m_Mesh: {fileID: 4300000, guid: aec763d38034de5449022359da899e72, type: 3}
+  serializedVersion: 2
+  m_Size: {x: 6.3, y: 6.2, z: 5.7}
+  m_Center: {x: -1.7626, y: 2.7056, z: -4.3215}
+--- !u!65 &1350007
+BoxCollider:
+  m_ObjectHideFlags: 1
+  m_PrefabParentObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 100100000}
+  m_GameObject: {fileID: 182630}
+  m_Material: {fileID: 0}
+  m_IsTrigger: 0
+  m_Enabled: 1
+  serializedVersion: 2
+  m_Size: {x: 5.2, y: 4.6, z: 6.2}
+  m_Center: {x: 3.2264, y: 3.2377, z: 3.0459}
 --- !u!1001 &100100000
 Prefab:
   m_ObjectHideFlags: 1

@@ -104,8 +104,8 @@ LODGroup:
     fadeTransitionWidth: 0
     renderers: []
   m_Enabled: 1
---- !u!64 &-4958285721076297474
-MeshCollider:
+--- !u!136 &-4958285721076297474
+CapsuleCollider:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
@@ -122,7 +122,8 @@ MeshCollider:
   m_IsTrigger: 0
   m_ProvidesContacts: 0
   m_Enabled: 1
-  serializedVersion: 5
-  m_Convex: 0
-  m_CookingOptions: 30
-  m_Mesh: {fileID: 252867490239800779, guid: 1e3d43f0602674f44a37a5659ae62729, type: 3}
+  serializedVersion: 2
+  m_Radius: 1.05
+  m_Height: 5.25
+  m_Direction: 1
+  m_Center: {x: 0, y: 0, z: 0}

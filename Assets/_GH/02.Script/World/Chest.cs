@@ -16,6 +16,9 @@ public class Chest : MonoBehaviour, KMS.IInteractable
     [Tooltip("현재는 다중 드랍으로 구조 작성")][SerializeField] private ChestItem[] dropItem;
     [Tooltip("False일 경우 0번 인덱스만 드랍")][SerializeField] private bool isOverlap;
 
+    [Header("Presentation")]
+    [SerializeField] private GHChestPresentation presentation;
+
     [Header("World Item Drop Spawn")]
     [SerializeField] private Transform dropSpawnPoint;
     [SerializeField] private LayerMask groundLayer = ~0;
@@ -43,6 +46,8 @@ public class Chest : MonoBehaviour, KMS.IInteractable
     [Min(0f)] [SerializeField] private float autoReturnToPoolSeconds = 10f;
 
     private bool isOpened;
+    private bool isDropSpawnComplete;
+    private int pendingDropLandings;
 
     /// <summary>정보 UI에 표시할 상자 이름입니다.</summary>
     public string DisplayName => string.IsNullOrWhiteSpace(displayName) ? gameObject.name : displayName;
@@ -53,6 +58,11 @@ public class Chest : MonoBehaviour, KMS.IInteractable
 
     private void Awake()
     {
+        if (presentation == null)
+        {
+            presentation = GetComponent<GHChestPresentation>();
+        }
+
         WorldDropPool.Prewarm(poolPrewarmCount);
     }
 
@@ -97,9 +107,25 @@ public class Chest : MonoBehaviour, KMS.IInteractable
     {
         isOpened = true;
 
+        if (presentation != null
+            && presentation.PlayOpenSequence(SpawnDropItemsAndNotify))
+        {
+            return;
+        }
+
+        SpawnDropItemsAndNotify();
+    }
+
+    private void SpawnDropItemsAndNotify()
+    {
+        pendingDropLandings = 0;
+        isDropSpawnComplete = false;
+
         if (dropItem == null || dropItem.Length == 0)
         {
-            CompleteOpen();
+            NotifyOpened();
+            isDropSpawnComplete = true;
+            TryFinishAfterDropLandings();
             return;
         }
 
@@ -130,9 +156,13 @@ public class Chest : MonoBehaviour, KMS.IInteractable
             amountsByItemId[normalizedItemId] = currentAmount + count;
         }
 
+        WorldItemDropLaunchSettings launchSettings = presentation != null
+            ? presentation.CreateDropLaunchSettings()
+            : default;
+
         foreach (KeyValuePair<string, int> drop in amountsByItemId)
         {
-            WorldItemDropSpawner.SpawnStack(
+            int spawnedAmount = WorldItemDropSpawner.SpawnIndividualItems(
                 drop.Key,
                 drop.Value,
                 transform,
@@ -146,17 +176,39 @@ public class Chest : MonoBehaviour, KMS.IInteractable
                 dropClearanceHeight,
                 maxGroundSlope,
                 autoReturnToPoolSeconds,
-                chestColliders);
+                chestColliders,
+                launchSettings,
+                OnDropLanded);
+
+            if (spawnedAmount > 0 && launchSettings.enabled)
+            {
+                pendingDropLandings += spawnedAmount;
+            }
         }
 
-        CompleteOpen();
+        NotifyOpened();
+        isDropSpawnComplete = true;
+        TryFinishAfterDropLandings();
     }
 
-    private void CompleteOpen()
+    private void NotifyOpened()
     {
         OpenChest?.Invoke();
         OpenChestId?.Invoke(chestId);
-        Destroy(gameObject);
+    }
+
+    private void OnDropLanded()
+    {
+        pendingDropLandings = Mathf.Max(0, pendingDropLandings - 1);
+        TryFinishAfterDropLandings();
+    }
+
+    private void TryFinishAfterDropLandings()
+    {
+        if (isDropSpawnComplete && pendingDropLandings == 0)
+        {
+            Destroy(gameObject);
+        }
     }
 
 #if UNITY_EDITOR

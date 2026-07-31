@@ -10,7 +10,6 @@ GameObject:
   m_Component:
   - component: {fileID: 8336609518723523873}
   - component: {fileID: 2784617436911970599}
-  - component: {fileID: 6880000000000000002}
   m_Layer: 0
   m_Name: WayPointStone
   m_TagString: Untagged
@@ -61,9 +60,10 @@ MonoBehaviour:
   isUnlocked: 0
   unlockedVisualObject: {fileID: 5639438237192359835}
   enableAreaNotification: 1
-  areaNotificationBoxTrigger: {fileID: 6880000000000000002}
+  areaNotificationLayerName: Area
   areaNotificationCenter: {x: 0, y: 0, z: 0}
   areaNotificationSize: {x: 0, y: 0, z: 0}
+  areaNotificationBoxTrigger: {fileID: 0}
   areaNotificationTrigger: {fileID: 0}
   areaNotificationRadius: 30
   areaNotificationText: {fileID: 0}
@@ -76,27 +76,6 @@ MonoBehaviour:
   showAreaNotificationGizmoOnlyWhenSelected: 1
   areaNotificationGizmoColor: {r: 0.2, g: 0.8, b: 1, a: 0.35}
   interactionPrompt: "\uC6E8\uC774\uD3EC\uC778\uD2B8 \uC9C0\uB3C4 \uC5F4\uAE30"
---- !u!65 &6880000000000000002
-BoxCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3739936227618631845}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 1
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Size: {x: 60, y: 60, z: 60}
-  m_Center: {x: 0, y: 0, z: 0}
 --- !u!1 &3805869655428665757
 GameObject:
   m_ObjectHideFlags: 0
@@ -5404,8 +5383,8 @@ GameObject:
   - component: {fileID: 3091529913205340530}
   - component: {fileID: 1224552974030728775}
   - component: {fileID: 3591717087956052553}
-  - component: {fileID: 769217125033165858}
   - component: {fileID: 2821984568109810381}
+  - component: {fileID: 2917923774724516987}
   m_Layer: 0
   m_Name: WayPointObj
   m_TagString: Untagged
@@ -5486,28 +5465,6 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!64 &769217125033165858
-MeshCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8407861039231051977}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 5
-  m_Convex: 0
-  m_CookingOptions: 30
-  m_Mesh: {fileID: -1138965167089476267, guid: ba0f9b3d54f9cba4492f05a160a3dda8, type: 3}
 --- !u!114 &2821984568109810381
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5524,3 +5481,24 @@ MonoBehaviour:
   targetRenderer: {fileID: 3591717087956052553}
   unlockedMaterial: {fileID: 2100000, guid: 202e92fb03ddd84488fbe270766bc80e, type: 2}
   interactionPrompt: "\uC6E8\uC774\uD3EC\uC778\uD2B8 \uB4F1\uB85D"
+--- !u!65 &2917923774724516987
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8407861039231051977}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 0.7601471, y: 1.9346335, z: 0.54396176}
+  m_Center: {x: 0, y: 0.000000029802322, z: -0.000000014901161}

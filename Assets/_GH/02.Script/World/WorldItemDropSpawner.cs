@@ -1,4 +1,5 @@
 using UnityEngine;
+using Action = System.Action;
 
 /// <summary>
 /// 월드 오브젝트와 상자가 같은 규칙으로 월드 아이템을 배치하도록 공통 드롭 생성을 담당합니다.
@@ -10,6 +11,64 @@ public static class WorldItemDropSpawner
     private const int MaxClearanceHits = 32;
 
     private static readonly Collider[] ClearanceHits = new Collider[MaxClearanceHits];
+
+    /// <summary>
+    /// 수량을 하나의 스택으로 합치지 않고 amount만큼 수량 1의 월드 아이템을 각각 생성합니다.
+    /// 각 아이템은 Drop Area 안에서 독립적으로 착지 지점을 찾고 동일한 발사 모션을 사용합니다.
+    /// </summary>
+    /// <returns>실제로 생성된 개별 월드 아이템 오브젝트 수입니다.</returns>
+    public static int SpawnIndividualItems(
+        string itemId,
+        int amount,
+        Transform owner,
+        Transform dropPoint,
+        Vector3 dropAreaOffset,
+        Vector2 dropAreaSize,
+        LayerMask groundLayer,
+        float spawnHeight,
+        int positionAttempts,
+        float clearanceRadius,
+        float clearanceHeight,
+        float maxGroundSlope,
+        float autoReturnToPoolSeconds,
+        Collider[] ignoredColliders = null,
+        WorldItemDropLaunchSettings launchSettings = default,
+        Action onEachLaunchCompleted = null)
+    {
+        if (string.IsNullOrWhiteSpace(itemId) || amount <= 0)
+        {
+            return 0;
+        }
+
+        int spawnedObjectCount = 0;
+        for (int i = 0; i < amount; i++)
+        {
+            int spawnedAmount = SpawnStack(
+                itemId,
+                1,
+                owner,
+                dropPoint,
+                dropAreaOffset,
+                dropAreaSize,
+                groundLayer,
+                spawnHeight,
+                positionAttempts,
+                clearanceRadius,
+                clearanceHeight,
+                maxGroundSlope,
+                autoReturnToPoolSeconds,
+                ignoredColliders,
+                launchSettings,
+                onEachLaunchCompleted);
+
+            if (spawnedAmount > 0)
+            {
+                spawnedObjectCount++;
+            }
+        }
+
+        return spawnedObjectCount;
+    }
 
     /// <summary>
     /// 한 아이템 종류의 전체 수량을 하나의 월드 아이템 스택으로 생성합니다.
@@ -29,7 +88,9 @@ public static class WorldItemDropSpawner
         float clearanceHeight,
         float maxGroundSlope,
         float autoReturnToPoolSeconds,
-        Collider[] ignoredColliders = null)
+        Collider[] ignoredColliders = null,
+        WorldItemDropLaunchSettings launchSettings = default,
+        Action onLaunchCompleted = null)
     {
         if (string.IsNullOrWhiteSpace(itemId) || amount <= 0)
         {
@@ -63,6 +124,27 @@ public static class WorldItemDropSpawner
             spawnPosition,
             rotation,
             autoReturnToPoolSeconds);
+
+        if (spawnedObject != null && launchSettings.enabled)
+        {
+            Vector2 jitter = Random.insideUnitCircle * Mathf.Max(0f, launchSettings.startJitterRadius);
+            Vector3 right = owner != null ? owner.right : Vector3.right;
+            Vector3 forward = owner != null ? owner.forward : Vector3.forward;
+            Vector3 launchPosition = launchSettings.startPosition + right * jitter.x + forward * jitter.y;
+            WorldItemDropMotion motion = spawnedObject.GetComponent<WorldItemDropMotion>();
+            if (motion == null)
+            {
+                motion = spawnedObject.AddComponent<WorldItemDropMotion>();
+            }
+
+            motion.Begin(
+                launchPosition,
+                spawnPosition,
+                launchSettings.duration,
+                launchSettings.arcHeight,
+                launchSettings.spinSpeed,
+                onLaunchCompleted);
+        }
 
         return spawnedObject != null ? amount : 0;
     }
