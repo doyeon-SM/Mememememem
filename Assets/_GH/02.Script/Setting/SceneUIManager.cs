@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Reflection;
 using KMS.InventoryDuped;
 using UnityEngine;
 
@@ -9,6 +10,25 @@ using UnityEngine.InputSystem;
 /// <summary>
 /// 현재 씬의 설정 UI와 등록된 일반 패널 UI를 관리합니다.
 /// 씬 사이에서 유지되지 않지만 Instance를 통해 직접 참조 없이 접근할 수 있습니다.
+///
+/// [HDY 요청 - PanelManager 소유 패널 복구 훅] _Kyusoo의 PanelManager가 관리하는 시설 패널
+/// (craftingPanel/productionPanel/ranchPanel/foodWarehousePanel/exploreMapPanel/UIPanel) 중 일부는
+/// 이 매니저의 managedUIObjects 리스트에도 등록되어 있어서(예: Canvas_Map/UI_Map_Panel), ESC를 누르면
+/// PanelManager의 자체 Update() ESC 핸들러가 실행되기도 전에 이 매니저가 먼저 닫아버릴 수 있다. 이 경로로
+/// 닫히면 PanelManager.CloseAllPanels()를 거치지 않으므로, PanelManager가 패널을 열 때 숨겨둔
+/// placeButtonGroup(P_TerritoryObjectButton)이 복구되지 않는 문제가 있었다. PanelManager.cs는 크로스팀
+/// 코드라 직접 수정하지 않고, 대신 CloseSingleManagedUI에서 닫으려는 대상이 PanelManager가 들고 있는
+/// 패널 중 하나(또는 그 하위 계층)인지 리플렉션으로 확인해서, 맞다면 기존 닫기 동작에 추가로
+/// PanelManager.CloseAllPanels()를 한 번 더 호출해 버튼 복구를 보장한다(NotifyPanelManagerIfOwned 참고).
+///
+/// [HDY 요청 - P_Placement는 더 이상 여기서 관리하지 않음] 예전에는 P_Placement를 managedUIObjects에
+/// 등록하고, 닫을 때 GridManager.ChangePlacementMode()를 호출하도록 특수 처리(TryClosePlacementMode)를
+/// 했었다. 하지만 실제로는 PlacementUI.HandlePlacementModeChanged가 P_Placement의 "자식들"
+/// (PlacementPanel/Button/KeyGuide)만 토글할 뿐 P_Placement 루트 자체는 코드 어디에서도 SetActive(true)로
+/// 켜주지 않는다는 게 확인되어(=P_Placement 루트를 "열고 닫을 수 있는 패널"로 취급한 것 자체가 잘못된
+/// 전제), P_Placement는 managedUIObjects에서 완전히 제거하고 항상 활성 상태로 두기로 했다(빈 컨테이너라
+/// 자식이 전부 꺼져 있으면 어차피 아무것도 안 보인다). 배치 모드 취소는 PanelManager.Update()가
+/// GridManager.CancelPlacement()로 이미 독립적으로, 정상적으로 처리하고 있다.
 /// </summary>
 [DefaultExecutionOrder(-1000)]
 [DisallowMultipleComponent]
@@ -71,6 +91,9 @@ public sealed class SceneUIManager : MonoBehaviour
         new List<KmsPlayerInputState>();
     private readonly List<KMS.PlayerCameraController> settingsKmsCameraControllers =
         new List<KMS.PlayerCameraController>();
+
+    /// <summary>_Kyusoo PanelManager의 시설 패널 필드들(리플렉션 캐시). NotifyPanelManagerIfOwned에서 사용.</summary>
+    private static FieldInfo[] panelManagerPanelFields;
 
     private sealed class KmsPlayerInputState
     {
@@ -749,6 +772,66 @@ public sealed class SceneUIManager : MonoBehaviour
         {
             target.SetActive(false);
         }
+
+        NotifyPanelManagerIfOwned(target);
+    }
+
+    /// <summary>
+    /// [HDY 요청] target이 _Kyusoo PanelManager가 들고 있는 시설 패널(또는 그 하위 계층)이라면,
+    /// 위에서 어떤 방식으로 닫혔든(WayPointMap 위임/일반 SetActive 등) 상관없이 추가로
+    /// PanelManager.CloseAllPanels()를 호출해 placeButtonGroup(P_TerritoryObjectButton) 등 공통 버튼
+    /// 상태를 복구한다. PanelManager.cs는 크로스팀 코드라 직접 수정하지 않고 리플렉션으로 우회한다.
+    /// PanelManager.CloseAllPanels()가 내부에서 다시 UIManager.Instance.CloseCurrent()를 호출하지만,
+    /// 이미 확인했듯 최대 1단 재귀로 끝나 무한 재귀로 이어지지 않는다.
+    /// </summary>
+    private static void NotifyPanelManagerIfOwned(GameObject target)
+    {
+        if (IsOwnedByPanelManager(target))
+        {
+            PanelManager.Instance?.CloseAllPanels();
+        }
+    }
+
+    private static bool IsOwnedByPanelManager(GameObject target)
+    {
+        PanelManager panelManager = PanelManager.Instance;
+        if (panelManager == null || target == null)
+        {
+            return false;
+        }
+
+        if (panelManagerPanelFields == null)
+        {
+            string[] fieldNames =
+            {
+                "craftingPanel", "productionPanel", "ranchPanel",
+                "foodWarehousePanel", "exploreMapPanel", "UIPanel"
+            };
+
+            var fields = new List<FieldInfo>();
+            foreach (var fieldName in fieldNames)
+            {
+                FieldInfo field = typeof(PanelManager).GetField(
+                    fieldName, BindingFlags.NonPublic | BindingFlags.Instance);
+                if (field != null)
+                {
+                    fields.Add(field);
+                }
+            }
+
+            panelManagerPanelFields = fields.ToArray();
+        }
+
+        for (int i = 0; i < panelManagerPanelFields.Length; i++)
+        {
+            GameObject panelObject = panelManagerPanelFields[i].GetValue(panelManager) as GameObject;
+            if (panelObject != null && AreInSameHierarchy(target, panelObject))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private bool TryResolveManagedUI(GameObject target, out GameObject managedTarget)

@@ -36,6 +36,8 @@ namespace HDY.UI
     /// 멤 창고 그리드의 슬롯 한 칸.
     /// 아이콘(Sprite)은 MemIconRenderer가 MemData.modelPrefab을 촬영해서 만든 결과를 memId로 조회해서 채운다
     /// (MemIconRenderer가 없거나 아이콘을 만들 수 없으면 감춘다).
+    /// [HDY 요청 - 해상도 분리] 창고 그리드 슬롯은 작게 여러 칸이 나열되므로 64px 아이콘(GetIcon64)을 쓴다.
+    /// 도감 슬롯(MemDexSlotUI)은 128px, 상세정보 패널(MemStorageUI_Info)은 512px을 쓰는 것과 구분된다.
     /// ActiveImage: 이 멤이 활성화(CapturedMemEntry.IsActive) 상태일 때 표시.
     /// MemStatIcon/MemStatText: 창고가 Mem스탯 또는 티어 기준으로 정렬되어 있을 때만 활성화되어, 그 아이콘과
     /// 값(스탯 숫자 또는 티어 앞글자)을 보여준다 (어떤 아이콘/값을 보여줄지는 MemStorageUI가 계산해서
@@ -184,6 +186,7 @@ namespace HDY.UI
 
         /// <summary>
         /// MemIconRenderer(MemData.modelPrefab을 촬영해서 만든 Sprite)를 memId로 조회해서 iconImage에 채운다.
+        /// [HDY 요청 - 해상도 분리] 창고 그리드 슬롯이라 64px(GetIcon64)을 사용한다.
         /// 아이콘을 만들 수 없으면(데이터/모델 없음, 렌더러 없음) 아이콘 영역을 그냥 감춘다.
         /// </summary>
         private void ApplyIcon(MemData data)
@@ -191,7 +194,7 @@ namespace HDY.UI
             if (iconImage == null) return;
 
             var sprite = (data != null && MemIconRenderer.Instance != null)
-                ? MemIconRenderer.Instance.GetIcon(data.memId)
+                ? MemIconRenderer.Instance.GetIcon64(data.memId)
                 : null;
 
             iconImage.sprite = sprite;

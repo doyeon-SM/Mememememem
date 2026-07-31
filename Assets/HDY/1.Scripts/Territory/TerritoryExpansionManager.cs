@@ -71,7 +71,7 @@ namespace HDY.Territory
     /// DontDestroyOnLoad로 함께 유지되므로 보통은 끊어지지 않지만, 혹시 몰라 같이 확인한다.
     ///
     /// [HDY 요청 - 시트 마이그레이션] expansionSteps는 더 이상 Inspector에서 직접 드래그/입력하지 않고,
-    /// Awake 시 expansionStepsSheet(TextAsset, 탭 구분)를 파싱해서 채운다. IsExpanded는 시트에 없는
+    /// Awake 시 expansionStepsSheet(TextAsset, 쉼표 구분 CSV)를 파싱해서 채운다. IsExpanded는 시트에 없는
     /// 컬럼이라 파싱 직후에는 항상 false다(실제 완료 여부는 세이브 로드나 플레이 중 ApplyExpand() 호출로
     /// 채워짐). expansionSteps 필드의 이름과 타입(List&lt;TerritoryExpansionEntry&gt;)은 _Kyusoo의
     /// TerritoryRecordData.cs가 리플렉션으로 직접 참조하고 있어 절대 바꾸면 안 되고, 시트의 줄 순서도
@@ -93,7 +93,7 @@ namespace HDY.Territory
 
         private int currentGridSize;
 
-        [Header("확장 단계 시트 (탭 구분 텍스트: RequestTerritoryLevel, MaterialCosts, RewardExp / 줄 순서=진행 순서)")]
+        [Header("확장 단계 시트 (쉼표 구분 CSV: RequestTerritoryLevel, MaterialCosts, RewardExp / 줄 순서=진행 순서)")]
         [SerializeField] private TextAsset expansionStepsSheet;
 
         // [HDY 요청 - 시트 마이그레이션] 필드 이름 "expansionSteps"와 타입은 _Kyusoo의 TerritoryRecordData.cs가
@@ -161,7 +161,7 @@ namespace HDY.Territory
                 var line = lines[i].TrimEnd('\r');
                 if (string.IsNullOrWhiteSpace(line)) continue;
 
-                var cols = line.Split('\t');
+                var cols = line.Split(',');
                 if (cols.Length < 3)
                 {
                     Debug.LogWarning($"[TerritoryExpansionManager] 시트 {i + 1}번째 줄 컬럼 수가 부족합니다: {line}");

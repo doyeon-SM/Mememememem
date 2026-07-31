@@ -15,12 +15,16 @@ namespace KMS.EditorTools
     /// </summary>
     public static class KMSLongTermPlayerHudMigration
     {
-        private const string CanvasPrefabPath = "Assets/KMS/2.Prefabs/0714_InventoryCanvas_Root.prefab";
+        private const string CanvasPrefabPath = "Assets/KMS/2.Prefabs/PlayerCanvas_Root.prefab";
         private const string KoreanFontAssetPath = "Assets/4.Font/JalnanGothic SDF.asset";
         private const string IconFolder = "Assets/KMS/3.UI/Icons";
         private const string SunIconPath = IconFolder + "/KMS_HUD_Sun.png";
         private const string MoonIconPath = IconFolder + "/KMS_HUD_Moon.png";
         private const string HungerIconPath = IconFolder + "/KMS_HUD_Hunger.png";
+        private const string InventoryCategoryIconPath = IconFolder + "/KMS_Inventory_Category.png";
+        private const string InventoryToolIconPath = IconFolder + "/KMS_Inventory_Tool.png";
+        private const string InventoryMaterialIconPath = IconFolder + "/KMS_Inventory_Material.png";
+        private const string InventoryFoodIconPath = IconFolder + "/KMS_Inventory_Food.png";
         private const string PackTextureRoot = "Assets/Pikachu/Modern UI Pack/Textures";
         private const string SquareFillPath = PackTextureRoot + "/Border/Flat/Square Filled.png";
         private const string RoundedFillPath = PackTextureRoot + "/Border/Rounded/128px/Rounded Filled 128px.png";
@@ -37,6 +41,7 @@ namespace KMS.EditorTools
         public static void Run()
         {
             EnsureClockIcons();
+            EnsureInventoryFilterIcons();
             KMSPlayerUguiHudMigration.ApplyCurrentPlayerUguiHud();
             ConfigureCanvas();
             Validate();
@@ -233,7 +238,7 @@ namespace KMS.EditorTools
             Require(inventoryUI.inventoryPanel != null && inventoryUI.inventoryGrid != null, "Inventory panel/grid is missing.");
 
             RectTransform panel = inventoryUI.inventoryPanel.GetComponent<RectTransform>();
-            SetRect(panel, Vector2.one, Vector2.one, new Vector2(-104f, -70f), new Vector2(430f, 610f));
+            SetRect(panel, Vector2.one, Vector2.one, new Vector2(-104f, -70f), new Vector2(500f, 610f));
             Image panelImage = panel.GetComponent<Image>();
             ApplySquareSkin(panelImage, new Color32(0, 0, 0, 100));
             Image inventoryBackground = Find(panel, "InventoryBackground")?.GetComponent<Image>();
@@ -289,19 +294,48 @@ namespace KMS.EditorTools
             SetRect((RectTransform)close.transform, Vector2.one, Vector2.one, new Vector2(-12f, -10f), new Vector2(38f, 38f));
             SetButtonIcon(close, CloseIconPath, 9f);
 
-            RectTransform filters = CreateRect("FilterShell", chrome);
-            SetRect(filters, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(16f, -56f), new Vector2(388f, 38f));
-            string[] labels = { "C", "EQP", "MAT", "FOD" };
-            Button[] filterButtons = new Button[labels.Length];
-            for (int i = 0; i < labels.Length; i++)
+            RectTransform filters = CreatePanel("P_sort", chrome, new Color32(0, 0, 0, 200));
+            SetRect(filters, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(16f, -56f), new Vector2(400f, 44f));
+            ApplyCapsuleSkin(filters, new Color32(0, 0, 0, 200));
+            GridLayoutGroup filterLayout = filters.gameObject.AddComponent<GridLayoutGroup>();
+            filterLayout.cellSize = new Vector2(80f, 44f);
+            filterLayout.spacing = new Vector2(10f, 0f);
+            filterLayout.childAlignment = TextAnchor.MiddleCenter;
+            filterLayout.startCorner = GridLayoutGroup.Corner.UpperLeft;
+            filterLayout.startAxis = GridLayoutGroup.Axis.Horizontal;
+            filterLayout.constraint = GridLayoutGroup.Constraint.Flexible;
+
+            string[] buttonNames = { "B_category", "B_Tool", "B_Material", "B_Food" };
+            string[] iconPaths =
             {
-                filterButtons[i] = CreateButton($"Filter{i}", filters, labels[i], new Color(1f, 1f, 1f, 0.22f));
-                SetRect((RectTransform)filterButtons[i].transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
-                    new Vector2(i * 76f, 0f), new Vector2(70f, 34f));
+                InventoryCategoryIconPath,
+                InventoryToolIconPath,
+                InventoryMaterialIconPath,
+                InventoryFoodIconPath
+            };
+            Vector2[] iconSizes =
+            {
+                new Vector2(28f, 28f),
+                new Vector2(32f, 32f),
+                new Vector2(40f, 40f),
+                new Vector2(32f, 32f)
+            };
+            Button[] filterButtons = new Button[buttonNames.Length];
+            for (int i = 0; i < buttonNames.Length; i++)
+            {
+                filterButtons[i] = CreateInventoryCategoryButton(
+                    buttonNames[i],
+                    filters,
+                    AssetDatabase.LoadAssetAtPath<Sprite>(iconPaths[i]),
+                    iconSizes[i],
+                    i < buttonNames.Length - 1);
             }
 
-            Button menu = CreateButton("SortMenuButton", filters, "ID", new Color(1f, 1f, 1f, 0.22f));
-            SetRect((RectTransform)menu.transform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), Vector2.zero, new Vector2(60f, 34f));
+            Button menu = CreateButton("B_ID", chrome, string.Empty, Color.clear);
+            menu.transition = Selectable.Transition.None;
+            SetRect((RectTransform)menu.transform, Vector2.one, Vector2.one,
+                new Vector2(-16f, -56f), new Vector2(50f, 44f));
+            SetButtonIcon(menu, InventoryCategoryIconPath, 8f);
 
             if (sortControls != null)
             {
@@ -440,6 +474,17 @@ namespace KMS.EditorTools
             image.color = color;
         }
 
+        private static void ApplyCapsuleSkin(RectTransform root, Color color)
+        {
+            Image rootImage = root.GetComponent<Image>();
+            if (rootImage != null) UnityEngine.Object.DestroyImmediate(rootImage);
+
+            KMSCapsuleGraphic capsule = root.GetComponent<KMSCapsuleGraphic>();
+            if (capsule == null) capsule = root.gameObject.AddComponent<KMSCapsuleGraphic>();
+            capsule.color = color;
+            capsule.raycastTarget = false;
+        }
+
         private static void ApplySquareSkin(Image image, Color color)
         {
             if (image == null) return;
@@ -500,6 +545,41 @@ namespace KMS.EditorTools
             icon.rectTransform.sizeDelta = new Vector2(-padding * 2f, -padding * 2f);
         }
 
+        private static Button CreateInventoryCategoryButton(
+            string name,
+            Transform parent,
+            Sprite iconSprite,
+            Vector2 iconSize,
+            bool addSeparator)
+        {
+            Button button = CreateButton(name, parent, string.Empty, Color.clear);
+            button.transition = Selectable.Transition.None;
+            Image background = button.targetGraphic as Image;
+            if (background != null)
+            {
+                background.sprite = null;
+                background.type = Image.Type.Simple;
+                background.color = Color.clear;
+            }
+
+            Image icon = CreateIcon("Image", button.transform, iconSprite);
+            SetRect(icon.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                Vector2.zero, iconSize);
+
+            if (addSeparator)
+            {
+                RectTransform separator = CreatePanel(
+                    "Separator",
+                    button.transform,
+                    new Color(1f, 1f, 1f, 0.4f));
+                SetRect(separator, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                    new Vector2(45f, 0f), new Vector2(2f, 34f));
+                separator.GetComponent<Image>().raycastTarget = false;
+            }
+
+            return button;
+        }
+
         private static void EnsureClockIcons()
         {
             if (!AssetDatabase.IsValidFolder(IconFolder))
@@ -515,6 +595,50 @@ namespace KMS.EditorTools
             AssetDatabase.ImportAsset(SunIconPath, ImportAssetOptions.ForceUpdate);
             AssetDatabase.ImportAsset(MoonIconPath, ImportAssetOptions.ForceUpdate);
             AssetDatabase.ImportAsset(HungerIconPath, ImportAssetOptions.ForceUpdate);
+        }
+
+        private static void EnsureInventoryFilterIcons()
+        {
+            EnsureIconFolder();
+            CopyIconIfMissing(
+                "Assets/Pikachu/Resource/Icon/maki--hardware (1).png",
+                InventoryToolIconPath);
+            CopyIconIfMissing(
+                "Assets/Pikachu/Resource/Icon/material-symbols-light--grass-rounded (1).png",
+                InventoryMaterialIconPath);
+            CopyIconIfMissing(
+                "Assets/Pikachu/Resource/Icon/at-icons--apple (1).png",
+                InventoryFoodIconPath);
+            AssetDatabase.ImportAsset(InventoryCategoryIconPath, ImportAssetOptions.ForceUpdate);
+            AssetDatabase.ImportAsset(InventoryToolIconPath, ImportAssetOptions.ForceUpdate);
+            AssetDatabase.ImportAsset(InventoryMaterialIconPath, ImportAssetOptions.ForceUpdate);
+            AssetDatabase.ImportAsset(InventoryFoodIconPath, ImportAssetOptions.ForceUpdate);
+            ConfigureSpriteImport(InventoryCategoryIconPath);
+            ConfigureSpriteImport(InventoryToolIconPath);
+            ConfigureSpriteImport(InventoryMaterialIconPath);
+            ConfigureSpriteImport(InventoryFoodIconPath);
+        }
+
+        private static void ConfigureSpriteImport(string path)
+        {
+            TextureImporter importer = AssetImporter.GetAtPath(path) as TextureImporter;
+            Require(importer != null, $"Inventory icon importer is missing: {path}");
+            importer.textureType = TextureImporterType.Sprite;
+            importer.spriteImportMode = SpriteImportMode.Single;
+            importer.alphaIsTransparency = true;
+            importer.mipmapEnabled = false;
+            importer.SaveAndReimport();
+            Require(
+                AssetDatabase.LoadAssetAtPath<Sprite>(path) != null,
+                $"Inventory icon sprite is missing after import: {path}");
+        }
+
+        private static void EnsureIconFolder()
+        {
+            if (AssetDatabase.IsValidFolder(IconFolder)) return;
+            if (!AssetDatabase.IsValidFolder("Assets/KMS/3.UI"))
+                AssetDatabase.CreateFolder("Assets/KMS", "3.UI");
+            AssetDatabase.CreateFolder("Assets/KMS/3.UI", "Icons");
         }
 
         private static void CopyIconIfMissing(string source, string destination)

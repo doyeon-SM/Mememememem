@@ -159,6 +159,21 @@ MonoBehaviour:
     minDrop: 0
     maxDrop: 0
   isOverlap: 0
+  dropSpawnPoint: {fileID: 0}
+  groundLayer:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  dropSpawnHeight: 0.02
+  dropAreaOffset: {x: 0, y: 0, z: 0}
+  dropAreaSize: {x: 2.2, y: 2.2}
+  dropPositionAttempts: 12
+  dropClearanceRadius: 0.25
+  dropClearanceHeight: 0.9
+  maxGroundSlope: 50
+  showDropSpawnGizmo: 1
+  dropSpawnGizmoColor: {r: 1, g: 0.72, b: 0.1, a: 0.9}
+  poolPrewarmCount: 0
+  autoReturnToPoolSeconds: 10
 --- !u!1 &2378198085970183571
 GameObject:
   m_ObjectHideFlags: 0

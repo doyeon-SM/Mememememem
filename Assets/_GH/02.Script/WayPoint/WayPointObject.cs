@@ -11,17 +11,27 @@ public class WayPointObject : MonoBehaviour, IInteractable
     [Header("Ref")]
     [SerializeField] private WayPointDefinition targetWayPoint;
 
+    [Header("Registered Material")]
+    [Tooltip("등록 상태 머티리얼을 적용할 렌더러입니다. 비워 두면 현재 오브젝트와 하위 오브젝트에서 자동으로 찾습니다.")]
+    [SerializeField] private Renderer targetRenderer;
+    [Tooltip("연결된 웨이포인트가 등록된 상태일 때 적용할 머티리얼입니다.")]
+    [SerializeField] private Material unlockedMaterial;
+
     [Header("Interaction")]
     [SerializeField] private string interactionPrompt = "웨이포인트 등록";
 
     private bool isActiveObj;
     private bool subscribed;
+    private bool hasCachedLockedMaterial;
+    private Material lockedMaterial;
 
     public string InteractionPrompt => interactionPrompt;
 
     private void Awake()
     {
+        CacheLockedMaterial();
         isActiveObj = targetWayPoint != null && targetWayPoint.IsUnlockedOnInitialize;
+        RefreshRegisteredMaterial();
     }
 
     private void Start()
@@ -33,6 +43,7 @@ public class WayPointObject : MonoBehaviour, IInteractable
     private void OnEnable()
     {
         TrySubscribe();
+        RefreshStateFromManager();
     }
 
     private void OnDisable()
@@ -116,9 +127,16 @@ public class WayPointObject : MonoBehaviour, IInteractable
     // 매니저에 저장된 현재 해금 상태를 상호작용 가능 여부에 반영한다.
     private void RefreshStateFromManager()
     {
-        isActiveObj = targetWayPoint != null
-            && WayPointManager.Instance != null
-            && WayPointManager.Instance.IsUnlocked(targetWayPoint.id);
+        if (targetWayPoint == null)
+        {
+            isActiveObj = false;
+        }
+        else if (WayPointManager.Instance != null)
+        {
+            isActiveObj = WayPointManager.Instance.IsUnlocked(targetWayPoint.id);
+        }
+
+        RefreshRegisteredMaterial();
     }
 
     // 같은 웨이포인트 상태가 바뀌면 상호작용 상태만 갱신한다.
@@ -131,6 +149,53 @@ public class WayPointObject : MonoBehaviour, IInteractable
         }
 
         isActiveObj = state.IsActive;
+        RefreshRegisteredMaterial();
+    }
+
+    // 잠금 상태의 원래 머티리얼을 보관해 세이브 데이터에서 미등록 상태가 복원될 때 되돌린다.
+    private void CacheLockedMaterial()
+    {
+        if (hasCachedLockedMaterial)
+        {
+            return;
+        }
+
+        if (targetRenderer == null)
+        {
+            targetRenderer = GetComponent<Renderer>();
+        }
+
+        if (targetRenderer == null)
+        {
+            targetRenderer = GetComponentInChildren<Renderer>(true);
+        }
+
+        if (targetRenderer == null)
+        {
+            return;
+        }
+
+        lockedMaterial = targetRenderer.sharedMaterial;
+        hasCachedLockedMaterial = true;
+    }
+
+    // 공유 머티리얼을 사용해 오브젝트마다 불필요한 런타임 머티리얼 인스턴스가 생성되지 않게 한다.
+    private void RefreshRegisteredMaterial()
+    {
+        CacheLockedMaterial();
+        if (!hasCachedLockedMaterial)
+        {
+            return;
+        }
+
+        Material targetMaterial = isActiveObj && unlockedMaterial != null
+            ? unlockedMaterial
+            : lockedMaterial;
+
+        if (targetRenderer.sharedMaterial != targetMaterial)
+        {
+            targetRenderer.sharedMaterial = targetMaterial;
+        }
     }
 }
 

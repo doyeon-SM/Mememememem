@@ -805,6 +805,29 @@ public class WayPointManager : MonoBehaviour
         return definition != null && CanUnlockByExternalAction(definition.id, requireMapAvailable);
     }
 
+    /// <summary>
+    /// 세이브 데이터에서 복원한 해금 상태를 런타임 상태와 연결된 씬 오브젝트에 함께 반영합니다.
+    /// 일반 해금 이벤트는 발생시키지 않아 로드 중 중복 저장을 막고, 상태 변경 이벤트만 전달합니다.
+    /// </summary>
+    public bool ApplySavedUnlockedState(string id, bool unlocked)
+    {
+        if (!statesById.TryGetValue(id, out WayPointRunTime state))
+        {
+            Debug.LogWarning($"[WayPointManager] Cannot restore unknown waypoint id: {id}");
+            return false;
+        }
+
+        state.IsActive = unlocked;
+
+        if (state.Stone != null)
+        {
+            state.Stone.SetUnlockedState(unlocked);
+        }
+
+        OnWayPointStateChanged?.Invoke(state);
+        return true;
+    }
+
     private bool SetUnlocked(string id, bool requireMapAvailable, WayPointUnlockType requiredUnlockType, string logMessage)
     {
         if (!statesById.TryGetValue(id, out WayPointRunTime state))
