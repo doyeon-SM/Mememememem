@@ -34,8 +34,15 @@ namespace HDY.UI
             if (slotPrefab == null) Debug.LogWarning("[MemDexUI_Grid] slotPrefab이 비어있습니다. 슬롯을 채울 수 없습니다.", this);
         }
 
-        /// <summary>주어진 순서(이미 정렬된 상태) 그대로 슬롯을 채운다. 필요한 만큼만 Instantiate하고 이후엔 재사용한다.</summary>
-        public void Populate(IReadOnlyList<MemData> orderedData, Func<MemData, MemStatDisplayInfo> statDisplayProvider)
+        /// <summary>
+        /// 주어진 순서(이미 정렬된 상태) 그대로 슬롯을 채운다. 필요한 만큼만 Instantiate하고 이후엔 재사용한다.
+        /// </summary>
+        /// <param name="isDiscoveredProvider">
+        /// [HDY 요청 - 최초 포획 실루엣] 각 MemData가 최초 포획 기록이 있는지(발견되었는지) 판단하는 함수.
+        /// 이 그리드는 MemDexRecordManager를 직접 조회하지 않는다 - 카탈로그 정렬/조회와 마찬가지로
+        /// 발견 여부 판단도 상위(MemDexUI)의 책임이다. null이면 안전한 기본값으로 전부 발견된 것으로 처리한다.
+        /// </param>
+        public void Populate(IReadOnlyList<MemData> orderedData, Func<MemData, MemStatDisplayInfo> statDisplayProvider, Func<MemData, bool> isDiscoveredProvider)
         {
             if (slotPrefab == null || contentParent == null)
             {
@@ -58,7 +65,8 @@ namespace HDY.UI
                 {
                     var data = orderedData[i];
                     var statInfo = statDisplayProvider != null ? statDisplayProvider(data) : MemStatDisplayInfo.Hidden;
-                    spawnedSlots[i].SetData(data, statInfo);
+                    var isDiscovered = isDiscoveredProvider != null ? isDiscoveredProvider(data) : true;
+                    spawnedSlots[i].SetData(data, statInfo, isDiscovered);
                     spawnedSlots[i].gameObject.SetActive(true);
                 }
                 else
