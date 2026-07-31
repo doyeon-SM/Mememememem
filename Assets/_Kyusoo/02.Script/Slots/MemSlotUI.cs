@@ -79,10 +79,13 @@ public class MemSlotUI : MonoBehaviour, IDropHandler, IPointerClickHandler
         {
             transPanel.TryRemoveMemFromUI(currentPlacedMem);
         }
-        // 🌟 [추가]: 모닥불(요리) 패널 슬롯 해제 처리
         else if (activePanel is CampFirePanelUI campFirePanel)
         {
             campFirePanel.TryRemoveMemFromUI(currentPlacedMem);
+        }
+        else if (activePanel is KitchenPanelUI kitchenPanel)
+        {
+            kitchenPanel.TryRemoveMemFromUI(currentPlacedMem);
         }
     }
 
@@ -160,10 +163,13 @@ public class MemSlotUI : MonoBehaviour, IDropHandler, IPointerClickHandler
         {
             buildingType = transPanel.TargetFacility.buildingData.buildingType;
         }
-        // 🌟 [추가]: 모닥불(요리) 패널 스탯 조회
         else if (activePanel is CampFirePanelUI campFirePanel && campFirePanel.TargetFacility != null && campFirePanel.TargetFacility.buildingData != null)
         {
             buildingType = campFirePanel.TargetFacility.buildingData.buildingType;
+        }
+        else if (activePanel is KitchenPanelUI kitchenPanel && kitchenPanel.TargetFacility != null && kitchenPanel.TargetFacility.buildingData != null)
+        {
+            buildingType = kitchenPanel.TargetFacility.buildingData.buildingType;
         }
 
         if (buildingType.HasValue)
@@ -213,38 +219,14 @@ public class MemSlotUI : MonoBehaviour, IDropHandler, IPointerClickHandler
     {
         if (PanelManager.Instance != null)
         {
-            if (PanelManager.Instance.IsCraftingPanelActive && CraftingPanelUI.Instance != null)
-            {
-                return CraftingPanelUI.Instance;
-            }
-
-            if (PanelManager.Instance.IsProductionPanelActive && ProductionPanelUI.Instance != null)
-            {
-                return ProductionPanelUI.Instance;
-            }
-
-            if (PanelManager.Instance.IsRanchPanelActive && RanchPanelUI.Instance != null)
-            {
-                return RanchPanelUI.Instance;
-            }
-
-            if (PanelManager.Instance.IsGeneratorPanelActive && GeneratorPanelUI.Instance != null)
-            {
-                return GeneratorPanelUI.Instance;
-            }
-
-            if (PanelManager.Instance.IsTransportPanelActive && TransportPanelUI.Instance != null)
-            {
-                return TransportPanelUI.Instance;
-            }
-
-            // 🌟 [추가]: 모닥불(요리) 활성 패널 검사
-            if (PanelManager.Instance.IsCampFirePanelActive && CampFirePanelUI.Instance != null)
-            {
-                return CampFirePanelUI.Instance;
-            }
+            if (PanelManager.Instance.IsCraftingPanelActive && CraftingPanelUI.Instance != null) return CraftingPanelUI.Instance;
+            if (PanelManager.Instance.IsProductionPanelActive && ProductionPanelUI.Instance != null) return ProductionPanelUI.Instance;
+            if (PanelManager.Instance.IsRanchPanelActive && RanchPanelUI.Instance != null) return RanchPanelUI.Instance;
+            if (PanelManager.Instance.IsGeneratorPanelActive && GeneratorPanelUI.Instance != null) return GeneratorPanelUI.Instance;
+            if (PanelManager.Instance.IsTransportPanelActive && TransportPanelUI.Instance != null) return TransportPanelUI.Instance;
+            if (PanelManager.Instance.IsCampFirePanelActive && CampFirePanelUI.Instance != null) return CampFirePanelUI.Instance;
+            if (PanelManager.Instance.IsKitchenPanelActive && KitchenPanelUI.Instance != null) return KitchenPanelUI.Instance;
         }
-
         return null;
     }
 
@@ -311,11 +293,15 @@ public class MemSlotUI : MonoBehaviour, IDropHandler, IPointerClickHandler
                         isDeployedSuccess = transRuntime.TryAddMem(warehouseData, warehouseEntry);
                         if (isDeployedSuccess && activePanel is TransportPanelUI transPanel) transPanel.RefreshStaticUI();
                     }
-                    // 🌟 [추가]: 모닥불(요리) 멤 드롭 배치 처리
                     else if (targetRuntime is CampFireRuntime campFireRuntime)
                     {
                         isDeployedSuccess = campFireRuntime.TryAddMem(warehouseData, warehouseEntry);
                         if (isDeployedSuccess && activePanel is CampFirePanelUI campFirePanel) campFirePanel.RefreshStaticUI();
+                    }
+                    else if (targetRuntime is KitchenRuntime kitchenRuntime)
+                    {
+                        isDeployedSuccess = kitchenRuntime.TryAddMem(warehouseData, warehouseEntry);
+                        if (isDeployedSuccess && activePanel is KitchenPanelUI kitchenPanel) kitchenPanel.RefreshStaticUI();
                     }
 
                     if (isDeployedSuccess)
@@ -338,8 +324,8 @@ public class MemSlotUI : MonoBehaviour, IDropHandler, IPointerClickHandler
         if (panel is RanchPanelUI ranch) return ranch.TargetFacility;
         if (panel is GeneratorPanelUI gen) return gen.TargetFacility;
         if (panel is TransportPanelUI trans) return trans.TargetFacility;
-        // 🌟 [추가]: 모닥불 런타임 반환
         if (panel is CampFirePanelUI campFire) return campFire.TargetFacility;
+        if (panel is KitchenPanelUI kitchen) return kitchen.TargetFacility;
 
         Debug.Log($"[Panel 확인하기 {panel}]");
         return null;

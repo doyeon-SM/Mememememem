@@ -104,7 +104,7 @@ public class BuildingRuntime : MonoBehaviour
             }
         }
 
-        // 6. 모닥불(요리) 시설
+        // 6. 모닥불 시설
         if (TryGetComponent<CampFireRuntime>(out var campFireRuntime))
         {
             if (campFireRuntime.DeployedMemEntries.Contains(entry))
@@ -115,6 +115,22 @@ public class BuildingRuntime : MonoBehaviour
                 if (CampFirePanelUI.Instance != null && CampFirePanelUI.Instance.gameObject.activeSelf)
                 {
                     CampFirePanelUI.Instance.RefreshStaticUI();
+                }
+                return true;
+            }
+        }
+
+        // 7. 주방 시설
+        if (TryGetComponent<KitchenRuntime>(out var kitchenRuntime))
+        {
+            if (kitchenRuntime.DeployedMemEntries.Contains(entry))
+            {
+                Debug.Log("<color=cyan>[BuildingRuntime]</color> KitchenRuntime에서 멤 해제.");
+                kitchenRuntime.RemoveMem(data);
+                entry.IsActive = false;
+                if (KitchenPanelUI.Instance != null && KitchenPanelUI.Instance.gameObject.activeSelf)
+                {
+                    KitchenPanelUI.Instance.RefreshStaticUI();
                 }
                 return true;
             }
