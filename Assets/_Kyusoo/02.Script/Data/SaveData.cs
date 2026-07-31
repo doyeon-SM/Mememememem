@@ -76,7 +76,6 @@ public class SaveData
     public int currentGridSize = 5;
     public List<bool> expansionExpandedStates = new List<bool>();
 
-    // 🌟 [정식 추가]: 레시피 도감 해금 상태를 저장할 전용 리스트 규격 바인딩
     [Header("제작법 해금 데이터")]
     public List<bool> recipeUnlockedStates = new List<bool>();
 
@@ -85,7 +84,6 @@ public class SaveData
     public ContainerData warehouseStorageData;
     public ContainerData foodWarehouseStorageData;
 
-    // 퀵슬롯 영구 보존 규격 바인딩
     public ContainerData playerQuickSlotsData;
     public int selectedQuickSlotIndex;
 

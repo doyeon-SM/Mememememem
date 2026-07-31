@@ -71,10 +71,8 @@ public class TotalHungerManager : MonoBehaviour
         RecalculateTotalHunger();
     }
 
-    private void OnFacilityStartedHandler(BuildingType type, List<MemData> mems) => RecalculateTotalHunger();
-    private void OnFacilityStartedHandler(BuildingType type) => RecalculateTotalHunger();
-    private void OnFacilityStoppedHandler(BuildingType type, List<MemData> mems, FacilityStopReason reason) => RecalculateTotalHunger();
-    private void OnFacilityStoppedHandler(BuildingType type, FacilityStopReason reason) => RecalculateTotalHunger();
+    private void OnFacilityStartedHandler(BuildingType type, List<MemData> mems, List<Transform> positions) => RecalculateTotalHunger();
+    private void OnFacilityStoppedHandler(BuildingType type, List<MemData> mems, FacilityStopReason reason, List<Transform> positions) => RecalculateTotalHunger();
 
     public void RecalculateTotalHunger()
     {

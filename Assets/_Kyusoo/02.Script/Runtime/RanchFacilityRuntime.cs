@@ -10,21 +10,21 @@ using UnityEngine;
 [System.Serializable]
 public class RanchSlotRuntime
 {
-    [Header("슬롯 상태 정보")]
+    [Header("슬롯 인덱스 및 해금 여부")]
     public int slotIndex;
     public bool isUnlocked = false;
 
-    [Header("배치된 멤 정보")]
+    [Header("배치된 멤 데이터")]
     public MemData deployedMem;
     public CapturedMemEntry deployedMemEntry;
 
-    [Header("생산 상태 정보")]
+    [Header("생산 상태")]
     public string craftingItemId;
     public bool isProducing = false;
     public float currentProgressTime = 0f;
     public float totalRequiredTime = 30f;
 
-    [Header("자원 축적 현황")]
+    [Header("보관함 수량")]
     public int currentStorageCount = 0;
     public const int maxStorage = 100;
 
@@ -34,7 +34,6 @@ public class RanchSlotRuntime
         {
             deployedMemEntry.IsActive = false;
         }
-
         deployedMem = null;
         deployedMemEntry = null;
         craftingItemId = string.Empty;
@@ -45,24 +44,34 @@ public class RanchSlotRuntime
 
 public class RanchFacilityRuntime : MonoBehaviour
 {
-    [Header("시설 기반 정보")]
+    [Header("시설 기반 데이터")]
     public BuildingData buildingData;
     public int currentLevel = 1;
 
-    [Header("기본 생산 소요 시간 (초)")]
+    [Header("기본 생산 주기 (초)")]
     public float baseProductionTime = 30f;
 
-    [Header("목장 슬롯 리스트 (최대 5개 관리)")]
+    [Header("슬롯 데이터 (최대 5개)")]
     [SerializeField] private List<RanchSlotRuntime> slots = new List<RanchSlotRuntime>();
     public IReadOnlyList<RanchSlotRuntime> Slots => slots;
 
     public bool isProducing = false;
 
-    public static event Action OnMemDeploymentChanged;
+    // 🌟 MemPos 트랜스폼 캐싱 리스트
+    [SerializeField] private List<Transform> memPositions = new List<Transform>();
+    public List<Transform> MemPositions
+    {
+        get
+        {
+            if (memPositions == null || memPositions.Count == 0) CacheMemPositions();
+            return memPositions;
+        }
+    }
 
-    public static event Action<BuildingType, MemData, bool> MemAdded;
-    public static event Action<BuildingType, List<MemData>> FacilityStarted;
-    public static event Action<BuildingType, List<MemData>, FacilityStopReason> FacilityStopped;
+    public static event Action OnMemDeploymentChanged;
+    public static event Action<BuildingType, MemData, bool, List<Transform>> MemAdded;
+    public static event Action<BuildingType, List<MemData>, List<Transform>> FacilityStarted;
+    public static event Action<BuildingType, List<MemData>, FacilityStopReason, List<Transform>> FacilityStopped;
 
     private void Awake()
     {
@@ -72,6 +81,7 @@ public class RanchFacilityRuntime : MonoBehaviour
     private void Start()
     {
         EnsureBuildingData();
+        CacheMemPositions();
         UpdateSlotCapacity();
         CheckAllSlotsProductionCondition();
 
@@ -90,6 +100,18 @@ public class RanchFacilityRuntime : MonoBehaviour
         if (buildingData == null && TryGetComponent<BuildingRuntime>(out var br))
         {
             buildingData = br.buildingData;
+        }
+    }
+
+    private void CacheMemPositions()
+    {
+        memPositions.Clear();
+        foreach (Transform child in GetComponentsInChildren<Transform>(true))
+        {
+            if (child != null && child.name.StartsWith("MemPos"))
+            {
+                memPositions.Add(child);
+            }
         }
     }
 
@@ -113,15 +135,12 @@ public class RanchFacilityRuntime : MonoBehaviour
         currentLevel++;
         UpdateSlotCapacity();
         CheckAllSlotsProductionCondition();
-
         OnMemDeploymentChanged?.Invoke();
-        Debug.Log($"<color=lime>[목장 레벨업]</color> {buildingData?.buildingName} 시설 레벨이 {currentLevel}로 증가했습니다.");
     }
 
     public void UpdateSlotCapacity()
     {
         int maxCapacity = ProductionCalculator.GetMaxMemCount(currentLevel);
-
         for (int i = 0; i < slots.Count; i++)
         {
             slots[i].isUnlocked = (i < maxCapacity);
@@ -135,7 +154,6 @@ public class RanchFacilityRuntime : MonoBehaviour
         for (int i = 0; i < slots.Count; i++)
         {
             RanchSlotRuntime slot = slots[i];
-
             if (!slot.isUnlocked || !slot.isProducing || slot.deployedMem == null) continue;
 
             if (slot.currentStorageCount >= RanchSlotRuntime.maxStorage)
@@ -209,26 +227,11 @@ public class RanchFacilityRuntime : MonoBehaviour
     {
         EnsureBuildingData();
 
-        if (targetEntry == null)
-        {
-            Debug.LogWarning("[목장] CapturedMemEntry가 null입니다.");
-            return false;
-        }
-
-        if (buildingData == null)
-        {
-            Debug.LogError("[목장] BuildingData가 할당되지 않아 배치를 진행할 수 없습니다.");
-            return false;
-        }
-
+        if (targetEntry == null || buildingData == null) return false;
         if (slotIndex < 0 || slotIndex >= slots.Count) return false;
 
         RanchSlotRuntime targetSlot = slots[slotIndex];
-        if (!targetSlot.isUnlocked)
-        {
-            Debug.LogWarning("[목장] 잠겨있는 슬롯에는 멤을 배치할 수 없습니다.");
-            return false;
-        }
+        if (!targetSlot.isUnlocked) return false;
 
         MemData realMemData = targetMem;
         if ((realMemData == null || string.IsNullOrEmpty(realMemData.memId)) && MemCatalogManager.Instance != null)
@@ -236,33 +239,22 @@ public class RanchFacilityRuntime : MonoBehaviour
             realMemData = MemCatalogManager.Instance.FindMemData(targetEntry.MemId);
         }
 
-        if (realMemData == null)
-        {
-            Debug.LogError($"[목장] '{targetEntry.MemId}'에 대한 MemData를 카탈로그에서 찾을 수 없습니다.");
-            return false;
-        }
+        if (realMemData == null) return false;
 
         foreach (var slot in slots)
         {
             if (slot != targetSlot && slot.deployedMemEntry != null && slot.deployedMemEntry.KeyId == targetEntry.KeyId)
             {
-                Debug.LogWarning($"[목장] 해당 멤 개체(KeyID: {targetEntry.KeyId})는 이미 이 목장의 다른 슬롯에 배치되어 있습니다.");
                 return false;
             }
         }
 
         if (targetEntry.IsActive && (targetSlot.deployedMemEntry == null || targetSlot.deployedMemEntry.KeyId != targetEntry.KeyId))
         {
-            Debug.LogWarning($"[목장] {realMemData.memName}(은/는) 이미 다른 시설이나 탐험대에 배치되어 있습니다.");
             return false;
         }
 
-        if (!ProductionCalculator.CanDeployToFacility(realMemData, buildingData.buildingType))
-        {
-            ProductionStatType requiredStat = ProductionCalculator.GetRequiredStatType(buildingData.buildingType);
-            Debug.LogWarning($"[목장] {realMemData.memName}이 {requiredStat} 스탯이 없어 목장에 배치할 수 없습니다.");
-            return false;
-        }
+        if (!ProductionCalculator.CanDeployToFacility(realMemData, buildingData.buildingType)) return false;
 
         if (targetSlot.deployedMemEntry != null && targetSlot.deployedMemEntry.KeyId != targetEntry.KeyId)
         {
@@ -274,7 +266,6 @@ public class RanchFacilityRuntime : MonoBehaviour
         targetEntry.IsActive = true;
 
         targetSlot.craftingItemId = GetRanchProduceItemId(realMemData);
-
         targetSlot.totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(
             baseProductionTime,
             new List<MemData> { realMemData }
@@ -289,11 +280,12 @@ public class RanchFacilityRuntime : MonoBehaviour
         UpdateOverallProducingState();
 
         if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
+
         OnMemDeploymentChanged?.Invoke();
 
         if (buildingData != null)
         {
-            MemAdded?.Invoke(buildingData.buildingType, realMemData, true);
+            MemAdded?.Invoke(buildingData.buildingType, realMemData, true, MemPositions);
         }
 
         return true;
@@ -302,17 +294,12 @@ public class RanchFacilityRuntime : MonoBehaviour
     public string GetRanchProduceItemId(MemData memData)
     {
         if (memData == null) return "item_rough_fur";
-
         switch (memData.memId)
         {
-            case "Mem_Rare_01":
-                return "item_rough_fur";
-            case "Mem_Epic_01":
-                return "item_rough_fur";
-            case "Mem_Unique_01":
-                return "item_diamond";
-            default:
-                return "item_rough_fur";
+            case "Mem_Rare_01": return "item_rough_fur";
+            case "Mem_Epic_01": return "item_rough_fur";
+            case "Mem_Unique_01": return "item_diamond";
+            default: return "item_rough_fur";
         }
     }
 
@@ -329,11 +316,12 @@ public class RanchFacilityRuntime : MonoBehaviour
             UpdateOverallProducingState();
 
             if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
+
             OnMemDeploymentChanged?.Invoke();
 
             if (buildingData != null && removedMem != null)
             {
-                MemAdded?.Invoke(buildingData.buildingType, removedMem, false);
+                MemAdded?.Invoke(buildingData.buildingType, removedMem, false, MemPositions);
             }
         }
     }
@@ -392,11 +380,16 @@ public class RanchFacilityRuntime : MonoBehaviour
         if (isProducing != anyActive)
         {
             isProducing = anyActive;
+            List<MemData> activeMems = new List<MemData>();
+            foreach (var s in slots) if (s.deployedMem != null) activeMems.Add(s.deployedMem);
+
             if (isProducing && buildingData != null)
             {
-                List<MemData> activeMems = new List<MemData>();
-                foreach (var s in slots) if (s.deployedMem != null) activeMems.Add(s.deployedMem);
-                FacilityStarted?.Invoke(buildingData.buildingType, activeMems);
+                FacilityStarted?.Invoke(buildingData.buildingType, activeMems, MemPositions);
+            }
+            else if (!isProducing && buildingData != null)
+            {
+                FacilityStopped?.Invoke(buildingData.buildingType, activeMems, FacilityStopReason.CompleteCrafting, MemPositions);
             }
         }
     }
@@ -404,18 +397,16 @@ public class RanchFacilityRuntime : MonoBehaviour
     private ItemData FindItemDataInCatalog(string itemId)
     {
         if (string.IsNullOrEmpty(itemId)) return null;
-
-        if (ItemCatalogManager.Instance == null)
-        {
-            Debug.LogError($"[ItemCatalogManager] 인스턴스가 존재하지 않아 아이템 '{itemId}'을(를) 탐색할 수 없습니다.");
-            return null;
-        }
+        if (ItemCatalogManager.Instance == null) return null;
 
         return ItemCatalogManager.Instance.FindItemData(itemId);
     }
 
     public void StopWorkDueToStarvation()
     {
+        List<MemData> activeMems = new List<MemData>();
+        foreach (var s in slots) if (s.deployedMem != null) activeMems.Add(s.deployedMem);
+
         foreach (var slot in slots)
         {
             slot.isProducing = false;
@@ -424,9 +415,7 @@ public class RanchFacilityRuntime : MonoBehaviour
 
         if (buildingData != null)
         {
-            List<MemData> activeMems = new List<MemData>();
-            foreach (var s in slots) if (s.deployedMem != null) activeMems.Add(s.deployedMem);
-            FacilityStopped?.Invoke(buildingData.buildingType, activeMems, FacilityStopReason.Starvation);
+            FacilityStopped?.Invoke(buildingData.buildingType, activeMems, FacilityStopReason.Starvation, MemPositions);
         }
     }
 }

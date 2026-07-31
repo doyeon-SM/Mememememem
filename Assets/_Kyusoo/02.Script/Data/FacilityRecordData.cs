@@ -78,10 +78,8 @@ public class FacilityRecordData : MonoBehaviour, IRecord
         KitchenRuntime.FacilityStopped -= OnFacilityStoppedHandler;
     }
 
-    private void OnFacilityStartedHandler(BuildingType type, List<MemData> mems) => OnFacilityDataChanged();
-    private void OnFacilityStartedHandler(BuildingType type) => OnFacilityDataChanged();
-    private void OnFacilityStoppedHandler(BuildingType type, List<MemData> mems, FacilityStopReason reason) => OnFacilityDataChanged();
-    private void OnFacilityStoppedHandler(BuildingType type, FacilityStopReason reason) => OnFacilityDataChanged();
+    private void OnFacilityStartedHandler(BuildingType type, List<MemData> mems, List<Transform> positions) => OnFacilityDataChanged();
+    private void OnFacilityStoppedHandler(BuildingType type, List<MemData> mems, FacilityStopReason reason, List<Transform> positions) => OnFacilityDataChanged();
 
     private void OnFacilityDataChanged()
     {

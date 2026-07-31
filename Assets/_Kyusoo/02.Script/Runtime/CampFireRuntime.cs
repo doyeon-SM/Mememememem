@@ -37,14 +37,26 @@ public class CampFireRuntime : MonoBehaviour
     public List<MemData> DeployedMems => addMems;
     public List<CapturedMemEntry> DeployedMemEntries => addMemEntries;
 
+    // 🌟 MemPos 트랜스폼 캐싱 리스트
+    [SerializeField] private List<Transform> memPositions = new List<Transform>();
+    public List<Transform> MemPositions
+    {
+        get
+        {
+            if (memPositions == null || memPositions.Count == 0) CacheMemPositions();
+            return memPositions;
+        }
+    }
+
     public static event Action OnMemDeploymentChanged;
-    public static event Action<BuildingType, MemData, bool> MemAdded;
-    public static event Action<BuildingType, List<MemData>> FacilityStarted;
-    public static event Action<BuildingType, List<MemData>, FacilityStopReason> FacilityStopped;
+    public static event Action<BuildingType, MemData, bool, List<Transform>> MemAdded;
+    public static event Action<BuildingType, List<MemData>, List<Transform>> FacilityStarted;
+    public static event Action<BuildingType, List<MemData>, FacilityStopReason, List<Transform>> FacilityStopped;
 
     private void Start()
     {
         EnsureBuildingData();
+        CacheMemPositions();
         maxStorageCount = 10;
 
         if (FacilityCollectManager.Instance != null)
@@ -62,6 +74,18 @@ public class CampFireRuntime : MonoBehaviour
         if (buildingData == null && TryGetComponent<BuildingRuntime>(out var br))
         {
             buildingData = br.buildingData;
+        }
+    }
+
+    private void CacheMemPositions()
+    {
+        memPositions.Clear();
+        foreach (Transform child in GetComponentsInChildren<Transform>(true))
+        {
+            if (child != null && child.name.StartsWith("MemPos"))
+            {
+                memPositions.Add(child);
+            }
         }
     }
 
@@ -92,7 +116,6 @@ public class CampFireRuntime : MonoBehaviour
         remainingQuantity = quantity;
         currentProgressTime = 0f;
 
-        // 🌟 CookRecipeData 기반 시간 조회
         CookRecipeData recipe = FindCookRecipeDataInCatalog(currentCookingItem);
         float baseDuration = recipe != null ? recipe.Time : 15f;
 
@@ -165,6 +188,7 @@ public class CampFireRuntime : MonoBehaviour
         if (targetEntry.IsActive) return false;
 
         ProductionStatType requiredStat = ProductionCalculator.GetRequiredStatType(buildingData.buildingType);
+
         if (!ProductionCalculator.CanDeployToFacility(realMemData, buildingData.buildingType)) return false;
 
         if (addMems.Count >= 1 && addMemEntries.Count > 0)
@@ -179,11 +203,12 @@ public class CampFireRuntime : MonoBehaviour
         RecalculateCookingTimer();
 
         if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
+
         OnMemDeploymentChanged?.Invoke();
 
         if (buildingData != null)
         {
-            MemAdded?.Invoke(buildingData.buildingType, realMemData, true);
+            MemAdded?.Invoke(buildingData.buildingType, realMemData, true, MemPositions);
         }
 
         return true;
@@ -205,11 +230,12 @@ public class CampFireRuntime : MonoBehaviour
             RecalculateCookingTimer();
 
             if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
+
             OnMemDeploymentChanged?.Invoke();
 
             if (buildingData != null && removedMem != null)
             {
-                MemAdded?.Invoke(buildingData.buildingType, removedMem, false);
+                MemAdded?.Invoke(buildingData.buildingType, removedMem, false, MemPositions);
             }
         }
     }
@@ -240,9 +266,10 @@ public class CampFireRuntime : MonoBehaviour
         else
         {
             isCooking = false;
+
             if (buildingData != null)
             {
-                FacilityStopped?.Invoke(buildingData.buildingType, addMems, FacilityStopReason.CompleteCrafting);
+                FacilityStopped?.Invoke(buildingData.buildingType, addMems, FacilityStopReason.CompleteCrafting, MemPositions);
             }
         }
 
@@ -297,7 +324,7 @@ public class CampFireRuntime : MonoBehaviour
 
         if (wasWorking && buildingData != null)
         {
-            FacilityStopped?.Invoke(buildingData.buildingType, addMems, FacilityStopReason.CancelCrafting);
+            FacilityStopped?.Invoke(buildingData.buildingType, addMems, FacilityStopReason.CancelCrafting, MemPositions);
         }
     }
 
@@ -326,9 +353,6 @@ public class CampFireRuntime : MonoBehaviour
         return false;
     }
 
-    /// <summary>
-    /// 🌟 [수정]: FindCookRecipeData를 이용하여 CookRecipeData의 Ingredient_Item_IDs 리스트를 즉시 반환합니다.
-    /// </summary>
     public List<string> GetIngredientIdsForCooking(string resultItemId)
     {
         if (string.IsNullOrEmpty(resultItemId)) return new List<string>();
@@ -349,9 +373,6 @@ public class CampFireRuntime : MonoBehaviour
         return catalog != null ? catalog.FindItemData(itemId) : null;
     }
 
-    /// <summary>
-    /// 🌟 [수정]: ItemCatalogManager의 FindCookRecipeData 호출
-    /// </summary>
     private CookRecipeData FindCookRecipeDataInCatalog(string resultItemId)
     {
         if (string.IsNullOrEmpty(resultItemId)) return null;
@@ -366,7 +387,7 @@ public class CampFireRuntime : MonoBehaviour
 
         if (isCooking && buildingData != null)
         {
-            FacilityStarted?.Invoke(buildingData.buildingType, addMems);
+            FacilityStarted?.Invoke(buildingData.buildingType, addMems, MemPositions);
         }
     }
 
@@ -377,7 +398,7 @@ public class CampFireRuntime : MonoBehaviour
 
         if (buildingData != null)
         {
-            FacilityStopped?.Invoke(buildingData.buildingType, addMems, FacilityStopReason.Starvation);
+            FacilityStopped?.Invoke(buildingData.buildingType, addMems, FacilityStopReason.Starvation, MemPositions);
         }
     }
 
