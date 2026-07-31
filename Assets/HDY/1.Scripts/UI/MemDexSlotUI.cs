@@ -14,6 +14,12 @@ namespace HDY.UI
     /// - ActiveImage(배치 활성 표시)가 없다 - 도감 항목은 "배치"라는 개념 자체가 없음.
     /// - 드래그앤드롭(슬롯 교체)이 없다 - 순서를 바꿀 "내 소유 데이터"가 아니라 읽기 전용 카탈로그이므로.
     /// 아이콘(MemIconRenderer)과 Mem스탯/티어 표시(MemStatDisplayInfo)는 MemSlotUI와 동일한 방식으로 재사용한다.
+    ///
+    /// [HDY 요청 - 최초 포획 실루엣] MemDexRecordManager에 최초 포획 기록이 없는(아직 한 번도 포획한 적
+    /// 없는) 종은 아이콘을 검게 틴트해서 실루엣처럼 보이게 한다. 아이콘 스프라이트(모양) 자체는 그대로
+    /// 두고 Image.color만 검정으로 덮어씌우는 방식이라 별도의 실루엣 전용 스프라이트가 필요 없다.
+    /// 발견 여부 판단(MemDexRecordManager 조회)은 이 클래스가 하지 않는다 - 카탈로그 순회와 마찬가지로
+    /// 상위(MemDexUI)가 판단해서 SetData 호출 시 isDiscovered로 넘겨준다.
     /// </summary>
     public class MemDexSlotUI : MonoBehaviour
     {
@@ -47,11 +53,13 @@ namespace HDY.UI
 
         /// <summary>슬롯에 표시할 도감 데이터를 채운다.</summary>
         /// <param name="statInfo">현재 도감이 Mem스탯/티어 기준으로 정렬 중일 때 표시할 아이콘/값. 정렬 중이 아니면 Hidden.</param>
-        public void SetData(MemData data, MemStatDisplayInfo statInfo)
+        /// <param name="isDiscovered">이 종의 최초 포획 기록이 있는지 여부. false면 아이콘을 검게 틴트해 실루엣으로 표시한다.</param>
+        public void SetData(MemData data, MemStatDisplayInfo statInfo, bool isDiscovered)
         {
             cachedData = data;
 
             ApplyIcon(data);
+            ApplyDiscoveryTint(isDiscovered);
             ApplyStatDisplay(statInfo);
         }
 
@@ -69,6 +77,17 @@ namespace HDY.UI
 
             iconImage.sprite = sprite;
             iconImage.gameObject.SetActive(sprite != null);
+        }
+
+        /// <summary>
+        /// [HDY 요청 - 최초 포획 실루엣] 미발견 종은 아이콘 색을 검정으로 틴트하고, 발견된 종은 흰색(틴트 없음)으로
+        /// 되돌린다. 스프라이트 자체는 ApplyIcon이 이미 채운 그대로 두고 색상만 바꾼다.
+        /// </summary>
+        private void ApplyDiscoveryTint(bool isDiscovered)
+        {
+            if (iconImage == null) return;
+
+            iconImage.color = isDiscovered ? Color.white : Color.black;
         }
 
         /// <summary>MemStatIcon/MemStatText를 statInfo에 맞게 켜고 끈다. 스탯/티어 정렬 중이 아니면 둘 다 감춘다.</summary>

@@ -1,34 +1,43 @@
 ﻿using HDY.Capture;
+using HDY.Cook;
 using HDY.Inventory;
 using HDY.Item;
 using HDY.Mem;
-using HDY.Recipe;
 using KMS.InventoryDuped;
 using MemSystem.Data;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class ProductionCraftRuntime : MonoBehaviour
+public class KitchenRuntime : MonoBehaviour
 {
     [Header("시설 기본 정보")]
     public BuildingData buildingData;
+    public CookingFacilityData cookingFacilityData;
 
-    [Header("제작 가동 상태")]
-    public bool isProducing = false;
-    public string currentCraftingItem;
+    [Header("요리 가동 상태")]
+    public bool isCooking = false;
+    public bool isPowerPaused = false;
+    public string currentCookingItem;
+
     public float totalRequiredTime;
     public float currentProgressTime = 0f;
 
-    [Header("제작 수량 데이터")]
+    [Header("요리 수량 데이터")]
     public int targetQuantity = 1;
     public int remainingQuantity = 0;
 
-    [Header("제작 완료 데이터")]
+    [Header("요리 완료 데이터")]
     public int currentStorageCount = 0;
-    public int maxStorageCount;
+    public int maxStorageCount = 10;
 
-    [Header("배치된 멤 정보")]
+    [Header("전력 소모 설정 (발전기 연동)")]
+    public float powerConsumeInterval = 20f;
+    public int powerConsumeAmount = 10;
+
+    private float powerTimer = 0f;
+
+    [Header("시설에 배치된 멤 정보 (최대 1마리)")]
     [SerializeField] private List<MemData> addMems = new List<MemData>();
     [SerializeField] private List<CapturedMemEntry> addMemEntries = new List<CapturedMemEntry>();
 
@@ -89,81 +98,154 @@ public class ProductionCraftRuntime : MonoBehaviour
 
     private void Update()
     {
-        if (!isProducing) return;
+        if (!isCooking) return;
 
         if (currentStorageCount >= maxStorageCount)
         {
-            isProducing = false;
+            isCooking = false;
             return;
         }
 
-        currentProgressTime += Time.deltaTime;
-
-        if (currentProgressTime >= totalRequiredTime)
+        if (!isPowerPaused)
         {
-            CompleteCraftingUnit();
+            currentProgressTime += Time.deltaTime;
+            powerTimer += Time.deltaTime;
+
+            if (powerTimer >= powerConsumeInterval)
+            {
+                powerTimer = 0f;
+
+                if (!ConsumeTerritoryPower(powerConsumeAmount))
+                {
+                    isPowerPaused = true;
+                }
+            }
+
+            if (!isPowerPaused && currentProgressTime >= totalRequiredTime)
+            {
+                CompleteCookingUnit();
+            }
+        }
+        else
+        {
+            if (GetTotalTerritoryPower() >= powerConsumeAmount)
+            {
+                if (ConsumeTerritoryPower(powerConsumeAmount))
+                {
+                    isPowerPaused = false;
+                    powerTimer = 0f;
+                }
+            }
         }
     }
 
-    public void SelectAndStartCrafting(string targetItemId, int quantity)
+    public bool ConsumeTerritoryPower(int amount)
+    {
+        var generators = FindObjectsByType<GeneratorRuntime>(FindObjectsSortMode.None);
+        int remainingToConsume = amount;
+
+        if (GetTotalTerritoryPower() < amount) return false;
+
+        foreach (var gen in generators)
+        {
+            if (gen == null || gen.currentPowerStorage <= 0) continue;
+
+            int consumed = gen.ConsumePower(remainingToConsume);
+            remainingToConsume -= consumed;
+
+            if (remainingToConsume <= 0) break;
+        }
+
+        return remainingToConsume <= 0;
+    }
+
+    public int GetTotalTerritoryPower()
+    {
+        var generators = FindObjectsByType<GeneratorRuntime>(FindObjectsSortMode.None);
+        int totalPower = 0;
+
+        foreach (var gen in generators)
+        {
+            if (gen != null)
+            {
+                totalPower += gen.currentPowerStorage;
+            }
+        }
+
+        return totalPower;
+    }
+
+    public void SelectAndStartCooking(string targetItemId, int quantity)
     {
         if (string.IsNullOrEmpty(targetItemId) || addMems.Count == 0) return;
 
-        currentCraftingItem = targetItemId;
+        currentCookingItem = targetItemId;
         targetQuantity = quantity;
         remainingQuantity = quantity;
         currentProgressTime = 0f;
+        powerTimer = 0f;
 
-        RecipeData recipe = FindRecipeDataInCatalog(currentCraftingItem);
-        float baseDuration = recipe != null ? recipe.time : 20f;
+        CookRecipeData recipe = FindCookRecipeDataInCatalog(currentCookingItem);
+        float baseDuration = recipe != null ? recipe.Time : 15f;
 
         totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, addMems);
 
         if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
         {
-            SetProducingActive(true);
+            SetCookingActive(true);
+
+            if (!ConsumeTerritoryPower(powerConsumeAmount))
+            {
+                isPowerPaused = true;
+            }
+            else
+            {
+                isPowerPaused = false;
+            }
         }
         else
         {
-            isProducing = false;
+            isCooking = false;
+            isPowerPaused = false;
         }
     }
 
-    public void SelectAndStartCrafting(ItemData targetItem, int quantity)
+    public void SelectAndStartCooking(ItemData targetItem, int quantity)
     {
         if (targetItem == null) return;
-        SelectAndStartCrafting(targetItem.Item_ID, quantity);
+        SelectAndStartCooking(targetItem.Item_ID, quantity);
     }
 
-    private void RecalculateCraftingTimer()
+    private void RecalculateCookingTimer()
     {
         if (addMems.Count == 0)
         {
-            isProducing = false;
+            isCooking = false;
+            isPowerPaused = false;
             currentProgressTime = 0f;
-            currentCraftingItem = null;
+            currentCookingItem = null;
             remainingQuantity = 0;
             targetQuantity = 1;
             return;
         }
 
-        if (!string.IsNullOrEmpty(currentCraftingItem))
+        if (!string.IsNullOrEmpty(currentCookingItem))
         {
             float currentProgressPercent = totalRequiredTime > 0f ? (currentProgressTime / totalRequiredTime) : 0f;
 
-            RecipeData recipe = FindRecipeDataInCatalog(currentCraftingItem);
-            float baseDuration = recipe != null ? recipe.time : 20f;
+            CookRecipeData recipe = FindCookRecipeDataInCatalog(currentCookingItem);
+            float baseDuration = recipe != null ? recipe.Time : 15f;
 
             totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, addMems);
             currentProgressTime = totalRequiredTime * currentProgressPercent;
 
             if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
             {
-                SetProducingActive(true);
+                SetCookingActive(true);
             }
             else
             {
-                isProducing = false;
+                isCooking = false;
             }
         }
     }
@@ -198,7 +280,7 @@ public class ProductionCraftRuntime : MonoBehaviour
         addMemEntries.Add(targetEntry);
         targetEntry.IsActive = true;
 
-        RecalculateCraftingTimer();
+        RecalculateCookingTimer();
 
         if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
 
@@ -225,7 +307,7 @@ public class ProductionCraftRuntime : MonoBehaviour
             addMemEntries.RemoveAt(index);
             if (index < addMems.Count) addMems.RemoveAt(index);
 
-            RecalculateCraftingTimer();
+            RecalculateCookingTimer();
 
             if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
 
@@ -249,7 +331,7 @@ public class ProductionCraftRuntime : MonoBehaviour
         }
     }
 
-    private void CompleteCraftingUnit()
+    private void CompleteCookingUnit()
     {
         currentStorageCount++;
         remainingQuantity--;
@@ -257,13 +339,15 @@ public class ProductionCraftRuntime : MonoBehaviour
 
         if (remainingQuantity > 0)
         {
-            RecipeData recipe = FindRecipeDataInCatalog(currentCraftingItem);
-            float baseDuration = recipe != null ? recipe.time : 20f;
+            CookRecipeData recipe = FindCookRecipeDataInCatalog(currentCookingItem);
+            float baseDuration = recipe != null ? recipe.Time : 15f;
             totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, addMems);
         }
         else
         {
-            isProducing = false;
+            isCooking = false;
+            isPowerPaused = false;
+            powerTimer = 0f;
 
             if (buildingData != null)
             {
@@ -274,52 +358,53 @@ public class ProductionCraftRuntime : MonoBehaviour
         FacilityCollectManager.Instance?.NotifyFacilityChanged(this);
     }
 
-    public void CancelCrafting()
+    public void CancelCooking()
     {
-        if (!isProducing && string.IsNullOrEmpty(currentCraftingItem)) return;
+        if (!isCooking && string.IsNullOrEmpty(currentCookingItem)) return;
 
-        bool wasWorking = isProducing;
+        bool wasWorking = isCooking;
         var inventory = FindFirstObjectByType<PlayerInventory>();
         var warehouse = FindFirstObjectByType<WarehouseInventory>();
 
         if (currentStorageCount > 0)
         {
-            ItemData itemData = FindItemDataInCatalog(currentCraftingItem);
-            if (inventory != null && itemData != null)
+            ItemData dishItem = FindItemDataInCatalog(currentCookingItem);
+            if (inventory != null && dishItem != null)
             {
-                inventory.AddItem(itemData, currentStorageCount);
+                inventory.AddItem(dishItem, currentStorageCount);
             }
         }
 
         if (remainingQuantity > 0)
         {
-            RecipeData matchedRecipe = FindRecipeDataInCatalog(currentCraftingItem);
-            if (matchedRecipe != null && matchedRecipe.Requset_Items_ID != null)
-            {
-                foreach (var req in matchedRecipe.Requset_Items_ID)
-                {
-                    if (req == null || string.IsNullOrEmpty(req.Item_ID)) continue;
-                    int refundAmount = req.Amount * remainingQuantity;
-                    if (refundAmount <= 0) continue;
+            List<string> ingredientIds = GetIngredientIdsForCooking(currentCookingItem);
 
-                    if (inventory != null)
-                    {
-                        refundAmount = inventory.AddItem(req.Item_ID, refundAmount);
-                    }
-                    if (refundAmount > 0 && warehouse != null)
-                    {
-                        warehouse.AddItem(req.Item_ID, refundAmount);
-                    }
+            foreach (string matId in ingredientIds)
+            {
+                if (string.IsNullOrEmpty(matId)) continue;
+
+                int refundAmount = remainingQuantity;
+                if (refundAmount <= 0) continue;
+
+                if (inventory != null)
+                {
+                    refundAmount = inventory.AddItem(matId, refundAmount);
+                }
+                if (refundAmount > 0 && warehouse != null)
+                {
+                    warehouse.AddItem(matId, refundAmount);
                 }
             }
         }
 
-        isProducing = false;
+        isCooking = false;
+        isPowerPaused = false;
         currentStorageCount = 0;
         remainingQuantity = 0;
         targetQuantity = 1;
         currentProgressTime = 0f;
-        currentCraftingItem = null;
+        powerTimer = 0f;
+        currentCookingItem = null;
 
         if (wasWorking && buildingData != null)
         {
@@ -327,24 +412,24 @@ public class ProductionCraftRuntime : MonoBehaviour
         }
     }
 
-    public bool CollectCraftedItems()
+    public bool CollectCookedItems()
     {
         if (currentStorageCount <= 0) return false;
 
         PlayerInventory inventory = FindFirstObjectByType<PlayerInventory>();
-        ItemData itemData = FindItemDataInCatalog(currentCraftingItem);
+        ItemData dishItem = FindItemDataInCatalog(currentCookingItem);
 
-        if (inventory != null && itemData != null)
+        if (inventory != null && dishItem != null)
         {
-            int remaining = inventory.AddItem(itemData, currentStorageCount);
+            int remaining = inventory.AddItem(dishItem, currentStorageCount);
             currentStorageCount = remaining;
         }
 
         if (currentStorageCount > 0) return false;
 
-        if (remainingQuantity <= 0 && !isProducing)
+        if (remainingQuantity <= 0 && !isCooking)
         {
-            currentCraftingItem = null;
+            currentCookingItem = null;
             targetQuantity = 1;
             return true;
         }
@@ -352,28 +437,39 @@ public class ProductionCraftRuntime : MonoBehaviour
         return false;
     }
 
+    public List<string> GetIngredientIdsForCooking(string resultItemId)
+    {
+        if (string.IsNullOrEmpty(resultItemId)) return new List<string>();
+
+        CookRecipeData cookRecipe = FindCookRecipeDataInCatalog(resultItemId);
+        if (cookRecipe != null && cookRecipe.Ingredient_Item_IDs != null)
+        {
+            return cookRecipe.Ingredient_Item_IDs;
+        }
+
+        return new List<string>();
+    }
+
     private ItemData FindItemDataInCatalog(string itemId)
     {
         if (string.IsNullOrEmpty(itemId)) return null;
-        if (ItemCatalogManager.Instance == null) return null;
-
-        return ItemCatalogManager.Instance.FindItemData(itemId);
+        var catalog = ItemCatalogManager.Resolve(null);
+        return catalog != null ? catalog.FindItemData(itemId) : null;
     }
 
-    private RecipeData FindRecipeDataInCatalog(string recipeItemId)
+    private CookRecipeData FindCookRecipeDataInCatalog(string resultItemId)
     {
-        if (string.IsNullOrEmpty(recipeItemId)) return null;
-        if (ItemCatalogManager.Instance == null) return null;
-
-        return ItemCatalogManager.Instance.FindRecipeData(recipeItemId);
+        if (string.IsNullOrEmpty(resultItemId)) return null;
+        var catalog = ItemCatalogManager.Resolve(null);
+        return catalog != null ? catalog.FindCookRecipeData(resultItemId) : null;
     }
 
-    private void SetProducingActive(bool value)
+    private void SetCookingActive(bool value)
     {
-        if (isProducing == value) return;
-        isProducing = value;
+        if (isCooking == value) return;
+        isCooking = value;
 
-        if (isProducing && buildingData != null)
+        if (isCooking && buildingData != null)
         {
             FacilityStarted?.Invoke(buildingData.buildingType, addMems, MemPositions);
         }
@@ -381,8 +477,8 @@ public class ProductionCraftRuntime : MonoBehaviour
 
     public void StopWorkDueToStarvation()
     {
-        if (!isProducing) return;
-        isProducing = false;
+        if (!isCooking) return;
+        isCooking = false;
 
         if (buildingData != null)
         {
@@ -392,9 +488,19 @@ public class ProductionCraftRuntime : MonoBehaviour
 
     public void ResumeWorkAfterStarvation()
     {
-        if (!string.IsNullOrEmpty(currentCraftingItem) && addMems.Count > 0)
+        if (!string.IsNullOrEmpty(currentCookingItem) && addMems.Count > 0)
         {
-            SetProducingActive(true);
+            SetCookingActive(true);
+
+            if (!ConsumeTerritoryPower(powerConsumeAmount))
+            {
+                isPowerPaused = true;
+            }
+            else
+            {
+                isPowerPaused = false;
+                powerTimer = 0f;
+            }
         }
     }
 }

@@ -19,7 +19,8 @@ public class FacilityRecordData : MonoBehaviour, IRecord
         RanchFacilityRuntime.OnMemDeploymentChanged += OnFacilityDataChanged;
         GeneratorRuntime.OnMemDeploymentChanged += OnFacilityDataChanged;
         TransportRuntime.OnMemDeploymentChanged += OnFacilityDataChanged;
-        CampFireRuntime.OnMemDeploymentChanged += OnFacilityDataChanged; 
+        CampFireRuntime.OnMemDeploymentChanged += OnFacilityDataChanged;
+        KitchenRuntime.OnMemDeploymentChanged += OnFacilityDataChanged;
 
         ProductionFacilityRuntime.FacilityStarted += OnFacilityStartedHandler;
         ProductionFacilityRuntime.FacilityStopped += OnFacilityStoppedHandler;
@@ -36,8 +37,11 @@ public class FacilityRecordData : MonoBehaviour, IRecord
         TransportRuntime.FacilityStarted += OnFacilityStartedHandler;
         TransportRuntime.FacilityStopped += OnFacilityStoppedHandler;
 
-        CampFireRuntime.FacilityStarted += OnFacilityStartedHandler; 
-        CampFireRuntime.FacilityStopped += OnFacilityStoppedHandler; 
+        CampFireRuntime.FacilityStarted += OnFacilityStartedHandler;
+        CampFireRuntime.FacilityStopped += OnFacilityStoppedHandler;
+
+        KitchenRuntime.FacilityStarted += OnFacilityStartedHandler;
+        KitchenRuntime.FacilityStopped += OnFacilityStoppedHandler;
     }
 
     private void OnDisable()
@@ -49,7 +53,8 @@ public class FacilityRecordData : MonoBehaviour, IRecord
         RanchFacilityRuntime.OnMemDeploymentChanged -= OnFacilityDataChanged;
         GeneratorRuntime.OnMemDeploymentChanged -= OnFacilityDataChanged;
         TransportRuntime.OnMemDeploymentChanged -= OnFacilityDataChanged;
-        CampFireRuntime.OnMemDeploymentChanged -= OnFacilityDataChanged; 
+        CampFireRuntime.OnMemDeploymentChanged -= OnFacilityDataChanged;
+        KitchenRuntime.OnMemDeploymentChanged -= OnFacilityDataChanged;
 
         ProductionFacilityRuntime.FacilityStarted -= OnFacilityStartedHandler;
         ProductionFacilityRuntime.FacilityStopped -= OnFacilityStoppedHandler;
@@ -66,14 +71,15 @@ public class FacilityRecordData : MonoBehaviour, IRecord
         TransportRuntime.FacilityStarted -= OnFacilityStartedHandler;
         TransportRuntime.FacilityStopped -= OnFacilityStoppedHandler;
 
-        CampFireRuntime.FacilityStarted -= OnFacilityStartedHandler; 
+        CampFireRuntime.FacilityStarted -= OnFacilityStartedHandler;
         CampFireRuntime.FacilityStopped -= OnFacilityStoppedHandler;
+
+        KitchenRuntime.FacilityStarted -= OnFacilityStartedHandler;
+        KitchenRuntime.FacilityStopped -= OnFacilityStoppedHandler;
     }
 
-    private void OnFacilityStartedHandler(BuildingType type, List<MemData> mems) => OnFacilityDataChanged();
-    private void OnFacilityStartedHandler(BuildingType type) => OnFacilityDataChanged();
-    private void OnFacilityStoppedHandler(BuildingType type, List<MemData> mems, FacilityStopReason reason) => OnFacilityDataChanged();
-    private void OnFacilityStoppedHandler(BuildingType type, FacilityStopReason reason) => OnFacilityDataChanged();
+    private void OnFacilityStartedHandler(BuildingType type, List<MemData> mems, List<Transform> positions) => OnFacilityDataChanged();
+    private void OnFacilityStoppedHandler(BuildingType type, List<MemData> mems, FacilityStopReason reason, List<Transform> positions) => OnFacilityDataChanged();
 
     private void OnFacilityDataChanged()
     {
@@ -200,6 +206,7 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                 rData.currentLevel = trans.currentLevel;
                 rData.isActive = trans.isWorking;
                 rData.currentProgressTime = trans.currentProgressTime;
+
                 if (trans.DeployedMemEntries != null)
                 {
                     var ids = trans.DeployedMemEntries.Where(e => e != null && !string.IsNullOrEmpty(e.KeyId)).Select(e => e.KeyId).ToList();
@@ -220,6 +227,23 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                 if (campFire.DeployedMemEntries != null)
                 {
                     var ids = campFire.DeployedMemEntries.Where(e => e != null && !string.IsNullOrEmpty(e.KeyId)).Select(e => e.KeyId).ToList();
+                    rData.DeployedMemIDs = ids;
+                    foreach (var id in ids) allDeployedMemIDs.Add(id);
+                }
+            }
+            else if (br.TryGetComponent<KitchenRuntime>(out var kitchen))
+            {
+                rData.currentLevel = 1;
+                rData.isActive = kitchen.isCooking;
+                rData.currentCraftingItemId = kitchen.currentCookingItem ?? "";
+                rData.targetQuantity = kitchen.targetQuantity;
+                rData.remainingQuantity = kitchen.remainingQuantity;
+                rData.currentProgressTime = kitchen.currentProgressTime;
+                rData.currentStorageCount = kitchen.currentStorageCount;
+
+                if (kitchen.DeployedMemEntries != null)
+                {
+                    var ids = kitchen.DeployedMemEntries.Where(e => e != null && !string.IsNullOrEmpty(e.KeyId)).Select(e => e.KeyId).ToList();
                     rData.DeployedMemIDs = ids;
                     foreach (var id in ids) allDeployedMemIDs.Add(id);
                 }
@@ -248,7 +272,7 @@ public class FacilityRecordData : MonoBehaviour, IRecord
 
         currentData.lastSaveTime = DateTime.UtcNow.ToString("o");
         File.WriteAllText(saveFilePath, JsonUtility.ToJson(currentData, true));
-        Debug.Log("<color=lime>[FacilityLayoutRecord]</color> 모닥불 포함 시설 데이터 저장 완료!");
+        Debug.Log("<color=lime>[FacilityLayoutRecord]</color> 시설 데이터 저장 완료!");
     }
 
     public void ApplyData(SaveData saveData, SceneType sceneType)
@@ -307,7 +331,7 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                 var entry = bSave.runtimeData ?? new FacilityData { Building_ID = $"{matchData.buildingName}_{bSave.gridX}_{bSave.gridZ}" };
                 var memManager = FindFirstObjectByType<MemCaptureManager>();
 
-                // 1. 일반 생산 시설 복원
+                // 1. 일반 생산 시설
                 if (spawnedObj.TryGetComponent<ProductionFacilityRuntime>(out var facility))
                 {
                     facility.buildingData = matchData;
@@ -341,7 +365,7 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                     }
                     facility.CheckProductionCondition();
                 }
-                // 2. 제작대 시설 복원
+                // 2. 제작대 시설
                 else if (spawnedObj.TryGetComponent<ProductionCraftRuntime>(out var craft))
                 {
                     craft.buildingData = matchData;
@@ -372,7 +396,7 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                         }
                     }
                 }
-                // 3. 목장 시설 복원
+                // 3. 목장 시설
                 else if (spawnedObj.TryGetComponent<RanchFacilityRuntime>(out var ranch))
                 {
                     ranch.buildingData = matchData;
@@ -416,7 +440,7 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                     }
                     ranch.CheckAllSlotsProductionCondition();
                 }
-                // 4. 발전기 시설 복원
+                // 4. 발전기 시설
                 else if (spawnedObj.TryGetComponent<GeneratorRuntime>(out var gen))
                 {
                     gen.buildingData = matchData;
@@ -447,15 +471,17 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                     }
                     gen.CheckPowerCondition();
                 }
-                // 5. 운송 시설 복원
+                // 5. 운송 시설
                 else if (spawnedObj.TryGetComponent<TransportRuntime>(out var trans))
                 {
                     trans.buildingData = matchData;
                     trans.currentLevel = entry.currentLevel > 0 ? entry.currentLevel : 1;
                     trans.isWorking = entry.isActive;
                     trans.currentProgressTime = entry.currentProgressTime;
+
                     if (trans.DeployedMems != null) trans.DeployedMems.Clear();
                     if (trans.DeployedMemEntries != null) trans.DeployedMemEntries.Clear();
+
                     if (memManager != null && entry.DeployedMemIDs != null)
                     {
                         int maxCapacity = ProductionCalculator.GetTransportMaxMemCount(trans.currentLevel);
@@ -476,7 +502,7 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                     }
                     trans.CheckProductionCondition();
                 }
-                // 6. 모닥불 시설 데이터 복원
+                // 6. 모닥불 시설
                 else if (spawnedObj.TryGetComponent<CampFireRuntime>(out var campFire))
                 {
                     campFire.buildingData = matchData;
@@ -502,6 +528,37 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                                 {
                                     match.IsActive = false;
                                     campFire.TryAddMem(realMemData, match);
+                                }
+                            }
+                        }
+                    }
+                }
+                // 7. 주방 시설
+                else if (spawnedObj.TryGetComponent<KitchenRuntime>(out var kitchen))
+                {
+                    kitchen.buildingData = matchData;
+                    kitchen.isCooking = entry.isActive;
+                    kitchen.targetQuantity = entry.targetQuantity;
+                    kitchen.remainingQuantity = entry.remainingQuantity;
+                    kitchen.currentProgressTime = entry.currentProgressTime;
+                    kitchen.currentStorageCount = entry.currentStorageCount;
+                    kitchen.currentCookingItem = entry.currentCraftingItemId;
+
+                    if (kitchen.DeployedMems != null) kitchen.DeployedMems.Clear();
+                    if (kitchen.DeployedMemEntries != null) kitchen.DeployedMemEntries.Clear();
+
+                    if (memManager != null && entry.DeployedMemIDs != null)
+                    {
+                        foreach (var savedKeyId in entry.DeployedMemIDs)
+                        {
+                            var match = memManager.CapturedMems.FirstOrDefault(m => m != null && m.KeyId == savedKeyId);
+                            if (match != null)
+                            {
+                                MemData realMemData = MemCatalogManager.Instance != null ? MemCatalogManager.Instance.FindMemData(match.MemId) : null;
+                                if (realMemData != null)
+                                {
+                                    match.IsActive = false;
+                                    kitchen.TryAddMem(realMemData, match);
                                 }
                             }
                         }

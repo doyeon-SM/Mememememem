@@ -101,36 +101,47 @@ public class RecordManager : MonoBehaviour
 
             IsBlueprintGiven = saveData.isBlueprintGiven;
 
+            // 1. 영지 기초 데이터 복구
             var territoryRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "TerritoryRecordData");
             territoryRecord?.ApplyData(saveData, sceneType);
 
+            // 2. 웨이포인트 해금 데이터 복구
             var waypointRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "WaypointRecordData");
             waypointRecord?.ApplyData(saveData, sceneType);
 
+            // 3. 상자 개봉 데이터 복구
             var chestRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "ChestRecordData");
             chestRecord?.ApplyData(saveData, sceneType);
 
+            // 4. 멤 창고 데이터 복구
             var memRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "MemRecordData");
             memRecord?.ApplyData(saveData, sceneType);
 
+            // 5. 대장간 데이터 복구
             var forgeRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "ForgeRecordData");
             forgeRecord?.ApplyData(saveData, sceneType);
 
+            // 6. 플레이어 인벤토리 복구
             var inventoryRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "PlayerInventoryRecord");
             inventoryRecord?.ApplyData(saveData, sceneType);
 
+            // 7. 플레이어 스탯 복구
             var playerStatsRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "PlayerStatsRecordData");
             playerStatsRecord?.ApplyData(saveData, sceneType);
 
+            // 8. 배치된 시설 복원
             var facilityRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "FacilityRecordData");
             facilityRecord?.ApplyData(saveData, sceneType);
 
+            // 9. 음식 소모 데이터 복구
             var foodRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "ConsumeFoodRecordData");
             foodRecord?.ApplyData(saveData, sceneType);
 
+            // 10. 시간 데이터 복구
             var timeRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "TimeRecordData");
             timeRecord?.ApplyData(saveData, sceneType);
 
+            // 11. 오프라인 보상 정산
             var offlineRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "OfflineRewardRecordData");
             offlineRecord?.ApplyData(saveData, sceneType);
 
@@ -277,6 +288,7 @@ public class RecordManager : MonoBehaviour
         foreach (var g in FindObjectsByType<GeneratorPanelUI>(FindObjectsInactive.Include, FindObjectsSortMode.None)) if (g.gameObject.activeInHierarchy) g.RefreshUI();
         foreach (var t in FindObjectsByType<TransportPanelUI>(FindObjectsInactive.Include, FindObjectsSortMode.None)) if (t.gameObject.activeInHierarchy) t.RefreshUI();
         foreach (var cf in FindObjectsByType<CampFirePanelUI>(FindObjectsInactive.Include, FindObjectsSortMode.None)) if (cf.gameObject.activeInHierarchy) cf.RefreshUI();
+        foreach (var k in FindObjectsByType<KitchenPanelUI>(FindObjectsInactive.Include, FindObjectsSortMode.None)) if (k.gameObject.activeInHierarchy) k.RefreshUI();
     }
 
     private IEnumerator SpawnWarehouseWanderersWithDelayRoutine()

@@ -62,7 +62,7 @@ MonoBehaviour:
   m_Color: {r: 1, g: 1, b: 1, a: 0}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
-  m_Maskable: 1
+  m_Maskable: 0
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
@@ -211,6 +211,10 @@ PrefabInstance:
     - target: {fileID: 3845493696103189265, guid: 7ef13426b4d127d4c98b256a43fe0391, type: 3}
       propertyPath: m_SizeDelta.x
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3845493696103189265, guid: 7ef13426b4d127d4c98b256a43fe0391, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: -0.000022175778
       objectReference: {fileID: 0}
     - target: {fileID: 5037905350095408935, guid: 7ef13426b4d127d4c98b256a43fe0391, type: 3}
       propertyPath: m_Sprite

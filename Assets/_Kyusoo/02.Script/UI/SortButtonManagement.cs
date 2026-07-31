@@ -70,6 +70,20 @@ public class SortButtonManagement : MonoBehaviour
 
     private string GetKeywordFromFacility(GameObject facilityObject)
     {
+        var kitchenRuntime = facilityObject.GetComponentInParent<KitchenRuntime>();
+        if (kitchenRuntime == null) kitchenRuntime = facilityObject.GetComponentInChildren<KitchenRuntime>();
+        if (kitchenRuntime != null && kitchenRuntime.buildingData != null)
+        {
+            return GetKeywordByBuildingType(kitchenRuntime.buildingData.buildingType);
+        }
+
+        var kitchenUI = facilityObject.GetComponentInParent<KitchenPanelUI>();
+        if (kitchenUI == null) kitchenUI = facilityObject.GetComponentInChildren<KitchenPanelUI>();
+        if (kitchenUI != null && kitchenUI.TargetFacility != null && kitchenUI.TargetFacility.buildingData != null)
+        {
+            return GetKeywordByBuildingType(kitchenUI.TargetFacility.buildingData.buildingType);
+        }
+
         var campFireRuntime = facilityObject.GetComponentInParent<CampFireRuntime>();
         if (campFireRuntime == null) campFireRuntime = facilityObject.GetComponentInChildren<CampFireRuntime>();
         if (campFireRuntime != null && campFireRuntime.buildingData != null)
@@ -161,7 +175,7 @@ public class SortButtonManagement : MonoBehaviour
             case BuildingType.Generator: return "trans";
             case BuildingType.Farm: return "farm";
             case BuildingType.Ranch: return "farm";
-            default: return "craft";
+            default: return "farm";
         }
     }
 }

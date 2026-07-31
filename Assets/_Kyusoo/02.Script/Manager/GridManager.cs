@@ -31,9 +31,10 @@ public class GridManager : MonoBehaviour
     [SerializeField] private Material previewMaterial;
     [SerializeField] private Material gridMaterialPrefab;
 
-    [Header("타일 색상 정보: 배치 가능, 배치 불가")]
+    [Header("타일 색상 정보: 배치 가능, 배치 불가, 점유된 타일")]
     [SerializeField] private Color buildableColor = new Color(0f, 0.5f, 1f, 0.4f);
     [SerializeField] private Color unbuildableColor = new Color(1f, 0f, 0f, 0.4f);
+    [SerializeField] private Color occupiedTileColor = new Color(0.25f, 0.25f, 0.25f, 1f); // 🌟 배치 모드 중 이미 배치된 건물 타일 색상
 
     private BuildingData selectedBuildingData;
     private GameObject currentPreviewInstance;
@@ -176,10 +177,13 @@ public class GridManager : MonoBehaviour
                     {
                         PanelManager.Instance.OpenTransportPanel(transport);
                     }
-                    // 🌟 [추가]: 모닥불 시설 좌클릭 시 패널 오픈
                     else if (targetObj.TryGetComponent<CampFireRuntime>(out CampFireRuntime campFire))
                     {
                         PanelManager.Instance.OpenCampFirePanel(campFire);
+                    }
+                    else if (targetObj.TryGetComponent<KitchenRuntime>(out KitchenRuntime kitchen))
+                    {
+                        PanelManager.Instance.OpenKitchenPanel(kitchen);
                     }
                 }
             }
@@ -365,7 +369,46 @@ public class GridManager : MonoBehaviour
 
         if (globalGridOverlay != null) globalGridOverlay.SetActive(isPlacementMode);
 
+        // 🌟 타일 점유 색상 하이라이트/원복 처리
+        UpdateTileOccupiedVisuals();
+
         Debug.Log($"배치 모드 상태 변경: {isPlacementMode} | 배치 가능 건물 수: {currentAvailableBuildings.Count}개");
+    }
+
+    /// <summary>
+    /// 🌟 배치 모드일 때 이미 건물이 올라간 타일들의 색상을 하이라이트하고, 모드가 끝나거나 건물이 들려지면 원래대로 복구합니다.
+    /// </summary>
+    private void UpdateTileOccupiedVisuals()
+    {
+        if (tileGrid == null) return;
+
+        MaterialPropertyBlock mpb = new MaterialPropertyBlock();
+
+        for (int x = 0; x < currentWidth; x++)
+        {
+            for (int z = 0; z < currentHeight; z++)
+            {
+                if (tileGrid[x, z] == null) continue;
+
+                var renderers = tileGrid[x, z].GetComponentsInChildren<MeshRenderer>();
+                foreach (var r in renderers)
+                {
+                    if (r == null) continue;
+
+                    if (isPlacementMode && occupiedCells[x, z])
+                    {
+                        mpb.SetColor("_BaseColor", occupiedTileColor);
+                        mpb.SetColor("_Color", occupiedTileColor);
+                        r.SetPropertyBlock(mpb);
+                    }
+                    else
+                    {
+                        // 배치 모드가 아니거나 점유되지 않은 타일은 원본 메터리얼 색상으로 복구
+                        r.SetPropertyBlock(null);
+                    }
+                }
+            }
+        }
     }
 
     private void ClearPreview()
@@ -605,7 +648,6 @@ public class GridManager : MonoBehaviour
                     transRuntime.CheckProductionCondition();
                 }
             }
-            // 🌟 [추가]: 모닥불 시설 이동 복원
             else if (realBuilding.TryGetComponent<CampFireRuntime>(out CampFireRuntime campFireRuntime))
             {
                 campFireRuntime.buildingData = selectedBuildingData;
@@ -622,6 +664,24 @@ public class GridManager : MonoBehaviour
                     campFireRuntime.DeployedMemEntries.Clear();
                     campFireRuntime.DeployedMems.AddRange(cachedPickedUpState.deployedMems);
                     campFireRuntime.DeployedMemEntries.AddRange(cachedPickedUpState.deployedMemEntries);
+                }
+            }
+            else if (realBuilding.TryGetComponent<KitchenRuntime>(out KitchenRuntime kitchenRuntime))
+            {
+                kitchenRuntime.buildingData = selectedBuildingData;
+                kitchenRuntime.isCooking = cachedPickedUpState.facilityData.isActive;
+                kitchenRuntime.targetQuantity = cachedPickedUpState.facilityData.targetQuantity;
+                kitchenRuntime.remainingQuantity = cachedPickedUpState.facilityData.remainingQuantity;
+                kitchenRuntime.currentProgressTime = cachedPickedUpState.facilityData.currentProgressTime;
+                kitchenRuntime.currentStorageCount = cachedPickedUpState.facilityData.currentStorageCount;
+                kitchenRuntime.currentCookingItem = cachedPickedUpState.facilityData.currentCraftingItemId;
+
+                if (kitchenRuntime.DeployedMems != null && kitchenRuntime.DeployedMemEntries != null)
+                {
+                    kitchenRuntime.DeployedMems.Clear();
+                    kitchenRuntime.DeployedMemEntries.Clear();
+                    kitchenRuntime.DeployedMems.AddRange(cachedPickedUpState.deployedMems);
+                    kitchenRuntime.DeployedMemEntries.AddRange(cachedPickedUpState.deployedMemEntries);
                 }
             }
 
@@ -648,7 +708,6 @@ public class GridManager : MonoBehaviour
                 ranchRuntime.buildingData = selectedBuildingData;
                 ranchRuntime.UpdateSlotCapacity();
             }
-
             else if (realBuilding.TryGetComponent<GeneratorRuntime>(out GeneratorRuntime genRuntime))
             {
                 genRuntime.buildingData = selectedBuildingData;
@@ -657,6 +716,10 @@ public class GridManager : MonoBehaviour
             else if (realBuilding.TryGetComponent<CampFireRuntime>(out CampFireRuntime campFireRuntime))
             {
                 campFireRuntime.buildingData = selectedBuildingData;
+            }
+            else if (realBuilding.TryGetComponent<KitchenRuntime>(out KitchenRuntime kitchenRuntime))
+            {
+                kitchenRuntime.buildingData = selectedBuildingData;
             }
         }
 
@@ -684,6 +747,9 @@ public class GridManager : MonoBehaviour
         ClearPreview();
         currentAvailableBuildings = GetAvailableBuildingsFromInventory();
         OnPlacementModeChanged?.Invoke(isPlacementMode, currentAvailableBuildings);
+
+        // 🌟 건물 배치 후 타일 점유 색상 갱신
+        UpdateTileOccupiedVisuals();
 
         OnGridDataChanged?.Invoke();
         TotalHungerManager.Instance?.RecalculateTotalHunger();
@@ -801,6 +867,25 @@ public class GridManager : MonoBehaviour
                 }
             }
         }
+        else if (targetBuilding.TryGetComponent<KitchenRuntime>(out var kitchen))
+        {
+            cachedPickedUpState.facilityData.isActive = kitchen.isCooking;
+            cachedPickedUpState.facilityData.targetQuantity = kitchen.targetQuantity;
+            cachedPickedUpState.facilityData.remainingQuantity = kitchen.remainingQuantity;
+            cachedPickedUpState.facilityData.currentProgressTime = kitchen.currentProgressTime;
+            cachedPickedUpState.facilityData.currentStorageCount = kitchen.currentStorageCount;
+            cachedPickedUpState.facilityData.currentCraftingItemId = kitchen.currentCookingItem ?? "";
+
+            if (kitchen.DeployedMems != null) cachedPickedUpState.deployedMems.AddRange(kitchen.DeployedMems);
+            if (kitchen.DeployedMemEntries != null)
+            {
+                cachedPickedUpState.deployedMemEntries.AddRange(kitchen.DeployedMemEntries);
+                foreach (var entry in kitchen.DeployedMemEntries)
+                {
+                    if (entry != null) cachedPickedUpState.facilityData.DeployedMemIDs.Add(entry.KeyId);
+                }
+            }
+        }
 
         for (int i = 0; i < currentWidth; i++)
         {
@@ -834,6 +919,9 @@ public class GridManager : MonoBehaviour
 
         currentAvailableBuildings = GetAvailableBuildingsFromInventory();
         OnPlacementModeChanged?.Invoke(isPlacementMode, currentAvailableBuildings);
+
+        // 🌟 건물 선택 해제(프리뷰 전환) 후 타일 점유 색상 즉시 복구 갱신
+        UpdateTileOccupiedVisuals();
 
         OnGridDataChanged?.Invoke();
         TotalHungerManager.Instance?.RecalculateTotalHunger();
@@ -1186,6 +1274,36 @@ public class GridManager : MonoBehaviour
                                     {
                                         match.IsActive = false;
                                         campFire.TryAddMem(realMemData, match);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    else if (restoredBuilding.TryGetComponent<KitchenRuntime>(out var kitchen))
+                    {
+                        kitchen.buildingData = snap.data;
+                        kitchen.isCooking = entry.isActive;
+                        kitchen.targetQuantity = entry.targetQuantity;
+                        kitchen.remainingQuantity = entry.remainingQuantity;
+                        kitchen.currentProgressTime = entry.currentProgressTime;
+                        kitchen.currentStorageCount = entry.currentStorageCount;
+                        kitchen.currentCookingItem = entry.currentCraftingItemId;
+
+                        if (kitchen.DeployedMems != null) kitchen.DeployedMems.Clear();
+                        if (kitchen.DeployedMemEntries != null) kitchen.DeployedMemEntries.Clear();
+
+                        if (memManager != null && entry.DeployedMemIDs != null)
+                        {
+                            foreach (var savedKeyId in entry.DeployedMemIDs)
+                            {
+                                var match = memManager.CapturedMems.FirstOrDefault(m => m != null && m.KeyId == savedKeyId);
+                                if (match != null)
+                                {
+                                    MemData realMemData = MemCatalogManager.Instance != null ? MemCatalogManager.Instance.FindMemData(match.MemId) : null;
+                                    if (realMemData != null)
+                                    {
+                                        match.IsActive = false;
+                                        kitchen.TryAddMem(realMemData, match);
                                     }
                                 }
                             }

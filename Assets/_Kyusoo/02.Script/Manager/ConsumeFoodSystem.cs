@@ -298,13 +298,22 @@ public class ConsumeFoodSystem : MonoBehaviour
             else trans.CheckProductionCondition();
         }
 
-        // 6. 모닥불(요리) 시설 기아 조치
+        // 6. 모닥불 시설
         var campFires = FindObjectsByType<CampFireRuntime>(FindObjectsSortMode.None);
         foreach (var cf in campFires)
         {
             if (cf == null) continue;
             if (!isWorking) cf.StopWorkDueToStarvation();
             else cf.ResumeWorkAfterStarvation();
+        }
+
+        // 7. 주방 시설
+        var kitchens = FindObjectsByType<KitchenRuntime>(FindObjectsSortMode.None);
+        foreach (var k in kitchens)
+        {
+            if (k == null) continue;
+            if (!isWorking) k.StopWorkDueToStarvation();
+            else k.ResumeWorkAfterStarvation();
         }
     }
 
