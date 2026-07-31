@@ -19289,6 +19289,14 @@ PrefabInstance:
       propertyPath: hudEntries.Array.data[6].button
       value: 
       objectReference: {fileID: 1238775722}
+    - target: {fileID: 7309819358282781941, guid: 75c35a7459297f54eb5fb0c7d78daeb8, type: 3}
+      propertyPath: hudEntries.Array.data[5].RequiredLevel
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 7309819358282781941, guid: 75c35a7459297f54eb5fb0c7d78daeb8, type: 3}
+      propertyPath: hudEntries.Array.data[6].RequiredLevel
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 7352502414882451616, guid: 75c35a7459297f54eb5fb0c7d78daeb8, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0
@@ -22909,6 +22917,11 @@ MonoBehaviour:
   effectBackgroundColor: {r: 0.2, g: 0.36, b: 0.24, a: 1}
   darkTextColor: {r: 0.13725491, g: 0.13725491, b: 0.13725491, a: 1}
   lightTextColor: {r: 1, g: 1, b: 1, a: 1}
+  rareRefinementColor: {r: 0.53, g: 0.81, b: 0.98, a: 1}
+  epicRefinementColor: {r: 0.65, g: 0.42, b: 0.87, a: 1}
+  uniqueRefinementColor: {r: 0.95, g: 0.85, b: 0.2, a: 1}
+  legendaryRefinementColor: {r: 0.6, g: 0.86, b: 0.35, a: 1}
+  mythRefinementColor: {r: 0.9, g: 0.25, b: 0.25, a: 1}
   catalogManager: {fileID: 0}
 --- !u!114 &813970829775535063
 MonoBehaviour:

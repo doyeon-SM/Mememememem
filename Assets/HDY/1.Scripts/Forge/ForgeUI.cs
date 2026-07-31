@@ -63,10 +63,18 @@ namespace HDY.Forge
         [SerializeField] private Button promotionTabButton;
         [SerializeField] private Button refinementTabButton;
         [SerializeField] private Button inheritanceTabButton;
-        [SerializeField] private GameObject enhanceTabSelectedMark;
-        [SerializeField] private GameObject promotionTabSelectedMark;
-        [SerializeField] private GameObject refinementTabSelectedMark;
-        [SerializeField] private GameObject inheritanceTabSelectedMark;
+
+        [Tooltip("각 탭 버튼에 붙은 CanvasGroup. 선택된 탭은 완전 불투명, 나머지는 반투명하게 표시한다 " +
+                 "([HDY 요청] 예전에는 SetActive로 선택 안 된 탭 버튼 전체를 꺼버려서 클릭 자체가 막히는 " +
+                 "문제가 있었다 - 버튼은 항상 활성 상태로 두고 투명도만 바꾸도록 변경).")]
+        [SerializeField] private CanvasGroup enhanceTabGroup;
+        [SerializeField] private CanvasGroup promotionTabGroup;
+        [SerializeField] private CanvasGroup refinementTabGroup;
+        [SerializeField] private CanvasGroup inheritanceTabGroup;
+
+        [Tooltip("현재 선택되지 않은 탭 버튼의 투명도 (0=완전 투명, 1=완전 불투명)")]
+        [Range(0f, 1f)]
+        [SerializeField] private float unselectedTabAlpha = 0.5f;
 
         [Header("닫기 (선택)")]
         [SerializeField] private Button closeButton;
@@ -197,14 +205,25 @@ namespace HDY.Forge
             }
         }
 
+        /// <summary>
+        /// [HDY 요청 - 탭 반투명 표시] 선택된 탭은 완전 불투명(1), 나머지는 unselectedTabAlpha로 표시한다.
+        /// 예전의 SetActive(GameObject 전체 끄기)와 달리 버튼 자체는 항상 활성 상태로 유지되므로,
+        /// 선택되지 않은 탭도 계속 클릭해서 전환할 수 있다(반투명해질 뿐 비활성화되지 않음).
+        /// </summary>
+        private void SetTabAlpha(CanvasGroup group, bool isSelected)
+        {
+            if (group == null) return;
+            group.alpha = isSelected ? 1f : unselectedTabAlpha;
+        }
+
         private void SwitchTab(ForgeUITab tab)
         {
             currentTab = tab;
 
-            if (enhanceTabSelectedMark != null) enhanceTabSelectedMark.SetActive(tab == ForgeUITab.Enhance);
-            if (promotionTabSelectedMark != null) promotionTabSelectedMark.SetActive(tab == ForgeUITab.Promotion);
-            if (refinementTabSelectedMark != null) refinementTabSelectedMark.SetActive(tab == ForgeUITab.Refinement);
-            if (inheritanceTabSelectedMark != null) inheritanceTabSelectedMark.SetActive(tab == ForgeUITab.Inheritance);
+            SetTabAlpha(enhanceTabGroup, tab == ForgeUITab.Enhance);
+            SetTabAlpha(promotionTabGroup, tab == ForgeUITab.Promotion);
+            SetTabAlpha(refinementTabGroup, tab == ForgeUITab.Refinement);
+            SetTabAlpha(inheritanceTabGroup, tab == ForgeUITab.Inheritance);
 
             bool isEnhanceOrPromotion = tab == ForgeUITab.Enhance || tab == ForgeUITab.Promotion;
 

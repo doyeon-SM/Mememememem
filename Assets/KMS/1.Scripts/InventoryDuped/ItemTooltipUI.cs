@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using HDY;
 using HDY.Forge;
 using HDY.Item;
 using UnityEngine;
@@ -18,6 +19,13 @@ namespace KMS.InventoryDuped
         public Color effectBackgroundColor = new Color(0.2f, 0.36f, 0.24f, 1f);
         public Color darkTextColor;
         public Color lightTextColor = Color.white;
+
+        [Header("연마 등급별 배경색")]
+        public Color rareRefinementColor = new Color(0.53f, 0.81f, 0.98f, 1f);      // 하늘색
+        public Color epicRefinementColor = new Color(0.65f, 0.42f, 0.87f, 1f);      // 보라색
+        public Color uniqueRefinementColor = new Color(0.95f, 0.85f, 0.2f, 1f);     // 노랑색
+        public Color legendaryRefinementColor = new Color(0.6f, 0.86f, 0.35f, 1f);  // 연두색
+        public Color mythRefinementColor = new Color(0.9f, 0.25f, 0.25f, 1f);       // 빨간색
 
         // [HDY 요청] ItemStack.itemId(string)로 실제 ItemData를 조회하기 위한 참조.
         [SerializeField] private ItemCatalogManager catalogManager;
@@ -112,7 +120,7 @@ namespace KMS.InventoryDuped
                     var slot = refinementOverride[i];
                     if (slot == null || string.IsNullOrEmpty(slot.DisplayName)) continue;
 
-                    CreateTag($"{slot.DisplayName}+{slot.Value:0.#}", effectBackgroundColor, lightTextColor);
+                    CreateTag($"{slot.DisplayName}+{slot.Value:0.#}", GetRefinementGradeColor(slot.Grade), lightTextColor);
                 }
             }
 
@@ -183,6 +191,20 @@ namespace KMS.InventoryDuped
         /// 슬롯 하나당 태그 하나("표시명+수치")로 보여준다(여러 칸이면 세로로 여러 줄 쌓임).
         /// ForgeInstanceRegistry를 직접 조회만 하는 순수 읽기라 부수효과가 없다.
         /// </summary>
+        /// <summary>연마칸 등급(Grade)에 대응하는 태그 배경색을 반환한다.</summary>
+        private Color GetRefinementGradeColor(CommonClass grade)
+        {
+            switch (grade)
+            {
+                case CommonClass.Rare: return rareRefinementColor;
+                case CommonClass.Epic: return epicRefinementColor;
+                case CommonClass.Unique: return uniqueRefinementColor;
+                case CommonClass.Legendary: return legendaryRefinementColor;
+                case CommonClass.Myth: return mythRefinementColor;
+                default: return effectBackgroundColor;
+            }
+        }
+
         private void CreateRefinementEffectTags(ItemData item)
         {
             if (item == null || string.IsNullOrEmpty(item.Item_ID)) return;
@@ -196,7 +218,7 @@ namespace KMS.InventoryDuped
             {
                 if (slot == null || string.IsNullOrEmpty(slot.DisplayName)) continue;
 
-                CreateTag($"{slot.DisplayName}+{slot.Value:0.#}", effectBackgroundColor, lightTextColor);
+                CreateTag($"{slot.DisplayName}+{slot.Value:0.#}", GetRefinementGradeColor(slot.Grade), lightTextColor);
             }
         }
 
