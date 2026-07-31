@@ -28,15 +28,25 @@ namespace MemSystem.Movement
 
         /// <summary>
         /// 생산 시설이 설치된 그리드 칸에 부여하는 NavMesh Area 인덱스.
-        /// 순찰(배회) 멤의 areaMask에서 이 Area를 제외해 시설 칸을 밟거나 통과하지 못하게 하고,
-        /// 배치된 작업 멤만 이 Area를 areaMask에 포함시켜 칸 안으로 들어가 작업하게 합니다.
-        /// NavMesh에 구멍(카빙)을 뚫지 않으므로 navmesh는 항상 연결된 상태 → 배회 멤이 갇히지 않습니다.
         /// (TerritoryTestNavMeshBaker가 시설 칸을 이 Area로 굽습니다.)
+        ///
+        /// [제어 방식 — areaMask 제외가 아니라 "이동 비용"]
+        /// 예전엔 순찰 멤의 areaMask에서 이 Area를 빼서 물리적으로 못 밟게 했는데,
+        /// 시설 칸이 걸어다니는 바닥 한가운데 있다 보니 멤이 옆을 스칠 때 잠깐 그 칸에 올라서고,
+        /// 그 순간 Agent 위치가 "유효하지 않은 Area"가 되어 밖으로 밀려나며 스윽 미끄러졌습니다.
+        /// → 지금은 areaMask에는 항상 포함시키되(위치가 무효가 되는 일 자체를 없앰),
+        ///   순찰 멤에게만 높은 이동 비용을 매겨 경로가 시설 칸을 우회하게 합니다.
+        ///   결과는 같고(순찰은 시설을 가로지르지 않음) 밀림/떨림은 생기지 않습니다.
         /// </summary>
         public const int FacilityNavMeshArea = 3;
 
         /// <summary>FacilityNavMeshArea의 비트마스크.</summary>
         public static int FacilityAreaMask => 1 << FacilityNavMeshArea;
+
+        /// <summary>
+        /// 순찰 멤에게 매기는 시설 칸 이동 비용. 1칸(1m)을 지나는 값이 우회 거리보다 훨씬 크도록 잡습니다.
+        /// </summary>
+        private const float FacilityAvoidCost = 20f;
 
         [Header("이동 속도 설정")]
         [Tooltip("배회 시 이동 속도")]
@@ -70,6 +80,17 @@ namespace MemSystem.Movement
 
         private enum MovementMode { None, Wander, Chase, Flee }
         private MovementMode currentMode = MovementMode.None;
+
+        /// <summary>이 멤이 시설 칸에서 작업해도 되는지(배치된 작업 멤만 true).</summary>
+        private bool facilityAreaAllowed;
+
+        /// <summary>
+        /// 이 멤이 "목적지로 삼아도 되는" Area 마스크.
+        /// 시설 칸을 밟는 것 자체는 막지 않지만(밀림 방지), 목적지로 고르지는 않게 합니다.
+        /// </summary>
+        private int DestinationAreaMask => facilityAreaAllowed
+            ? NavMesh.AllAreas
+            : (NavMesh.AllAreas & ~FacilityAreaMask);
 
         /// <summary>영지 배회 경계. SetWanderBounds()로 설정, ClearWanderBounds()로 해제.</summary>
         private bool hasBounds = false;
@@ -107,15 +128,19 @@ namespace MemSystem.Movement
             agent.stoppingDistance = DefaultStoppingDistance;
             agent.autoBraking = true;
 
-            // 기본값: 시설 칸(Area)은 밟지 않는다(순찰 멤이 시설을 통과하지 않도록).
-            // 배치된 작업 멤만 FacilityWorkState에서 SetFacilityAreaAllowed(true)로 허용.
-            agent.areaMask = NavMesh.AllAreas & ~FacilityAreaMask;
+            // 기본값: 순찰 멤은 시설 칸을 "비싸게" 여겨 우회한다(막지는 않음 → 밀림/떨림 없음).
+            // 배치된 작업 멤만 FacilityWorkState에서 SetFacilityAreaAllowed(true)로 비용을 정상화.
+            SetFacilityAreaAllowed(false);
         }
 
         private void OnEnable()
         {
             // 컴포넌트 활성화 시 (풀에서 꺼내질 때 등) 타이머 랜덤화
             RandomizeStaggerOffset();
+
+            // 풀 재사용 대비: 직전 사용에서 시설 근무 중이었을 수 있으므로 기본(시설 칸 우회)으로 되돌린다.
+            // 실제 비용 반영은 NavMesh에 배치되는 Warp 시점에 일어난다.
+            facilityAreaAllowed = false;
         }
 
         private void Update()
@@ -157,8 +182,12 @@ namespace MemSystem.Movement
             if (agent == null || !agent.isActiveAndEnabled) return false;
             if (agent.isOnNavMesh) return true;
 
-            if (NavMesh.SamplePosition(transform.position, out NavMeshHit hit, searchRadius, NavMesh.AllAreas))
-                return agent.Warp(hit.position);
+            if (NavMesh.SamplePosition(transform.position, out NavMeshHit hit, searchRadius, NavMesh.AllAreas) &&
+                agent.Warp(hit.position))
+            {
+                ApplyFacilityAreaCost();
+                return true;
+            }
 
             return false;
         }
@@ -181,13 +210,18 @@ namespace MemSystem.Movement
                 return false;
             }
 
-            // NavMesh 위의 유효 지점으로 보정한 뒤 워프
+            // NavMesh 위의 유효 지점으로 보정한 뒤 워프.
+            // 순찰 멤은 시설 칸을 목적지로 삼지 않으므로, 스폰/복귀 지점도 시설 칸을 피해 잡는다.
             Vector3 target = position;
-            if (NavMesh.SamplePosition(position, out NavMeshHit hit, sampleRadius, NavMesh.AllAreas))
+            if (NavMesh.SamplePosition(position, out NavMeshHit hit, sampleRadius, DestinationAreaMask))
                 target = hit.position;
 
             if (agent.Warp(target) && agent.isOnNavMesh)
+            {
+                // 이제서야 NavMesh 위에 올라섰으므로, 미뤄뒀던 시설 칸 비용을 반영한다.
+                ApplyFacilityAreaCost();
                 return true;
+            }
 
             Debug.LogWarning(
                 $"[MemMovement] {name} NavMesh 배치 실패 — 요청 위치 {position} 기준 반경 {sampleRadius}m 안에 " +
@@ -231,7 +265,7 @@ namespace MemSystem.Movement
             }
 
             // 이 멤이 갈 수 있는 Area(순찰이면 시설 칸 제외) 안에서만 목적지를 고른다.
-            if (NavMesh.SamplePosition(candidatePos, out NavMeshHit hit, wanderRadius, agent.areaMask))
+            if (NavMesh.SamplePosition(candidatePos, out NavMeshHit hit, wanderRadius, DestinationAreaMask))
             {
                 agent.SetDestination(hit.position);
             }
@@ -252,22 +286,30 @@ namespace MemSystem.Movement
         /// </summary>
         public void SetFacilityAreaAllowed(bool allowed)
         {
+            facilityAreaAllowed = allowed;
+
             if (agent == null) return;
-            if (allowed) agent.areaMask |= FacilityAreaMask;
-            else         agent.areaMask &= ~FacilityAreaMask;
+
+            // Area는 항상 통행 가능하게 둔다. 막아버리면 칸을 살짝 스칠 때 위치가 무효가 되어
+            // Agent가 멤을 밖으로 밀어낸다(=스윽 미끄러지는 현상).
+            agent.areaMask = NavMesh.AllAreas;
+
+            // 대신 비용으로 우회시킨다. 작업 멤은 정상 비용이라 칸 안으로 곧장 들어간다.
+            ApplyFacilityAreaCost();
         }
 
         /// <summary>
-        /// 시설 칸 위에 서 있던 작업 멤을, 시설 칸을 제외한 가장 가까운 일반 칸으로 옮겨 세웁니다.
-        /// 시설을 떠날 때 시설 칸 진입 권한을 회수하기 전에 호출해, 이후 정상 배회가 가능하게 합니다.
+        /// 시설 칸 이동 비용을 Agent에 반영합니다.
+        ///
+        /// SetAreaCost는 "NavMesh 위에 배치된 활성 Agent"에서만 호출할 수 있습니다.
+        /// 풀 생성 직후(Awake)나 비활성 상태에서는 아직 배치 전이라 호출하면 에러가 나므로,
+        /// 그때는 조용히 넘어가고 NavMesh에 올라선 시점(Warp 성공)에 다시 반영합니다.
         /// </summary>
-        public void WarpToNonFacilityArea(float searchRadius = 3f)
+        private void ApplyFacilityAreaCost()
         {
-            if (agent == null || !agent.isActiveAndEnabled) return;
+            if (agent == null || !agent.isActiveAndEnabled || !agent.isOnNavMesh) return;
 
-            int nonFacility = NavMesh.AllAreas & ~FacilityAreaMask;
-            if (NavMesh.SamplePosition(transform.position, out NavMeshHit hit, searchRadius, nonFacility))
-                agent.Warp(hit.position);
+            agent.SetAreaCost(FacilityNavMeshArea, facilityAreaAllowed ? 1f : FacilityAvoidCost);
         }
 
         /// <summary>
@@ -307,7 +349,7 @@ namespace MemSystem.Movement
             agent.stoppingDistance = stopDistance < 0f ? DefaultStoppingDistance : stopDistance;
             agent.isStopped = false;
 
-            if (NavMesh.SamplePosition(destination, out NavMeshHit hit, 3f, NavMesh.AllAreas))
+            if (NavMesh.SamplePosition(destination, out NavMeshHit hit, 3f, DestinationAreaMask))
                 agent.SetDestination(hit.position);
             else
                 agent.SetDestination(destination);

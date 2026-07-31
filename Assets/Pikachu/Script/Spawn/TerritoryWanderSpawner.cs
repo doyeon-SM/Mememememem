@@ -27,7 +27,9 @@ using UnityEngine;
 using UnityEngine.AI;
 using MemSystem.Core;
 using MemSystem.Data;
+using MemSystem.Movement; // MemMovement.FacilityAreaMask
 using MemSystem.Spawn;
+using MemSystem.Visual;  // MemHealthBar
 
 /// <summary>
 /// 영지 씬에서 창고 멤을 소환하고 자유 배회시키는 매니저 컴포넌트.
@@ -66,6 +68,9 @@ public class TerritoryWanderSpawner : MonoBehaviour
 
     [Tooltip("영지에 소환되는 멤의 크기 배율. 1=원본, 0.5=절반. 영지 스케일에 맞춰 조절하세요.")]
     [SerializeField] private float memScale = 0.5f;
+
+    [Tooltip("영지에서 멤 머리 위 HP 바를 표시할지 여부. 영지는 전투가 없으므로 기본 꺼짐.")]
+    [SerializeField] private bool showHealthBar = false;
 
     // =================================================================
     // 내부 상태
@@ -164,9 +169,6 @@ public class TerritoryWanderSpawner : MonoBehaviour
         Mem mem = SpawnMemInternal(memData, spawnPosition);
         if (mem == null) return null;
 
-        // 배회 경계 설정 (BoxCollider가 있는 경우)
-        ApplyWanderBoundsIfNeeded(mem);
-
         wandererRegistry[wandererKey] = mem;
 
         Debug.Log($"[TerritoryWanderSpawner] '{memData.memName}' 영지 소환 완료(key={wandererKey}). 현재 배회 멤: {wandererRegistry.Count}/{maxWanderers}");
@@ -197,14 +199,21 @@ public class TerritoryWanderSpawner : MonoBehaviour
         Vector3 pos = ResolveSpawnPosition(spawnPosition);
 
         // NavMesh 표면에 스냅. (복셀화로 NavMesh가 바닥보다 살짝 위에 생기므로 스냅 안 하면 Agent 생성 실패)
-        if (NavMesh.SamplePosition(pos, out NavMeshHit navHit, navMeshSnapRadius, NavMesh.AllAreas))
+        //
+        // 시설 칸(FacilityNavMeshArea)은 제외하고 찾는다. 갓 스폰된 멤의 areaMask에는 시설 칸이
+        // 빠져 있어서, 시설 좌표에 그대로 스폰하면(=근무 멤 복원) Agent가 그 칸에 올라서지 못하고
+        // "NavMesh 밖에 스폰" 에러가 난다. 시설 바로 옆 일반 칸에 세운 뒤, 시설이 가동되면
+        // FacilityWorkState가 칸 진입을 허용하고 지정 작업 위치로 걸어 들어간다.
+        int spawnableAreas = NavMesh.AllAreas & ~MemMovement.FacilityAreaMask;
+
+        if (NavMesh.SamplePosition(pos, out NavMeshHit navHit, navMeshSnapRadius, spawnableAreas))
         {
             pos = navHit.position;
         }
         else
         {
-            Debug.LogWarning($"[TerritoryWanderSpawner] 소환 위치 {pos} 주변 {navMeshSnapRadius}m 내에 NavMesh가 없습니다. " +
-                             "NavMesh가 구워졌는지(TerritoryTestNavMeshBaker 등) 확인하세요. 소환을 취소합니다.");
+            Debug.LogWarning($"[TerritoryWanderSpawner] 소환 위치 {pos} 주변 {navMeshSnapRadius}m 내에 (시설 칸을 제외한) NavMesh가 없습니다. " +
+                             "NavMesh가 구워졌는지(TerritoryTestNavMeshBaker 등), 베이크 높이가 바닥과 맞는지 확인하세요. 소환을 취소합니다.");
             return null;
         }
 
@@ -217,6 +226,14 @@ public class TerritoryWanderSpawner : MonoBehaviour
 
         // 영지 소환 크기 적용 (풀 재사용 대비 매 소환마다 명시적으로 설정)
         mem.transform.localScale = Vector3.one * memScale;
+
+        // 영지는 전투가 없으므로 HP 바를 숨긴다. (풀 재사용 대비 매 소환마다 지정)
+        if (mem.TryGetComponent(out MemHealthBar healthBar))
+            healthBar.SetHidden(!showHealthBar);
+
+        // 배회 경계 설정. 근무 멤도 시설에서 해제되면 배회로 돌아가므로 함께 적용한다.
+        ApplyWanderBoundsIfNeeded(mem);
+
         return mem;
     }
 

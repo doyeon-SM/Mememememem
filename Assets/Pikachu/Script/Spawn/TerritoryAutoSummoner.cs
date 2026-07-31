@@ -14,7 +14,8 @@
 // - 시설 배치 여부 : CapturedMemEntry.IsActive (시설 배치 시 자동 true → 배회 후보에서 제외)
 // - MemId→MemData : HDY.Mem.MemCatalogManager.Instance.FindMemData(memId)
 // - 영지 레벨     : HDY.Territory.TerritoryData.Instance.Level
-// - 시설 배치 멤  : ProductionFacilityRuntime / ProductionCraftRuntime 의 DeployedMems (List<MemData>)
+// - 시설 배치 멤  : 시설 런타임 7종의 DeployedMems (목장만 Slots[].deployedMem)
+// - 작업 위치    : 시설 런타임의 MemPositions (프리팹의 "MemPos*" 자식) → 근무 위치로 그대로 전달
 // - 실제 소환    : TerritoryWanderSpawner (배회) / FacilityEventBridge (근무 상태 구동)
 //
 // [씬 설정] 영지 씬에 빈 GameObject를 만들고 이 컴포넌트를 붙이세요. (같은 씬에
@@ -122,13 +123,9 @@ public class TerritoryAutoSummoner : MonoBehaviour
             return;
         }
 
-        var centers = new List<Vector3>();
-        foreach (var f in FindObjectsByType<ProductionFacilityRuntime>(FindObjectsSortMode.None))
-            if (f != null) centers.Add(f.transform.position);
-        foreach (var c in FindObjectsByType<ProductionCraftRuntime>(FindObjectsSortMode.None))
-            if (c != null) centers.Add(c.transform.position);
-
-        navMeshBaker.SetFacilityCells(centers); // 내부에서 리베이크
+        // 시설 칸 목록은 베이커가 씬에서 직접 수집한다(설치/철거에 계속 대응해야 하므로).
+        // 여기서는 "지금 시점에 한 번 다시 구워라"만 요청한다.
+        navMeshBaker.Bake();
     }
 
     // ---------------------------------------------------------------
@@ -146,16 +143,45 @@ public class TerritoryAutoSummoner : MonoBehaviour
         int count = 0;
 
         foreach (var f in FindObjectsByType<ProductionFacilityRuntime>(FindObjectsSortMode.None))
-            if (f != null) count += SummonWorkersOf(f.DeployedMems, f.buildingData, f.transform);
+            if (f != null) count += SummonWorkersOf(f.DeployedMems, f.buildingData, f.transform, f.MemPositions);
 
         foreach (var c in FindObjectsByType<ProductionCraftRuntime>(FindObjectsSortMode.None))
-            if (c != null) count += SummonWorkersOf(c.DeployedMems, c.buildingData, c.transform);
+            if (c != null) count += SummonWorkersOf(c.DeployedMems, c.buildingData, c.transform, c.MemPositions);
+
+        foreach (var k in FindObjectsByType<KitchenRuntime>(FindObjectsSortMode.None))
+            if (k != null) count += SummonWorkersOf(k.DeployedMems, k.buildingData, k.transform, k.MemPositions);
+
+        foreach (var cf in FindObjectsByType<CampFireRuntime>(FindObjectsSortMode.None))
+            if (cf != null) count += SummonWorkersOf(cf.DeployedMems, cf.buildingData, cf.transform, cf.MemPositions);
+
+        foreach (var g in FindObjectsByType<GeneratorRuntime>(FindObjectsSortMode.None))
+            if (g != null) count += SummonWorkersOf(g.DeployedMems, g.buildingData, g.transform, g.MemPositions);
+
+        foreach (var t in FindObjectsByType<TransportRuntime>(FindObjectsSortMode.None))
+            if (t != null) count += SummonWorkersOf(t.DeployedMems, t.buildingData, t.transform, t.MemPositions);
+
+        // 목장은 배치 멤을 슬롯(RanchSlotRuntime)으로 들고 있어 목록을 따로 모은다.
+        foreach (var r in FindObjectsByType<RanchFacilityRuntime>(FindObjectsSortMode.None))
+        {
+            if (r == null || r.Slots == null) continue;
+
+            var ranchMems = new List<MemData>();
+            foreach (var slot in r.Slots)
+                if (slot != null && slot.deployedMem != null) ranchMems.Add(slot.deployedMem);
+
+            count += SummonWorkersOf(ranchMems, r.buildingData, r.transform, r.MemPositions);
+        }
 
         if (count > 0)
             Debug.Log($"[TerritoryAutoSummoner] 시설 근무 멤 {count}마리 복원 소환.");
     }
 
-    private int SummonWorkersOf(List<MemData> deployed, BuildingData buildingData, Transform facilityTransform)
+    /// <summary>
+    /// 시설 하나에 배치돼 있던 멤들을 소환하고 근무 상태로 복원한다.
+    /// 시설의 작업 위치 목록(MemPos)을 함께 넘겨, 각 멤이 지정된 자리에서 일하게 한다.
+    /// </summary>
+    private int SummonWorkersOf(List<MemData> deployed, BuildingData buildingData,
+                                Transform facilityTransform, List<Transform> memPositions)
     {
         if (deployed == null || deployed.Count == 0 || buildingData == null || facilityTransform == null)
             return 0;
@@ -168,7 +194,7 @@ public class TerritoryAutoSummoner : MonoBehaviour
             Mem worker = wanderSpawner.SpawnWorker(memData, facilityTransform.position);
             if (worker == null) continue;
 
-            facilityBridge.RegisterExistingWorker(worker, buildingData.buildingType, facilityTransform);
+            facilityBridge.RegisterExistingWorker(worker, buildingData.buildingType, facilityTransform, memPositions);
             n++;
         }
         return n;

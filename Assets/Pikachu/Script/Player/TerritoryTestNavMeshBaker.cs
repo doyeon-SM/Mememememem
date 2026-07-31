@@ -58,6 +58,10 @@ namespace Pikachu.Test
                  "구버전 평면 타일=0, 신버전 두께 있는 타일=0.5")]
         [SerializeField] private float fallbackGroundY = 0.5f;
 
+        [Tooltip("0 이상이면 자동 감지를 쓰지 않고 이 높이에 NavMesh를 굽습니다. (-1 = 자동 감지)\n" +
+                 "자동 감지가 시설/장식 모델 높이에 끌려 올라갈 때 여기에 실제 바닥 높이를 넣으세요.")]
+        [SerializeField] private float groundYOverride = -1f;
+
         [Header("에이전트 설정")]
         [SerializeField] private float agentRadius = 0.3f;
         [SerializeField] private float agentHeight = 1.5f;
@@ -66,6 +70,18 @@ namespace Pikachu.Test
 
         [Header("재생성 키")]
         [SerializeField] private Key rebakeKey = Key.F5;
+
+        [Header("그리드 변경 자동 감지")]
+        [Tooltip("타일 추가/삭제/높이 변경, 시설 설치/철거를 감지해 NavMesh를 자동으로 다시 굽습니다. " +
+                 "영지 타일 위치가 런타임에 바뀌는 동안 켜 두세요.")]
+        [SerializeField] private bool autoRebakeOnGridChange = true;
+
+        [Tooltip("변경 감지 주기(초).")]
+        [SerializeField] private float gridCheckInterval = 1f;
+
+        [Tooltip("시설 칸 목록을 씬에서 매 베이크마다 자동 수집합니다. " +
+                 "끄면 SetFacilityCells()로 주입한 목록만 사용합니다.")]
+        [SerializeField] private bool autoCollectFacilityCells = true;
 
         // =================================================================
         // 내부 상태
@@ -84,6 +100,13 @@ namespace Pikachu.Test
 
         /// <summary>시설 칸 한 변 크기(m). 그리드 셀 = 1m.</summary>
         private const float FacilityCellSize = 1f;
+
+        /// <summary>FloorContainer 캐시. (매 프레임 GameObject.Find를 피하기 위함)</summary>
+        private Transform floorContainerCache;
+
+        /// <summary>그리드 변경 감지 타이머 / 마지막으로 구운 그리드 상태 서명.</summary>
+        private float gridCheckTimer;
+        private string lastBakedSignature;
 
         /// <summary>NavMesh 생성 성공 여부.</summary>
         public bool IsReady => baked;
@@ -114,6 +137,90 @@ namespace Pikachu.Test
                 Debug.Log("[TerritoryTestNavMeshBaker] 수동 재생성 요청.");
                 Bake();
             }
+
+            if (!autoRebakeOnGridChange || !baked) return;
+
+            gridCheckTimer += Time.deltaTime;
+            if (gridCheckTimer < gridCheckInterval) return;
+            gridCheckTimer = 0f;
+
+            string signature = ComputeGridSignature();
+            if (signature == lastBakedSignature) return;
+
+            Debug.Log($"[TerritoryTestNavMeshBaker] 그리드 변경 감지 → NavMesh 재생성.\n" +
+                      $"  이전: {lastBakedSignature}\n  현재: {signature}");
+            Bake();
+        }
+
+        /// <summary>
+        /// 그리드의 현재 상태를 한 줄 문자열로 요약합니다. 이 값이 바뀌면 NavMesh를 다시 굽습니다.
+        /// (타일 수 / 범위 / 바닥 높이 / 시설 칸 수 - 이 중 하나라도 변하면 NavMesh가 어긋납니다)
+        /// </summary>
+        private string ComputeGridSignature()
+        {
+            // [비용 주의] 이 함수는 gridCheckInterval마다 호출된다.
+            // 타일 렌더러 스캔이나 FindObjectsByType은 절대 넣지 말 것.
+            //
+            // GridManager는 타일과 시설을 모두 FloorContainer의 자식으로 만든다.
+            // (GridManager.SpawnTile / 건물 Instantiate 모두 floorContainer를 부모로 지정)
+            // → 타일 확장도, 시설 설치·철거도 childCount 변화로 감지된다.
+            Transform floor = GetFloorContainer();
+            int childCount = floor != null ? floor.childCount : 0;
+
+            Bounds gb = ComputeGridBounds(); // 자식 Transform 위치만 읽는다(렌더러 접근 없음)
+
+            return $"children={childCount} " +
+                   $"center=({gb.center.x:0.##},{gb.center.z:0.##}) size=({gb.size.x:0.##},{gb.size.z:0.##})";
+        }
+
+        /// <summary>FloorContainer를 캐시해서 반환합니다. (파괴/재생성 시 다시 찾음)</summary>
+        private Transform GetFloorContainer()
+        {
+            if (floorContainerCache == null)
+            {
+                var floor = GameObject.Find("FloorContainer");
+                floorContainerCache = floor != null ? floor.transform : null;
+            }
+            return floorContainerCache;
+        }
+
+        /// <summary>씬의 생산 시설 7종 위치를 시설 칸 중심으로 수집합니다.</summary>
+        private List<Vector3> CollectFacilityCells()
+        {
+            var centers = new List<Vector3>();
+
+            foreach (var f in FindObjectsByType<ProductionFacilityRuntime>(FindObjectsSortMode.None))
+                if (f != null) centers.Add(f.transform.position);
+            foreach (var c in FindObjectsByType<ProductionCraftRuntime>(FindObjectsSortMode.None))
+                if (c != null) centers.Add(c.transform.position);
+            foreach (var k in FindObjectsByType<KitchenRuntime>(FindObjectsSortMode.None))
+                if (k != null) centers.Add(k.transform.position);
+            foreach (var cf in FindObjectsByType<CampFireRuntime>(FindObjectsSortMode.None))
+                if (cf != null) centers.Add(cf.transform.position);
+            foreach (var g in FindObjectsByType<GeneratorRuntime>(FindObjectsSortMode.None))
+                if (g != null) centers.Add(g.transform.position);
+            foreach (var r in FindObjectsByType<RanchFacilityRuntime>(FindObjectsSortMode.None))
+                if (r != null) centers.Add(r.transform.position);
+            foreach (var t in FindObjectsByType<TransportRuntime>(FindObjectsSortMode.None))
+                if (t != null) centers.Add(t.transform.position);
+
+            return centers;
+        }
+
+        /// <summary>
+        /// NavMesh가 다시 구워지면 이미 소환된 멤들을 새 NavMesh 표면 위로 다시 올립니다.
+        /// (바닥 높이나 시설 칸이 바뀌면 기존 멤이 NavMesh 밖으로 밀려나 이동 불능이 됩니다)
+        /// </summary>
+        private void ResnapActiveMems()
+        {
+            int n = 0;
+            foreach (var movement in FindObjectsByType<MemMovement>(FindObjectsSortMode.None))
+            {
+                if (movement == null || !movement.isActiveAndEnabled) continue;
+                if (movement.Warp(movement.transform.position)) n++;
+            }
+
+            if (n > 0) Debug.Log($"[TerritoryTestNavMeshBaker] 소환된 멤 {n}마리를 새 NavMesh 위로 재배치.");
         }
 
         private void OnDestroy()
@@ -128,6 +235,13 @@ namespace Pikachu.Test
         /// <summary>그리드 전체를 덮는 절차적 박스로 NavMesh를 만듭니다. 성공 시 true.</summary>
         public bool Bake()
         {
+            // 시설이 런타임에 설치/철거되므로 매 베이크마다 현재 시설 목록을 다시 수집한다.
+            if (autoCollectFacilityCells)
+            {
+                facilityCellCenters.Clear();
+                facilityCellCenters.AddRange(CollectFacilityCells());
+            }
+
             Bounds gb = ComputeGridBounds();
 
             // 타일 윗면(멤이 걷는 바닥) 높이에 맞춰 굽는다.
@@ -155,19 +269,23 @@ namespace Pikachu.Test
             // 시설 칸: 같은 자리에 시설 Area 박스를 겹쳐 얹는다.
             // → 이 칸들은 순찰 멤 areaMask에서 제외되어 통과 불가, 배치 멤만 진입 가능.
             //   구멍을 뚫지 않으므로 navmesh는 계속 연결됨(배회 멤이 갇히지 않음).
-            // Area가 확실히 시설 Area로 칠해지도록 두 가지를 함께 보장한다:
-            //   (1) 지형 박스보다 뒤에 추가(겹칠 때 나중 소스가 Area를 덮어씀),
-            //   (2) 살짝 띄워(FacilityLift) 이 칸에서 "가장 위 표면"이 되게 함(복셀화가 위 표면 Area 채택).
-            //   0.05m 띄움은 지형 박스와 Y로 겹쳐(두께 0.2) 하나의 연결된 표면으로 합쳐지고,
-            //   agentClimb(0.4) 안이라 단차 없이 이어진다.
-            const float FacilityLift = 0.05f;
+            //
+            // [중요] 윗면 높이를 지형 박스와 "정확히" 맞춘다.
+            // 예전엔 Area가 확실히 칠해지도록 0.05m 띄웠는데, 그 높이가 복셀 한 칸과 비슷해
+            // 시설 칸 경계에 미세한 단차가 생겼다. 순찰 멤이 그 경계를 지날 때 위/아래 폴리곤에
+            // 번갈아 매핑되면서(위쪽은 areaMask에서 빠진 시설 Area) 제자리에서 덜덜 떨렸다.
+            // → 이제 윗면을 같게 하고 두께만 아래로 늘려, 같은 복셀 열에서 나중 소스가
+            //   Area를 덮어쓰게 한다. 단차가 없으므로 경계에서 떨리지 않는다.
+            const float FacilityThickness = 0.4f;
             foreach (var c in facilityCellCenters)
             {
                 sources.Add(new NavMeshBuildSource
                 {
                     shape     = NavMeshBuildSourceShape.Box,
-                    size      = new Vector3(FacilityCellSize, boxSize.y, FacilityCellSize),
-                    transform = Matrix4x4.TRS(new Vector3(c.x, center.y + FacilityLift, c.z), Quaternion.identity, Vector3.one),
+                    size      = new Vector3(FacilityCellSize, FacilityThickness, FacilityCellSize),
+                    transform = Matrix4x4.TRS(
+                        new Vector3(c.x, surfaceY - FacilityThickness * 0.5f, c.z),
+                        Quaternion.identity, Vector3.one),
                     area      = MemMovement.FacilityNavMeshArea
                 });
             }
@@ -201,10 +319,17 @@ namespace Pikachu.Test
 
             if (verts > 0 && onGrid)
             {
+                bool wasBaked = baked;
                 baked = true;
+                lastBakedSignature = ComputeGridSignature();
+
                 Debug.Log($"[TerritoryTestNavMeshBaker] ✅ NavMesh 생성 완료. " +
                           $"바닥높이 y={surfaceY:0.###}, 영역 center={center} size=({boxSize.x:0.#}×{boxSize.z:0.#}), " +
-                          $"정점 {verts}개, 기준 {hit.position}");
+                          $"시설 칸 {facilityCellCenters.Count}개, 정점 {verts}개, 기준 {hit.position}");
+
+                // 재생성이면 이미 소환된 멤들을 새 표면 위로 올려준다.
+                if (wasBaked) ResnapActiveMems();
+
                 return true;
             }
 
@@ -215,6 +340,9 @@ namespace Pikachu.Test
         /// <summary>
         /// 시설이 설치된 칸 중심 좌표들을 갱신하고 NavMesh를 다시 굽습니다.
         /// (TerritoryFacilityTestDriver가 시설 생성 후 호출)
+        ///
+        /// [주의] autoCollectFacilityCells가 켜져 있으면 Bake()가 씬에서 다시 수집하므로
+        ///        여기서 넘긴 목록은 덮어써집니다. 직접 지정한 목록만 쓰려면 그 옵션을 끄세요.
         /// </summary>
         public void SetFacilityCells(IEnumerable<Vector3> centers)
         {
@@ -234,26 +362,58 @@ namespace Pikachu.Test
         /// <summary>
         /// 타일 윗면(걷는 바닥) 높이를 FloorContainer 타일들의 렌더러에서 자동 감지합니다.
         /// 구버전 평면 타일이면 ≈0, 신버전 두께 있는 타일이면 ≈0.5. 감지 실패 시 fallbackGroundY.
+        ///
+        /// [주의] 타일 전체 렌더러의 max Y를 쓰면 안 된다.
+        /// 타일 위에 올라간 시설/장식 모델(높이 2m 이상)까지 포함되어 NavMesh가 공중에 떠버린다.
+        /// → 타일 1개당 윗면 높이를 구한 뒤 그 "중앙값"을 쓴다. 대부분의 타일은 비어 있으므로
+        ///   시설이 올라간 소수의 타일에 휘둘리지 않는다.
         /// </summary>
         private float ComputeGroundSurfaceY()
         {
-            var floor = GameObject.Find("FloorContainer");
-            if (floor != null && floor.transform.childCount > 0)
+            if (groundYOverride >= 0f) return groundYOverride;
+
+            Transform floor = GetFloorContainer();
+            if (floor == null || floor.childCount == 0) return fallbackGroundY;
+
+            // 1순위: 시설 오브젝트의 y.
+            //   GridManager가 시설을 정확히 innerPlaneY(= 타일 윗면)에 배치하므로 가장 정확한 값이다.
+            //   타일 프리팹이 바뀌어도(두께 변경) 시설 배치 높이가 곧 바닥이라 자동으로 따라간다.
+            var buildingYs = new List<float>();
+            foreach (var building in floor.GetComponentsInChildren<BuildingRuntime>(true))
+                if (building != null) buildingYs.Add(building.transform.position.y);
+
+            if (buildingYs.Count > 0)
             {
-                float maxY = float.NegativeInfinity;
-
-                var renderers = floor.GetComponentsInChildren<Renderer>();
-                foreach (var r in renderers)
-                {
-                    if (r == null) continue;
-                    maxY = Mathf.Max(maxY, r.bounds.max.y);
-                }
-
-                if (!float.IsNegativeInfinity(maxY))
-                    return maxY;
+                buildingYs.Sort();
+                return buildingYs[buildingYs.Count / 2];
             }
 
-            return fallbackGroundY;
+            // 2순위: 시설이 하나도 없으면 타일 렌더러의 윗면.
+            //   타일 1개당 윗면을 구해 중앙값을 쓴다. (타일 위에 올라간 모델에 휘둘리지 않도록)
+            var tileTops = new List<float>(floor.childCount);
+
+            for (int i = 0; i < floor.childCount; i++)
+            {
+                Transform child = floor.GetChild(i);
+
+                // 시설/그리드 오버레이는 바닥이 아니다.
+                if (child.GetComponent<BuildingRuntime>() != null) continue;
+                if (child.name == "GlobalGridOverlay") continue;
+
+                float top = float.NegativeInfinity;
+                foreach (var r in child.GetComponentsInChildren<Renderer>())
+                {
+                    if (r == null) continue;
+                    top = Mathf.Max(top, r.bounds.max.y);
+                }
+
+                if (!float.IsNegativeInfinity(top)) tileTops.Add(top);
+            }
+
+            if (tileTops.Count == 0) return fallbackGroundY;
+
+            tileTops.Sort();
+            return tileTops[tileTops.Count / 2];
         }
 
         /// <summary>
@@ -261,12 +421,12 @@ namespace Pikachu.Test
         /// </summary>
         private Bounds ComputeGridBounds()
         {
-            var floor = GameObject.Find("FloorContainer");
-            if (floor != null && floor.transform.childCount > 0)
+            Transform floor = GetFloorContainer();
+            if (floor != null && floor.childCount > 0)
             {
-                Bounds b = new Bounds(floor.transform.GetChild(0).position, Vector3.zero);
-                for (int i = 1; i < floor.transform.childCount; i++)
-                    b.Encapsulate(floor.transform.GetChild(i).position);
+                Bounds b = new Bounds(floor.GetChild(0).position, Vector3.zero);
+                for (int i = 1; i < floor.childCount; i++)
+                    b.Encapsulate(floor.GetChild(i).position);
                 b.Expand(new Vector3(1f, 0f, 1f)); // 타일 중심 기준이라 양쪽 0.5칸 확장
                 return b;
             }
