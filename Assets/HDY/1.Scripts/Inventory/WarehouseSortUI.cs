@@ -15,6 +15,11 @@ namespace HDY.Inventory
         [SerializeField] private Button itemIdButton;
         [SerializeField] private Button categoryButton;
 
+        [Header("정렬 버튼들 - 카테고리 우선순위 (HDY 요청)")]
+        [SerializeField] private Button toolPriorityButton;
+        [SerializeField] private Button materialPriorityButton;
+        [SerializeField] private Button foodPriorityButton;
+
         public event Action<ItemSortCriteria> OnSortRequested;
 
         private void Awake()
@@ -24,6 +29,15 @@ namespace HDY.Inventory
 
             if (categoryButton != null) categoryButton.onClick.AddListener(() => OnSortRequested?.Invoke(ItemSortCriteria.Category));
             else Debug.LogWarning("[WarehouseSortUI] categoryButton이 비어있습니다.", this);
+
+            if (toolPriorityButton != null) toolPriorityButton.onClick.AddListener(() => OnSortRequested?.Invoke(ItemSortCriteria.ToolPriority));
+            else Debug.LogWarning("[WarehouseSortUI] toolPriorityButton이 비어있습니다.", this);
+
+            if (materialPriorityButton != null) materialPriorityButton.onClick.AddListener(() => OnSortRequested?.Invoke(ItemSortCriteria.MaterialPriority));
+            else Debug.LogWarning("[WarehouseSortUI] materialPriorityButton이 비어있습니다.", this);
+
+            if (foodPriorityButton != null) foodPriorityButton.onClick.AddListener(() => OnSortRequested?.Invoke(ItemSortCriteria.FoodPriority));
+            else Debug.LogWarning("[WarehouseSortUI] foodPriorityButton이 비어있습니다.", this);
         }
     }
 }

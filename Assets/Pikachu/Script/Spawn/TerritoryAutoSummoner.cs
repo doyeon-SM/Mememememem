@@ -19,6 +19,11 @@
 //
 // [씬 설정] 영지 씬에 빈 GameObject를 만들고 이 컴포넌트를 붙이세요. (같은 씬에
 //           TerritoryWanderSpawner, FacilityEventBridge, MemPool, NavMesh 베이커가 있어야 함)
+//
+// [HDY 요청 - ID 기반 전환] testFallbackMemData(List<MemData>) 필드가 개별 SO 에셋을
+// 인스펙터에 직접 드래그하는 방식이었으나, 멤 카탈로그가 CSV 시트 기반으로 이관되면서
+// 개별 SO 에셋이 삭제될 예정이라 testFallbackMemIds(List<string>)로 바꿨다. 실제 사용
+// 시점(BuildTestPool)에 MemCatalogManager로 조회한다.
 // ============================================================================
 
 using System.Collections;
@@ -57,9 +62,9 @@ public class TerritoryAutoSummoner : MonoBehaviour
     [SerializeField] private bool summonFacilityWorkers = true;
 
     [Header("테스트 폴백 (격리 테스트 씬 전용)")]
-    [Tooltip("멤 창고(MemCaptureManager)가 씬에 없을 때, 대신 이 목록에서 배회 멤을 소환한다. " +
+    [Tooltip("멤 창고(MemCaptureManager)가 씬에 없을 때, 대신 이 ID 목록(MemCatalogManager.FindMemData로 조회)에서 배회 멤을 소환한다. " +
              "실제 빌드에선 멤 창고를 사용하므로 이 목록은 무시된다. 격리 테스트 씬에서 자동 소환을 확인할 때만 채워라.")]
-    [SerializeField] private List<MemData> testFallbackMemData = new List<MemData>();
+    [SerializeField] private List<string> testFallbackMemIds = new List<string>();
 
     private IEnumerator Start()
     {
@@ -187,8 +192,8 @@ public class TerritoryAutoSummoner : MonoBehaviour
         string source = "창고";
 
         // 2) 창고가 없거나 "비어있으면" 테스트 폴백 목록 사용.
-        //    (실제 빌드에선 testFallbackMemData를 비워두므로 폴백은 격리 테스트에서만 동작한다)
-        if (pool.Count == 0 && testFallbackMemData != null && testFallbackMemData.Count > 0)
+        //    (실제 빌드에선 testFallbackMemIds를 비워두므로 폴백은 격리 테스트에서만 동작한다)
+        if (pool.Count == 0 && testFallbackMemIds != null && testFallbackMemIds.Count > 0)
         {
             pool = BuildTestPool();
             source = "테스트 폴백";
@@ -255,15 +260,32 @@ public class TerritoryAutoSummoner : MonoBehaviour
         return result;
     }
 
-    /// <summary>[격리 테스트 폴백] testFallbackMemData에서 배회 후보를 만든다(인덱스로 고유키 부여).</summary>
+    /// <summary>[격리 테스트 폴백] testFallbackMemIds를 MemCatalogManager로 조회해 배회 후보를 만든다(인덱스로 고유키 부여).</summary>
     private List<(MemData data, string key)> BuildTestPool()
     {
         var result = new List<(MemData data, string key)>();
-        if (testFallbackMemData == null) return result;
+        if (testFallbackMemIds == null) return result;
 
-        for (int i = 0; i < testFallbackMemData.Count; i++)
-            if (testFallbackMemData[i] != null)
-                result.Add((testFallbackMemData[i], "test_" + i));
+        var catalog = HDY.Mem.MemCatalogManager.Instance;
+        if (catalog == null)
+        {
+            Debug.LogWarning("[TerritoryAutoSummoner] MemCatalogManager가 없어 테스트 폴백 멤을 조회하지 못했습니다.");
+            return result;
+        }
+
+        for (int i = 0; i < testFallbackMemIds.Count; i++)
+        {
+            var id = testFallbackMemIds[i];
+            if (string.IsNullOrEmpty(id)) continue;
+
+            var data = catalog.FindMemData(id);
+            if (data == null)
+            {
+                Debug.LogWarning($"[TerritoryAutoSummoner] testFallbackMemIds의 '{id}'에 해당하는 MemData를 찾지 못했습니다.");
+                continue;
+            }
+            result.Add((data, "test_" + i));
+        }
 
         return result;
     }

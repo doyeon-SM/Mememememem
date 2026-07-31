@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
@@ -11,9 +12,9 @@ namespace HDY.UI
     /// 멤 정보 패널(그리드 옆 고정 표시) 담당.
     /// 멤창고(MemStorageUI)와 도감(MemDexUI) 둘 다에서 재사용한다.
     /// - 창고: 포획된 개체(CapturedMemEntry)가 있어 ShowInfo(entry, data) 사용, 탐험 스탯은 그 개체의 실제 값(단일 숫자).
-    /// - 도감: 포획된 개체가 없어 ShowInfo(data) 사용. MemData.explorationStat 하나만으로는 개체별 실제 범위를
-    ///   반영하지 못하므로, MemTierTable에서 해당 등급의 explorationMin~explorationMax 범위를 찾아 "20~100"
-    ///   형식으로 보여준다(테이블/스펙이 없으면 MemData의 단일 값으로 대체).
+    /// - 도감: 포획된 개체가 없어 ShowInfo(data, firstCapturedTimestamp) 사용. MemData.explorationStat 하나만으로는
+    ///   개체별 실제 범위를 반영하지 못하므로, MemTierTable에서 해당 등급의 explorationMin~explorationMax 범위를
+    ///   찾아 "20~100" 형식으로 보여준다(테이블/스펙이 없으면 MemData의 단일 값으로 대체).
     /// 두 오버로드 모두 내부적으로 RenderInfo로 렌더링을 위임한다.
     ///
     /// [스탯 표시 = "이름: 숫자"] 제작/벌목/채광/이동/생산 5개 생산 스탯은 각각 "제작: 3"처럼 라벨과
@@ -28,11 +29,19 @@ namespace HDY.UI
     /// 비활성화하지 않고 계속 켜둔 채로 값만 "??"(스탯은 "라벨: ??")로 표시한다. 예전에는 이 상태에서
     /// 텍스트 오브젝트 자체를 꺼버렸는데, 그러면 "정보가 없다"는 사실이 빈 화면으로만 보여 구분이 안 됐다.
     /// 아이콘만 예외적으로 계속 숨긴다("??"로 대신할 만한 이미지가 없어서다).
+    ///
+    /// [HDY 요청 - 해상도 분리] 상세정보 패널이라 512px(GetIcon512)을 사용한다. 도감 슬롯(MemDexSlotUI)은
+    /// 128px, 창고 그리드 슬롯(MemSlotUI)은 64px을 쓰는 것과 구분된다.
+    ///
+    /// [HDY 요청 - 최초 포획 정보, 도감 전용] infoFirstCapturedText는 도감(ShowInfo(MemData, long?))에서만
+    /// 채워지고 보여진다 - 창고(ShowInfo(entry, data))에서는 이 줄 자체를 항상 숨긴다. 같은 패널을 두 화면이
+    /// 공유하지만, 최초 포획 정보는 도감에서만 의미가 있다고 판단해서 화면(호출하는 오버로드)에 따라
+    /// 켜고 끄는 방식으로 분기했다.
     /// </summary>
     public class MemStorageUI_Info : MonoBehaviour
     {
         [Header("데이터 참조")]
-        [Tooltip("등급별 탐험 스탯 범위(최소~최대) 조회용. 도감(ShowInfo(MemData))에서 범위 표시에 사용한다.")]
+        [Tooltip("등급별 탐험 스탯 범위(최소~최대) 조회용. 도감(ShowInfo(MemData, long?))에서 범위 표시에 사용한다.")]
         [SerializeField] private MemTierTable tierTable;
 
         [Header("정보 패널 (그리드 옆 고정 표시)")]
@@ -46,10 +55,15 @@ namespace HDY.UI
         [SerializeField] private TMP_Text infoFarmingText;
         [SerializeField] private TMP_Text infoExplorationText;
 
+        [Header("최초 포획 정보 (도감 전용 - 창고에서는 항상 숨김)")]
+        [Tooltip("도감에서 멤을 선택했을 때 최초 포획 날짜+시간을 표시하는 텍스트. 창고 쪽 ShowInfo(entry, data)에서는 사용하지 않고 항상 숨긴다.")]
+        [SerializeField] private TMP_Text infoFirstCapturedText;
+
         private void Awake()
         {
             // 아직 ShowInfo가 한 번도 호출되지 않은 최초 상태 - 아이콘은 숨기고, 이름/티어/스탯 텍스트는
-            // 켠 채로 "??"를 보여준다.
+            // 켠 채로 "??"를 보여준다. 최초 포획 정보 줄은 기본적으로 숨김(도감에서 ShowInfo(MemData, long?)를
+            // 호출할 때만 켜진다).
             HideInfo();
         }
 
@@ -63,13 +77,20 @@ namespace HDY.UI
             }
 
             RenderInfo(data, data != null ? entry.ExplorationStat.ToString() : null);
+
+            // [HDY 요청 - 최초 포획 정보는 도감 전용] 창고 화면에서는 이 줄을 항상 숨긴다.
+            SetFirstCapturedVisible(false, null);
         }
 
         /// <summary>
         /// MemData만으로 정보를 표시한다. (도감에서 사용) 포획된 개체가 없어 탐험 스탯은 단일 값 대신
         /// MemTierTable에서 찾은 해당 등급의 "최소~최대" 범위로 보여준다.
         /// </summary>
-        public void ShowInfo(MemData data)
+        /// <param name="firstCapturedTimestamp">
+        /// [HDY 요청 - 최초 포획 정보] 이 멤 종의 최초 포획 시각(UTC Unix, 초). MemDexRecordManager에
+        /// 기록이 없으면(아직 발견되지 않았으면) null을 넘기면 되고, 이 경우 "최초 포획: ??"로 표시된다.
+        /// </param>
+        public void ShowInfo(MemData data, long? firstCapturedTimestamp = null)
         {
             if (data == null)
             {
@@ -78,13 +99,16 @@ namespace HDY.UI
             }
 
             RenderInfo(data, BuildExplorationRangeText(data));
+
+            SetFirstCapturedVisible(true, firstCapturedTimestamp);
         }
 
         /// <summary>표시할 정보가 없을 때(최초 상태, 선택 해제, 혹은 멤 데이터 미입력) 아이콘만 숨기고
-        /// 텍스트들은 "??" 상태로 렌더링한다.</summary>
+        /// 텍스트들은 "??" 상태로 렌더링한다. 최초 포획 정보 줄도 함께 숨긴다.</summary>
         private void HideInfo()
         {
             RenderInfo(null, null);
+            SetFirstCapturedVisible(false, null);
         }
 
         /// <summary>MemTierTable에서 이 멤 등급의 탐험 스탯 범위를 찾아 "최소~최대" 형식으로 반환한다. 테이블/스펙이 없으면 MemData의 단일 값으로 대체(경고 로그 남김).</summary>
@@ -102,6 +126,29 @@ namespace HDY.UI
         }
 
         /// <summary>
+        /// [HDY 요청 - 최초 포획 정보, 도감 전용] infoFirstCapturedText를 켜고 끈다. show가 false면(창고
+        /// 화면이거나 선택 해제 상태) 줄 자체를 숨긴다. show가 true면(도감 화면) timestamp가 있으면
+        /// 로컬 시간 기준 "yyyy-MM-dd HH:mm" 형식으로, 없으면(미발견) "최초 포획: ??"로 표시한다.
+        /// </summary>
+        private void SetFirstCapturedVisible(bool show, long? timestamp)
+        {
+            if (infoFirstCapturedText == null) return;
+
+            infoFirstCapturedText.gameObject.SetActive(show);
+            if (!show) return;
+
+            if (timestamp.HasValue)
+            {
+                var localTime = DateTimeOffset.FromUnixTimeSeconds(timestamp.Value).ToLocalTime();
+                infoFirstCapturedText.text = $"최초 포획: {localTime:yyyy-MM-dd HH:mm}";
+            }
+            else
+            {
+                infoFirstCapturedText.text = "최초 포획: ??";
+            }
+        }
+
+        /// <summary>
         /// 실제 텍스트/아이콘 렌더링. data가 null이면 아이콘은 숨기고 이름/티어/스탯 값은 전부 "??"로 표시한다.
         /// explorationDisplayText는 탐험 스탯 줄에 그대로 붙일 문자열(단일 값 또는 범위) - data가 null이면 무시되고 "??"로 대체된다.
         /// </summary>
@@ -110,8 +157,9 @@ namespace HDY.UI
             if (infoIconImage != null)
             {
                 // MemIconRenderer가 modelPrefab을 촬영해서 만든 아이콘을 memId로 조회한다(없으면 감춤).
+                // [HDY 요청 - 해상도 분리] 상세정보 패널이라 512px(GetIcon512)을 사용한다.
                 var sprite = (data != null && MemIconRenderer.Instance != null)
-                    ? MemIconRenderer.Instance.GetIcon(data.memId)
+                    ? MemIconRenderer.Instance.GetIcon512(data.memId)
                     : null;
 
                 infoIconImage.sprite = sprite;

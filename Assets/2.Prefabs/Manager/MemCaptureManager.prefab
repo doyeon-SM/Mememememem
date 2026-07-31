@@ -10,6 +10,7 @@ GameObject:
   m_Component:
   - component: {fileID: 5406615250556545825}
   - component: {fileID: 3133442940361000093}
+  - component: {fileID: 2615127887277045322}
   m_Layer: 0
   m_Name: MemCaptureManager
   m_TagString: Untagged
@@ -44,4 +45,21 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 21c99d748067106449560f66110b537d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HDY.Capture.MemCaptureManager
+  slotsPerPage: 48
+  maxPages: 10
+  startingPageCount: 2
+  unlockedPageCount: 0
   capturedMems: []
+--- !u!114 &2615127887277045322
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6423965748234773401}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c44bf6a4b29a23042abee335e96cc722, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HDY.Capture.MemDexRecordManager
+  records: []

@@ -36,6 +36,8 @@ namespace HDY.UI
     /// 멤 창고 그리드의 슬롯 한 칸.
     /// 아이콘(Sprite)은 MemIconRenderer가 MemData.modelPrefab을 촬영해서 만든 결과를 memId로 조회해서 채운다
     /// (MemIconRenderer가 없거나 아이콘을 만들 수 없으면 감춘다).
+    /// [HDY 요청 - 해상도 분리] 창고 그리드 슬롯은 작게 여러 칸이 나열되므로 64px 아이콘(GetIcon64)을 쓴다.
+    /// 도감 슬롯(MemDexSlotUI)은 128px, 상세정보 패널(MemStorageUI_Info)은 512px을 쓰는 것과 구분된다.
     /// ActiveImage: 이 멤이 활성화(CapturedMemEntry.IsActive) 상태일 때 표시.
     /// MemStatIcon/MemStatText: 창고가 Mem스탯 또는 티어 기준으로 정렬되어 있을 때만 활성화되어, 그 아이콘과
     /// 값(스탯 숫자 또는 티어 앞글자)을 보여준다 (어떤 아이콘/값을 보여줄지는 MemStorageUI가 계산해서
@@ -44,6 +46,13 @@ namespace HDY.UI
     /// 빈 슬롯으로도 멤을 옮길 수 있다 - 대상 슬롯이 비어있어도 유효한 이동으로 처리한다.
     /// 드래그 도중 휠로 페이지가 바뀔 수 있으므로(MemStorageUI_Grid), 실제 데이터 교체 판단에 필요한
     /// "드래그 시작/종료" 신호만 이벤트로 올리고, 어떤 항목을 옮기는지의 판단은 상위(Grid/MemStorageUI)가 담당한다.
+    /// [드래그 중 시각 효과] 드래그하는 동안 마우스를 따라다니는 고스트 아이콘(dragGhost)은 dragGhostAlpha로
+    /// 지정한 투명도로 반투명하게 표시되어, 지금 드래그 중이라는 것을 한눈에 알 수 있게 한다.
+    /// [HDY 요청 - 드래그 시작 시에도 정보 패널 표시] 클릭했을 때 정보 패널을 띄우는 것과 동일한 신호
+    /// (OnSlotClicked)를 드래그가 실제로 시작되는 시점(OnBeginDrag)에도 그대로 올린다 - 드래그하다가
+    /// 클릭 자체는 안 하더라도 지금 옮기는 중인 멤의 정보를 바로 확인할 수 있게 하기 위함이다. 별도의
+    /// 새 이벤트/경로를 만들지 않고 기존 클릭 처리 파이프라인(Grid -> MemStorageUI.HandleSlotClicked ->
+    /// info.ShowInfo)을 그대로 재사용한다.
     ///
     /// [우클릭 - 배치 해제] 활성화(IsActive)된 멤을 우클릭하면 "해제하기" 버튼을 띄우는 기능의 시작점이다.
     /// 이 클래스는 우클릭이 들어왔다는 사실과 현재 entry/data만 이벤트로 올리고(OnSlotRightClicked), 실제로
@@ -63,13 +72,21 @@ namespace HDY.UI
         [SerializeField] private Image memStatIcon;
         [SerializeField] private TMP_Text memStatText;
 
+        [Header("드래그 고스트 아이콘 (마우스를 따라다니는 임시 아이콘)")]
+        [Tooltip("드래그 중임을 시각적으로 나타내기 위해 고스트 아이콘에 적용할 투명도(알파값). 0=완전 투명, 1=완전 불투명.")]
+        [SerializeField] [Range(0f, 1f)] private float dragGhostAlpha = 0.6f;
+
         private CapturedMemEntry cachedEntry;
         private MemData cachedData;
 
         private Canvas rootCanvas;
         private RectTransform dragGhost;
 
-        /// <summary>슬롯이 클릭되었을 때 발생. 채워진 슬롯일 때만 발생한다.</summary>
+        /// <summary>
+        /// 슬롯이 클릭되었을 때, 그리고 드래그가 실제로 시작되었을 때도 발생한다(둘 다 채워진 슬롯일
+        /// 때만). 정보 패널(MemStorageUI_Info)을 갱신하는 동일한 경로로 쓰인다 - 드래그를 시작한 시점에도
+        /// 지금 옮기는 멤의 정보를 바로 볼 수 있도록 OnBeginDrag에서도 이 이벤트를 올린다.
+        /// </summary>
         public event Action<CapturedMemEntry, MemData> OnSlotClicked;
 
         /// <summary>
@@ -184,6 +201,7 @@ namespace HDY.UI
 
         /// <summary>
         /// MemIconRenderer(MemData.modelPrefab을 촬영해서 만든 Sprite)를 memId로 조회해서 iconImage에 채운다.
+        /// [HDY 요청 - 해상도 분리] 창고 그리드 슬롯이라 64px(GetIcon64)을 사용한다.
         /// 아이콘을 만들 수 없으면(데이터/모델 없음, 렌더러 없음) 아이콘 영역을 그냥 감춘다.
         /// </summary>
         private void ApplyIcon(MemData data)
@@ -191,7 +209,7 @@ namespace HDY.UI
             if (iconImage == null) return;
 
             var sprite = (data != null && MemIconRenderer.Instance != null)
-                ? MemIconRenderer.Instance.GetIcon(data.memId)
+                ? MemIconRenderer.Instance.GetIcon64(data.memId)
                 : null;
 
             iconImage.sprite = sprite;
@@ -235,7 +253,11 @@ namespace HDY.UI
             OnSlotRightClicked?.Invoke(this, cachedEntry, cachedData);
         }
 
-        /// <summary>드래그 시작. 빈 슬롯이거나 아이콘/캔버스를 찾을 수 없으면 드래그 자체를 취소한다.</summary>
+        /// <summary>
+        /// 드래그 시작. 빈 슬롯이거나 아이콘/캔버스를 찾을 수 없으면 드래그 자체를 취소한다.
+        /// [HDY 요청] 클릭했을 때와 동일하게 정보 패널이 갱신되도록 OnSlotClicked도 함께 올린다 - 드래그를
+        /// 시작하자마자 지금 옮기는 멤이 어떤 멤인지 정보 패널에서 바로 확인할 수 있다.
+        /// </summary>
         public void OnBeginDrag(PointerEventData eventData)
         {
             if (!HasData || iconImage == null || rootCanvas == null)
@@ -243,17 +265,37 @@ namespace HDY.UI
                 eventData.pointerDrag = null; // 드래그 파이프라인을 취소한다 (이후 OnDrag/OnEndDrag가 호출되지 않음)
                 return;
             }
+
+            // [HDY 요청 - 드래그 시작 시 정보 패널 표시] 클릭 처리(HandleClick)와 동일한 신호를 그대로 올린다.
+            // 별도 경로를 새로 만들지 않고 기존 클릭 파이프라인(Grid -> MemStorageUI.HandleSlotClicked ->
+            // info.ShowInfo)을 재사용한다. 이 시점에는 이미 HasData가 true임이 위에서 확인됐으므로
+            // cachedEntry는 null이 아니다.
+            Debug.Log($"[MemSlotUI] 드래그 시작 - 정보 패널 갱신: {gameObject.name} / MemId={cachedEntry.MemId}");
+            OnSlotClicked?.Invoke(cachedEntry, cachedData);
+
             iconImage.gameObject.SetActive(true);
 
             var ghostObject = new GameObject("DragGhostIcon", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
             dragGhost = ghostObject.GetComponent<RectTransform>();
             dragGhost.SetParent(rootCanvas.transform, false);
             dragGhost.SetAsLastSibling();
-            dragGhost.sizeDelta = iconImage.rectTransform.sizeDelta;
+
+            // [버그 수정 - 고스트가 안 보이던 문제] iconImage는 스트레치 앵커(anchorMin=(0,0), anchorMax=(1,1))를
+            // 쓰고 있어서 sizeDelta가 실제 렌더링 크기가 아니라 부모 대비 여백(이 경우 음수: -10,-10)이다.
+            // 새로 만든 dragGhost는 스트레치 앵커가 아니라(기본 고정 앵커) sizeDelta를 그대로 폭/높이로 쓰므로,
+            // sizeDelta를 그대로 복사하면 고스트가 음수/0 크기가 되어 화면에 아무것도 안 보이는 상태가 된다.
+            // 앵커 방식과 무관하게 항상 실제 렌더링된 폭/높이를 돌려주는 rect.size를 대신 사용한다.
+            dragGhost.sizeDelta = iconImage.rectTransform.rect.size;
 
             var ghostImage = ghostObject.GetComponent<Image>();
             ghostImage.sprite = iconImage.sprite;
-            ghostImage.color = iconImage.color;
+
+            // [HDY 요청 - 드래그 중 시각 효과] 지금 드래그 중이라는 걸 한눈에 알 수 있도록 고스트 아이콘을
+            // 반투명하게 표시한다. 원본 아이콘의 색상(틴트)은 그대로 유지하고 알파값만 dragGhostAlpha로 낮춘다.
+            var ghostColor = iconImage.color;
+            ghostColor.a = dragGhostAlpha;
+            ghostImage.color = ghostColor;
+
             ghostImage.raycastTarget = false; // 드롭 대상 탐지를 가리지 않도록 함
 
             // 캔버스가 Screen Space - Overlay 라는 가정 하에 스크린 좌표를 그대로 사용한다.

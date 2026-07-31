@@ -43,6 +43,9 @@ namespace HDY.Forge
         [SerializeField] private ForgeToolSlotUI selectedSlotDisplay;
         [SerializeField] private GameObject selectedEmptyHint;
 
+        [Tooltip("선택된 도구의 이름 텍스트. 선택이 없거나 카탈로그에서 데이터를 못 찾으면(displayData == null) 숨긴다.")]
+        [SerializeField] private TMP_Text selectedItemNameText;
+
         [Header("연마칸 표시 (최대 5칸, 배열 인덱스 = 슬롯 인덱스)")]
         [SerializeField] private SlotRowUI[] slotRows = new SlotRowUI[5];
 
@@ -172,11 +175,13 @@ namespace HDY.Forge
                 if (stoneIconImage != null) stoneIconImage.enabled = false;
                 if (stoneCostText != null) stoneCostText.text = "-";
                 if (goldCostText != null) goldCostText.text = "-";
+                SetItemNameText(null);
                 return;
             }
 
             var displayData = catalogManager != null ? catalogManager.FindItemData(selectedStack.itemId) : null;
             selectedSlotDisplay?.Bind(selectedStack, displayData);
+            SetItemNameText(displayData);
 
             if (forgeManager != null && forgeManager.TryPeekRefinementSlots(selectedStack, out var slots))
             {
@@ -223,6 +228,19 @@ namespace HDY.Forge
             {
                 if (row?.root != null) row.root.SetActive(false);
             }
+        }
+
+        /// <summary>
+        /// [HDY 요청] 선택된 도구의 이름 텍스트를 표시한다. displayData가 없으면(선택 없음 또는 카탈로그에서
+        /// 못 찾은 경우) 텍스트 오브젝트 자체를 숨긴다.
+        /// </summary>
+        private void SetItemNameText(ItemData displayData)
+        {
+            if (selectedItemNameText == null) return;
+
+            bool hasName = displayData != null;
+            selectedItemNameText.gameObject.SetActive(hasName);
+            if (hasName) selectedItemNameText.text = displayData.ItemName;
         }
 
         private void RefreshCostPreview()

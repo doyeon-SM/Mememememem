@@ -73,4 +73,26 @@ public static class ProductionCalculator
 
         return Mathf.Max(baseItemTime - totalReduction, 2f);
     }
+
+    public static float CalculatePowerGenerationTime(float baseTime, MemData mem)
+    {
+        if (mem == null) return baseTime;
+
+        float reduction = 0f;
+        switch (mem.tier)
+        {
+            case MemTier.Rare: reduction = 0f; break;
+            case MemTier.Epic: reduction = 2f; break;
+            case MemTier.Unique: reduction = 4f; break;
+            case MemTier.Legendary: reduction = 6f; break;
+            case MemTier.Mythic: reduction = 10f; break;
+        }
+
+        return Mathf.Max(baseTime - reduction, 2f);
+    }
+
+    public static int GetTransportMaxMemCount(int facilityLevel)
+    {
+        return Mathf.Clamp(facilityLevel, 1, 3);
+    }
 }
