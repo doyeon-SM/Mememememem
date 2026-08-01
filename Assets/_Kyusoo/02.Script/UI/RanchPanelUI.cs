@@ -3,6 +3,7 @@ using MemSystem.Data;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using DG.Tweening;
 
 public class RanchPanelUI : MonoBehaviour
 {
@@ -17,11 +18,16 @@ public class RanchPanelUI : MonoBehaviour
     [SerializeField] private MemSlotUI[] memSlots = new MemSlotUI[5];
     [SerializeField] private RanchProductionSlotUI[] productionSlots = new RanchProductionSlotUI[5];
 
-    [Header("버튼 연동 (Bottom/Get)")]
+    [Header("하단 상태 및 수령 버튼")]
     [SerializeField] private Button collectAllBtn;
+    [SerializeField] private TextMeshProUGUI overallStatusText; // 🌟 새로 추가: "목장 생산중 ..." / 중지 사유 표시 [TMP]
 
     public RanchFacilityRuntime TargetFacility => targetFacility;
     private RanchFacilityRuntime targetFacility;
+
+    // 🌟 DOTween 애니메이션 제어 변수
+    private Sequence dotsSequence;
+    private bool isAnimatingDots = false;
 
     private void Awake()
     {
@@ -39,6 +45,11 @@ public class RanchPanelUI : MonoBehaviour
         }
 
         InitializeSlotIndexes();
+    }
+
+    private void OnDisable()
+    {
+        StopDotsAnimation();
     }
 
     private void InitializeSlotIndexes()
@@ -67,6 +78,77 @@ public class RanchPanelUI : MonoBehaviour
         if (collectAllBtn != null)
         {
             collectAllBtn.interactable = targetFacility.HasAnyCollectableItem();
+        }
+
+        UpdateOverallStatusUI();
+    }
+
+    /// <summary>
+    /// 🌟 전체 목장 생산 상태 및 사유 표기 갱신
+    /// </summary>
+    private void UpdateOverallStatusUI()
+    {
+        if (targetFacility == null) return;
+
+        bool isStarving = ConsumeFoodSystem.Instance != null && ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation;
+
+        if (isStarving)
+        {
+            StopDotsAnimation();
+            if (overallStatusText != null)
+            {
+                overallStatusText.color = Color.red;
+                overallStatusText.text = "식량이 부족합니다";
+            }
+        }
+        else if (targetFacility.isProducing)
+        {
+            StartDotsAnimation();
+        }
+        else
+        {
+            StopDotsAnimation();
+            if (overallStatusText != null)
+            {
+                overallStatusText.color = Color.white;
+                overallStatusText.text = "생산 대기 중";
+            }
+        }
+    }
+
+    private void StartDotsAnimation()
+    {
+        if (isAnimatingDots) return;
+        isAnimatingDots = true;
+
+        if (dotsSequence != null) dotsSequence.Kill();
+
+        if (overallStatusText != null) overallStatusText.color = Color.white;
+
+        dotsSequence = DOTween.Sequence();
+        dotsSequence.AppendCallback(() => { SetStatusText("생산중 ."); })
+                    .AppendInterval(0.4f)
+                    .AppendCallback(() => { SetStatusText("생산중 .."); })
+                    .AppendInterval(0.4f)
+                    .AppendCallback(() => { SetStatusText("생산중 ..."); })
+                    .AppendInterval(0.4f)
+                    .SetLoops(-1, LoopType.Restart);
+    }
+
+    private void SetStatusText(string text)
+    {
+        if (overallStatusText != null) overallStatusText.text = text;
+    }
+
+    private void StopDotsAnimation()
+    {
+        if (!isAnimatingDots && dotsSequence == null) return;
+
+        isAnimatingDots = false;
+        if (dotsSequence != null)
+        {
+            dotsSequence.Kill();
+            dotsSequence = null;
         }
     }
 
@@ -114,6 +196,8 @@ public class RanchPanelUI : MonoBehaviour
         {
             collectAllBtn.interactable = targetFacility.HasAnyCollectableItem();
         }
+
+        UpdateOverallStatusUI();
     }
 
     private void OnClickLevelUp()
@@ -124,7 +208,6 @@ public class RanchPanelUI : MonoBehaviour
         RefreshStaticUI();
     }
 
-    // 🌟 [수정 위치]: bool 반환 타입으로 변경
     public bool TryDeployMemFromUI(int slotIndex, MemData targetMem, CapturedMemEntry targetEntry)
     {
         if (targetFacility == null || targetMem == null || targetEntry == null) return false;
@@ -156,6 +239,7 @@ public class RanchPanelUI : MonoBehaviour
 
     public void ClosePanel()
     {
+        StopDotsAnimation();
         targetFacility = null;
     }
 

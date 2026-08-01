@@ -138,7 +138,7 @@ public class FacilityCollectManager : MonoBehaviour
         data.currentItemId = itemId;
         data.currentCount = count;
         data.isProducing = isProducing;
-        data.overheadWorldPosition = worldPos + new Vector3(0f, 2.2f, 0f); // 머리 위 Y축 오프셋
+        data.overheadWorldPosition = worldPos + new Vector3(0f, 1.0f, 0f); // 머리 위 Y축 오프셋
 
         // 🌟 말풍선 생성 조건 판단
         bool shouldShowBubble = CheckBubbleCondition(data);
@@ -181,40 +181,36 @@ public class FacilityCollectManager : MonoBehaviour
     }
 
     /// <summary>
-    /// 🌟 아무 말풍선이나 클릭 시 실행되는 전체 일괄 수령 (Collect All)
+    /// 🌟 특정 시설 하나만 개별 수령 처리
     /// </summary>
-    public void CollectAll()
+    public void CollectSingleFacility(MonoBehaviour facility)
     {
-        List<MonoBehaviour> facilitiesToRefresh = new List<MonoBehaviour>(activeFacilities.Keys);
+        if (facility == null || !activeFacilities.ContainsKey(facility)) return;
 
-        // 1. 모든 말풍선에 DOTween 수획(pop) 애니메이션 연출 실행
+        // 1. 해당 시설의 말풍선 팝 애니메이션 재생
         if (FacilityCollectUI.Instance != null)
         {
-            FacilityCollectUI.Instance.AnimateCollectAllBubbles();
+            FacilityCollectUI.Instance.AnimateCollectSingleBubble(facility);
         }
 
-        // 2. 등록된 모든 시설의 자체 수령 로직 실행
-        foreach (var facility in facilitiesToRefresh)
+        // 2. 시설 타입별 개별 수령 실행
+        if (facility is ProductionFacilityRuntime prod)
         {
-            if (facility is ProductionFacilityRuntime prod)
-            {
-                prod.StoredItems();
-            }
-            else if (facility is ProductionCraftRuntime craft)
-            {
-                craft.CollectCraftedItems();
-            }
-            else if (facility is RanchFacilityRuntime ranch)
-            {
-                ranch.CollectAllItems();
-            }
-
-            // 각 시설 수령 완료 후 데이터 0 정산 및 상태 재갱신
-            UpdateFacilityState(facility);
+            prod.StoredItems();
+        }
+        else if (facility is ProductionCraftRuntime craft)
+        {
+            craft.CollectCraftedItems();
+        }
+        else if (facility is RanchFacilityRuntime ranch)
+        {
+            ranch.CollectAllItems();
         }
 
-        OnCollectAllTriggered?.Invoke();
-        Debug.Log("<color=lime>[FacilityCollectManager]</color> 영지 내 모든 시설 생산품 일괄 수령 완료!");
+        // 3. 수령 후 상태 및 말풍선 갱신
+        UpdateFacilityState(facility);
+
+        Debug.Log($"<color=lime>[FacilityCollectManager]</color> '{facility.name}' 시설 물품 개별 수령 완료!");
     }
 
     public void RefreshAllFacilitiesStatus()

@@ -15,6 +15,19 @@ using UnityEngine.InputSystem;
 
 public class GridManager : MonoBehaviour
 {
+    // 🌟 설계도 차용 출처 구분용 Enum
+    public enum BlueprintSource
+    {
+        Inventory,
+        Warehouse
+    }
+
+    private class SessionBlueprintRecord
+    {
+        public ItemData blueprintItem;
+        public BlueprintSource source;
+    }
+
     [Header("타일 생성 관련 정보: Prefabs, 생성될 위치, Grid Layer")]
     [SerializeField] private GameObject outerTilePrefab;
     [SerializeField] private GameObject innerTilePrefab;
@@ -37,9 +50,9 @@ public class GridManager : MonoBehaviour
     [SerializeField] private Color unbuildableColor = new Color(1f, 0f, 0f, 0.4f);
 
     [Header("점유 타일 테두리 설정 (인스펙터 조절 가능)")]
-    [SerializeField] private Material occupiedMaterialPrefab; 
-    [SerializeField] private Color occupiedBorderColor = new Color(0.95f, 0.65f, 0.2f, 0.85f); 
-    [SerializeField][Range(1, 16)] private int occupiedBorderWidth = 3; 
+    [SerializeField] private Material occupiedMaterialPrefab;
+    [SerializeField] private Color occupiedBorderColor = new Color(0.95f, 0.65f, 0.2f, 0.85f);
+    [SerializeField][Range(1, 16)] private int occupiedBorderWidth = 3;
 
     private BuildingData selectedBuildingData;
     private GameObject currentPreviewInstance;
@@ -56,10 +69,13 @@ public class GridManager : MonoBehaviour
     private GameObject[,] buildingObjectsGrid;
     private BuildingData[,] buildingDataGrid;
 
+    // 🌟 배치된 씬 상의 건물 오브젝트별 설계도 출처 맵핑 딕셔너리
+    private Dictionary<GameObject, BlueprintSource> buildingBlueprintSourceMap = new Dictionary<GameObject, BlueprintSource>();
+
     // 점유 타일 전용 투명 테두리 오버레이 배열
     private GameObject[,] occupiedOverlayGrid;
     private Material occupiedOverlayMaterial;
-    private Texture2D[] cachedBorderTextures = new Texture2D[16]; // 🌟 상/하/좌/우 조합별 16가지 마스크 텍스처 캐시
+    private Texture2D[] cachedBorderTextures = new Texture2D[16];
 
     private int currentStartGridX;
     private int currentStartGridZ;
@@ -75,14 +91,17 @@ public class GridManager : MonoBehaviour
     private BuildRecordManager buildRecordManager;
 
     private List<BuildingData> currentAvailableBuildings = new List<BuildingData>();
-    private List<ItemData> sessionRemovedBlueprints = new List<ItemData>();
-    private List<ItemData> sessionAddedBlueprints = new List<ItemData>();
+
+    // 차용/반환 출처를 기억하는 세션 세부 리스트
+    private List<SessionBlueprintRecord> sessionRemovedBlueprints = new List<SessionBlueprintRecord>();
+    private List<SessionBlueprintRecord> sessionAddedBlueprints = new List<SessionBlueprintRecord>();
 
     private class PickedUpBuildingRuntimeState
     {
         public FacilityData facilityData;
         public List<MemData> deployedMems = new List<MemData>();
         public List<CapturedMemEntry> deployedMemEntries = new List<CapturedMemEntry>();
+        public BlueprintSource? originalBlueprintSource;
     }
     private PickedUpBuildingRuntimeState cachedPickedUpState = null;
 
@@ -93,7 +112,7 @@ public class GridManager : MonoBehaviour
     public static event Action<bool, List<BuildingData>> OnPlacementModeChanged;
     public static event Action OnGridDataChanged;
 
-    private int count = 5;
+    private int count = 10;
 
     private void Awake()
     {
@@ -103,8 +122,8 @@ public class GridManager : MonoBehaviour
 
     private void Start()
     {
-        int targetWidth = currentWidth > 0 ? currentWidth : 5;
-        int targetHeight = currentHeight > 0 ? currentHeight : 5;
+        int targetWidth = currentWidth > 0 ? currentWidth : 10;
+        int targetHeight = currentHeight > 0 ? currentHeight : 10;
         InitializeGrid(targetWidth, targetHeight);
     }
 
@@ -379,7 +398,6 @@ public class GridManager : MonoBehaviour
 
         if (globalGridOverlay != null) globalGridOverlay.SetActive(isPlacementMode);
 
-        // 🌟 점유 타일 테두리 하이라이트/복구
         UpdateTileOccupiedVisuals();
 
         Debug.Log($"배치 모드 상태 변경: {isPlacementMode} | 배치 가능 건물 수: {currentAvailableBuildings.Count}개");
@@ -403,8 +421,8 @@ public class GridManager : MonoBehaviour
 
                 if (shader.name.Contains("Universal Render Pipeline"))
                 {
-                    occupiedOverlayMaterial.SetFloat("_Surface", 1f); // Transparent
-                    occupiedOverlayMaterial.SetFloat("_Blend", 0f);   // Alpha
+                    occupiedOverlayMaterial.SetFloat("_Surface", 1f);
+                    occupiedOverlayMaterial.SetFloat("_Blend", 0f);
                     occupiedOverlayMaterial.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
                     occupiedOverlayMaterial.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
                     occupiedOverlayMaterial.SetInt("_ZWrite", 0);
@@ -416,9 +434,6 @@ public class GridManager : MonoBehaviour
         return occupiedOverlayMaterial;
     }
 
-    /// <summary>
-    /// 🌟 상/하/좌/우 이웃 조건에 맞게 외곽 테두리선만 존재하는 텍스처를 생성합니다.
-    /// </summary>
     private Texture2D GetBorderTexture(bool left, bool right, bool bottom, bool top)
     {
         int mask = (left ? 1 : 0) | (right ? 2 : 0) | (bottom ? 4 : 0) | (top ? 8 : 0);
@@ -461,9 +476,6 @@ public class GridManager : MonoBehaviour
         return cachedBorderTextures[mask];
     }
 
-    /// <summary>
-    /// 🌟 배치 모드일 때 시설의 내부 선은 없애고, 시설의 전체 외곽 테두리 선만 출력합니다.
-    /// </summary>
     private void UpdateTileOccupiedVisuals()
     {
         if (currentWidth == 0 || currentHeight == 0) return;
@@ -492,7 +504,6 @@ public class GridManager : MonoBehaviour
                 {
                     GameObject currentBuilding = buildingObjectsGrid[x, z];
 
-                    // 🌟 이웃 타일이 동일 건물인지 검사하여 외곽 테두리 여부 판별
                     bool borderLeft = (x == 0 || buildingObjectsGrid[x - 1, z] != currentBuilding);
                     bool borderRight = (x == currentWidth - 1 || buildingObjectsGrid[x + 1, z] != currentBuilding);
                     bool borderBottom = (z == 0 || buildingObjectsGrid[x, z - 1] != currentBuilding);
@@ -865,6 +876,7 @@ public class GridManager : MonoBehaviour
             }
         }
 
+        // 🌟 [수정 핵심] 건물을 설치/재배치할 때 무조건 실제 인벤토리/창고에서 설계도를 차감합니다.
         if (!string.IsNullOrEmpty(selectedBuildingData.requireBlueprint))
         {
             var inventory = FindFirstObjectByType<PlayerInventory>();
@@ -872,18 +884,33 @@ public class GridManager : MonoBehaviour
             string bpId = selectedBuildingData.requireBlueprint;
 
             int invCount = inventory != null ? inventory.GetItemAmount(bpId) : 0;
+            ItemData bpItem = FindItemDataInProject(bpId);
 
-            if (invCount >= 1)
+            BlueprintSource usedSource = BlueprintSource.Inventory;
+
+            if (invCount >= 1 && inventory != null)
             {
                 inventory.RemoveItem(bpId, 1);
+                usedSource = BlueprintSource.Inventory;
             }
             else if (warehouse != null && warehouse.GetItemAmount(bpId) >= 1)
             {
                 warehouse.RemoveItem(bpId, 1);
+                usedSource = BlueprintSource.Warehouse;
             }
 
-            ItemData bpItem = FindItemDataInProject(bpId);
-            if (bpItem != null) sessionRemovedBlueprints.Add(bpItem);
+            // 1. 건물 개체에 출처 기록
+            buildingBlueprintSourceMap[realBuilding] = usedSource;
+
+            // 2. 배치 세션 차용 리스트에 기록
+            if (bpItem != null)
+            {
+                sessionRemovedBlueprints.Add(new SessionBlueprintRecord
+                {
+                    blueprintItem = bpItem,
+                    source = usedSource
+                });
+            }
         }
 
         ClearPreview();
@@ -907,6 +934,12 @@ public class GridManager : MonoBehaviour
 
         cachedPickedUpState = new PickedUpBuildingRuntimeState();
         cachedPickedUpState.facilityData = new FacilityData();
+
+        // 🌟 PickUp 건물에 등록되어 있던 출처를 캐싱
+        if (buildingBlueprintSourceMap.TryGetValue(targetBuilding, out BlueprintSource source))
+        {
+            cachedPickedUpState.originalBlueprintSource = source;
+        }
 
         if (targetBuilding.TryGetComponent<ProductionFacilityRuntime>(out var facility))
         {
@@ -1041,20 +1074,48 @@ public class GridManager : MonoBehaviour
             }
         }
 
+        // 🌟 딕셔너리에서 파괴 대상 오브젝트 제거
+        buildingBlueprintSourceMap.Remove(targetBuilding);
+
         targetBuilding.SetActive(false);
         Destroy(targetBuilding);
 
+        // 🌟 건물 들어올리기(PickUp) 시 해당 건물의 원래 출처로 정확히 설계도 환불
         if (retrievedData != null && !string.IsNullOrEmpty(retrievedData.requireBlueprint))
         {
             var inventory = FindFirstObjectByType<PlayerInventory>();
-            if (inventory != null)
+            var warehouse = FindFirstObjectByType<WarehouseInventory>();
+
+            ItemData bpItem = FindItemDataInProject(retrievedData.requireBlueprint);
+            if (bpItem != null)
             {
-                ItemData bpItem = FindItemDataInProject(retrievedData.requireBlueprint);
-                if (bpItem != null)
+                BlueprintSource targetSource = cachedPickedUpState.originalBlueprintSource ?? BlueprintSource.Inventory;
+                int remaining = 1;
+
+                // 1. 원래 출처가 인벤토리인 경우: 인벤토리 -> 실패 시 창고
+                if (targetSource == BlueprintSource.Inventory)
                 {
-                    inventory.AddItem(bpItem, 1);
-                    sessionAddedBlueprints.Add(bpItem);
+                    if (inventory != null) remaining = inventory.AddItem(bpItem, 1);
+                    if (remaining > 0 && warehouse != null) remaining = warehouse.AddItem(bpItem, 1);
                 }
+                // 2. 원래 출처가 창고인 경우: 창고 -> 실패 시 인벤토리
+                else
+                {
+                    if (warehouse != null) remaining = warehouse.AddItem(bpItem, 1);
+                    if (remaining > 0 && inventory != null) remaining = inventory.AddItem(bpItem, 1);
+                }
+
+                if (remaining > 0)
+                {
+                    /// [UI Popup] 인벤토리와 창고가 가득 차서 설계도를 반환할 수 없습니다. ///
+                    Debug.LogWarning($"[GridManager] 인벤토리와 창고가 가득 차서 설계도 '{bpItem.ItemName}'을(를) 반환할 수 없습니다.");
+                }
+
+                sessionAddedBlueprints.Add(new SessionBlueprintRecord
+                {
+                    blueprintItem = bpItem,
+                    source = targetSource
+                });
             }
         }
 
@@ -1169,11 +1230,55 @@ public class GridManager : MonoBehaviour
         RestoreRollbackData(rollbackData);
 
         var inventory = FindFirstObjectByType<PlayerInventory>();
-        if (inventory != null)
+        var warehouse = FindFirstObjectByType<WarehouseInventory>();
+
+        // 1. 차용했던 설계도를 정확한 원위치(모닥불 -> 창고, 제작대 -> 인벤토리)로 복구
+        foreach (var record in sessionRemovedBlueprints)
         {
-            foreach (var item in sessionRemovedBlueprints) inventory.AddItem(item, 1);
-            foreach (var item in sessionAddedBlueprints) inventory.RemoveItem(item.Item_ID, 1);
+            if (record == null || record.blueprintItem == null) continue;
+
+            int remaining = 1;
+
+            if (record.source == BlueprintSource.Inventory)
+            {
+                if (inventory != null) remaining = inventory.AddItem(record.blueprintItem, 1);
+                if (remaining > 0 && warehouse != null) remaining = warehouse.AddItem(record.blueprintItem, 1);
+            }
+            else if (record.source == BlueprintSource.Warehouse)
+            {
+                if (warehouse != null) remaining = warehouse.AddItem(record.blueprintItem, 1);
+                if (remaining > 0 && inventory != null) remaining = inventory.AddItem(record.blueprintItem, 1);
+            }
+
+            if (remaining > 0)
+            {
+                /// [UI Popup] 인벤토리와 창고가 가득 차서 설계도를 반환할 수 없습니다. ///
+                Debug.LogWarning($"[GridManager] 인벤토리와 창고가 가득 차서 설계도 '{record.blueprintItem.ItemName}'을(를) 반환할 수 없습니다.");
+            }
         }
+
+        // 2. 세션 동안 반환받았던 설계도를 원래 출처 위치에서 다시 차감 (롤백)
+        foreach (var record in sessionAddedBlueprints)
+        {
+            if (record == null || record.blueprintItem == null) continue;
+
+            string bpId = record.blueprintItem.Item_ID;
+
+            if (record.source == BlueprintSource.Inventory && inventory != null)
+            {
+                inventory.RemoveItem(bpId, 1);
+            }
+            else if (record.source == BlueprintSource.Warehouse && warehouse != null)
+            {
+                warehouse.RemoveItem(bpId, 1);
+            }
+            else
+            {
+                if (inventory != null && inventory.GetItemAmount(bpId) > 0) inventory.RemoveItem(bpId, 1);
+                else if (warehouse != null && warehouse.GetItemAmount(bpId) > 0) warehouse.RemoveItem(bpId, 1);
+            }
+        }
+
         sessionRemovedBlueprints.Clear();
         sessionAddedBlueprints.Clear();
 
@@ -1196,6 +1301,7 @@ public class GridManager : MonoBehaviour
                 Destroy(building.gameObject);
             }
         }
+        buildingBlueprintSourceMap.Clear();
         if (buildingObjectsGrid != null) Array.Clear(buildingObjectsGrid, 0, buildingObjectsGrid.Length);
         if (buildingDataGrid != null) Array.Clear(buildingDataGrid, 0, buildingDataGrid.Length);
         if (occupiedCells != null) Array.Clear(occupiedCells, 0, occupiedCells.Length);

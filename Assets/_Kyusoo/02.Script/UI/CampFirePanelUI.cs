@@ -10,6 +10,7 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using DG.Tweening;
 
 public class CampFirePanelUI : MonoBehaviour
 {
@@ -63,6 +64,7 @@ public class CampFirePanelUI : MonoBehaviour
     [SerializeField] private GameObject bottomCookingModeObject;
     [SerializeField] private Slider progressBar;
     [SerializeField] private TextMeshProUGUI durationText;
+    [SerializeField] private TextMeshProUGUI cookingStatusText; // 🌟 상태 및 애니메이션 텍스트
     [SerializeField] private Button cancelBtn;
     [SerializeField] private Button getBtn;
 
@@ -70,13 +72,17 @@ public class CampFirePanelUI : MonoBehaviour
     public CampFireRuntime TargetFacility => targetFacility;
 
     private ItemData activeSelectedFood;
-    private CookRecipeData activeSelectedRecipeData; // 🌟 CookRecipeData로 변경
+    private CookRecipeData activeSelectedRecipeData;
 
     private int selectedQuantity = 1;
     private int maxCookableQuantity = 1;
 
     private bool isUpdatingQuantitySystem = false;
     private Coroutine errorFeedbackCoroutine;
+
+    // 🌟 DOTween 애니메이션 관련 변수
+    private Sequence dotsSequence;
+    private bool isAnimatingDots = false;
 
     private void Awake()
     {
@@ -98,6 +104,11 @@ public class CampFirePanelUI : MonoBehaviour
         if (singleMemSlot != null) singleMemSlot.InitializeSlot(0);
     }
 
+    private void OnDisable()
+    {
+        StopDotsAnimation();
+    }
+
     private void Update()
     {
         if (targetFacility == null) return;
@@ -107,6 +118,8 @@ public class CampFirePanelUI : MonoBehaviour
             float progressNormalized = targetFacility.currentProgressTime / targetFacility.totalRequiredTime;
             if (progressBar != null) progressBar.value = progressNormalized;
             if (durationText != null) durationText.text = $"{Mathf.Clamp(progressNormalized * 100f, 0f, 100f):F0}%";
+
+            UpdateCookingStatusUI();
         }
 
         bool canGet = (targetFacility.currentStorageCount > 0);
@@ -114,6 +127,81 @@ public class CampFirePanelUI : MonoBehaviour
         if (collectRewardBtn != null) collectRewardBtn.interactable = canGet;
 
         UpdateStorageText();
+    }
+
+    /// <summary>
+    /// 🌟 상태 텍스트 갱신 및 중지 사유 처리
+    /// </summary>
+    private void UpdateCookingStatusUI()
+    {
+        if (targetFacility == null) return;
+
+        bool isStarving = ConsumeFoodSystem.Instance != null && ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation;
+
+        if (isStarving)
+        {
+            StopDotsAnimation();
+            if (cookingStatusText != null)
+            {
+                cookingStatusText.color = Color.red;
+                cookingStatusText.text = "식량이 부족합니다";
+            }
+        }
+        else if (targetFacility.isCooking)
+        {
+            StartDotsAnimation();
+        }
+        else
+        {
+            StopDotsAnimation();
+            if (cookingStatusText != null)
+            {
+                cookingStatusText.color = Color.white;
+                cookingStatusText.text = "요리 대기 중";
+            }
+        }
+    }
+
+    private void StartDotsAnimation()
+    {
+        if (isAnimatingDots) return;
+        isAnimatingDots = true;
+
+        if (dotsSequence != null) dotsSequence.Kill();
+
+        if (cookingStatusText != null)
+        {
+            cookingStatusText.color = Color.white;
+        }
+
+        dotsSequence = DOTween.Sequence();
+        dotsSequence.AppendCallback(() => { SetCookingStatusText("요리중 ."); })
+                    .AppendInterval(0.4f)
+                    .AppendCallback(() => { SetCookingStatusText("요리중 .."); })
+                    .AppendInterval(0.4f)
+                    .AppendCallback(() => { SetCookingStatusText("요리중 ..."); })
+                    .AppendInterval(0.4f)
+                    .SetLoops(-1, LoopType.Restart);
+    }
+
+    private void SetCookingStatusText(string text)
+    {
+        if (cookingStatusText != null)
+        {
+            cookingStatusText.text = text;
+        }
+    }
+
+    private void StopDotsAnimation()
+    {
+        if (!isAnimatingDots && dotsSequence == null) return;
+
+        isAnimatingDots = false;
+        if (dotsSequence != null)
+        {
+            dotsSequence.Kill();
+            dotsSequence = null;
+        }
     }
 
     public void OpenPanel(CampFireRuntime facility)
@@ -183,6 +271,12 @@ public class CampFirePanelUI : MonoBehaviour
                 if (cookingItemIcon != null) cookingItemIcon.sprite = currentItem.ItemIcon;
                 if (cookingItemName != null) cookingItemName.text = currentItem.ItemName;
             }
+
+            UpdateCookingStatusUI();
+        }
+        else
+        {
+            StopDotsAnimation();
         }
     }
 
@@ -214,7 +308,6 @@ public class CampFirePanelUI : MonoBehaviour
             }
             else
             {
-                // 🌟 CookRecipeData.Time 사용
                 float baseDuration = activeSelectedRecipeData != null ? activeSelectedRecipeData.Time : 15f;
                 float singleTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, targetFacility.DeployedMems);
                 float totalEstimatedTime = singleTime * selectedQuantity;
@@ -372,7 +465,7 @@ public class CampFirePanelUI : MonoBehaviour
         if (targetFacility == null || selectedFood == null) return;
 
         activeSelectedFood = selectedFood;
-        activeSelectedRecipeData = FindCookRecipeDataInCatalog(selectedFood.Item_ID); // 🌟 FindCookRecipeData 사용
+        activeSelectedRecipeData = FindCookRecipeDataInCatalog(selectedFood.Item_ID);
 
         maxCookableQuantity = CalculateMaxCookableLimitAmount(selectedFood.Item_ID);
         selectedQuantity = 1;
@@ -562,6 +655,7 @@ public class CampFirePanelUI : MonoBehaviour
         if (errorFeedbackCoroutine != null) StopCoroutine(errorFeedbackCoroutine);
         errorFeedbackCoroutine = null;
 
+        StopDotsAnimation();
         targetFacility = null;
     }
 
@@ -580,9 +674,6 @@ public class CampFirePanelUI : MonoBehaviour
         return catalog != null ? catalog.FindItemData(itemId) : null;
     }
 
-    /// <summary>
-    /// 🌟 [수정]: ItemCatalogManager.FindCookRecipeData 호출
-    /// </summary>
     private CookRecipeData FindCookRecipeDataInCatalog(string resultItemId)
     {
         if (string.IsNullOrEmpty(resultItemId)) return null;

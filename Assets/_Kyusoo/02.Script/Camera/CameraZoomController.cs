@@ -6,8 +6,8 @@ public class CameraZoomController : MonoBehaviour
     private Camera targetCamera;
 
     [Header("¡‹ º≥¡§: ¡‹¿Œ, ¡‹æ∆øÙ, »Ÿ Ω∫≈©∑— ¡§µµ, ¡‹¿Œ/¡‹æ∆øÙ Ω√∞£")]
-    [SerializeField] private float minSize = 1f;        
-    [SerializeField] private float maxSize = 5f;       
+    [SerializeField] private float minSize = 3f;        
+    [SerializeField] private float maxSize = 8f;       
     [SerializeField] private float zoomSensitivity = 0.15f; 
     [SerializeField] private float smoothTime = 0.1f;   
 
