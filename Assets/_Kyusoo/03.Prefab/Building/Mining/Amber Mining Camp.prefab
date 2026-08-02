@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 2661905551092009399}
   - component: {fileID: -1816447381360467184}
   - component: {fileID: -2224116955502368565}
+  - component: {fileID: 885017568929691865}
   m_Layer: 0
   m_Name: Amber Mining Camp
   m_TagString: Untagged
@@ -75,6 +76,19 @@ MonoBehaviour:
   addMems: []
   addMemEntries: []
   memPositions: []
+--- !u!114 &885017568929691865
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7385531186990820842}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e3a321f2e4cdac94fb1f2b3f58135c06, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FacilityUpgrade
+  costTable: {fileID: 11400000, guid: 8c7eeed381740844397580def24710aa, type: 2}
 --- !u!1001 &2874728189607144207
 PrefabInstance:
   m_ObjectHideFlags: 0

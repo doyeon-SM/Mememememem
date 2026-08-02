@@ -1,10 +1,11 @@
-﻿using HDY.Capture;
+﻿using DG.Tweening;
+using HDY.Capture;
 using HDY.Item;
+using HDY.Upgrade;
 using MemSystem.Data;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
-using DG.Tweening;
 
 public class GeneratorPanelUI : MonoBehaviour
 {
@@ -187,8 +188,18 @@ public class GeneratorPanelUI : MonoBehaviour
     private void OnClickLevelUp()
     {
         if (targetFacility == null) return;
-        targetFacility.LevelUp();
-        RefreshStaticUI();
+
+        if (targetFacility.TryGetComponent<FacilityUpgrade>(out var upgradeAdapter))
+        {
+            if (UpgradePopupUI.Instance != null)
+            {
+                UpgradePopupUI.Instance.Show(upgradeAdapter);
+            }
+        }
+        else
+        {
+            Debug.LogWarning($"[PanelUI] {targetFacility.name} 건물 프리팹에 FacilityUpgrade 컴포넌트가 부착되어 있지 않습니다.");
+        }
     }
 
     public bool TryDeployMemFromUI(MemData targetMem, CapturedMemEntry targetEntry)

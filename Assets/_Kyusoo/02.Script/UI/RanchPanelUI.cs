@@ -1,4 +1,5 @@
 ﻿using HDY.Capture;
+using HDY.Upgrade;
 using MemSystem.Data;
 using TMPro;
 using UnityEngine;
@@ -13,6 +14,7 @@ public class RanchPanelUI : MonoBehaviour
     [SerializeField] private TextMeshProUGUI buildingName;
     [SerializeField] private TextMeshProUGUI buildingLevel;
     [SerializeField] private Button levelUpBtn;
+    [SerializeField] private TextMeshProUGUI levelUpBtnText; // 레벨업 버튼 텍스트
 
     [Header("1대1 매칭 슬롯 배열 (5개 고정)")]
     [SerializeField] private MemSlotUI[] memSlots = new MemSlotUI[5];
@@ -20,12 +22,11 @@ public class RanchPanelUI : MonoBehaviour
 
     [Header("하단 상태 및 수령 버튼")]
     [SerializeField] private Button collectAllBtn;
-    [SerializeField] private TextMeshProUGUI overallStatusText; // 🌟 새로 추가: "목장 생산중 ..." / 중지 사유 표시 [TMP]
+    [SerializeField] private TextMeshProUGUI overallStatusText;
 
     public RanchFacilityRuntime TargetFacility => targetFacility;
     private RanchFacilityRuntime targetFacility;
 
-    // 🌟 DOTween 애니메이션 제어 변수
     private Sequence dotsSequence;
     private bool isAnimatingDots = false;
 
@@ -34,15 +35,8 @@ public class RanchPanelUI : MonoBehaviour
         if (Instance == null) Instance = this;
         else Destroy(gameObject);
 
-        if (collectAllBtn != null)
-        {
-            collectAllBtn.onClick.AddListener(OnClickCollectAll);
-        }
-
-        if (levelUpBtn != null)
-        {
-            levelUpBtn.onClick.AddListener(OnClickLevelUp);
-        }
+        if (collectAllBtn != null) collectAllBtn.onClick.AddListener(OnClickCollectAll);
+        if (levelUpBtn != null) levelUpBtn.onClick.AddListener(OnClickLevelUp);
 
         InitializeSlotIndexes();
     }
@@ -83,9 +77,6 @@ public class RanchPanelUI : MonoBehaviour
         UpdateOverallStatusUI();
     }
 
-    /// <summary>
-    /// 🌟 전체 목장 생산 상태 및 사유 표기 갱신
-    /// </summary>
     private void UpdateOverallStatusUI()
     {
         if (targetFacility == null) return;
@@ -122,7 +113,6 @@ public class RanchPanelUI : MonoBehaviour
         isAnimatingDots = true;
 
         if (dotsSequence != null) dotsSequence.Kill();
-
         if (overallStatusText != null) overallStatusText.color = Color.white;
 
         dotsSequence = DOTween.Sequence();
@@ -197,6 +187,18 @@ public class RanchPanelUI : MonoBehaviour
             collectAllBtn.interactable = targetFacility.HasAnyCollectableItem();
         }
 
+        // 레벨업 버튼 Max 상태 처리 (5레벨 도달 시)
+        if (levelUpBtn != null)
+        {
+            bool isMax = targetFacility.currentLevel >= 5;
+            levelUpBtn.interactable = !isMax;
+
+            if (levelUpBtnText != null)
+            {
+                levelUpBtnText.text = isMax ? "Lv.Max" : "레벨업";
+            }
+        }
+
         UpdateOverallStatusUI();
     }
 
@@ -204,8 +206,17 @@ public class RanchPanelUI : MonoBehaviour
     {
         if (targetFacility == null) return;
 
-        targetFacility.LevelUp();
-        RefreshStaticUI();
+        if (targetFacility.TryGetComponent<FacilityUpgrade>(out var upgradeAdapter))
+        {
+            if (UpgradePopupUI.Instance != null)
+            {
+                UpgradePopupUI.Instance.Show(upgradeAdapter);
+            }
+        }
+        else
+        {
+            Debug.LogWarning($"[PanelUI] {targetFacility.name} 건물 프리팹에 FacilityUpgrade 컴포넌트가 부착되어 있지 않습니다.");
+        }
     }
 
     public bool TryDeployMemFromUI(int slotIndex, MemData targetMem, CapturedMemEntry targetEntry)
@@ -213,18 +224,13 @@ public class RanchPanelUI : MonoBehaviour
         if (targetFacility == null || targetMem == null || targetEntry == null) return false;
 
         bool isSuccess = targetFacility.TryAddMemToSlot(slotIndex, targetMem, targetEntry);
-        if (isSuccess)
-        {
-            RefreshStaticUI();
-        }
-
+        if (isSuccess) RefreshStaticUI();
         return isSuccess;
     }
 
     public void TryRemoveMemFromUI(MemData targetMem)
     {
         if (targetFacility == null || targetMem == null) return;
-
         targetFacility.RemoveMem(targetMem);
         RefreshStaticUI();
     }
@@ -232,7 +238,6 @@ public class RanchPanelUI : MonoBehaviour
     private void OnClickCollectAll()
     {
         if (targetFacility == null) return;
-
         targetFacility.CollectAllItems();
         RefreshStaticUI();
     }

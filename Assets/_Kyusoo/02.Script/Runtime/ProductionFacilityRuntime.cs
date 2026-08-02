@@ -10,25 +10,24 @@ using UnityEngine;
 
 public class ProductionFacilityRuntime : MonoBehaviour
 {
-    [Header("시설 기본 정보")]
+    [Header("기본 정보")]
     public BuildingData buildingData;
     public int currentLevel = 1;
 
-    [Header("생산 가동 상태")]
+    [Header("생산 관련 정보")]
     public bool isProducing = false;
     public string craftingItem;
     public float totalRequiredTime;
     public float currentProgressTime = 0f;
     public float baseProductionTime = 30f;
 
-    [Header("보관 수량")]
+    [Header("보관함 정보")]
     public int currentStorageCount = 0;
     public int maxStorageCount = 100;
 
-    [Header("배치된 멤 정보")]
+    [Header("배치된 멤 데이터")]
     [SerializeField] private List<MemData> addMems = new List<MemData>();
     [SerializeField] private List<CapturedMemEntry> addMemEntries = new List<CapturedMemEntry>();
-
     public List<MemData> DeployedMems => addMems;
     public List<CapturedMemEntry> DeployedMemEntries => addMemEntries;
 
@@ -51,9 +50,7 @@ public class ProductionFacilityRuntime : MonoBehaviour
     {
         EnsureBuildingData();
         CacheMemPositions();
-        UpdateMaxStorage();
         CheckProductionCondition();
-
         if (FacilityCollectManager.Instance != null)
             FacilityCollectManager.Instance.RegisterFacility(this);
     }
@@ -84,30 +81,30 @@ public class ProductionFacilityRuntime : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// 레벨업 시 멤 슬롯 한 칸 추가 해금 (최대 5레벨)
+    /// </summary>
     public void LevelUp()
     {
-        currentLevel++;
-        UpdateMaxStorage();
-        CheckProductionCondition();
-        OnMemDeploymentChanged?.Invoke();
-    }
+        if (currentLevel < 5)
+        {
+            currentLevel++;
+            CheckProductionCondition();
+            OnMemDeploymentChanged?.Invoke();
 
-    public void UpdateMaxStorage()
-    {
-        maxStorageCount = currentLevel * 100;
+            if (ProductionPanelUI.Instance != null && ProductionPanelUI.Instance.TargetFacility == this)
+            {
+                ProductionPanelUI.Instance.RefreshStaticUI();
+            }
+        }
     }
 
     private void Update()
     {
         if (!isProducing) return;
-
-        if (currentStorageCount >= maxStorageCount)
-        {
-            return;
-        }
+        if (currentStorageCount >= maxStorageCount) return;
 
         currentProgressTime += Time.deltaTime;
-
         if (currentProgressTime >= totalRequiredTime)
         {
             CompleteProductionUnit();
@@ -124,13 +121,11 @@ public class ProductionFacilityRuntime : MonoBehaviour
         }
 
         float baseDuration = baseProductionTime;
-
         if (currentProgressTime > 0f && totalRequiredTime > 0f)
         {
             float currentProgressPercent = currentProgressTime / totalRequiredTime;
             totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, addMems);
             currentProgressTime = totalRequiredTime * currentProgressPercent;
-
             if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
             {
                 SetProducingActive(true);
@@ -159,7 +154,6 @@ public class ProductionFacilityRuntime : MonoBehaviour
     public bool TryAddMem(MemData targetMem, CapturedMemEntry targetEntry)
     {
         EnsureBuildingData();
-
         if (targetEntry == null || buildingData == null) return false;
 
         MemData realMemData = targetMem;
@@ -167,15 +161,11 @@ public class ProductionFacilityRuntime : MonoBehaviour
         {
             realMemData = MemCatalogManager.Instance.FindMemData(targetEntry.MemId);
         }
-
         if (realMemData == null) return false;
 
         int maxCapacity = ProductionCalculator.GetMaxMemCount(currentLevel);
-
         if (addMemEntries.Exists(e => e != null && e.KeyId == targetEntry.KeyId)) return false;
         if (targetEntry.IsActive) return false;
-
-        ProductionStatType requiredStat = ProductionCalculator.GetRequiredStatType(buildingData.buildingType);
 
         if (!ProductionCalculator.CanDeployToFacility(realMemData, buildingData.buildingType)) return false;
 
@@ -187,38 +177,31 @@ public class ProductionFacilityRuntime : MonoBehaviour
         addMems.Add(realMemData);
         addMemEntries.Add(targetEntry);
         targetEntry.IsActive = true;
-
         CheckProductionCondition();
 
         if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
-
         OnMemDeploymentChanged?.Invoke();
 
         if (buildingData != null)
         {
             MemAdded?.Invoke(buildingData.buildingType, realMemData, true, MemPositions);
         }
-
         return true;
     }
 
     public void RemoveMem(CapturedMemEntry targetEntry)
     {
         if (targetEntry == null) return;
-
         int index = addMemEntries.FindIndex(e => e != null && e.KeyId == targetEntry.KeyId);
         if (index >= 0)
         {
             MemData removedMem = (index < addMems.Count) ? addMems[index] : null;
-
             addMemEntries[index].IsActive = false;
             addMemEntries.RemoveAt(index);
             if (index < addMems.Count) addMems.RemoveAt(index);
-
             CheckProductionCondition();
 
             if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
-
             OnMemDeploymentChanged?.Invoke();
 
             if (buildingData != null && removedMem != null)
@@ -231,7 +214,6 @@ public class ProductionFacilityRuntime : MonoBehaviour
     public void RemoveMem(MemData targetMem)
     {
         if (targetMem == null) return;
-
         int index = addMems.IndexOf(targetMem);
         if (index >= 0 && index < addMemEntries.Count)
         {
@@ -243,26 +225,22 @@ public class ProductionFacilityRuntime : MonoBehaviour
     {
         currentStorageCount++;
         currentProgressTime = 0f;
-
         if (!string.IsNullOrEmpty(craftingItem))
         {
             float baseDuration = baseProductionTime;
             totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, addMems);
         }
-
         FacilityCollectManager.Instance?.NotifyFacilityChanged(this);
     }
 
     public void StoredItems()
     {
         if (currentStorageCount <= 0 || string.IsNullOrEmpty(craftingItem)) return;
-
         ItemData targetItemData = FindItemDataInCatalog(craftingItem);
         if (targetItemData == null) return;
 
         int amountToCollect = currentStorageCount;
         WarehouseInventory warehouse = FindFirstObjectByType<WarehouseInventory>();
-
         if (warehouse != null)
         {
             int remaining = warehouse.AddItem(targetItemData, amountToCollect);
@@ -273,9 +251,7 @@ public class ProductionFacilityRuntime : MonoBehaviour
     private ItemData FindItemDataInCatalog(string itemId)
     {
         if (string.IsNullOrEmpty(itemId)) return null;
-
         if (ItemCatalogManager.Instance == null) return null;
-
         return ItemCatalogManager.Instance.FindItemData(itemId);
     }
 
@@ -283,7 +259,6 @@ public class ProductionFacilityRuntime : MonoBehaviour
     {
         if (isProducing == value) return;
         isProducing = value;
-
         if (isProducing && buildingData != null)
         {
             FacilityStarted?.Invoke(buildingData.buildingType, addMems, MemPositions);
@@ -294,12 +269,10 @@ public class ProductionFacilityRuntime : MonoBehaviour
     {
         if (!isProducing) return;
         isProducing = false;
-
         if (buildingData != null)
         {
             FacilityStopped?.Invoke(buildingData.buildingType, addMems, FacilityStopReason.Starvation, MemPositions);
         }
-
         FacilityCollectManager.Instance?.NotifyFacilityChanged(this);
     }
 }

@@ -9,30 +9,28 @@ using MemSystem.Data;
 
 public class TransportRuntime : MonoBehaviour
 {
-    [Header("시설 기본 정보")]
+    [Header("기본 정보")]
     public BuildingData buildingData;
     public int currentLevel = 1;
 
-    [Header("운송 가동 상태")]
+    [Header("운송 정보")]
     public bool isWorking = false;
     public float baseIntervalTime = 60f;
     public int autoCollectThreshold = 10;
     public float totalRequiredTime;
     public float currentProgressTime = 0f;
 
-    [Header("수거 동작 상태")]
+    [Header("수거 진행")]
     public bool isCollecting = false;
     private Coroutine collectCoroutine;
     private ProductionFacilityRuntime currentTargetFacility;
 
-    [Header("배치된 멤 정보")]
+    [Header("배치된 멤 목록")]
     [SerializeField] private List<MemData> addMems = new List<MemData>();
     [SerializeField] private List<CapturedMemEntry> addMemEntries = new List<CapturedMemEntry>();
-
     public List<MemData> DeployedMems => addMems;
     public List<CapturedMemEntry> DeployedMemEntries => addMemEntries;
 
-    // 🌟 MemPos 트랜스폼 캐싱 리스트
     [SerializeField] private List<Transform> memPositions = new List<Transform>();
     public List<Transform> MemPositions
     {
@@ -53,7 +51,6 @@ public class TransportRuntime : MonoBehaviour
         EnsureBuildingData();
         CacheMemPositions();
         CheckProductionCondition();
-
         if (FacilityCollectManager.Instance != null)
             FacilityCollectManager.Instance.RegisterFacility(this);
     }
@@ -61,7 +58,6 @@ public class TransportRuntime : MonoBehaviour
     private void OnDestroy()
     {
         StopCollectRoutine();
-
         if (FacilityCollectManager.Instance != null)
             FacilityCollectManager.Instance.UnregisterFacility(this);
     }
@@ -86,28 +82,33 @@ public class TransportRuntime : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// 운송 시설 1레벨 추가 해금 (최대 3레벨)
+    /// </summary>
     public void LevelUp()
     {
-        int maxCapacity = ProductionCalculator.GetTransportMaxMemCount(currentLevel + 1);
-        if (currentLevel < maxCapacity)
+        if (currentLevel < 3)
         {
             currentLevel++;
             CheckProductionCondition();
             OnMemDeploymentChanged?.Invoke();
+
+            if (TransportPanelUI.Instance != null && TransportPanelUI.Instance.TargetFacility == this)
+            {
+                TransportPanelUI.Instance.RefreshStaticUI();
+            }
         }
     }
 
     private void Update()
     {
         if (!isWorking || isCollecting) return;
-
         currentProgressTime += Time.deltaTime;
 
         if (currentProgressTime >= totalRequiredTime)
         {
             currentProgressTime = totalRequiredTime;
             ProductionFacilityRuntime targetFacility = FindTargetProductionFacility();
-
             if (targetFacility != null)
             {
                 StartCollectRoutine(targetFacility);
@@ -206,7 +207,6 @@ public class TransportRuntime : MonoBehaviour
     public bool TryAddMem(MemData targetMem, CapturedMemEntry targetEntry)
     {
         EnsureBuildingData();
-
         if (targetEntry == null || buildingData == null) return false;
 
         MemData realMemData = targetMem;
@@ -214,15 +214,11 @@ public class TransportRuntime : MonoBehaviour
         {
             realMemData = MemCatalogManager.Instance.FindMemData(targetEntry.MemId);
         }
-
         if (realMemData == null) return false;
 
         int maxCapacity = ProductionCalculator.GetTransportMaxMemCount(currentLevel);
-
         if (addMemEntries.Exists(e => e != null && e.KeyId == targetEntry.KeyId)) return false;
         if (targetEntry.IsActive) return false;
-
-        ProductionStatType requiredStat = ProductionCalculator.GetRequiredStatType(buildingData.buildingType);
 
         if (!ProductionCalculator.CanDeployToFacility(realMemData, buildingData.buildingType)) return false;
 
@@ -234,38 +230,31 @@ public class TransportRuntime : MonoBehaviour
         addMems.Add(realMemData);
         addMemEntries.Add(targetEntry);
         targetEntry.IsActive = true;
-
         CheckProductionCondition();
 
         if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
-
         OnMemDeploymentChanged?.Invoke();
 
         if (buildingData != null)
         {
             MemAdded?.Invoke(buildingData.buildingType, realMemData, true, MemPositions);
         }
-
         return true;
     }
 
     public void RemoveMem(CapturedMemEntry targetEntry)
     {
         if (targetEntry == null) return;
-
         int index = addMemEntries.FindIndex(e => e != null && e.KeyId == targetEntry.KeyId);
         if (index >= 0)
         {
             MemData removedMem = (index < addMems.Count) ? addMems[index] : null;
-
             addMemEntries[index].IsActive = false;
             addMemEntries.RemoveAt(index);
             if (index < addMems.Count) addMems.RemoveAt(index);
-
             CheckProductionCondition();
 
             if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
-
             OnMemDeploymentChanged?.Invoke();
 
             if (buildingData != null && removedMem != null)
@@ -278,7 +267,6 @@ public class TransportRuntime : MonoBehaviour
     public void RemoveMem(MemData targetMem)
     {
         if (targetMem == null) return;
-
         int index = addMems.IndexOf(targetMem);
         if (index >= 0 && index < addMemEntries.Count)
         {
@@ -290,7 +278,6 @@ public class TransportRuntime : MonoBehaviour
     {
         if (isWorking == value) return;
         isWorking = value;
-
         if (isWorking && buildingData != null)
         {
             FacilityStarted?.Invoke(buildingData.buildingType, addMems, MemPositions);
@@ -300,10 +287,8 @@ public class TransportRuntime : MonoBehaviour
     public void StopWorkDueToStarvation()
     {
         if (!isWorking) return;
-
         StopCollectRoutine();
         isWorking = false;
-
         if (buildingData != null)
         {
             FacilityStopped?.Invoke(buildingData.buildingType, addMems, FacilityStopReason.Starvation, MemPositions);

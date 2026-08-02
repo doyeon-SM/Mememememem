@@ -340,7 +340,6 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                     facility.currentProgressTime = entry.currentProgressTime;
                     facility.currentStorageCount = entry.currentStorageCount;
                     facility.craftingItem = entry.currentCraftingItemId;
-                    facility.UpdateMaxStorage();
 
                     if (facility.DeployedMems != null) facility.DeployedMems.Clear();
                     if (facility.DeployedMemEntries != null) facility.DeployedMemEntries.Clear();
@@ -478,10 +477,8 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                     trans.currentLevel = entry.currentLevel > 0 ? entry.currentLevel : 1;
                     trans.isWorking = entry.isActive;
                     trans.currentProgressTime = entry.currentProgressTime;
-
                     if (trans.DeployedMems != null) trans.DeployedMems.Clear();
                     if (trans.DeployedMemEntries != null) trans.DeployedMemEntries.Clear();
-
                     if (memManager != null && entry.DeployedMemIDs != null)
                     {
                         int maxCapacity = ProductionCalculator.GetTransportMaxMemCount(trans.currentLevel);

@@ -104,6 +104,7 @@ GameObject:
   - component: {fileID: 8413867593421061679}
   - component: {fileID: 3937221372743820164}
   - component: {fileID: -5289366969618068800}
+  - component: {fileID: 6367532339630389356}
   m_Layer: 0
   m_Name: Transport
   m_TagString: Untagged
@@ -166,6 +167,20 @@ MonoBehaviour:
   isCollecting: 0
   addMems: []
   addMemEntries: []
+  memPositions: []
+--- !u!114 &6367532339630389356
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9215367321915130356}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e3a321f2e4cdac94fb1f2b3f58135c06, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FacilityUpgrade
+  costTable: {fileID: 11400000, guid: 8c7eeed381740844397580def24710aa, type: 2}
 --- !u!1001 &2552284147176029122
 PrefabInstance:
   m_ObjectHideFlags: 0

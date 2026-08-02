@@ -100,7 +100,7 @@ public class TerritoryRecordData : MonoBehaviour, IRecord
         saveData.satisfaction = 0;
         saveData.isBlueprintGiven = false;
 
-        saveData.currentGridSize = 5;
+        saveData.currentGridSize = 10;
         saveData.expansionExpandedStates = new List<bool>();
         saveData.recipeUnlockedStates = new List<bool>();
 

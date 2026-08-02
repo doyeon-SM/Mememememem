@@ -15,7 +15,6 @@ using UnityEngine.InputSystem;
 
 public class GridManager : MonoBehaviour
 {
-    // 🌟 설계도 차용 출처 구분용 Enum
     public enum BlueprintSource
     {
         Inventory,
@@ -69,10 +68,8 @@ public class GridManager : MonoBehaviour
     private GameObject[,] buildingObjectsGrid;
     private BuildingData[,] buildingDataGrid;
 
-    // 🌟 배치된 씬 상의 건물 오브젝트별 설계도 출처 맵핑 딕셔너리
     private Dictionary<GameObject, BlueprintSource> buildingBlueprintSourceMap = new Dictionary<GameObject, BlueprintSource>();
 
-    // 점유 타일 전용 투명 테두리 오버레이 배열
     private GameObject[,] occupiedOverlayGrid;
     private Material occupiedOverlayMaterial;
     private Texture2D[] cachedBorderTextures = new Texture2D[16];
@@ -92,7 +89,6 @@ public class GridManager : MonoBehaviour
 
     private List<BuildingData> currentAvailableBuildings = new List<BuildingData>();
 
-    // 차용/반환 출처를 기억하는 세션 세부 리스트
     private List<SessionBlueprintRecord> sessionRemovedBlueprints = new List<SessionBlueprintRecord>();
     private List<SessionBlueprintRecord> sessionAddedBlueprints = new List<SessionBlueprintRecord>();
 
@@ -709,6 +705,7 @@ public class GridManager : MonoBehaviour
 
         string newUniqueId = $"{selectedBuildingData.buildingName}_{currentStartGridX}_{currentStartGridZ}";
 
+        // 🌟 [핵심 보완] 위치 재배치(PickUp 후 Place) 시 레벨, 멤 배치, 작업 수치 완벽 승계
         if (cachedPickedUpState != null && cachedPickedUpState.facilityData != null)
         {
             cachedPickedUpState.facilityData.Building_ID = newUniqueId;
@@ -716,11 +713,11 @@ public class GridManager : MonoBehaviour
             if (realBuilding.TryGetComponent<ProductionFacilityRuntime>(out ProductionFacilityRuntime prodRuntime))
             {
                 prodRuntime.buildingData = selectedBuildingData;
+                prodRuntime.currentLevel = cachedPickedUpState.facilityData.currentLevel > 0 ? cachedPickedUpState.facilityData.currentLevel : 1; // 🌟 레벨 승계
                 prodRuntime.isProducing = cachedPickedUpState.facilityData.isActive;
                 prodRuntime.currentProgressTime = cachedPickedUpState.facilityData.currentProgressTime;
                 prodRuntime.currentStorageCount = cachedPickedUpState.facilityData.currentStorageCount;
                 prodRuntime.craftingItem = cachedPickedUpState.facilityData.currentCraftingItemId;
-                prodRuntime.UpdateMaxStorage();
 
                 if (prodRuntime.DeployedMems != null && prodRuntime.DeployedMemEntries != null)
                 {
@@ -752,16 +749,33 @@ public class GridManager : MonoBehaviour
             else if (realBuilding.TryGetComponent<RanchFacilityRuntime>(out RanchFacilityRuntime ranchRuntime))
             {
                 ranchRuntime.buildingData = selectedBuildingData;
+                ranchRuntime.currentLevel = cachedPickedUpState.facilityData.currentLevel > 0 ? cachedPickedUpState.facilityData.currentLevel : 1; // 🌟 레벨 승계
                 ranchRuntime.UpdateSlotCapacity();
+
+                if (cachedPickedUpState.facilityData.ranchSlots != null && cachedPickedUpState.facilityData.ranchSlots.Count > 0)
+                {
+                    for (int i = 0; i < cachedPickedUpState.facilityData.ranchSlots.Count && i < ranchRuntime.Slots.Count; i++)
+                    {
+                        var slotSave = cachedPickedUpState.facilityData.ranchSlots[i];
+                        var slotRuntime = ranchRuntime.Slots[i];
+                        slotRuntime.isUnlocked = slotSave.isUnlocked;
+                        slotRuntime.craftingItemId = slotSave.craftingItemId;
+                        slotRuntime.currentProgressTime = slotSave.currentProgressTime;
+                        slotRuntime.currentStorageCount = slotSave.currentStorageCount;
+                        slotRuntime.isProducing = slotSave.isProducing;
+                    }
+                }
 
                 for (int i = 0; i < cachedPickedUpState.deployedMems.Count && i < cachedPickedUpState.deployedMemEntries.Count; i++)
                 {
                     ranchRuntime.TryAddMemToSlot(i, cachedPickedUpState.deployedMems[i], cachedPickedUpState.deployedMemEntries[i]);
                 }
+                ranchRuntime.CheckAllSlotsProductionCondition();
             }
             else if (realBuilding.TryGetComponent<GeneratorRuntime>(out GeneratorRuntime genRuntime))
             {
                 genRuntime.buildingData = selectedBuildingData;
+                genRuntime.currentLevel = cachedPickedUpState.facilityData.currentLevel > 0 ? cachedPickedUpState.facilityData.currentLevel : 1; // 🌟 레벨 승계
                 genRuntime.isPowerGenerating = cachedPickedUpState.facilityData.isActive;
                 genRuntime.currentPowerProgressTime = cachedPickedUpState.facilityData.currentProgressTime;
                 genRuntime.currentPowerStorage = cachedPickedUpState.facilityData.currentStorageCount;
@@ -779,17 +793,15 @@ public class GridManager : MonoBehaviour
             else if (realBuilding.TryGetComponent<TransportRuntime>(out TransportRuntime transRuntime))
             {
                 transRuntime.buildingData = selectedBuildingData;
-                if (cachedPickedUpState != null && cachedPickedUpState.facilityData != null)
+                transRuntime.currentLevel = cachedPickedUpState.facilityData.currentLevel > 0 ? cachedPickedUpState.facilityData.currentLevel : 1; // 🌟 레벨 승계
+                if (transRuntime.DeployedMems != null && transRuntime.DeployedMemEntries != null)
                 {
-                    if (transRuntime.DeployedMems != null && transRuntime.DeployedMemEntries != null)
-                    {
-                        transRuntime.DeployedMems.Clear();
-                        transRuntime.DeployedMemEntries.Clear();
-                        transRuntime.DeployedMems.AddRange(cachedPickedUpState.deployedMems);
-                        transRuntime.DeployedMemEntries.AddRange(cachedPickedUpState.deployedMemEntries);
-                    }
-                    transRuntime.CheckProductionCondition();
+                    transRuntime.DeployedMems.Clear();
+                    transRuntime.DeployedMemEntries.Clear();
+                    transRuntime.DeployedMems.AddRange(cachedPickedUpState.deployedMems);
+                    transRuntime.DeployedMemEntries.AddRange(cachedPickedUpState.deployedMemEntries);
                 }
+                transRuntime.CheckProductionCondition();
             }
             else if (realBuilding.TryGetComponent<CampFireRuntime>(out CampFireRuntime campFireRuntime))
             {
@@ -840,7 +852,6 @@ public class GridManager : MonoBehaviour
             if (realBuilding.TryGetComponent<ProductionFacilityRuntime>(out ProductionFacilityRuntime prodRuntime))
             {
                 prodRuntime.buildingData = selectedBuildingData;
-                prodRuntime.UpdateMaxStorage();
             }
             else if (realBuilding.TryGetComponent<ProductionCraftRuntime>(out ProductionCraftRuntime craftRuntime))
             {
@@ -876,7 +887,6 @@ public class GridManager : MonoBehaviour
             }
         }
 
-        // 🌟 [수정 핵심] 건물을 설치/재배치할 때 무조건 실제 인벤토리/창고에서 설계도를 차감합니다.
         if (!string.IsNullOrEmpty(selectedBuildingData.requireBlueprint))
         {
             var inventory = FindFirstObjectByType<PlayerInventory>();
@@ -899,10 +909,8 @@ public class GridManager : MonoBehaviour
                 usedSource = BlueprintSource.Warehouse;
             }
 
-            // 1. 건물 개체에 출처 기록
             buildingBlueprintSourceMap[realBuilding] = usedSource;
 
-            // 2. 배치 세션 차용 리스트에 기록
             if (bpItem != null)
             {
                 sessionRemovedBlueprints.Add(new SessionBlueprintRecord
@@ -935,14 +943,15 @@ public class GridManager : MonoBehaviour
         cachedPickedUpState = new PickedUpBuildingRuntimeState();
         cachedPickedUpState.facilityData = new FacilityData();
 
-        // 🌟 PickUp 건물에 등록되어 있던 출처를 캐싱
         if (buildingBlueprintSourceMap.TryGetValue(targetBuilding, out BlueprintSource source))
         {
             cachedPickedUpState.originalBlueprintSource = source;
         }
 
+        // 🌟 [핵심 보완] 건물 PickUp 시 레벨 수치 및 목장 슬롯 캐싱 강화
         if (targetBuilding.TryGetComponent<ProductionFacilityRuntime>(out var facility))
         {
+            cachedPickedUpState.facilityData.currentLevel = facility.currentLevel; // 🌟 레벨 캐싱
             cachedPickedUpState.facilityData.isActive = facility.isProducing;
             cachedPickedUpState.facilityData.currentProgressTime = facility.currentProgressTime;
             cachedPickedUpState.facilityData.currentStorageCount = facility.currentStorageCount;
@@ -979,11 +988,27 @@ public class GridManager : MonoBehaviour
         }
         else if (targetBuilding.TryGetComponent<RanchFacilityRuntime>(out var ranch))
         {
+            cachedPickedUpState.facilityData.currentLevel = ranch.currentLevel; // 🌟 레벨 캐싱
             cachedPickedUpState.facilityData.isActive = ranch.isProducing;
+            cachedPickedUpState.facilityData.ranchSlots = new List<RanchSlotSaveData>();
+
             if (ranch.Slots != null)
             {
                 foreach (var slot in ranch.Slots)
                 {
+                    string keyId = slot.deployedMemEntry != null ? slot.deployedMemEntry.KeyId : "";
+                    var slotSave = new RanchSlotSaveData
+                    {
+                        slotIndex = slot.slotIndex,
+                        isUnlocked = slot.isUnlocked,
+                        deployedMemKeyId = keyId,
+                        craftingItemId = slot.craftingItemId ?? "",
+                        isProducing = slot.isProducing,
+                        currentProgressTime = slot.currentProgressTime,
+                        currentStorageCount = slot.currentStorageCount
+                    };
+                    cachedPickedUpState.facilityData.ranchSlots.Add(slotSave);
+
                     if (slot.deployedMem != null) cachedPickedUpState.deployedMems.Add(slot.deployedMem);
                     if (slot.deployedMemEntry != null)
                     {
@@ -995,9 +1020,11 @@ public class GridManager : MonoBehaviour
         }
         else if (targetBuilding.TryGetComponent<GeneratorRuntime>(out var gen))
         {
+            cachedPickedUpState.facilityData.currentLevel = gen.currentLevel; // 🌟 레벨 캐싱
             cachedPickedUpState.facilityData.isActive = gen.isPowerGenerating;
             cachedPickedUpState.facilityData.currentProgressTime = gen.currentPowerProgressTime;
             cachedPickedUpState.facilityData.currentStorageCount = gen.currentPowerStorage;
+
             if (gen.DeployedMems != null) cachedPickedUpState.deployedMems.AddRange(gen.DeployedMems);
             if (gen.DeployedMemEntries != null)
             {
@@ -1010,8 +1037,10 @@ public class GridManager : MonoBehaviour
         }
         else if (targetBuilding.TryGetComponent<TransportRuntime>(out var trans))
         {
+            cachedPickedUpState.facilityData.currentLevel = trans.currentLevel; // 🌟 레벨 캐싱
             cachedPickedUpState.facilityData.isActive = trans.isWorking;
             cachedPickedUpState.facilityData.currentProgressTime = trans.currentProgressTime;
+
             if (trans.DeployedMems != null) cachedPickedUpState.deployedMems.AddRange(trans.DeployedMems);
             if (trans.DeployedMemEntries != null)
             {
@@ -1074,13 +1103,11 @@ public class GridManager : MonoBehaviour
             }
         }
 
-        // 🌟 딕셔너리에서 파괴 대상 오브젝트 제거
         buildingBlueprintSourceMap.Remove(targetBuilding);
 
         targetBuilding.SetActive(false);
         Destroy(targetBuilding);
 
-        // 🌟 건물 들어올리기(PickUp) 시 해당 건물의 원래 출처로 정확히 설계도 환불
         if (retrievedData != null && !string.IsNullOrEmpty(retrievedData.requireBlueprint))
         {
             var inventory = FindFirstObjectByType<PlayerInventory>();
@@ -1092,13 +1119,11 @@ public class GridManager : MonoBehaviour
                 BlueprintSource targetSource = cachedPickedUpState.originalBlueprintSource ?? BlueprintSource.Inventory;
                 int remaining = 1;
 
-                // 1. 원래 출처가 인벤토리인 경우: 인벤토리 -> 실패 시 창고
                 if (targetSource == BlueprintSource.Inventory)
                 {
                     if (inventory != null) remaining = inventory.AddItem(bpItem, 1);
                     if (remaining > 0 && warehouse != null) remaining = warehouse.AddItem(bpItem, 1);
                 }
-                // 2. 원래 출처가 창고인 경우: 창고 -> 실패 시 인벤토리
                 else
                 {
                     if (warehouse != null) remaining = warehouse.AddItem(bpItem, 1);
@@ -1107,7 +1132,6 @@ public class GridManager : MonoBehaviour
 
                 if (remaining > 0)
                 {
-                    /// [UI Popup] 인벤토리와 창고가 가득 차서 설계도를 반환할 수 없습니다. ///
                     Debug.LogWarning($"[GridManager] 인벤토리와 창고가 가득 차서 설계도 '{bpItem.ItemName}'을(를) 반환할 수 없습니다.");
                 }
 
@@ -1232,7 +1256,6 @@ public class GridManager : MonoBehaviour
         var inventory = FindFirstObjectByType<PlayerInventory>();
         var warehouse = FindFirstObjectByType<WarehouseInventory>();
 
-        // 1. 차용했던 설계도를 정확한 원위치(모닥불 -> 창고, 제작대 -> 인벤토리)로 복구
         foreach (var record in sessionRemovedBlueprints)
         {
             if (record == null || record.blueprintItem == null) continue;
@@ -1252,12 +1275,10 @@ public class GridManager : MonoBehaviour
 
             if (remaining > 0)
             {
-                /// [UI Popup] 인벤토리와 창고가 가득 차서 설계도를 반환할 수 없습니다. ///
                 Debug.LogWarning($"[GridManager] 인벤토리와 창고가 가득 차서 설계도 '{record.blueprintItem.ItemName}'을(를) 반환할 수 없습니다.");
             }
         }
 
-        // 2. 세션 동안 반환받았던 설계도를 원래 출처 위치에서 다시 차감 (롤백)
         foreach (var record in sessionAddedBlueprints)
         {
             if (record == null || record.blueprintItem == null) continue;
@@ -1385,8 +1406,6 @@ public class GridManager : MonoBehaviour
                         facility.currentStorageCount = entry.currentStorageCount;
                         facility.craftingItem = entry.currentCraftingItemId;
 
-                        facility.UpdateMaxStorage();
-
                         if (facility.DeployedMems != null && facility.DeployedMemEntries != null)
                         {
                             facility.DeployedMems.Clear();
@@ -1493,8 +1512,10 @@ public class GridManager : MonoBehaviour
                         trans.currentLevel = entry.currentLevel > 0 ? entry.currentLevel : 1;
                         trans.isWorking = entry.isActive;
                         trans.currentProgressTime = entry.currentProgressTime;
+
                         if (trans.DeployedMems != null) trans.DeployedMems.Clear();
                         if (trans.DeployedMemEntries != null) trans.DeployedMemEntries.Clear();
+
                         if (memManager != null && entry.DeployedMemIDs != null)
                         {
                             int maxCapacity = ProductionCalculator.GetTransportMaxMemCount(trans.currentLevel);

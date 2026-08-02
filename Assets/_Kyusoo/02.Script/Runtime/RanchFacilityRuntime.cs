@@ -10,11 +10,11 @@ using UnityEngine;
 [System.Serializable]
 public class RanchSlotRuntime
 {
-    [Header("슬롯 인덱스 및 해금 여부")]
+    [Header("슬롯 상태")]
     public int slotIndex;
     public bool isUnlocked = false;
 
-    [Header("배치된 멤 데이터")]
+    [Header("배치 멤")]
     public MemData deployedMem;
     public CapturedMemEntry deployedMemEntry;
 
@@ -24,7 +24,7 @@ public class RanchSlotRuntime
     public float currentProgressTime = 0f;
     public float totalRequiredTime = 30f;
 
-    [Header("보관함 수량")]
+    [Header("보관함")]
     public int currentStorageCount = 0;
     public const int maxStorage = 100;
 
@@ -44,20 +44,19 @@ public class RanchSlotRuntime
 
 public class RanchFacilityRuntime : MonoBehaviour
 {
-    [Header("시설 기반 데이터")]
+    [Header("기본 정보")]
     public BuildingData buildingData;
     public int currentLevel = 1;
 
-    [Header("기본 생산 주기 (초)")]
+    [Header("생산 속도")]
     public float baseProductionTime = 30f;
 
-    [Header("슬롯 데이터 (최대 5개)")]
+    [Header("목장 슬롯 (5개)")]
     [SerializeField] private List<RanchSlotRuntime> slots = new List<RanchSlotRuntime>();
     public IReadOnlyList<RanchSlotRuntime> Slots => slots;
 
     public bool isProducing = false;
 
-    // 🌟 MemPos 트랜스폼 캐싱 리스트
     [SerializeField] private List<Transform> memPositions = new List<Transform>();
     public List<Transform> MemPositions
     {
@@ -130,12 +129,23 @@ public class RanchFacilityRuntime : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// 레벨업 시 멤 슬롯 1개 해금 (최대 5레벨)
+    /// </summary>
     public void LevelUp()
     {
-        currentLevel++;
-        UpdateSlotCapacity();
-        CheckAllSlotsProductionCondition();
-        OnMemDeploymentChanged?.Invoke();
+        if (currentLevel < 5)
+        {
+            currentLevel++;
+            UpdateSlotCapacity();
+            CheckAllSlotsProductionCondition();
+            OnMemDeploymentChanged?.Invoke();
+
+            if (RanchPanelUI.Instance != null && RanchPanelUI.Instance.TargetFacility == this)
+            {
+                RanchPanelUI.Instance.RefreshStaticUI();
+            }
+        }
     }
 
     public void UpdateSlotCapacity()
@@ -150,7 +160,6 @@ public class RanchFacilityRuntime : MonoBehaviour
     private void Update()
     {
         bool anyProducing = false;
-
         for (int i = 0; i < slots.Count; i++)
         {
             RanchSlotRuntime slot = slots[i];
@@ -170,7 +179,6 @@ public class RanchFacilityRuntime : MonoBehaviour
                 CompleteSlotProduction(slot);
             }
         }
-
         isProducing = anyProducing;
     }
 
@@ -190,7 +198,6 @@ public class RanchFacilityRuntime : MonoBehaviour
                 new List<MemData> { slot.deployedMem }
             );
         }
-
         FacilityCollectManager.Instance?.NotifyFacilityChanged(this);
     }
 
@@ -216,18 +223,16 @@ public class RanchFacilityRuntime : MonoBehaviour
                 baseProductionTime,
                 new List<MemData> { slot.deployedMem }
             );
-
             slot.isProducing = !isStarving;
         }
-
         UpdateOverallProducingState();
     }
 
     public bool TryAddMemToSlot(int slotIndex, MemData targetMem, CapturedMemEntry targetEntry)
     {
         EnsureBuildingData();
-
         if (targetEntry == null || buildingData == null) return false;
+
         if (slotIndex < 0 || slotIndex >= slots.Count) return false;
 
         RanchSlotRuntime targetSlot = slots[slotIndex];
@@ -238,7 +243,6 @@ public class RanchFacilityRuntime : MonoBehaviour
         {
             realMemData = MemCatalogManager.Instance.FindMemData(targetEntry.MemId);
         }
-
         if (realMemData == null) return false;
 
         foreach (var slot in slots)
@@ -280,14 +284,12 @@ public class RanchFacilityRuntime : MonoBehaviour
         UpdateOverallProducingState();
 
         if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
-
         OnMemDeploymentChanged?.Invoke();
 
         if (buildingData != null)
         {
             MemAdded?.Invoke(buildingData.buildingType, realMemData, true, MemPositions);
         }
-
         return true;
     }
 
@@ -306,17 +308,14 @@ public class RanchFacilityRuntime : MonoBehaviour
     public void RemoveMem(CapturedMemEntry targetEntry)
     {
         if (targetEntry == null) return;
-
         RanchSlotRuntime targetSlot = slots.Find(s => s.deployedMemEntry != null && s.deployedMemEntry.KeyId == targetEntry.KeyId);
         if (targetSlot != null)
         {
             MemData removedMem = targetSlot.deployedMem;
             targetSlot.ClearMem();
-
             UpdateOverallProducingState();
 
             if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
-
             OnMemDeploymentChanged?.Invoke();
 
             if (buildingData != null && removedMem != null)
@@ -329,7 +328,6 @@ public class RanchFacilityRuntime : MonoBehaviour
     public void RemoveMem(MemData targetMem)
     {
         if (targetMem == null) return;
-
         RanchSlotRuntime targetSlot = slots.Find(s => s.deployedMem == targetMem);
         if (targetSlot != null)
         {
@@ -354,13 +352,11 @@ public class RanchFacilityRuntime : MonoBehaviour
         foreach (var slot in slots)
         {
             if (slot.currentStorageCount <= 0 || string.IsNullOrEmpty(slot.craftingItemId)) continue;
-
             ItemData itemData = FindItemDataInCatalog(slot.craftingItemId);
             if (itemData != null)
             {
                 int remaining = warehouse.AddItem(itemData, slot.currentStorageCount);
                 slot.currentStorageCount = remaining;
-
                 if (slot.currentStorageCount < RanchSlotRuntime.maxStorage && slot.deployedMem != null)
                 {
                     if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
@@ -370,7 +366,6 @@ public class RanchFacilityRuntime : MonoBehaviour
                 }
             }
         }
-
         UpdateOverallProducingState();
     }
 
@@ -398,7 +393,6 @@ public class RanchFacilityRuntime : MonoBehaviour
     {
         if (string.IsNullOrEmpty(itemId)) return null;
         if (ItemCatalogManager.Instance == null) return null;
-
         return ItemCatalogManager.Instance.FindItemData(itemId);
     }
 
