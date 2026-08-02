@@ -23,10 +23,19 @@ namespace HDY.Tutorial
     ///   목표가 없으면 대사만 끝나도 바로 스텝을 완료 처리한다.
     /// - 목표 진행/트리거 발생은 이 매니저가 스스로 감지하지 않고, 외부 바인더가
     ///   NotifyTriggerFired / NotifyObjectiveProgress를 호출해주는 방식으로 들어온다(이벤트 버스 형태).
-    /// - 시야 감지(TutorialSightDetector)가 오브젝트/멤/웨이포인트/상자를 처음 포착하면
-    ///   SetPendingHighlightTarget(...)으로 그 Transform을 넘겨주고, 이 매니저가 등록된
-    ///   TutorialHighlightUI에 그 대상을 강조하도록 중계한다(대사/목표 진행 중에는 계속 강조 유지,
-    ///   스텝이 끝나거나 다음 스텝으로 넘어가면 강조를 끈다).
+    /// - 하이라이트는 두 경로로 채워진다:
+    ///   1) 시야 감지(TutorialSightDetector)가 오브젝트/멤/웨이포인트/상자를 처음 포착하면
+    ///      SetPendingHighlightTarget(...)으로 그 월드 Transform을 넘겨준다.
+    ///   2) 스텝 데이터의 highlightKey가 채워져 있으면, ActivateStep 시점에 UI 하이라이트 레지스트리
+    ///      (RegisterUIHighlightTarget으로 등록된 버튼/패널)에서 같은 키를 찾아 그 RectTransform을 쓴다.
+    ///   두 값 다 등록된 TutorialHighlightUI로 중계해서 화면에 스포트라이트로 보여준다. 스텝이 끝나거나
+    ///   다음 스텝으로 넘어가면 강조를 끈다.
+    ///
+    /// [영지 레벨 목표 특수 처리] objectiveKey가 정확히 "territory_level"인 목표는 일반적인 "누적 획득"
+    /// 방식이 아니라 "현재 영지 레벨 값 자체"를 진행도로 쓴다(레벨이 오르내리는 값이 아니라 절대값이라
+    /// 누적 더하기가 맞지 않기 때문). TerritoryData.OnLevelChanged가 울릴 때마다 진행도를 그 레벨 값으로
+    /// 덮어쓰고, 스텝이 활성화되는 시점에도 즉시 현재 레벨로 한 번 채워준다(활성화 시점에 이미 목표
+    /// 레벨을 넘긴 경우도 놓치지 않도록).
     ///
     /// [현재 배치에서 실제로 동작하는 트리거]
     /// - Manual: 즉시 활성화
@@ -34,7 +43,7 @@ namespace HDY.Tutorial
     ///   이슈 없음)
     /// - LevelReached: HDY 소유인 TerritoryData.OnLevelChanged 이벤트를 직접 구독
     /// - ObjectSighted / MemSighted / WaypointSighted / ChestSighted: TutorialSightDetector가 호출
-    /// 나머지(MemCaptured/ChestOpened/WaypointUnlocked)는 이후 배치의 바인더가
+    /// 나머지(MemCaptured/ChestOpened/WaypointUnlocked/UIPanelOpened)는 이후 배치의 바인더가
     /// NotifyTriggerFired(...)를 호출해주는 자리만 마련해뒀다.
     ///
     /// [저장 - 현재 배치] 팀원의 저장 연결 전까지는 진행 상태를 이 컴포넌트의 SerializeField에만
@@ -43,6 +52,8 @@ namespace HDY.Tutorial
     /// </summary>
     public class TutorialManager : MonoBehaviour
     {
+        private const string TerritoryLevelObjectiveKey = "territory_level";
+
         public static TutorialManager Instance { get; private set; }
 
         /// <summary>
@@ -95,8 +106,12 @@ namespace HDY.Tutorial
         private TutorialHighlightUI highlightUI;
         private readonly List<TMP_Text> objectiveTexts = new List<TMP_Text>();
 
-        // 시야 감지 바인더가 넘겨준, "이번 스텝에서 강조해야 할 대상"의 Transform.
+        // TutorialUIHighlightTarget들이 등록한 "키 -> UI RectTransform" 목록.
+        private readonly Dictionary<string, RectTransform> uiHighlightTargets = new Dictionary<string, RectTransform>();
+
+        // 이번 스텝에서 강조해야 할 대상 - 시야 감지가 넘겨준 월드 Transform, 또는 highlightKey로 찾은 UI.
         private Transform pendingHighlightTarget;
+        private RectTransform pendingHighlightUITarget;
 
         private int currentDialogueLineIndex;
 
@@ -160,6 +175,7 @@ namespace HDY.Tutorial
         private void HandleTerritoryLevelChanged(int newLevel)
         {
             NotifyTriggerFired(TutorialTriggerType.LevelReached, newLevel.ToString());
+            SetTerritoryLevelObjectiveProgress(newLevel);
         }
 
         private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
@@ -206,6 +222,22 @@ namespace HDY.Tutorial
         public void UnregisterHighlightUI(TutorialHighlightUI ui)
         {
             if (highlightUI == ui) highlightUI = null;
+        }
+
+        /// <summary>TutorialUIHighlightTarget이 OnEnable에서 자기 자신(키+RectTransform)을 등록할 때 호출한다.</summary>
+        public void RegisterUIHighlightTarget(string key, RectTransform rect)
+        {
+            if (string.IsNullOrEmpty(key) || rect == null) return;
+            uiHighlightTargets[key] = rect;
+        }
+
+        public void UnregisterUIHighlightTarget(string key, RectTransform rect)
+        {
+            if (string.IsNullOrEmpty(key)) return;
+            if (uiHighlightTargets.TryGetValue(key, out var existing) && existing == rect)
+            {
+                uiHighlightTargets.Remove(key);
+            }
         }
 
         // =====================================================================
@@ -256,13 +288,32 @@ namespace HDY.Tutorial
         }
 
         /// <summary>
-        /// 시야 감지 바인더가 "이번에 발동시킬 트리거와 관련된 대상"을 미리 알려줄 때 호출한다.
+        /// 시야 감지 바인더가 "이번에 발동시킬 트리거와 관련된 월드 대상"을 미리 알려줄 때 호출한다.
         /// NotifyTriggerFired보다 먼저(또는 같이) 호출되면, 그 직후 스텝이 활성화될 때 이 대상을
         /// 하이라이트로 강조한다.
         /// </summary>
         public void SetPendingHighlightTarget(Transform target)
         {
             pendingHighlightTarget = target;
+        }
+
+        /// <summary>
+        /// objectiveKey가 "territory_level"인 목표의 진행도를 현재 레벨 값으로 덮어쓴다(누적 더하기가
+        /// 아니라 절대값 대입). 활성 스텝에 이 목표가 없으면 아무 일도 하지 않는다.
+        /// </summary>
+        private void SetTerritoryLevelObjectiveProgress(int level)
+        {
+            var current = GetCurrentStep();
+            if (current == null || currentStepAwaitingTrigger || current.objectives == null) return;
+            if (!current.objectives.Any(o => o.objectiveKey == TerritoryLevelObjectiveKey)) return;
+
+            objectiveProgress[TerritoryLevelObjectiveKey] = level;
+            RefreshObjectivePresentation();
+
+            if (IsCurrentStepObjectivesComplete())
+            {
+                CompleteCurrentStep();
+            }
         }
 
         // =====================================================================
@@ -332,8 +383,10 @@ namespace HDY.Tutorial
             RefreshObjectiveProgressDebugList(next);
 
             // 이전 스텝에서 쓰던 하이라이트 대상은 여기서 초기화 - 새 스텝이 시야 감지 트리거라면
-            // TutorialSightDetector가 SetPendingHighlightTarget으로 다시 채워줄 것이다.
+            // TutorialSightDetector가 SetPendingHighlightTarget으로, highlightKey가 있다면
+            // ActivateStep에서 다시 채워줄 것이다.
             pendingHighlightTarget = null;
+            pendingHighlightUITarget = null;
             RefreshHighlightPresentation();
 
             if (IsTriggerAlreadySatisfied(next))
@@ -366,8 +419,8 @@ namespace HDY.Tutorial
 
                 default:
                     // ObjectSighted / MemSighted / WaypointSighted / ChestSighted / MemCaptured /
-                    // ChestOpened / WaypointUnlocked - 해당 바인더가 NotifyTriggerFired로 알려줄
-                    // 때까지 대기한다.
+                    // ChestOpened / WaypointUnlocked / UIPanelOpened - 해당 바인더가
+                    // NotifyTriggerFired로 알려줄 때까지 대기한다.
                     return false;
             }
         }
@@ -377,11 +430,35 @@ namespace HDY.Tutorial
             currentStepAwaitingTrigger = false;
             currentDialogueLineIndex = 0;
 
+            // highlightKey가 지정된 스텝이면 UI 하이라이트 레지스트리에서 찾아 강조 대상으로 쓴다.
+            // 시야 감지로 이미 pendingHighlightTarget(월드 오브젝트)가 채워져 있는 스텝은 highlightKey를
+            // 따로 안 쓰는 게 일반적이라 서로 충돌하지 않는다.
+            if (!string.IsNullOrEmpty(step.highlightKey) && uiHighlightTargets.TryGetValue(step.highlightKey, out var uiTarget))
+            {
+                pendingHighlightUITarget = uiTarget;
+            }
+
+            // "territory_level" 목표가 있는 스텝은 활성화되는 순간 현재 레벨로 즉시 시드해준다 -
+            // 스텝이 뜨기 전에 이미 목표 레벨을 넘긴 경우도 놓치지 않기 위함.
+            if (step.objectives != null && step.objectives.Any(o => o.objectiveKey == TerritoryLevelObjectiveKey))
+            {
+                EnsureReferences();
+                if (territoryData != null)
+                {
+                    objectiveProgress[TerritoryLevelObjectiveKey] = territoryData.Level;
+                }
+            }
+
             Debug.Log($"<color=cyan>[TutorialManager]</color> 스텝 활성화: {step.stepId}");
 
             RefreshDialoguePresentation();
             RefreshObjectivePresentation();
             RefreshHighlightPresentation();
+
+            if (IsCurrentStepObjectivesComplete())
+            {
+                CompleteCurrentStep();
+            }
         }
 
         private void CompleteCurrentStep()
@@ -467,18 +544,31 @@ namespace HDY.Tutorial
             }
         }
 
-        /// <summary>등록된 하이라이트 UI에 현재 pendingHighlightTarget 상태를 그대로 반영한다.</summary>
+        /// <summary>
+        /// 등록된 하이라이트 UI에 현재 상태를 그대로 반영한다. UI 하이라이트(highlightKey로 찾은 버튼)가
+        /// 있으면 그걸 우선하고, 없으면 월드 하이라이트(시야 감지 대상)를 쓴다.
+        /// </summary>
         private void RefreshHighlightPresentation()
         {
             if (highlightUI == null) return;
 
-            if (currentStepAwaitingTrigger || pendingHighlightTarget == null)
+            if (currentStepAwaitingTrigger)
             {
                 highlightUI.Hide();
+                return;
+            }
+
+            if (pendingHighlightUITarget != null)
+            {
+                highlightUI.ShowUI(pendingHighlightUITarget);
+            }
+            else if (pendingHighlightTarget != null)
+            {
+                highlightUI.Show(pendingHighlightTarget);
             }
             else
             {
-                highlightUI.Show(pendingHighlightTarget);
+                highlightUI.Hide();
             }
         }
 
@@ -552,6 +642,7 @@ namespace HDY.Tutorial
             }
 
             pendingHighlightTarget = null;
+            pendingHighlightUITarget = null;
 
             RefreshObjectiveProgressDebugList(GetCurrentStep());
             RefreshDialoguePresentation();

@@ -5,8 +5,9 @@ using UnityEngine;
 namespace HDY.Tutorial
 {
     /// <summary>
-    /// 튜토리얼 대사 한 줄. highlightTargetKey는 이후 하이라이트 배치에서 사용할 자리로,
-    /// 지금은 비워두면 아무 효과도 없다(CSV에는 아직 이 값을 담는 컬럼이 없다).
+    /// 튜토리얼 대사 한 줄. highlightTargetKey는 이후 배치(줄 단위 하이라이트 전환)에서 사용할 자리로,
+    /// 지금은 비워두면 아무 효과도 없다(CSV에는 아직 이 값을 담는 컬럼이 없다 - 지금은 스텝 단위
+    /// highlightKey만 지원).
     /// </summary>
     [Serializable]
     public class TutorialDialogueLine
@@ -66,7 +67,7 @@ namespace HDY.Tutorial
         public TutorialTriggerType triggerType = TutorialTriggerType.Manual;
 
         [Tooltip("트리거 종류에 따라 의미가 달라지는 보조 파라미터.\n" +
-                 "SceneEnter = 씬 이름 / LevelReached = 레벨 숫자 / 나머지 = 이후 배치의 바인더가 정의하는 값")]
+                 "SceneEnter = 씬 이름 / LevelReached = 레벨 숫자 / UIPanelOpened = 패널 식별 키 / 나머지 = 이후 배치의 바인더가 정의하는 값")]
         public string triggerParam;
 
         [Header("대사 (순서대로 '다음' 버튼으로 진행)")]
@@ -77,5 +78,10 @@ namespace HDY.Tutorial
 
         [Header("완료 보상")]
         public List<TutorialRewardEntry> rewards = new List<TutorialRewardEntry>();
+
+        [Header("하이라이트 (스텝 단위 - 비워두면 강조 없음)")]
+        [Tooltip("TutorialUIHighlightTarget에 등록된 UI 요소의 키. 시야 감지 트리거(ObjectSighted 등)로 " +
+                 "활성화된 스텝은 이 값이 비어있어도 감지된 월드 오브젝트를 자동으로 강조한다.")]
+        public string highlightKey;
     }
 }

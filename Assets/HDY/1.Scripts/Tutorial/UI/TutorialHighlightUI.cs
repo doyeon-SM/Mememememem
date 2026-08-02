@@ -8,6 +8,15 @@ namespace HDY.Tutorial
     /// 스포트라이트 연출. TutorialSpotlightMask 셰이더를 쓰는 Material이 연결된 UI Image 하나로
     /// 구현한다.
     ///
+    /// [두 종류의 대상 지원]
+    /// - 월드 오브젝트(Transform): TutorialSightDetector가 시야 감지로 찾은 오브젝트/멤/웨이포인트/상자.
+    ///   Camera.WorldToViewportPoint로 화면 좌표를 구한다.
+    /// - UI 요소(RectTransform): TutorialUIHighlightTarget으로 등록된 버튼/패널 등. 여신상/제작대/
+    ///   탐험대/대장간 버튼처럼 "이 버튼을 눌러보세요" 안내에 쓴다. RectTransformUtility로 화면 좌표를
+    ///   구한다.
+    /// 두 값 다 같은 셰이더 파라미터(_Center/_Radius)로 변환해서 넘기기 때문에, 실제 화면에 보이는
+    /// 효과는 완전히 동일하다.
+    ///
     /// [Inspector 준비물 - 도연님 작업] 이 컴포넌트가 붙을 Image는 화면 전체를 덮도록 RectTransform
     /// 앵커를 (0,0)-(1,1) 풀스트레치로 설정해야 한다(그래야 Image의 uv가 곧 뷰포트 좌표와 일치함).
     /// Image의 Material 슬롯에는 셰이더 "HDY/Tutorial/SpotlightMask"를 사용하는 Material 에셋을
@@ -24,7 +33,7 @@ namespace HDY.Tutorial
         [Tooltip("비워두면 자동 탐색(TutorialManager.Resolve).")]
         [SerializeField] private TutorialManager tutorialManager;
 
-        [Tooltip("스포트라이트 기준 카메라. 비워두면 Camera.main 사용.")]
+        [Tooltip("월드 오브젝트 강조 기준 카메라. 비워두면 Camera.main 사용.")]
         [SerializeField] private Camera targetCamera;
 
         [Header("연출 설정")]
@@ -35,7 +44,11 @@ namespace HDY.Tutorial
 
         private Image image;
         private Material materialInstance;
-        private Transform currentTarget;
+
+        private Transform worldTarget;
+        private RectTransform uiTarget;
+
+        private readonly Vector3[] cornersBuffer = new Vector3[4];
 
         private static readonly int ColorId = Shader.PropertyToID("_Color");
         private static readonly int CenterId = Shader.PropertyToID("_Center");
@@ -79,12 +92,24 @@ namespace HDY.Tutorial
 
         private void Update()
         {
-            if (materialInstance == null || currentTarget == null) return;
+            if (materialInstance == null) return;
 
+            if (uiTarget != null)
+            {
+                UpdateForUITarget();
+            }
+            else if (worldTarget != null)
+            {
+                UpdateForWorldTarget();
+            }
+        }
+
+        private void UpdateForWorldTarget()
+        {
             var cam = ResolveCamera();
             if (cam == null) return;
 
-            Vector3 viewportPos = cam.WorldToViewportPoint(currentTarget.position);
+            Vector3 viewportPos = cam.WorldToViewportPoint(worldTarget.position);
             if (viewportPos.z <= 0f)
             {
                 // 대상이 카메라 뒤로 넘어감 - 다음 프레임에 다시 앞으로 오면 자동으로 복구됨.
@@ -93,7 +118,27 @@ namespace HDY.Tutorial
             }
 
             materialInstance.SetVector(CenterId, new Vector4(viewportPos.x, viewportPos.y, 0f, 0f));
-            materialInstance.SetFloat(RadiusId, ComputeRadius(cam));
+            materialInstance.SetFloat(RadiusId, ComputeWorldRadius(cam));
+            ApplyAlpha(dimAlpha);
+        }
+
+        private void UpdateForUITarget()
+        {
+            var canvas = uiTarget.GetComponentInParent<Canvas>();
+            Camera uiCamera = (canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay)
+                ? canvas.worldCamera
+                : null;
+
+            Vector3 screenPos = RectTransformUtility.WorldToScreenPoint(uiCamera, uiTarget.position);
+            Vector2 viewportPos = new Vector2(screenPos.x / Screen.width, screenPos.y / Screen.height);
+
+            uiTarget.GetWorldCorners(cornersBuffer);
+            Vector3 cornerScreenPos = RectTransformUtility.WorldToScreenPoint(uiCamera, cornersBuffer[2]); // 우상단 모서리
+            float pixelRadius = Vector2.Distance(new Vector2(screenPos.x, screenPos.y), new Vector2(cornerScreenPos.x, cornerScreenPos.y));
+            float viewportRadius = Mathf.Clamp(pixelRadius / Screen.height, minRadius, maxRadius);
+
+            materialInstance.SetVector(CenterId, new Vector4(viewportPos.x, viewportPos.y, 0f, 0f));
+            materialInstance.SetFloat(RadiusId, viewportRadius);
             ApplyAlpha(dimAlpha);
         }
 
@@ -108,13 +153,13 @@ namespace HDY.Tutorial
         /// 세로 뷰포트 거리라, 셰이더의 가로세로 비율 보정을 다시 거칠 필요가 없다). Renderer가
         /// 없으면 최소 반지름을 그대로 쓴다.
         /// </summary>
-        private float ComputeRadius(Camera cam)
+        private float ComputeWorldRadius(Camera cam)
         {
-            if (currentTarget.TryGetComponent<Renderer>(out var renderer))
+            if (worldTarget.TryGetComponent<Renderer>(out var renderer))
             {
                 float worldRadius = renderer.bounds.extents.magnitude;
-                Vector3 center = cam.WorldToViewportPoint(currentTarget.position);
-                Vector3 edge = cam.WorldToViewportPoint(currentTarget.position + cam.transform.up * worldRadius);
+                Vector3 center = cam.WorldToViewportPoint(worldTarget.position);
+                Vector3 edge = cam.WorldToViewportPoint(worldTarget.position + cam.transform.up * worldRadius);
                 float viewportRadius = Mathf.Abs(edge.y - center.y);
                 return Mathf.Clamp(viewportRadius, minRadius, maxRadius);
             }
@@ -130,16 +175,25 @@ namespace HDY.Tutorial
             materialInstance.SetColor(ColorId, color);
         }
 
-        /// <summary>TutorialManager가 특정 대상을 강조해야 할 때 호출한다.</summary>
+        /// <summary>TutorialManager가 월드 오브젝트를 강조해야 할 때 호출한다.</summary>
         public void Show(Transform target)
         {
-            currentTarget = target;
+            worldTarget = target;
+            uiTarget = null;
+        }
+
+        /// <summary>TutorialManager가 UI 요소(버튼 등)를 강조해야 할 때 호출한다.</summary>
+        public void ShowUI(RectTransform target)
+        {
+            uiTarget = target;
+            worldTarget = null;
         }
 
         /// <summary>TutorialManager가 강조를 그만해야 할 때 호출한다.</summary>
         public void Hide()
         {
-            currentTarget = null;
+            worldTarget = null;
+            uiTarget = null;
             ApplyAlpha(0f);
         }
     }

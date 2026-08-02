@@ -10,16 +10,18 @@ namespace HDY.Tutorial
     /// HDY.Item.ItemCatalogManager와 동일한 패턴 - Awake 시 시트를 읽어 CSV 행마다
     /// ScriptableObject.CreateInstance&lt;TutorialStepData&gt;()로 채운다.
     ///
-    /// [시트 컬럼] Step_ID, Trigger_Type, Trigger_Param, Dialogue_Lines, Objectives, Rewards
+    /// [시트 컬럼] Step_ID, Trigger_Type, Trigger_Param, Dialogue_Lines, Objectives, Rewards, Highlight_Key
     /// - Trigger_Type: TutorialTriggerType enum 이름 그대로 (Manual, SceneEnter, LevelReached,
     ///   ObjectSighted, MemSighted, WaypointSighted, ChestSighted, MemCaptured, ChestOpened,
-    ///   WaypointUnlocked)
+    ///   WaypointUnlocked, UIPanelOpened)
     /// - Trigger_Param: 트리거 종류에 따라 의미가 다름 (SceneEnter=씬 이름 / LevelReached=레벨 숫자 /
-    ///   나머지=이후 배치의 바인더가 정의하는 값. 지금은 비워둬도 됨)
+    ///   UIPanelOpened=패널 식별 키 / 나머지=이후 배치의 바인더가 정의하는 값. 지금은 비워둬도 됨)
     /// - Dialogue_Lines: 대사 여러 줄을 세미콜론(;)으로 구분. 예) "대사1;대사2;대사3"
     /// - Objectives: "목표키:표시이름:목표수량" 형식을 세미콜론으로 여러 개 나열.
     ///   예) "item_iron:철 주괴:1;item_woodplank:나무판자:1"
     /// - Rewards: "아이템ID:수량" 형식을 세미콜론으로 여러 개 나열. 예) "item_baseblueprint:1"
+    /// - Highlight_Key: TutorialUIHighlightTarget에 등록된 UI 요소의 키. 비워두면 강조 없음(단, 시야
+    ///   감지 트리거로 활성화된 스텝은 이 값이 비어있어도 감지된 월드 오브젝트를 자동으로 강조한다)
     ///
     /// [순서 = 진행 순서] TerritoryExpansionSteps/RecipeUnlocks와 동일하게, 시트의 행 순서가 곧
     /// 튜토리얼 진행 순서다(포지셔널 인덱스 하드 제약) - 순서를 바꾸고 싶으면 시트에서 행을 옮기면 된다.
@@ -78,7 +80,7 @@ namespace HDY.Tutorial
                 if (string.IsNullOrWhiteSpace(line)) continue;
 
                 var cols = SplitCsvLine(line);
-                if (cols.Count < 6)
+                if (cols.Count < 7)
                 {
                     Debug.LogWarning($"[TutorialCatalogManager] 튜토리얼 시트 {i + 1}번째 줄 컬럼 수가 부족합니다: {line}");
                     continue;
@@ -109,6 +111,7 @@ namespace HDY.Tutorial
             step.dialogueLines = ParseDialogueLines(cols[3]);
             step.objectives = ParseObjectives(cols[4]);
             step.rewards = ParseRewards(cols[5]);
+            step.highlightKey = cols[6].Trim();
 
             return step;
         }

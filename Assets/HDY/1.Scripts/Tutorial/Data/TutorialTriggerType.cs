@@ -18,20 +18,20 @@ namespace HDY.Tutorial
         /// <summary>영지 레벨이 특정 값 이상에 도달했을 때. TriggerParam = 레벨(정수 문자열).</summary>
         LevelReached,
 
-        // ===== 아래는 이후 배치(시야 감지 / 멤 포획 / 상자 / 웨이포인트 / 생산 감시 바인더)에서
-        // 실제로 연결할 예정인 자리표시자 항목들. 지금은 NotifyTriggerFired를 호출해줄 발신자가 아직
-        // 없어 대기 상태로만 남는다. =====
+        // ===== 아래는 이후 배치(시야 감지 / 멤 포획 / 상자 / 웨이포인트 / 생산 감시 / UI 패널 오픈
+        // 감지 바인더)에서 실제로 연결할 예정인 자리표시자 항목들. 지금은 NotifyTriggerFired를
+        // 호출해줄 발신자가 아직 없어 대기 상태로만 남는다. =====
 
-        /// <summary>월드 오브젝트(채집물)를 카메라 시야에서 처음 포착했을 때.</summary>
+        /// <summary>월드 오브젝트(채집물)를 카메라 시야에서 처음 포착했을 때. (TutorialSightDetector 연동됨)</summary>
         ObjectSighted,
 
-        /// <summary>멤을 카메라 시야에서 처음 포착했을 때.</summary>
+        /// <summary>멤을 카메라 시야에서 처음 포착했을 때. (TutorialSightDetector 연동됨)</summary>
         MemSighted,
 
-        /// <summary>웨이포인트를 카메라 시야에서 처음 포착했을 때.</summary>
+        /// <summary>웨이포인트를 카메라 시야에서 처음 포착했을 때. (TutorialSightDetector 연동됨)</summary>
         WaypointSighted,
 
-        /// <summary>상자를 카메라 시야에서 처음 포착했을 때.</summary>
+        /// <summary>상자를 카메라 시야에서 처음 포착했을 때. (TutorialSightDetector 연동됨)</summary>
         ChestSighted,
 
         /// <summary>멤 포획에 성공했을 때 (MemEvents.OnMemCaptured 연동 예정).</summary>
@@ -42,5 +42,12 @@ namespace HDY.Tutorial
 
         /// <summary>웨이포인트를 처음 해금했을 때 (WayPointManager.OnWayPointUnlocked 연동 예정).</summary>
         WaypointUnlocked,
+
+        /// <summary>
+        /// 특정 UI 패널(여신상/탐험대/대장간 등)을 처음 열었을 때. TriggerParam = 패널 식별 키.
+        /// UIManager에 "패널 열림" 이벤트가 아직 없어 별도 바인더 배치 전까지는 대기만 한다
+        /// (UIManager는 HDY 소유라 이벤트 추가에 크로스팀 이슈는 없음).
+        /// </summary>
+        UIPanelOpened,
     }
 }
