@@ -2836,6 +2836,7 @@ GameObject:
   - component: {fileID: 8140761256497828183}
   - component: {fileID: 1375091862226142176}
   - component: {fileID: 7938680308663795052}
+  - component: {fileID: 6812409213719045063}
   m_Layer: 3
   m_Name: 0720_Player_KMS
   m_TagString: Player
@@ -2989,6 +2990,23 @@ MonoBehaviour:
   ladderSlideDownSpeed: 1.2
   ladderSnapSpeed: 12
   ladderInputThreshold: 0.1
+--- !u!114 &6812409213719045063
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5320301024596143200}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 25345a70335f430488d1f79e8d563880, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::KMS.PlayerFallDamageController
+  movement: {fileID: 757377502652196312}
+  stats: {fileID: 4191295553828768883}
+  safeImpactSpeed: 11
+  damagePerExcessSpeed: 8
+  maximumDamage: 100
 --- !u!114 &540356905414934518
 MonoBehaviour:
   m_ObjectHideFlags: 0
