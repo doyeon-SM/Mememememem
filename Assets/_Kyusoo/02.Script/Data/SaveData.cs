@@ -60,6 +60,13 @@ public class PlayerInfo
 }
 
 [Serializable]
+public class MemFirstCapturedEntry
+{
+    public string memId;
+    public long firstCapturedTimestamp; 
+}
+
+[Serializable]
 public class SaveData
 {
     public string lastSaveTime;
@@ -95,6 +102,9 @@ public class SaveData
     [Header("멤 창고 데이터")]
     public int unlockedPageCount = 2;
     public List<CapturedMemEntry> serializedCapturedMems = new List<CapturedMemEntry>();
+
+    [Header("도감 최초 포획 시간 기록 데이터")]
+    public List<MemFirstCapturedEntry> firstCapturedTimestamps = new List<MemFirstCapturedEntry>();
 
     [Header("배치된 시설 레이아웃 청사진 및 일꾼 마스터 데이터")]
     public List<PlacedBuildingData> placedBuildings = new List<PlacedBuildingData>();

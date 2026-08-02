@@ -98,6 +98,11 @@ namespace HDY.UI
                 return;
             }
 
+            if (!firstCapturedTimestamp.HasValue)
+            {
+                firstCapturedTimestamp = MemRecordData.GetFirstCapturedTimestamp(data.memId);
+            }
+
             RenderInfo(data, BuildExplorationRangeText(data));
 
             SetFirstCapturedVisible(true, firstCapturedTimestamp);

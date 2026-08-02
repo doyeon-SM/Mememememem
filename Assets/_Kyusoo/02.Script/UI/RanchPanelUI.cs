@@ -14,7 +14,7 @@ public class RanchPanelUI : MonoBehaviour
     [SerializeField] private TextMeshProUGUI buildingName;
     [SerializeField] private TextMeshProUGUI buildingLevel;
     [SerializeField] private Button levelUpBtn;
-    [SerializeField] private TextMeshProUGUI levelUpBtnText; // 레벨업 버튼 텍스트
+    [SerializeField] private TextMeshProUGUI levelUpBtnText;
 
     [Header("1대1 매칭 슬롯 배열 (5개 고정)")]
     [SerializeField] private MemSlotUI[] memSlots = new MemSlotUI[5];
@@ -187,7 +187,6 @@ public class RanchPanelUI : MonoBehaviour
             collectAllBtn.interactable = targetFacility.HasAnyCollectableItem();
         }
 
-        // 레벨업 버튼 Max 상태 처리 (5레벨 도달 시)
         if (levelUpBtn != null)
         {
             bool isMax = targetFacility.currentLevel >= 5;

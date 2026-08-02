@@ -48,8 +48,11 @@ public class RanchFacilityRuntime : MonoBehaviour
     public BuildingData buildingData;
     public int currentLevel = 1;
 
-    [Header("생산 속도")]
+    [Header("생산 속도 (기본 예비값)")]
     public float baseProductionTime = 30f;
+
+    [Header("목장 생산 매칭 데이터 (SO)")]
+    [SerializeField] private RanchMatchingTable matchingTable;
 
     [Header("목장 슬롯 (5개)")]
     [SerializeField] private List<RanchSlotRuntime> slots = new List<RanchSlotRuntime>();
@@ -130,8 +133,39 @@ public class RanchFacilityRuntime : MonoBehaviour
     }
 
     /// <summary>
-    /// 레벨업 시 멤 슬롯 1개 해금 (최대 5레벨)
+    /// RanchMatchingTable SO 데이터를 참조해 멤 ID 기반 아이템 ID 및 기본 생산 시간을 조회합니다.
     /// </summary>
+    public bool TryGetRanchProduceData(MemData memData, out string itemId, out float productionTime)
+    {
+        itemId = "item_rough_fur";
+        productionTime = baseProductionTime > 0 ? baseProductionTime : 30f;
+
+        if (memData == null || string.IsNullOrEmpty(memData.memId)) return false;
+
+        if (matchingTable != null)
+        {
+            var entry = matchingTable.FindEntryByMemId(memData.memId);
+            if (entry != null)
+            {
+                itemId = entry.Item_ID;
+                productionTime = entry.BaseProductionTime;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public string GetRanchProduceItemId(MemData memData)
+    {
+        if (memData == null) return "item_rough_fur";
+        if (TryGetRanchProduceData(memData, out string itemId, out _))
+        {
+            return itemId;
+        }
+        return "item_rough_fur";
+    }
+
     public void LevelUp()
     {
         if (currentLevel < 5)
@@ -193,8 +227,14 @@ public class RanchFacilityRuntime : MonoBehaviour
         }
         else
         {
+            float targetBaseTime = baseProductionTime;
+            if (TryGetRanchProduceData(slot.deployedMem, out _, out float customBaseTime))
+            {
+                targetBaseTime = customBaseTime;
+            }
+
             slot.totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(
-                baseProductionTime,
+                targetBaseTime,
                 new List<MemData> { slot.deployedMem }
             );
         }
@@ -207,20 +247,31 @@ public class RanchFacilityRuntime : MonoBehaviour
 
         foreach (var slot in slots)
         {
-            if (!slot.isUnlocked || slot.deployedMem == null || string.IsNullOrEmpty(slot.craftingItemId))
+            if (!slot.isUnlocked || slot.deployedMem == null)
             {
                 slot.isProducing = false;
                 continue;
             }
 
-            if (slot.currentStorageCount >= RanchSlotRuntime.maxStorage)
+            float targetBaseTime = baseProductionTime;
+            if (TryGetRanchProduceData(slot.deployedMem, out string pItemId, out float customBaseTime))
+            {
+                targetBaseTime = customBaseTime;
+                if (string.IsNullOrEmpty(slot.craftingItemId)) slot.craftingItemId = pItemId;
+            }
+            else if (string.IsNullOrEmpty(slot.craftingItemId))
+            {
+                slot.craftingItemId = GetRanchProduceItemId(slot.deployedMem);
+            }
+
+            if (string.IsNullOrEmpty(slot.craftingItemId) || slot.currentStorageCount >= RanchSlotRuntime.maxStorage)
             {
                 slot.isProducing = false;
                 continue;
             }
 
             slot.totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(
-                baseProductionTime,
+                targetBaseTime,
                 new List<MemData> { slot.deployedMem }
             );
             slot.isProducing = !isStarving;
@@ -269,9 +320,19 @@ public class RanchFacilityRuntime : MonoBehaviour
         targetSlot.deployedMemEntry = targetEntry;
         targetEntry.IsActive = true;
 
-        targetSlot.craftingItemId = GetRanchProduceItemId(realMemData);
+        float targetBaseTime = baseProductionTime;
+        if (TryGetRanchProduceData(realMemData, out string produceItemId, out float customBaseTime))
+        {
+            targetSlot.craftingItemId = produceItemId;
+            targetBaseTime = customBaseTime;
+        }
+        else
+        {
+            targetSlot.craftingItemId = GetRanchProduceItemId(realMemData);
+        }
+
         targetSlot.totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(
-            baseProductionTime,
+            targetBaseTime,
             new List<MemData> { realMemData }
         );
         targetSlot.currentProgressTime = 0f;
@@ -291,18 +352,6 @@ public class RanchFacilityRuntime : MonoBehaviour
             MemAdded?.Invoke(buildingData.buildingType, realMemData, true, MemPositions);
         }
         return true;
-    }
-
-    public string GetRanchProduceItemId(MemData memData)
-    {
-        if (memData == null) return "item_rough_fur";
-        switch (memData.memId)
-        {
-            case "Mem_Rare_01": return "item_rough_fur";
-            case "Mem_Epic_01": return "item_rough_fur";
-            case "Mem_Unique_01": return "item_diamond";
-            default: return "item_rough_fur";
-        }
     }
 
     public void RemoveMem(CapturedMemEntry targetEntry)
