@@ -147,11 +147,7 @@ public sealed class SceneUIManager : MonoBehaviour
     {
         if (IsSettingsOpen)
         {
-            if (HasOpenManagedUI)
-            {
-                CloseManagedUIObjects();
-            }
-
+            CloseNonSettingsManagedUIObjects();
             ApplySettingsOpenState();
         }
         else
@@ -206,6 +202,11 @@ public sealed class SceneUIManager : MonoBehaviour
     {
         if (IsSettingsOpen)
         {
+            if (CloseOpenSettingsSubPages())
+            {
+                return;
+            }
+
             CloseSettingsUI();
             return;
         }
@@ -253,6 +254,8 @@ public sealed class SceneUIManager : MonoBehaviour
     /// <summary>설정 UI를 닫고 열기 전의 시간, 커서, 입력 상태를 복구합니다.</summary>
     public void CloseSettingsUI()
     {
+        CloseOpenSettingsSubPages();
+
         if (settingsUI != null)
         {
             settingsUI.SetActive(false);
@@ -269,6 +272,12 @@ public sealed class SceneUIManager : MonoBehaviour
     {
         if (!TryResolveManagedUI(target, out GameObject managedTarget))
         {
+            return;
+        }
+
+        if (IsSettingsSubPage(managedTarget))
+        {
+            OpenSettingsSubPage(managedTarget);
             return;
         }
 
@@ -313,7 +322,16 @@ public sealed class SceneUIManager : MonoBehaviour
             return;
         }
 
+        bool isSettingsSubPage = IsSettingsSubPage(managedTarget);
         CloseSingleManagedUI(managedTarget);
+
+        if (isSettingsSubPage && IsSettingsOpen)
+        {
+            ApplySettingsOpenState();
+            UpdateManagedOpenSnapshot();
+            return;
+        }
+
         SynchronizeManagedUIState();
         UpdateManagedOpenSnapshot();
     }
@@ -759,6 +777,143 @@ public sealed class SceneUIManager : MonoBehaviour
 
             CloseSingleManagedUI(target);
         }
+    }
+
+    /// <summary>
+    /// 설정 화면 안에서 사용하는 하위 페이지를 엽니다.
+    /// 설정 루트는 계속 활성 상태로 유지하므로 Time.timeScale 0과 입력 차단 상태가 유지됩니다.
+    /// </summary>
+    private void OpenSettingsSubPage(GameObject target)
+    {
+        if (!IsSettingsOpen)
+        {
+            OpenSettingsUI();
+        }
+
+        if (!IsSettingsOpen)
+        {
+            Debug.LogWarning(
+                $"[SceneUIManager] 설정 하위 페이지 '{target.name}'을 열 수 없습니다. Settings UI를 확인하세요.",
+                target);
+            return;
+        }
+
+        lastRequestedManagedUI = target;
+
+        if (!allowMultipleManagedUIs)
+        {
+            CloseOtherManagedUIObjects(target);
+        }
+
+        if (!IsOpen(target))
+        {
+            target.SetActive(true);
+        }
+
+        if (!IsOpen(target))
+        {
+            Debug.LogWarning(
+                $"[SceneUIManager] 설정 하위 페이지 '{target.name}'을 활성화할 수 없습니다.",
+                target);
+            return;
+        }
+
+        ApplySettingsOpenState();
+        UpdateManagedOpenSnapshot();
+    }
+
+    /// <summary>
+    /// 설정 하위 페이지를 제외한 Managed UI만 닫습니다.
+    /// 설정 화면과 하위 페이지가 함께 열려 있는 정상 상태는 그대로 유지합니다.
+    /// </summary>
+    private bool CloseNonSettingsManagedUIObjects()
+    {
+        bool closedAny = false;
+
+        for (int i = 0; i < managedUIObjects.Count; i++)
+        {
+            GameObject target = managedUIObjects[i];
+            if (!IsValidManagedUI(target)
+                || IsSettingsSubPage(target)
+                || !IsOpen(target))
+            {
+                continue;
+            }
+
+            closedAny = true;
+            CloseSingleManagedUI(target);
+        }
+
+        if (closedAny)
+        {
+            UpdateManagedOpenSnapshot();
+        }
+
+        return closedAny;
+    }
+
+    /// <summary>
+    /// 현재 열린 설정 하위 페이지를 모두 닫습니다.
+    /// ESC에서는 설정 루트를 닫기 전에 호출되어 기본 설정 화면으로 한 단계 돌아갑니다.
+    /// </summary>
+    private bool CloseOpenSettingsSubPages()
+    {
+        bool closedAny = false;
+
+        for (int i = 0; i < managedUIObjects.Count; i++)
+        {
+            GameObject target = managedUIObjects[i];
+            if (!IsValidManagedUI(target)
+                || !IsSettingsSubPage(target)
+                || !IsOpen(target))
+            {
+                continue;
+            }
+
+            closedAny = true;
+            CloseSingleManagedUI(target);
+        }
+
+        if (closedAny)
+        {
+            UpdateManagedOpenSnapshot();
+        }
+
+        return closedAny;
+    }
+
+    /// <summary>
+    /// GH 해상도/사운드 패널은 일반 HUD가 아니라 Settings UI의 하위 페이지로 취급합니다.
+    /// 패널은 Canvas의 형제 오브젝트여도 설정 루트의 일시정지 상태를 공유합니다.
+    /// </summary>
+    private static bool IsSettingsSubPage(GameObject target)
+    {
+        return target != null
+            && target.GetComponent<GHResolutionSettingsPanel>() != null;
+    }
+
+    /// <summary>
+    /// [HDY 요청] 닫으려는 대상이 배치 모드 UI(P_Placement)라면, 무조건 SetActive(false) 하는 대신
+    /// GridManager.ChangePlacementMode()를 호출해서 GridManager/PlacementUI 쪽 상태(isPlacementMode)와
+    /// 실제 활성 여부가 어긋나지 않도록 위임한다. 이 함수가 호출되는 시점엔 이미 IsOpen(target)이 true로
+    /// 확인된 뒤이므로, 배치 모드가 켜져 있다고 보고 그대로 꺼주는 토글 호출이면 충분하다.
+    /// placementModeUIRoot가 비어있는 씬(=배치 모드 UI가 없는 씬)에서는 항상 false를 반환해서 기존
+    /// 동작(SetActive(false))을 그대로 유지한다.
+    /// </summary>
+    private bool TryClosePlacementMode(GameObject target)
+    {
+        if (placementModeUIRoot == null || target != placementModeUIRoot)
+        {
+            return false;
+        }
+
+        if (cachedGridManager == null)
+        {
+            cachedGridManager = FindFirstObjectByType<GridManager>();
+        }
+
+        cachedGridManager?.ChangePlacementMode();
+        return true;
     }
 
     private void CloseSingleManagedUI(GameObject target)

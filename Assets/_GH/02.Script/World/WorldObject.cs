@@ -58,6 +58,17 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
     [Tooltip("드롭을 놓을 수 있는 바닥의 최대 경사각입니다.")]
     [Range(0f, 89f)] [SerializeField] private float maxGroundSlope = 50f;
 
+    [Header("Drop Launch Motion")]
+    [Tooltip("활성화하면 Chest처럼 아이템이 오브젝트에서 Drop Area의 착지점까지 포물선으로 날아갑니다.")]
+    [SerializeField] private bool launchDrops = true;
+    [Tooltip("지정하면 이 위치에서 아이템이 발사됩니다. 비워 두면 오브젝트 로컬 오프셋을 사용합니다.")]
+    [SerializeField] private Transform dropEjectPoint;
+    [SerializeField] private Vector3 dropEjectLocalOffset = new Vector3(0f, 0.8f, 0f);
+    [Min(0.01f)] [SerializeField] private float itemFlightDuration = 0.55f;
+    [Min(0f)] [SerializeField] private float itemFlightArcHeight = 0.85f;
+    [Min(0f)] [SerializeField] private float itemSpinSpeed = 320f;
+    [Min(0f)] [SerializeField] private float itemStartJitterRadius = 0.12f;
+
     [Header("Drop Spawn Gizmo")]
     [Tooltip("오브젝트를 선택했을 때 실제 드롭 타원과 중심 위치를 Scene 뷰에 표시합니다.")]
     [SerializeField] private bool showDropSpawnGizmo = true;
@@ -94,6 +105,23 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
 
     /// <summary>현재 고갈되어 상호작용할 수 없는지 나타냅니다.</summary>
     public bool IsDepleted => currentObjectHp <= 0;
+
+    /// <summary>
+    /// 아직 고갈되지 않은 오브젝트의 체력을 최대치로 회복합니다.
+    /// 외부의 피격 복구 연출이 기존 드롭/리스폰 흐름을 건드리지 않고 사용할 수 있는 전용 진입점입니다.
+    /// </summary>
+    /// <returns>실제로 체력이 변경되었으면 참입니다.</returns>
+    public bool RestoreHealthToMaximum()
+    {
+        if (IsDepleted || currentObjectHp >= maxObjectHp)
+        {
+            return false;
+        }
+
+        currentObjectHp = maxObjectHp;
+        NotifyStateChanged();
+        return true;
+    }
 
     private bool IsDead => IsDepleted;
     private float debugTime;
@@ -290,9 +318,11 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
             amountsByItemId[normalizedItemId] = currentAmount + dropCount;
         }
 
+        WorldItemDropLaunchSettings launchSettings = CreateDropLaunchSettings();
+
         foreach (KeyValuePair<string, int> drop in amountsByItemId)
         {
-            WorldItemDropSpawner.SpawnStack(
+            WorldItemDropSpawner.SpawnIndividualItems(
                 drop.Key,
                 drop.Value,
                 transform,
@@ -306,8 +336,31 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
                 dropClearanceHeight,
                 maxGroundSlope,
                 autoReturnToPoolSeconds,
-                resourceColliders);
+                resourceColliders,
+                launchSettings);
         }
+    }
+
+    private WorldItemDropLaunchSettings CreateDropLaunchSettings()
+    {
+        if (!launchDrops)
+        {
+            return default;
+        }
+
+        Vector3 startPosition = dropEjectPoint != null
+            ? dropEjectPoint.position
+            : transform.TransformPoint(dropEjectLocalOffset);
+
+        return new WorldItemDropLaunchSettings
+        {
+            enabled = true,
+            startPosition = startPosition,
+            duration = Mathf.Max(0.01f, itemFlightDuration),
+            arcHeight = Mathf.Max(0f, itemFlightArcHeight),
+            spinSpeed = Mathf.Max(0f, itemSpinSpeed),
+            startJitterRadius = Mathf.Max(0f, itemStartJitterRadius)
+        };
     }
 
     private void PrewarmDropPools()

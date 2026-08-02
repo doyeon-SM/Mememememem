@@ -48,6 +48,7 @@ MonoBehaviour:
   mapDefinitions:
   - {fileID: 11400000, guid: 998808f35b3ba4b4ba4524769475b42b, type: 2}
   - {fileID: 11400000, guid: 0191426a15940084ab1e6cde2a9089e5, type: 2}
+  - {fileID: 11400000, guid: 313e77ee067b4c54496c21edb4084093, type: 2}
   stageDefinitions:
   - {fileID: 11400000, guid: a2aaa5e285e84c45aa363732c5b886d2, type: 2}
   definitions:
@@ -58,9 +59,23 @@ MonoBehaviour:
   - {fileID: 11400000, guid: e5a8b091fd32da047aaa227a52b04888, type: 2}
   - {fileID: 11400000, guid: 8d8da0178c653104485d7f01705b1332, type: 2}
   - {fileID: 11400000, guid: bcb7e3164fe3c384298b4d8d372d06e2, type: 2}
+  - {fileID: 11400000, guid: d653cc7d03537d449b49db1c8f55aaf0, type: 2}
+  mapUI: {fileID: 0}
+  hideMapOnSceneLoad: 1
+  shortcutOpenMode: 0
+  shortcutMap: {fileID: 0}
+  shortcutTravelSceneNames:
+  - Territory
+  territorySceneName: Territory
+  notifyInputManager: 1
+  blockKmsPlayerInput: 1
+  unlockCursorWhileOpen: 1
+  alwaysVisibleCursorSceneNames:
+  - Territory
   player: {fileID: 0}
-  autoFindPlayerByTag: 1
+  autoFindPlayer: 1
   playerTag: Player
+  playerLayerName: Player
   dontDestroyOnLoad: 1
   logWayPointState: 1
   logUnlockStackTrace: 1
@@ -76,14 +91,4 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 682a78aa9ef757f4580f748fec4e013b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::WayPointUIToggle
-  targetUI: {fileID: 0}
-  mapUI: {fileID: 0}
-  hideOnStart: 1
-  legacyToggleKey: 109
-  shortcutOpenMode: 0
-  shortcutMap: {fileID: 0}
-  shortcutTravelSceneNames:
-  - Territory
-  notifyInputManager: 1
-  blockKmsPlayerInput: 1
-  unlockCursorWhileOpen: 1
+  closeMapOnEscape: 1
