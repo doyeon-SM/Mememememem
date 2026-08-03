@@ -15,6 +15,7 @@ using MemSystem.Core;
 using MemSystem.Data;
 using MemSystem.Movement;
 using MemSystem.Visual;
+using MemSystem.Sound;
 using MemSystem.AI.States;
 
 namespace MemSystem.AI
@@ -111,6 +112,9 @@ namespace MemSystem.AI
         /// <summary>비주얼 컴포넌트</summary>
         public MemVisual Visual { get; private set; }
 
+        /// <summary>효과음 컴포넌트 (프리팹에 없으면 null)</summary>
+        public MemSound Sound { get; private set; }
+
         /// <summary>플레이어 Transform</summary>
         public Transform PlayerTransform => playerTransform;
 
@@ -142,6 +146,7 @@ namespace MemSystem.AI
             Owner = owner;
             Movement = owner.Movement;
             Visual = owner.Visual;
+            Sound = owner.Sound;
 
             // 플레이어 자동 탐색 (Inspector에서 미설정 시)
             if (playerTransform == null)

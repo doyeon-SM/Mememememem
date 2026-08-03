@@ -55,12 +55,17 @@ public class WorldItem : MonoBehaviour
     private float animationTime;
     private Vector3 visualBaseLocalPosition;
     private float nextVisualResolveTime;
+    private WorldItemPickupAttractor pickupAttractor;
 
     /// <summary>현재 월드 아이템에 설정된 카탈로그 ID입니다.</summary>
     public string ItemId => itemId;
 
     /// <summary>현재 월드에 남아 있는 수량입니다.</summary>
     public int Amount => amount;
+
+    public bool CanBePickedUp => isActiveAndEnabled
+                                 && !string.IsNullOrEmpty(itemId)
+                                 && amount > 0;
 
     /// <summary>
     /// 공용 풀에서 꺼낸 오브젝트에 아이템 ID와 수량을 주입합니다.
@@ -83,6 +88,7 @@ public class WorldItem : MonoBehaviour
         initialAmount = amount;
         CacheLegacyComponents();
         RefreshVisual();
+        EnsurePickupAttractor();
     }
 
     private void OnEnable()
@@ -91,6 +97,7 @@ public class WorldItem : MonoBehaviour
         amount = initialAmount;
         animationTime = Random.Range(0f, Mathf.PI * 2f);
         RefreshVisual();
+        EnsurePickupAttractor();
     }
 
     private void LateUpdate()
@@ -259,8 +266,15 @@ public class WorldItem : MonoBehaviour
 
     private void OnTriggerEnter(Collider collision)
     {
-        if (string.IsNullOrEmpty(itemId) || amount <= 0)
+        if (!CanBePickedUp)
         {
+            return;
+        }
+
+        EnsurePickupAttractor();
+        if (pickupAttractor != null)
+        {
+            pickupAttractor.TryBegin(collision);
             return;
         }
 
@@ -276,24 +290,53 @@ public class WorldItem : MonoBehaviour
             inventory = PlayerReferenceResolver.FindPlayerComponent<PlayerInventory>();
         }
 
-        if (inventory == null)
+        TryCollect(inventory);
+    }
+
+    public bool TryCollect(PlayerInventory inventory)
+    {
+        if (inventory == null || !CanBePickedUp)
         {
-            return;
+            return false;
         }
 
         int remaining = inventory.AddItem(itemId, amount);
+        int collectedAmount = amount - remaining;
+        if (collectedAmount <= 0)
+        {
+            return false;
+        }
+
         if (remaining > 0)
         {
-            // 일부만 들어갔다면 남은 수량은 월드에 유지합니다.
             amount = remaining;
-            return;
+            return false;
         }
 
         PooledWorldDrop pooledDrop = GetComponent<PooledWorldDrop>();
         if (pooledDrop == null || !pooledDrop.ReturnToPool())
         {
-            // 풀에서 생성되지 않은 씬 배치 아이템만 직접 제거합니다.
             Destroy(gameObject);
+        }
+
+        return true;
+    }
+
+    private void EnsurePickupAttractor()
+    {
+        if (pickupAttractor == null)
+        {
+            pickupAttractor = GetComponent<WorldItemPickupAttractor>();
+        }
+
+        if (pickupAttractor == null && Application.isPlaying)
+        {
+            pickupAttractor = gameObject.AddComponent<WorldItemPickupAttractor>();
+        }
+
+        if (pickupAttractor != null)
+        {
+            pickupAttractor.Bind(this);
         }
     }
 

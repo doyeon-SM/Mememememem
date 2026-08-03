@@ -284,6 +284,10 @@ namespace HDY.Item
             data.ObjectType = ParseEnum<ObjectType>(cols[6]);
             data.ItemClass = ParseEnum<CommonClass>(cols[7]);
             data.EatEffects = ParseEatEffects(cols[8]);
+
+            // [HDY 요청 - 크기 표시] Size 컬럼은 뒤에 추가된 것이라 없는 행(구버전 시트)도 있을 수 있어 방어적으로 처리한다.
+            data.Size = cols.Length > 9 ? cols[9].Trim() : string.Empty;
+
             data.ItemIcon = iconTable != null ? iconTable.GetIcon(data.Item_ID) : null;
 
             return data;

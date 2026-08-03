@@ -28,6 +28,10 @@ namespace HDY.Item
         public UseAction UseAction;
         public ObjectType ObjectType;
 
+        [Header("크기")]
+        [Tooltip("설계도(BluePrint) 등 크기가 있는 아이템의 가로x세로 크기 문자열 (예: \"2x2\"). 없으면 빈 문자열.")]
+        public string Size;
+
         [Header("섭취 효과 (UseAction == Eat 일 때만 사용)")]
         public List<ItemEffect> EatEffects = new List<ItemEffect>();
     }
