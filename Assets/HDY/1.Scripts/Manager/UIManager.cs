@@ -93,6 +93,13 @@ namespace HDY.UI
     /// PanelManager.CloseAllPanels()를 호출해주는 방식으로 우회한다. PanelManager.CloseAllPanels()가
     /// 내부에서 다시 UIManager.Instance.CloseCurrent()를 호출하지만, 그 시점엔 이미 openStack이 비어있어
     /// 곧바로 return되므로 무한 재귀로 이어지지 않는다.
+    ///
+    /// [HDY 요청 - 튜토리얼 연동용 패널 오픈 이벤트] HUD 버튼으로 패널이 열릴 때마다 OnPanelOpened를
+    /// 발행한다(패널이 실제로 SetActive(true)되는 시점, HandleHudButtonClicked 안). 이 이벤트는 튜토리얼
+    /// 시스템(Assets/HDY/1.Scripts/Tutorial)의 TutorialUIPanelWatcher가 구독해서 "특정 UI를 처음 열었을
+    /// 때" 안내를 띄우는 데 쓰인다 - 이 매니저 자체는 튜토리얼을 전혀 몰라도 되도록 순수 이벤트 발행만
+    /// 담당한다(느슨한 결합). HudEntry.PanelKey를 채워두면 그 문자열이, 비워두면 prefab.name이 그대로
+    /// 이벤트 인자로 전달된다.
     /// </summary>
     public class UIManager : MonoBehaviour
     {
@@ -105,6 +112,9 @@ namespace HDY.UI
 
             [Tooltip("이 버튼이 활성화되는 데 필요한 영지 레벨. 0이면 레벨 제한 없이 항상 활성화(기존 5개 버튼은 0으로 둔다).")]
             public int RequiredLevel = 0;
+
+            [Tooltip("OnPanelOpened 이벤트에 실려나갈 식별 키(튜토리얼 등에서 사용). 비워두면 prefab.name을 그대로 쓴다.")]
+            public string PanelKey;
         }
 
         /// <summary>
@@ -157,6 +167,12 @@ namespace HDY.UI
 
         /// <summary>리얼타임(KST)/인게임 시간 데이터. 시간 표시 Text 연결은 이 프로퍼티로 GameTimeManager에 접근해서 진행하면 된다.</summary>
         public GameTimeManager GameTime => gameTimeManager;
+
+        /// <summary>
+        /// HUD 버튼으로 패널이 열릴 때마다 발행(패널 식별 키 전달). 튜토리얼 시스템의
+        /// TutorialUIPanelWatcher가 구독해서 "특정 UI를 처음 열었을 때" 트리거로 중계한다.
+        /// </summary>
+        public event Action<string> OnPanelOpened;
 
         private void Awake()
         {
@@ -310,10 +326,30 @@ namespace HDY.UI
             openStack.Push(instance);
             currentPrefabKey = prefab;
 
+            // [HDY 요청 - 튜토리얼 연동용] 패널이 실제로 열린 시점에 OnPanelOpened를 발행한다.
+            // hudEntries에서 이 prefab과 짝지어진 항목의 PanelKey를 찾아 쓰고, 없으면 prefab.name을 쓴다.
+            OnPanelOpened?.Invoke(ResolvePanelKey(prefab));
+
             // 상점은 열리자마자 어떤 상점을 보여줄지 정해줘야 한다(이후 상점 내부 이동은 ShopUI 자신이 처리).
             // 패널을 재사용하게 되어도 이 호출은 열 때마다 다시 일어나므로 항상 기본 상점으로 리셋된다.
             var shopUI = instance.GetComponent<ShopUI>();
             if (shopUI != null && defaultShop != null) shopUI.Open(defaultShop);
+        }
+
+        /// <summary>
+        /// prefab과 짝지어진 HudEntry.PanelKey를 찾는다. hudEntries에 없거나 PanelKey가 비어있으면
+        /// prefab.name을 그대로 반환한다(OnPanelOpened 이벤트 인자로 쓰기 위함).
+        /// </summary>
+        private string ResolvePanelKey(GameObject prefab)
+        {
+            foreach (var entry in hudEntries)
+            {
+                if (entry != null && entry.prefab == prefab)
+                {
+                    return string.IsNullOrEmpty(entry.PanelKey) ? prefab.name : entry.PanelKey;
+                }
+            }
+            return prefab.name;
         }
 
         /// <summary>

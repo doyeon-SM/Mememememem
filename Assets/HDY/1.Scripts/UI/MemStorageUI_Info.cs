@@ -77,6 +77,7 @@ namespace HDY.UI
             }
 
             RenderInfo(data, data != null ? entry.ExplorationStat.ToString() : null);
+            ApplyIcon(data, true); // 창고에 있는 개체는 이미 포획된 것이므로 항상 원래 색(실루엣 아님)
 
             // [HDY 요청 - 최초 포획 정보는 도감 전용] 창고 화면에서는 이 줄을 항상 숨긴다.
             SetFirstCapturedVisible(false, null);
@@ -98,7 +99,13 @@ namespace HDY.UI
                 return;
             }
 
-            RenderInfo(data, BuildExplorationRangeText(data));
+            // [HDY 요청 - 미발견 실루엣] 최초 포획 정보(firstCapturedTimestamp)가 없으면 아직 한 번도
+            // 포획한 적 없는 종이므로, 이름/티어/스탯 정보는 노출하지 않고("??") 아이콘만 도감 그리드
+            // (MemDexSlotUI)와 동일하게 검은 실루엣으로 보여준다(스포일러 방지).
+            bool isDiscovered = firstCapturedTimestamp.HasValue;
+
+            RenderInfo(isDiscovered ? data : null, isDiscovered ? BuildExplorationRangeText(data) : null);
+            ApplyIcon(data, isDiscovered);
 
             SetFirstCapturedVisible(true, firstCapturedTimestamp);
         }
@@ -108,6 +115,7 @@ namespace HDY.UI
         private void HideInfo()
         {
             RenderInfo(null, null);
+            ApplyIcon(null, true);
             SetFirstCapturedVisible(false, null);
         }
 
@@ -154,18 +162,6 @@ namespace HDY.UI
         /// </summary>
         private void RenderInfo(MemData data, string explorationDisplayText)
         {
-            if (infoIconImage != null)
-            {
-                // MemIconRenderer가 modelPrefab을 촬영해서 만든 아이콘을 memId로 조회한다(없으면 감춤).
-                // [HDY 요청 - 해상도 분리] 상세정보 패널이라 512px(GetIcon512)을 사용한다.
-                var sprite = (data != null && MemIconRenderer.Instance != null)
-                    ? MemIconRenderer.Instance.GetIcon512(data.memId)
-                    : null;
-
-                infoIconImage.sprite = sprite;
-                infoIconImage.gameObject.SetActive(sprite != null);
-            }
-
             if (infoNameText != null)
             {
                 infoNameText.gameObject.SetActive(true);
@@ -213,6 +209,26 @@ namespace HDY.UI
                 infoExplorationText.gameObject.SetActive(true);
                 infoExplorationText.text = "탐험 : " + (data != null ? explorationDisplayText : "??");
             }
+        }
+
+        /// <summary>
+        /// [HDY 요청 - 미발견 실루엣] 아이콘을 표시한다. MemIconRenderer가 modelPrefab을 촬영해서 만든 아이콘을
+        /// memId로 조회한다(없으면 감춤). isDiscovered가 false면(도감에서 최초 포획 정보가 없는 경우) 도감
+        /// 그리드(MemDexSlotUI)와 동일하게 색만 검정으로 덮어씌워 실루엣처럼 보이게 한다 - 스프라이트(모양)
+        /// 자체는 그대로 두고 Image.color만 바꾸는 방식이라 별도의 실루엣 전용 스프라이트가 필요 없다.
+        /// [HDY 요청 - 해상도 분리] 상세정보 패널이라 512px(GetIcon512)을 사용한다.
+        /// </summary>
+        private void ApplyIcon(MemData data, bool isDiscovered)
+        {
+            if (infoIconImage == null) return;
+
+            var sprite = (data != null && MemIconRenderer.Instance != null)
+                ? MemIconRenderer.Instance.GetIcon512(data.memId)
+                : null;
+
+            infoIconImage.sprite = sprite;
+            infoIconImage.gameObject.SetActive(sprite != null);
+            infoIconImage.color = isDiscovered ? Color.white : Color.black;
         }
     }
 }
