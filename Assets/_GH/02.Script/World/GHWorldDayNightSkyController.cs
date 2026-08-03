@@ -150,6 +150,11 @@ namespace GH.World
         [SerializeField] private bool controlDirectionalLight = true;
 
         [Tooltip(
+            "켜면 시간의 흐름에 따라 Directional Light의 방향도 회전합니다. " +
+            "끄면 스카이박스는 계속 회전하지만 Light 방향은 씬에 배치된 각도로 유지하며, 색상과 밝기 변화는 계속 적용합니다.")]
+        [SerializeField] private bool rotateDirectionalLightWithTime = true;
+
+        [Tooltip(
             "하루 시작 시 태양의 X 회전각입니다. 이후 하루 동안 360도 회전합니다. " +
             "기본 -10도는 하루 시작을 해가 지평선 근처에 있는 아침으로 맞춥니다.")]
         [SerializeField] private float sunPitchAtDayStart = -10f;
@@ -736,10 +741,13 @@ namespace GH.World
             mainDirectionalLight.intensity =
                 Mathf.Max(0f, maximumDirectionalLightIntensity) * intensityRatio;
             mainDirectionalLight.color = lightColor;
-            mainDirectionalLight.transform.rotation = Quaternion.Euler(
-                sunPitchAtDayStart + normalizedTime * 360f,
-                sunYaw,
-                0f);
+            if (rotateDirectionalLightWithTime)
+            {
+                mainDirectionalLight.transform.rotation = Quaternion.Euler(
+                    sunPitchAtDayStart + normalizedTime * 360f,
+                    sunYaw,
+                    0f);
+            }
 
             if (RenderSettings.sun != mainDirectionalLight)
             {
