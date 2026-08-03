@@ -341,6 +341,8 @@ public class CampFireRuntime : MonoBehaviour
             currentStorageCount = remaining;
         }
 
+        FacilityCollectManager.Instance?.NotifyFacilityChanged(this);
+
         if (currentStorageCount > 0) return false;
 
         if (remainingQuantity <= 0 && !isCooking)

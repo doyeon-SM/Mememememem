@@ -416,6 +416,8 @@ public class RanchFacilityRuntime : MonoBehaviour
             }
         }
         UpdateOverallProducingState();
+
+        FacilityCollectManager.Instance?.NotifyFacilityChanged(this);
     }
 
     private void UpdateOverallProducingState()

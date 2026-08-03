@@ -1,4 +1,4 @@
-using System;
+ï»¿using System;
 using System.IO;
 using UnityEngine;
 using KMS;
@@ -25,8 +25,8 @@ public class PlayerStatsRecordData : MonoBehaviour, IRecord
 
         if (targetPlayerStats != null)
         {
-            targetPlayerStats.HealthChanged += OnPlayerStatsChangedHandler;
-            targetPlayerStats.HungerChanged += OnPlayerStatsChangedHandler;
+            // ğŸŒŸ PlayerStatsê°€ íŒŒê´´ë  ë•Œ(ì”¬ ì´ë™ ì‹œ) ì„¸ì´ë¸Œ íŠ¸ë¦¬ê±° êµ¬ë…
+            targetPlayerStats.PlayerStatsDestroyed += OnPlayerStatsDestroyedHandler;
         }
     }
 
@@ -34,13 +34,38 @@ public class PlayerStatsRecordData : MonoBehaviour, IRecord
     {
         if (targetPlayerStats != null)
         {
-            targetPlayerStats.HealthChanged -= OnPlayerStatsChangedHandler;
-            targetPlayerStats.HungerChanged -= OnPlayerStatsChangedHandler;
+            targetPlayerStats.PlayerStatsDestroyed -= OnPlayerStatsDestroyedHandler;
             targetPlayerStats = null;
         }
     }
 
-    private void OnPlayerStatsChangedHandler(float current, float max)
+    // 1. ì”¬ ì´ë™ ì‹œ PlayerStats íŒŒê´´ ì§ì „ì— íŠ¸ë¦¬ê±°
+    private void OnPlayerStatsDestroyedHandler(PlayerStats stats)
+    {
+        if (RecordManager.IsLoadingData) return;
+
+        if (stats != null && RecordManager.Instance != null)
+        {
+            SaveDataWithStats(RecordManager.Instance.SaveFilePath, stats);
+        }
+    }
+
+    // 2. ê²Œì„ ì •ìƒ ì¢…ë£Œ ì‹œ íŠ¸ë¦¬ê±°
+    private void OnApplicationQuit()
+    {
+        TriggerSave();
+    }
+
+    // 3. ë°±ê·¸ë¼ìš´ë“œ ì „í™˜ ë° ê°•ì œ ì¢…ë£Œ ì¤€ë¹„ ì‹œ íŠ¸ë¦¬ê±°
+    private void OnApplicationPause(bool pause)
+    {
+        if (pause)
+        {
+            TriggerSave();
+        }
+    }
+
+    private void TriggerSave()
     {
         if (RecordManager.IsLoadingData) return;
 
@@ -58,23 +83,25 @@ public class PlayerStatsRecordData : MonoBehaviour, IRecord
     public void SaveData(string saveFilePath)
     {
         if (targetPlayerStats == null) BindPlayerStats();
+        SaveDataWithStats(saveFilePath, targetPlayerStats);
+    }
 
+    private void SaveDataWithStats(string saveFilePath, PlayerStats stats)
+    {
         SaveData currentData = RecordManager.Instance.ReadRawSaveFileOnly();
         if (currentData == null) currentData = new SaveData();
 
         if (currentData.playerInfo == null) currentData.playerInfo = new PlayerInfo();
 
-        if (targetPlayerStats != null)
+        if (stats != null)
         {
-            currentData.playerInfo.maxHealth = targetPlayerStats.MaxHealth;
-            currentData.playerInfo.maxHunger = targetPlayerStats.MaxHunger;
-            currentData.playerInfo.currentHealth = targetPlayerStats.CurrentHealth;
-            currentData.playerInfo.currentHunger = targetPlayerStats.CurrentHunger;
+            currentData.playerInfo.maxHealth = stats.MaxHealth;
+            currentData.playerInfo.maxHunger = stats.MaxHunger;
+            currentData.playerInfo.currentHealth = stats.CurrentHealth;
+            currentData.playerInfo.currentHunger = stats.CurrentHunger;
         }
 
-        currentData.lastSaveTime = DateTime.UtcNow.ToString("o");
         File.WriteAllText(saveFilePath, JsonUtility.ToJson(currentData, true));
-        Debug.Log("<color=lime>[PlayerStatsRecordData]</color> ÇÃ·¹ÀÌ¾î ½ºÅÈ µ¥ÀÌÅÍ ÀúÀå ¿Ï·á!");
     }
 
     public void ApplyData(SaveData saveData, SceneType sceneType)
@@ -85,7 +112,6 @@ public class PlayerStatsRecordData : MonoBehaviour, IRecord
 
         if (targetPlayerStats != null)
         {
-            // PlayerStats ±âÁ¸ RestoreSaveData »ç¿ë
             targetPlayerStats.RestoreSaveData(new PlayerStatsSaveData
             {
                 currentHealth = saveData.playerInfo.currentHealth,
@@ -93,6 +119,5 @@ public class PlayerStatsRecordData : MonoBehaviour, IRecord
             });
         }
 
-        Debug.Log("<color=cyan>[PlayerStatsRecordData]</color> ÇÃ·¹ÀÌ¾î ½ºÅÈ µ¥ÀÌÅÍ º¹±¸ ¿Ï·á!");
     }
 }

@@ -339,6 +339,7 @@ public class ProductionCraftRuntime : MonoBehaviour
             int remaining = inventory.AddItem(itemData, currentStorageCount);
             currentStorageCount = remaining;
         }
+        FacilityCollectManager.Instance?.NotifyFacilityChanged(this);
 
         if (currentStorageCount > 0) return false;
 
