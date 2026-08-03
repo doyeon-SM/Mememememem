@@ -52,7 +52,11 @@ public class WayPointTooltipView : MonoBehaviour, IPointerEnterHandler, IPointer
     }
 
     /// <summary>현재 웨이포인트 상태와 지도 열기 모드를 새 디자인에 반영합니다.</summary>
-    public void Refresh(WayPointRunTime state, WayPointMapOpenMode openMode, bool canTravel)
+    public void Refresh(
+        WayPointRunTime state,
+        WayPointMapOpenMode openMode,
+        bool canTravel,
+        bool isCurrentLocation)
     {
         if (state == null || state.Definition == null)
         {
@@ -68,9 +72,12 @@ public class WayPointTooltipView : MonoBehaviour, IPointerEnterHandler, IPointer
 
         if (waypointNameText != null)
         {
-            waypointNameText.text = string.IsNullOrWhiteSpace(state.DisplayName)
+            string displayName = string.IsNullOrWhiteSpace(state.DisplayName)
                 ? state.Id
                 : state.DisplayName;
+            waypointNameText.text = isCurrentLocation
+                ? $"현재 위치 · {displayName}"
+                : displayName;
             waypointNameText.color = isPreviewUnlocked
                 ? previewUnavailableNameColor
                 : defaultNameColor;

@@ -48,12 +48,16 @@ public class WayPointStone : MonoBehaviour, IInteractable
     [Header("Area Entry Notification")]
     [Tooltip("활성화하면 플레이어가 스톤 주변 범위에 진입할 때 웨이포인트 이름을 표시합니다.")]
     [SerializeField] private bool enableAreaNotification = true;
-    [Tooltip("범위 감지용 Box Trigger입니다. 비워 두면 같은 오브젝트에서 찾고, 실행 시 없으면 자동으로 추가합니다.")]
-    [SerializeField] private BoxCollider areaNotificationBoxTrigger;
-    [Tooltip("스톤의 로컬 좌표를 기준으로 한 감지 범위 중심입니다.")]
+    [Tooltip(
+        "실행 중 생성되는 AreaNotificationTrigger 오브젝트에 적용할 레이어 이름입니다. " +
+        "이 레이어는 플레이어 Interaction/Harvest 마스크에서 제외해야 합니다.")]
+    [SerializeField] private string areaNotificationLayerName = "Area";
+    [Tooltip("웨이포인트 스톤 위치를 기준으로 한 감지 범위 중심 오프셋입니다.")]
     [SerializeField] private Vector3 areaNotificationCenter;
-    [Tooltip("감지 박스의 로컬 전체 크기입니다. X/Y/Z를 각각 설정할 수 있으며 Transform Scale이 적용된 크기가 실제 월드 범위가 됩니다. 0 이하인 축은 기존 Radius의 지름을 사용합니다.")]
+    [Tooltip("감지 박스의 로컬 전체 크기입니다. 0 이하인 축은 기존 Radius의 지름을 사용합니다.")]
     [SerializeField] private Vector3 areaNotificationSize;
+    // 이전 씬/프리팹에 저장된 루트 Trigger 참조를 읽어 비활성화하기 위한 마이그레이션 필드입니다.
+    [SerializeField, HideInInspector] private BoxCollider areaNotificationBoxTrigger;
     // 기존 씬과 프리팹 오버라이드의 직렬화 경로를 보존하기 위해 이름을 유지한다.
     [SerializeField, HideInInspector] private SphereCollider areaNotificationTrigger;
     [SerializeField, HideInInspector] private float areaNotificationRadius = 30f;
@@ -85,6 +89,8 @@ public class WayPointStone : MonoBehaviour, IInteractable
     private int overlappingPlayerColliderCount;
     private int currentNotificationToken;
     private Coroutine hideNotificationCoroutine;
+    private GameObject runtimeAreaNotificationTriggerObject;
+    private BoxCollider runtimeAreaNotificationBoxTrigger;
 
     public WayPointDefinition Definition => definition;
     public string Id => definition != null ? definition.id : string.Empty;
@@ -132,6 +138,12 @@ public class WayPointStone : MonoBehaviour, IInteractable
 
     private void OnEnable()
     {
+        ConfigureAreaNotificationTrigger(true);
+        if (runtimeAreaNotificationTriggerObject != null)
+        {
+            runtimeAreaNotificationTriggerObject.SetActive(enableAreaNotification);
+        }
+
         if (WayPointManager.Instance != null)
         {
             WayPointManager.Instance.RegisterStone(this);
@@ -141,6 +153,7 @@ public class WayPointStone : MonoBehaviour, IInteractable
     private void OnDestroy()
     {
         ReleaseAreaNotification();
+        DestroyRuntimeAreaNotificationTrigger();
 
         if (WayPointManager.Instance != null)
         {
@@ -150,11 +163,26 @@ public class WayPointStone : MonoBehaviour, IInteractable
 
     private void OnDisable()
     {
+        if (runtimeAreaNotificationTriggerObject != null)
+        {
+            runtimeAreaNotificationTriggerObject.SetActive(false);
+        }
+
         overlappingPlayerColliderCount = 0;
         ReleaseAreaNotification();
     }
 
     private void OnTriggerEnter(Collider other)
+    {
+        NotifyAreaNotificationTriggerEnter(other);
+    }
+
+    private void OnTriggerExit(Collider other)
+    {
+        NotifyAreaNotificationTriggerExit(other);
+    }
+
+    internal void NotifyAreaNotificationTriggerEnter(Collider other)
     {
         if (!enableAreaNotification
             || other == null
@@ -173,7 +201,7 @@ public class WayPointStone : MonoBehaviour, IInteractable
         }
     }
 
-    private void OnTriggerExit(Collider other)
+    internal void NotifyAreaNotificationTriggerExit(Collider other)
     {
         if (other == null
             || !PlayerReferenceResolver.IsInPlayerHierarchy(
@@ -185,6 +213,11 @@ public class WayPointStone : MonoBehaviour, IInteractable
         }
 
         overlappingPlayerColliderCount = Mathf.Max(0, overlappingPlayerColliderCount - 1);
+    }
+
+    internal void NotifyAreaNotificationTriggerDisabled()
+    {
+        overlappingPlayerColliderCount = 0;
     }
 
     /// <summary>웨이포인트 정의가 연결된 스톤만 상호작용할 수 있습니다.</summary>
@@ -323,22 +356,21 @@ public class WayPointStone : MonoBehaviour, IInteractable
 
     private void ConfigureAreaNotificationTrigger(bool createIfMissing)
     {
-        if (areaNotificationBoxTrigger == null)
+        // 이전 버전이 WayPointStone 루트에 만든 Trigger는 상호작용 Raycast에 잡히므로 사용하지 않는다.
+        if (areaNotificationBoxTrigger != null
+            && areaNotificationBoxTrigger != runtimeAreaNotificationBoxTrigger)
         {
-            BoxCollider[] boxColliders = GetComponents<BoxCollider>();
-            foreach (BoxCollider boxCollider in boxColliders)
-            {
-                if (boxCollider.isTrigger)
-                {
-                    areaNotificationBoxTrigger = boxCollider;
-                    break;
-                }
-            }
+            areaNotificationBoxTrigger.enabled = false;
         }
 
-        if (areaNotificationBoxTrigger == null && createIfMissing)
+        BoxCollider[] legacyRootColliders = GetComponents<BoxCollider>();
+        for (int i = 0; i < legacyRootColliders.Length; i++)
         {
-            areaNotificationBoxTrigger = gameObject.AddComponent<BoxCollider>();
+            BoxCollider legacyCollider = legacyRootColliders[i];
+            if (legacyCollider != null && legacyCollider.isTrigger)
+            {
+                legacyCollider.enabled = false;
+            }
         }
 
         // 이전 버전에서 사용하던 Sphere Trigger가 함께 동작하면 진입 이벤트가
@@ -348,13 +380,85 @@ public class WayPointStone : MonoBehaviour, IInteractable
             areaNotificationTrigger.enabled = false;
         }
 
-        if (areaNotificationBoxTrigger != null)
+        if (!createIfMissing || !Application.isPlaying)
         {
-            areaNotificationBoxTrigger.isTrigger = true;
-            areaNotificationBoxTrigger.center = areaNotificationCenter;
-            areaNotificationBoxTrigger.size = GetAreaNotificationSize();
-            areaNotificationBoxTrigger.enabled = enableAreaNotification;
+            return;
         }
+
+        if (runtimeAreaNotificationTriggerObject == null)
+        {
+            CreateRuntimeAreaNotificationTrigger();
+        }
+
+        if (runtimeAreaNotificationBoxTrigger == null)
+        {
+            return;
+        }
+
+        runtimeAreaNotificationBoxTrigger.isTrigger = true;
+        runtimeAreaNotificationBoxTrigger.center = areaNotificationCenter;
+        runtimeAreaNotificationBoxTrigger.size = GetAreaNotificationSize();
+        runtimeAreaNotificationBoxTrigger.enabled = enableAreaNotification;
+        areaNotificationBoxTrigger = runtimeAreaNotificationBoxTrigger;
+    }
+
+    private void CreateRuntimeAreaNotificationTrigger()
+    {
+        Transform areaParent = transform.parent;
+        GameObject triggerObject = new GameObject("AreaNotificationTrigger");
+        triggerObject.SetActive(false);
+
+        if (areaParent != null)
+        {
+            triggerObject.transform.SetParent(areaParent, false);
+            // 계층은 청크 부모 아래에 두되 위치는 WayPointStone과 동일하게 맞춘다.
+            triggerObject.transform.localPosition = transform.localPosition;
+            triggerObject.transform.localRotation = Quaternion.identity;
+            triggerObject.transform.localScale = Vector3.one;
+        }
+        else
+        {
+            triggerObject.transform.position = transform.position;
+            triggerObject.transform.rotation = Quaternion.identity;
+        }
+
+        int areaLayer = LayerMask.NameToLayer(areaNotificationLayerName);
+        if (areaLayer >= 0)
+        {
+            triggerObject.layer = areaLayer;
+        }
+        else
+        {
+            Debug.LogWarning(
+                $"[WayPointStone] '{areaNotificationLayerName}' 레이어가 없어 " +
+                "AreaNotificationTrigger가 Default 레이어를 사용합니다.",
+                this);
+        }
+
+        runtimeAreaNotificationBoxTrigger = triggerObject.AddComponent<BoxCollider>();
+        runtimeAreaNotificationBoxTrigger.isTrigger = true;
+        runtimeAreaNotificationBoxTrigger.center = areaNotificationCenter;
+        runtimeAreaNotificationBoxTrigger.size = GetAreaNotificationSize();
+
+        WayPointAreaNotificationTrigger relay =
+            triggerObject.AddComponent<WayPointAreaNotificationTrigger>();
+        relay.Initialize(this);
+
+        runtimeAreaNotificationTriggerObject = triggerObject;
+        areaNotificationBoxTrigger = runtimeAreaNotificationBoxTrigger;
+        triggerObject.SetActive(enableAreaNotification && isActiveAndEnabled);
+    }
+
+    private void DestroyRuntimeAreaNotificationTrigger()
+    {
+        if (runtimeAreaNotificationTriggerObject != null)
+        {
+            Destroy(runtimeAreaNotificationTriggerObject);
+        }
+
+        runtimeAreaNotificationTriggerObject = null;
+        runtimeAreaNotificationBoxTrigger = null;
+        areaNotificationBoxTrigger = null;
     }
 
     // 0인 축은 기존 Radius의 지름을 사용해 씬/프리팹별 오버라이드 크기를 보존한다.
@@ -423,7 +527,6 @@ public class WayPointStone : MonoBehaviour, IInteractable
     private void OnValidate()
     {
         areaNotificationDuration = Mathf.Max(0.1f, areaNotificationDuration);
-        ConfigureAreaNotificationTrigger(false);
     }
 
     private void DrawAreaNotificationGizmo()
@@ -431,7 +534,10 @@ public class WayPointStone : MonoBehaviour, IInteractable
         Matrix4x4 previousMatrix = Gizmos.matrix;
         Color previousColor = Gizmos.color;
 
-        Gizmos.matrix = transform.localToWorldMatrix;
+        Transform areaParent = transform.parent;
+        Gizmos.matrix = areaParent != null
+            ? areaParent.localToWorldMatrix * Matrix4x4.Translate(transform.localPosition)
+            : transform.localToWorldMatrix;
         Gizmos.color = areaNotificationGizmoColor;
         Gizmos.DrawWireCube(areaNotificationCenter, GetAreaNotificationSize());
 
@@ -479,6 +585,45 @@ public class WayPointStone : MonoBehaviour, IInteractable
             position + Vector3.up * (height + 0.25f),
             $"Player Spawn: {waypointName}{offsetLabel}");
 #endif
+    }
+}
+
+/// <summary>
+/// WayPointStone과 분리된 런타임 Area Trigger의 진입/이탈 이벤트만 소유 스톤에 전달합니다.
+/// IInteractable을 구현하지 않으므로 지도 상호작용 대상으로 선택되지 않습니다.
+/// </summary>
+[DisallowMultipleComponent]
+internal sealed class WayPointAreaNotificationTrigger : MonoBehaviour
+{
+    private WayPointStone owner;
+
+    public void Initialize(WayPointStone newOwner)
+    {
+        owner = newOwner;
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        if (owner != null)
+        {
+            owner.NotifyAreaNotificationTriggerEnter(other);
+        }
+    }
+
+    private void OnTriggerExit(Collider other)
+    {
+        if (owner != null)
+        {
+            owner.NotifyAreaNotificationTriggerExit(other);
+        }
+    }
+
+    private void OnDisable()
+    {
+        if (owner != null)
+        {
+            owner.NotifyAreaNotificationTriggerDisabled();
+        }
     }
 }
 

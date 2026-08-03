@@ -4,8 +4,10 @@ using System.Collections.Generic;
 using GH.Loading;
 using KMS.InventoryDuped;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 using UnityEngine.Serialization;
+using UnityEngine.UI;
 
 /// <summary>
 /// 모든 웨이포인트의 런타임 해금 상태, 지도 개방 조건, 스톤 등록과 이동 요청을 관리합니다.
@@ -54,13 +56,26 @@ public class WayPointManager : MonoBehaviour
     [SerializeField] private string playerLayerName = "Player";
     [SerializeField] private bool dontDestroyOnLoad = true;
 
+    [Header("Same Scene Travel Presentation")]
+    [Min(0.01f)] [SerializeField] private float fadeOutDuration = 0.2f;
+    [Min(0.01f)] [SerializeField] private float fadeInDuration = 0.2f;
+    [SerializeField] private Color travelFadeColor = Color.black;
+    [SerializeField] private ParticleSystem arrivalParticlePrefab;
+    [Tooltip("도착 파티클 전용 머티리얼입니다. 비워 두면 URP 호환 머티리얼을 런타임에 생성합니다.")]
+    [SerializeField] private Material arrivalParticleMaterial;
+    [Min(1)] [SerializeField] private int fallbackArrivalParticleCount = 18;
+    [SerializeField] private Color fallbackArrivalParticleColor =
+        new Color(0.35f, 0.86f, 1f, 1f);
+
     [Header("Debug")]
     [SerializeField] private bool logWayPointState = true;
     [SerializeField] private bool logUnlockStackTrace = true;
 
     private readonly Dictionary<string, WayPointRunTime> statesById = new Dictionary<string, WayPointRunTime>();
     private readonly Dictionary<string, WayPointStone> stonesById = new Dictionary<string, WayPointStone>();
-    private readonly HashSet<WayPointMapDefinition> visitedMaps = new HashSet<WayPointMapDefinition>();
+    // ScriptableObject 참조 대신 Instance ID만 보관해 세션 방문 기록의 메모리 점유를 줄입니다.
+    // 저장된 웨이포인트 해금 상태를 복원할 때도 해당 지도 ID를 추가하므로 별도 저장 필드가 필요 없습니다.
+    private readonly HashSet<int> visitedMapIds = new HashSet<int>();
     private WayPointMapDefinition currentAreaMap;
     private WayPointRunTime pendingTravelState;
     private GameObject targetUI;
@@ -70,6 +85,12 @@ public class WayPointManager : MonoBehaviour
     private bool authorizingTerritoryLoad;
     private int lastShortcutToggleFrame = -1;
     private Coroutine cursorPolicyRefreshCoroutine;
+    private Coroutine sameSceneTravelRoutine;
+    private CanvasGroup travelFadeCanvasGroup;
+    private bool isTravelTransitionRunning;
+    private Material runtimeArrivalParticleMaterial;
+    private Texture2D runtimeArrivalParticleTexture;
+    private bool warnedMissingArrivalParticleShader;
 
     /// <summary>잠긴 웨이포인트가 처음 해금될 때 발생합니다.</summary>
     public event Action<WayPointRunTime> OnWayPointUnlocked;
@@ -94,6 +115,9 @@ public class WayPointManager : MonoBehaviour
 
     /// <summary>현재 활성 씬의 지도 UI가 매니저를 통해 열려 있는지 나타냅니다.</summary>
     public bool IsMapOpen => isMapOpen;
+
+    /// <summary>동일 씬 웨이포인트의 페이드 이동 연출이 진행 중인지 나타냅니다.</summary>
+    public bool IsTravelTransitionRunning => isTravelTransitionRunning;
 
     private void Awake()
     {
@@ -139,7 +163,15 @@ public class WayPointManager : MonoBehaviour
 
     private void OnDestroy()
     {
-        if (isMapOpen)
+        bool shouldReleaseInput = isMapOpen || isTravelTransitionRunning;
+        if (sameSceneTravelRoutine != null)
+        {
+            StopCoroutine(sameSceneTravelRoutine);
+            sameSceneTravelRoutine = null;
+        }
+
+        isTravelTransitionRunning = false;
+        if (shouldReleaseInput)
         {
             ApplyMapInputState(false, manageCursorForOpenMap);
         }
@@ -147,6 +179,18 @@ public class WayPointManager : MonoBehaviour
         if (LoadingManager.Instance != null)
         {
             LoadingManager.Instance.LoadingCompleted -= HandleCrossSceneTravelCompleted;
+        }
+
+        if (runtimeArrivalParticleMaterial != null)
+        {
+            Destroy(runtimeArrivalParticleMaterial);
+            runtimeArrivalParticleMaterial = null;
+        }
+
+        if (runtimeArrivalParticleTexture != null)
+        {
+            Destroy(runtimeArrivalParticleTexture);
+            runtimeArrivalParticleTexture = null;
         }
 
         if (Instance == this)
@@ -359,12 +403,13 @@ public class WayPointManager : MonoBehaviour
 
     private void ApplyMapInputState(bool open, bool manageCursor)
     {
+        bool gameplayBlocked = open || isTravelTransitionRunning;
         if (notifyInputManager && InputManager.Instance != null)
         {
-            InputManager.Instance.SetSystemMenuOpen(open);
+            InputManager.Instance.SetSystemMenuOpen(gameplayBlocked);
         }
 
-        SetKmsPlayerInputBlocked(open);
+        SetKmsPlayerInputBlocked(gameplayBlocked);
 
         // 영지처럼 상시 커서를 사용하는 이동 허용 씬에서는 커서 상태를 절대 변경하지 않는다.
         if (!unlockCursorWhileOpen || !manageCursor)
@@ -819,6 +864,13 @@ public class WayPointManager : MonoBehaviour
 
         state.IsActive = unlocked;
 
+        // 별도의 방문 지도 세이브 목록을 만들지 않고, 이미 저장되는 웨이포인트 해금 상태를
+        // 해당 하위 지도를 실제로 방문했다는 근거로 재사용합니다.
+        if (unlocked && state.Definition != null && state.Definition.mapDefinition != null)
+        {
+            visitedMapIds.Add(state.Definition.mapDefinition.GetInstanceID());
+        }
+
         if (state.Stone != null)
         {
             state.Stone.SetUnlockedState(unlocked);
@@ -855,6 +907,10 @@ public class WayPointManager : MonoBehaviour
         }
 
         state.IsActive = true;
+        if (state.Definition.mapDefinition != null)
+        {
+            visitedMapIds.Add(state.Definition.mapDefinition.GetInstanceID());
+        }
         LogState($"{logMessage}: id={id}", state.Definition, logUnlockStackTrace);
 
         if (state.Stone != null)
@@ -907,7 +963,7 @@ public class WayPointManager : MonoBehaviour
             return true;
         }
 
-        return stageDefinition.IsDefaultMap(mapDefinition) || visitedMaps.Contains(mapDefinition);
+        return stageDefinition.IsDefaultMap(mapDefinition) || HasVisitedMap(mapDefinition);
     }
 
     /// <summary>지정 지도를 방문 처리하고 같은 씬에 여러 지도가 있을 때 현재 지역 지도로 기록합니다.</summary>
@@ -918,7 +974,7 @@ public class WayPointManager : MonoBehaviour
             return false;
         }
 
-        bool newlyVisited = visitedMaps.Add(mapDefinition);
+        bool newlyVisited = visitedMapIds.Add(mapDefinition.GetInstanceID());
         bool currentAreaChanged = currentAreaMap != mapDefinition;
         currentAreaMap = mapDefinition;
 
@@ -930,10 +986,12 @@ public class WayPointManager : MonoBehaviour
         return newlyVisited;
     }
 
-    /// <summary>지정 지도가 현재 실행 중 한 번이라도 방문된 지도인지 확인합니다.</summary>
+    /// <summary>
+    /// 지정 지도가 현재 세션에서 방문됐거나 저장된 웨이포인트 해금 상태로 방문이 복원됐는지 확인합니다.
+    /// </summary>
     public bool HasVisitedMap(WayPointMapDefinition mapDefinition)
     {
-        return mapDefinition != null && visitedMaps.Contains(mapDefinition);
+        return mapDefinition != null && visitedMapIds.Contains(mapDefinition.GetInstanceID());
     }
 
     /// <summary>
@@ -1264,6 +1322,12 @@ public class WayPointManager : MonoBehaviour
     /// <returns>즉시 이동했거나 씬 로딩 요청이 정상 시작되었으면 참입니다.</returns>
     public bool TryTravel(string id, Transform targetPlayer)
     {
+        if (isTravelTransitionRunning)
+        {
+            NotifyTravelFailed(null, "웨이포인트 이동 연출이 이미 진행 중입니다.");
+            return false;
+        }
+
         if (!statesById.TryGetValue(id, out WayPointRunTime state))
         {
             NotifyTravelFailed(null, $"Unknown waypoint id: {id}");
@@ -1301,10 +1365,9 @@ public class WayPointManager : MonoBehaviour
             }
 
             OnWayPointTravelStarted?.Invoke(state);
-            MovePlayer(targetPlayer, state.Stone.SpawnPosition);
-            RegisterMapVisit(state.Definition.mapDefinition);
-            RefreshWorldChunks();
-            OnWayPointTravelCompleted?.Invoke(state);
+            isTravelTransitionRunning = true;
+            sameSceneTravelRoutine = StartCoroutine(
+                RunSameSceneTravel(state, targetPlayer, state.Stone.SpawnPosition));
             return true;
         }
 
@@ -1410,6 +1473,331 @@ public class WayPointManager : MonoBehaviour
         }
     }
 
+    private IEnumerator RunSameSceneTravel(
+        WayPointRunTime state,
+        Transform targetPlayer,
+        Vector3 destination)
+    {
+        ApplyMapInputState(isMapOpen, manageCursorForOpenMap);
+        CanvasGroup fadeGroup = EnsureTravelFadeCanvas();
+        if (fadeGroup != null)
+        {
+            fadeGroup.blocksRaycasts = true;
+            yield return FadeTravelOverlay(fadeGroup, 0f, 1f, fadeOutDuration);
+        }
+
+        MovePlayer(targetPlayer, destination);
+        RegisterMapVisit(state.Definition.mapDefinition);
+        RefreshWorldChunks();
+        SpawnArrivalParticles(destination);
+        yield return null;
+
+        if (fadeGroup != null)
+        {
+            yield return FadeTravelOverlay(fadeGroup, 1f, 0f, fadeInDuration);
+            fadeGroup.blocksRaycasts = false;
+        }
+
+        isTravelTransitionRunning = false;
+        sameSceneTravelRoutine = null;
+        ApplyMapInputState(isMapOpen, manageCursorForOpenMap);
+        OnWayPointTravelCompleted?.Invoke(state);
+    }
+
+    private static IEnumerator FadeTravelOverlay(
+        CanvasGroup fadeGroup,
+        float startAlpha,
+        float endAlpha,
+        float duration)
+    {
+        float safeDuration = Mathf.Max(0.01f, duration);
+        float elapsed = 0f;
+        fadeGroup.alpha = startAlpha;
+
+        while (elapsed < safeDuration)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            fadeGroup.alpha = Mathf.Lerp(
+                startAlpha,
+                endAlpha,
+                Mathf.Clamp01(elapsed / safeDuration));
+            yield return null;
+        }
+
+        fadeGroup.alpha = endAlpha;
+    }
+
+    private CanvasGroup EnsureTravelFadeCanvas()
+    {
+        if (travelFadeCanvasGroup != null)
+        {
+            return travelFadeCanvasGroup;
+        }
+
+        GameObject fadeObject = new GameObject(
+            "GH WayPoint Travel Fade",
+            typeof(RectTransform),
+            typeof(Canvas),
+            typeof(CanvasScaler),
+            typeof(GraphicRaycaster),
+            typeof(CanvasGroup),
+            typeof(Image));
+        fadeObject.transform.SetParent(transform, false);
+
+        Canvas canvas = fadeObject.GetComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.overrideSorting = true;
+        canvas.sortingOrder = short.MaxValue;
+
+        RectTransform rect = fadeObject.GetComponent<RectTransform>();
+        rect.anchorMin = Vector2.zero;
+        rect.anchorMax = Vector2.one;
+        rect.offsetMin = Vector2.zero;
+        rect.offsetMax = Vector2.zero;
+
+        Image image = fadeObject.GetComponent<Image>();
+        image.color = travelFadeColor;
+        image.raycastTarget = true;
+
+        travelFadeCanvasGroup = fadeObject.GetComponent<CanvasGroup>();
+        travelFadeCanvasGroup.alpha = 0f;
+        travelFadeCanvasGroup.interactable = false;
+        travelFadeCanvasGroup.blocksRaycasts = false;
+        return travelFadeCanvasGroup;
+    }
+
+    /// <summary>씬 로딩 후 웨이포인트 스톤에 지정된 위치로 플레이어를 정확히 배치합니다.</summary>
+    public bool TryPlacePlayerAtDestination(Transform targetPlayer, Vector3 destination)
+    {
+        if (targetPlayer == null)
+        {
+            return false;
+        }
+
+        MovePlayer(targetPlayer, destination);
+        SpawnArrivalParticles(destination);
+        return true;
+    }
+
+    private void SpawnArrivalParticles(Vector3 position)
+    {
+        ParticleSystem particles;
+        if (arrivalParticlePrefab != null)
+        {
+            particles = Instantiate(arrivalParticlePrefab, position, Quaternion.identity);
+            ParticleSystemRenderer prefabRenderer = particles.GetComponent<ParticleSystemRenderer>();
+            if (prefabRenderer != null && !IsUsableParticleMaterial(prefabRenderer.sharedMaterial))
+            {
+                Material fallbackMaterial = ResolveArrivalParticleMaterial();
+                if (fallbackMaterial == null)
+                {
+                    Destroy(particles.gameObject);
+                    return;
+                }
+
+                prefabRenderer.sharedMaterial = fallbackMaterial;
+            }
+        }
+        else
+        {
+            GameObject particleObject = new GameObject("GH WayPoint Arrival Particles");
+            particleObject.transform.position = position + Vector3.up * 0.15f;
+            particles = particleObject.AddComponent<ParticleSystem>();
+            ParticleSystemRenderer particleRenderer =
+                particleObject.GetComponent<ParticleSystemRenderer>();
+            Material particleMaterial = ResolveArrivalParticleMaterial();
+            if (particleRenderer == null || particleMaterial == null)
+            {
+                Destroy(particleObject);
+                return;
+            }
+
+            particleRenderer.sharedMaterial = particleMaterial;
+
+            ParticleSystem.MainModule main = particles.main;
+            main.duration = 0.45f;
+            main.loop = false;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(0.35f, 0.65f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(0.8f, 2.2f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.06f, 0.14f);
+            main.startColor = fallbackArrivalParticleColor;
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+            main.stopAction = ParticleSystemStopAction.Destroy;
+
+            ParticleSystem.EmissionModule emission = particles.emission;
+            emission.rateOverTime = 0f;
+            emission.SetBursts(new[]
+            {
+                new ParticleSystem.Burst(0f, (short)Mathf.Clamp(
+                    fallbackArrivalParticleCount,
+                    1,
+                    short.MaxValue))
+            });
+
+            ParticleSystem.ShapeModule shape = particles.shape;
+            shape.shapeType = ParticleSystemShapeType.Hemisphere;
+            shape.radius = 0.3f;
+        }
+
+        if (particles != null)
+        {
+            particles.Play(true);
+        }
+    }
+
+    private bool IsUsableParticleMaterial(Material material)
+    {
+        if (material == null || material.shader == null || !material.shader.isSupported)
+        {
+            return false;
+        }
+
+        if (GraphicsSettings.currentRenderPipeline == null)
+        {
+            return true;
+        }
+
+        string renderPipelineTag = material.GetTag(
+            "RenderPipeline",
+            false,
+            string.Empty);
+        return string.Equals(
+                   renderPipelineTag,
+                   "UniversalPipeline",
+                   StringComparison.Ordinal) ||
+               material.shader.name.StartsWith(
+                   "Universal Render Pipeline/",
+                   StringComparison.Ordinal);
+    }
+
+    private Material ResolveArrivalParticleMaterial()
+    {
+        if (IsUsableParticleMaterial(arrivalParticleMaterial))
+        {
+            return arrivalParticleMaterial;
+        }
+
+        if (IsUsableParticleMaterial(runtimeArrivalParticleMaterial))
+        {
+            return runtimeArrivalParticleMaterial;
+        }
+
+        Shader shader = Shader.Find("Universal Render Pipeline/Particles/Unlit");
+        if ((shader == null || !shader.isSupported) &&
+            GraphicsSettings.currentRenderPipeline == null)
+        {
+            shader = Shader.Find("Particles/Standard Unlit");
+        }
+
+        if (shader == null || !shader.isSupported)
+        {
+            if (!warnedMissingArrivalParticleShader)
+            {
+                warnedMissingArrivalParticleShader = true;
+                Debug.LogWarning(
+                    "[WayPointManager] 지원되는 파티클 셰이더를 찾지 못해 도착 파티클을 생략합니다.",
+                    this);
+            }
+
+            return null;
+        }
+
+        runtimeArrivalParticleTexture = CreateArrivalParticleTexture();
+        runtimeArrivalParticleMaterial = new Material(shader)
+        {
+            name = "GH Runtime WayPoint Arrival Particle Material",
+            hideFlags = HideFlags.HideAndDontSave,
+            renderQueue = (int)RenderQueue.Transparent
+        };
+
+        SetMaterialFloatIfPresent(runtimeArrivalParticleMaterial, "_Surface", 1f);
+        SetMaterialFloatIfPresent(runtimeArrivalParticleMaterial, "_Blend", 1f);
+        SetMaterialFloatIfPresent(
+            runtimeArrivalParticleMaterial,
+            "_SrcBlend",
+            (float)BlendMode.SrcAlpha);
+        SetMaterialFloatIfPresent(
+            runtimeArrivalParticleMaterial,
+            "_DstBlend",
+            (float)BlendMode.One);
+        SetMaterialFloatIfPresent(runtimeArrivalParticleMaterial, "_ZWrite", 0f);
+        runtimeArrivalParticleMaterial.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+
+        if (runtimeArrivalParticleMaterial.HasProperty("_BaseMap"))
+        {
+            runtimeArrivalParticleMaterial.SetTexture(
+                "_BaseMap",
+                runtimeArrivalParticleTexture);
+        }
+
+        if (runtimeArrivalParticleMaterial.HasProperty("_MainTex"))
+        {
+            runtimeArrivalParticleMaterial.SetTexture(
+                "_MainTex",
+                runtimeArrivalParticleTexture);
+        }
+
+        if (runtimeArrivalParticleMaterial.HasProperty("_BaseColor"))
+        {
+            runtimeArrivalParticleMaterial.SetColor("_BaseColor", Color.white);
+        }
+
+        if (runtimeArrivalParticleMaterial.HasProperty("_Color"))
+        {
+            runtimeArrivalParticleMaterial.SetColor("_Color", Color.white);
+        }
+
+        return runtimeArrivalParticleMaterial;
+    }
+
+    private static void SetMaterialFloatIfPresent(
+        Material material,
+        string propertyName,
+        float value)
+    {
+        if (material.HasProperty(propertyName))
+        {
+            material.SetFloat(propertyName, value);
+        }
+    }
+
+    private static Texture2D CreateArrivalParticleTexture()
+    {
+        const int textureSize = 32;
+        Texture2D texture = new Texture2D(
+            textureSize,
+            textureSize,
+            TextureFormat.RGBA32,
+            false,
+            true)
+        {
+            name = "GH Runtime WayPoint Arrival Particle Texture",
+            hideFlags = HideFlags.HideAndDontSave,
+            filterMode = FilterMode.Bilinear,
+            wrapMode = TextureWrapMode.Clamp
+        };
+
+        Color[] pixels = new Color[textureSize * textureSize];
+        float center = (textureSize - 1) * 0.5f;
+        for (int y = 0; y < textureSize; y++)
+        {
+            for (int x = 0; x < textureSize; x++)
+            {
+                float normalizedX = (x - center) / center;
+                float normalizedY = (y - center) / center;
+                float distance = Mathf.Sqrt(
+                    normalizedX * normalizedX + normalizedY * normalizedY);
+                float alpha = Mathf.Clamp01(1f - distance);
+                alpha *= alpha;
+                pixels[y * textureSize + x] = new Color(1f, 1f, 1f, alpha);
+            }
+        }
+
+        texture.SetPixels(pixels);
+        texture.Apply(false, true);
+        return texture;
+    }
+
     // CharacterController가 있으면 잠시 꺼서 순간이동 위치가 밀리지 않도록 한다.
     private void MovePlayer(Transform targetPlayer, Vector3 destination)
     {
@@ -1424,10 +1812,21 @@ public class WayPointManager : MonoBehaviour
             controller.enabled = false;
             targetPlayer.position = destination;
             controller.enabled = true;
-            return;
+        }
+        else
+        {
+            targetPlayer.position = destination;
         }
 
-        targetPlayer.position = destination;
+        Rigidbody body = PlayerReferenceResolver.FindComponentInPlayerHierarchy<Rigidbody>(
+            targetPlayer.gameObject,
+            playerTag,
+            playerLayerName);
+        if (body != null && !body.isKinematic)
+        {
+            body.linearVelocity = Vector3.zero;
+            body.angularVelocity = Vector3.zero;
+        }
     }
 
     // 순간이동 직후 플레이어 위치 기준으로 청크 활성 상태를 즉시 맞춘다.

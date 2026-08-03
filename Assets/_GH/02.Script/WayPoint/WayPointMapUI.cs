@@ -89,6 +89,8 @@ public class WayPointMapUI : MonoBehaviour
     [SerializeField] private string lockedMapStatusText = "이동 불가: 잠긴 맵";
     [TextArea]
     [SerializeField] private string canTravelStatusText = "이동 가능";
+    [TextArea]
+    [SerializeField] private string currentLocationStatusText = "현재 위치";
 
     private readonly Dictionary<string, WayPointMapIconUI> iconsById = new Dictionary<string, WayPointMapIconUI>();
     private readonly Dictionary<WayPointMapDefinition, Button> mapButtonsByDefinition = new Dictionary<WayPointMapDefinition, Button>();
@@ -232,6 +234,11 @@ public class WayPointMapUI : MonoBehaviour
     internal void SetOpenedFromWayPoint(WayPointDefinition sourceWayPoint)
     {
         openedFromWayPointId = sourceWayPoint != null ? sourceWayPoint.id : string.Empty;
+        RefreshAllIcons();
+        if (currentTooltipState != null)
+        {
+            RefreshTooltip(currentTooltipState);
+        }
         RefreshTerritoryTravelButton();
     }
 
@@ -273,8 +280,17 @@ public class WayPointMapUI : MonoBehaviour
     {
         return currentOpenMode == WayPointMapOpenMode.Travel
             && state != null
+            && !IsCurrentLocation(state)
             && WayPointManager.Instance != null
             && WayPointManager.Instance.CanTravel(state.Id);
+    }
+
+    /// <summary>지도를 연 웨이포인트와 지정 상태가 같으면 현재 위치로 취급합니다.</summary>
+    public bool IsCurrentLocation(WayPointRunTime state)
+    {
+        return state != null
+            && !string.IsNullOrWhiteSpace(openedFromWayPointId)
+            && string.Equals(openedFromWayPointId, state.Id, System.StringComparison.Ordinal);
     }
 
     // 지도 버튼을 눌렀을 때 해당 맵으로 지도 배경과 아이콘을 바꾼다.
@@ -309,7 +325,7 @@ public class WayPointMapUI : MonoBehaviour
 
         if (!string.IsNullOrWhiteSpace(openedFromWayPointId) && openedFromWayPointId == id)
         {
-            Debug.Log("[WayPointMapUI] The selected waypoint is the same stone that opened the map. Teleport can succeed but may look unchanged.");
+            return;
         }
 
         bool traveled = WayPointManager.Instance.TryTravel(id);
@@ -1239,7 +1255,11 @@ public class WayPointMapUI : MonoBehaviour
     {
         if (tooltipView != null)
         {
-            tooltipView.Refresh(state, currentOpenMode, CanTravelByClick(state));
+            tooltipView.Refresh(
+                state,
+                currentOpenMode,
+                CanTravelByClick(state),
+                IsCurrentLocation(state));
             return;
         }
 
@@ -1269,6 +1289,12 @@ public class WayPointMapUI : MonoBehaviour
         {
             statusColor = cannotTravelColor;
             return previewOnlyStatusText;
+        }
+
+        if (IsCurrentLocation(state))
+        {
+            statusColor = canTravelColor;
+            return currentLocationStatusText;
         }
 
         if (state == null || !state.IsActive)
