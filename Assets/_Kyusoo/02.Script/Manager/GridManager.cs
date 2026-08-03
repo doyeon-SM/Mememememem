@@ -1767,4 +1767,53 @@ public class GridManager : MonoBehaviour
         count++;
         ExpandGrid(count, count);
     }
+
+    [ContextMenu("Function: Add All Blueprints To Inventory")]
+    public void TestAddAllBlueprints()
+    {
+        PlayerInventory inventory = FindFirstObjectByType<PlayerInventory>();
+        if (inventory == null)
+        {
+            Debug.LogWarning("[GridManager] PlayerInventory 컴포넌트를 씬에서 찾을 수 없습니다.");
+            return;
+        }
+
+        string[] blueprintIds = new string[]
+        {
+            "blueprint_amber_quarry",
+            "blueprint_berry_farm",
+            "blueprint_birch_logging_farm",
+            "blueprint_campfire",
+            "blueprint_diamond_quarry",
+            "blueprint_iron_ore_quarry",
+            "blueprint_livestock_farm",
+            "blueprint_logging_farm",
+            "blueprint_production_stand",
+            "blueprint_wheat_farm",
+            "blueprint_generator",
+            "blueprint_kitchen",
+            "blueprint_transport_facility"
+        };
+
+        int successCount = 0;
+
+        foreach (string bpId in blueprintIds)
+        {
+            ItemData bpItem = FindItemDataInProject(bpId);
+            if (bpItem != null)
+            {
+                inventory.AddItem(bpItem, 1);
+                successCount++;
+            }
+            else
+            {
+                // ItemData를 찾지 못한 경우 string overload로 직접 지급 시도
+                int remaining = inventory.AddItem(bpId, 1);
+                if (remaining == 0) successCount++;
+                else Debug.LogWarning($"[GridManager] 설계도 '{bpId}' 지급 실패 (아이템 카탈로그 미등록 또는 인벤토리 가득 참)");
+            }
+        }
+
+        Debug.Log($"<color=lime>[GridManager]</color> 🛠️ 총 {successCount}/{blueprintIds.Length}개의 설계도를 PlayerInventory에 지급했습니다.");
+    }
 }
