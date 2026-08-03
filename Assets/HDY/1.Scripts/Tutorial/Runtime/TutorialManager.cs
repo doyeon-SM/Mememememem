@@ -49,10 +49,19 @@ namespace HDY.Tutorial
     /// [저장 - 현재 배치] 팀원의 저장 연결 전까지는 진행 상태를 이 컴포넌트의 SerializeField에만
     /// 들고 있는다(Inspector로 Play 모드 중 실시간 확인 가능). CaptureSnapshot()/ApplySnapshot()만
     /// 미리 만들어두었고 지금은 아무도 호출하지 않으므로, 항상 "최초 시작" 상태로 테스트된다.
+    ///
+    /// [튜토리얼 패널 프리팹 자동 로드 - HDY 요청] 튜토리얼 대화창/하이라이트 패널(P_TutorialRoot)이
+    /// 프리팹으로 바뀌면서, 각 씬에 수동으로 배치해두지 않아도 이 매니저가 씬 로드 시점마다 자동으로
+    /// Instantiate한다(EnsureTutorialPanelSpawned 참고). 프리팹 내부의 TutorialDialogueUI/
+    /// TutorialHighlightUI는 이미 자기 자신의 OnEnable에서 이 매니저에 스스로 등록하는 패턴이라,
+    /// 이 매니저는 "심는 것"만 담당하면 되고 별도의 UI 연결 코드는 필요 없다.
     /// </summary>
     public class TutorialManager : MonoBehaviour
     {
         private const string TerritoryLevelObjectiveKey = "territory_level";
+
+        /// <summary>할당된 목표가 없을 때(스텝 시작 전/모든 스텝 완료 후 등) HUD 텍스트에 대신 표시할 대기 문구.</summary>
+        private const string NoObjectiveText = "편지 기다리기";
 
         public static TutorialManager Instance { get; private set; }
 
@@ -79,6 +88,10 @@ namespace HDY.Tutorial
 
         [Header("영지 레벨 참조 (비어있으면 자동 탐색)")]
         [SerializeField] private TerritoryData territoryData;
+
+        [Header("튜토리얼 패널 프리팹 (씬이 로드될 때마다 자동으로 Instantiate됨)")]
+        [Tooltip("P_TutorialRoot 프리팹. 비어있으면 자동 스폰을 건너뛴다(기존처럼 씬에 수동 배치해도 됨).")]
+        [SerializeField] private GameObject tutorialPanelPrefab;
 
         [Header("디버그 - 진행 상태 (Play 모드 중 Inspector에서 실시간 확인용)")]
         [SerializeField] private int currentStepIndex = -1;
@@ -115,6 +128,9 @@ namespace HDY.Tutorial
 
         private int currentDialogueLineIndex;
 
+        /// <summary>이번 씬에 자동으로 심어둔 튜토리얼 패널 인스턴스(중복 스폰 방지용 추적).</summary>
+        private GameObject spawnedTutorialPanel;
+
         private void Awake()
         {
             if (Instance != null && Instance != this)
@@ -144,6 +160,7 @@ namespace HDY.Tutorial
         private void Start()
         {
             EnsureReferences();
+            EnsureTutorialPanelSpawned(); // 최초 진입 씬은 sceneLoaded 이벤트를 놓칠 수 있어 한 번 더 보장
             TryActivateNextPendingStep();
         }
 
@@ -180,7 +197,50 @@ namespace HDY.Tutorial
 
         private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
         {
+            spawnedTutorialPanel = null; // 이전 씬 인스턴스는 씬 전환과 함께 이미 파괴됨 - 참조만 정리
+            EnsureTutorialPanelSpawned();
             NotifyTriggerFired(TutorialTriggerType.SceneEnter, scene.name);
+        }
+
+        /// <summary>
+        /// [HDY 요청 - 튜토리얼 패널 프리팹 자동 로드] tutorialPanelPrefab을 UIManager.UIRoot 밑에
+        /// Instantiate한다. 이미 이번 씬에 심어져 있으면(spawnedTutorialPanel != null) 아무 것도 하지
+        /// 않는다 - Start()와 HandleSceneLoaded 양쪽에서 호출돼도 중복 생성되지 않도록 하기 위함이다.
+        /// 프리팹 내부의 TutorialDialogueUI/TutorialHighlightUI는 자기 자신의 OnEnable에서 이 매니저에
+        /// 자동으로 등록되므로, 여기서는 심는 것 외에 별도 연결 작업이 필요 없다.
+        /// [배치 순서 - 항상 맨 위에 그려지도록] Canvas 자식 목록의 맨 마지막(SetAsLastSibling)으로
+        /// 옮겨서, 같은 Canvas 아래의 다른 UI보다 항상 위에 그려지도록 한다.
+        /// </summary>
+        private void EnsureTutorialPanelSpawned()
+        {
+            if (tutorialPanelPrefab == null) return;
+            if (spawnedTutorialPanel != null) return;
+
+            Transform parent = ResolveTutorialPanelParent();
+            if (parent == null)
+            {
+                Debug.LogWarning("[TutorialManager] 튜토리얼 패널을 배치할 UI 루트(UIManager.UIRoot)를 찾지 못했습니다.", this);
+                return;
+            }
+
+            spawnedTutorialPanel = Instantiate(tutorialPanelPrefab, parent);
+            var t = spawnedTutorialPanel.transform;
+            t.localPosition = Vector3.zero;
+            t.localRotation = Quaternion.identity;
+            t.localScale = Vector3.one;
+            t.SetAsLastSibling(); // Canvas 맨 아래(자식 목록 마지막) = 화면 맨 위에 그려짐
+        }
+
+        /// <summary>UIManager.UIRoot를 우선 사용하고, 그 씬에 UIManager가 없으면 씬에서 Canvas를 하나 찾아 대신 쓴다.</summary>
+        private Transform ResolveTutorialPanelParent()
+        {
+            if (HDY.UI.UIManager.Instance != null && HDY.UI.UIManager.Instance.UIRoot != null)
+            {
+                return HDY.UI.UIManager.Instance.UIRoot;
+            }
+
+            var canvas = FindFirstObjectByType<Canvas>();
+            return canvas != null ? canvas.transform : null;
         }
 
         // =====================================================================
@@ -577,7 +637,8 @@ namespace HDY.Tutorial
             var current = GetCurrentStep();
             if (current == null || currentStepAwaitingTrigger || current.objectives == null || current.objectives.Count == 0)
             {
-                return string.Empty;
+                // 할당된 목표가 없을 때(스텝 시작 전/완료 후 등) HUD가 빈 텍스트 대신 대기 문구를 보여준다.
+                return NoObjectiveText;
             }
 
             var parts = new List<string>();

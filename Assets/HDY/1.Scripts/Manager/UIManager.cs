@@ -168,6 +168,9 @@ namespace HDY.UI
         /// <summary>리얼타임(KST)/인게임 시간 데이터. 시간 표시 Text 연결은 이 프로퍼티로 GameTimeManager에 접근해서 진행하면 된다.</summary>
         public GameTimeManager GameTime => gameTimeManager;
 
+        /// <summary>UI 프리팹이 배치될 부모(P_UIRoot). TutorialManager가 튜토리얼 패널 프리팹을 심을 때 사용.</summary>
+        public Transform UIRoot => uiRoot;
+
         /// <summary>
         /// HUD 버튼으로 패널이 열릴 때마다 발행(패널 식별 키 전달). 튜토리얼 시스템의
         /// TutorialUIPanelWatcher가 구독해서 "특정 UI를 처음 열었을 때" 트리거로 중계한다.

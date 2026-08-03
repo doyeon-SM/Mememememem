@@ -785,6 +785,7 @@ GameObject:
   - component: {fileID: 8648756766725742774}
   - component: {fileID: 4177257066370206053}
   - component: {fileID: 3766659863547068190}
+  - component: {fileID: 2181402483046664271}
   m_Layer: 5
   m_Name: B_Forge
   m_TagString: Untagged
@@ -894,6 +895,20 @@ MonoBehaviour:
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
   m_PixelsPerUnitMultiplier: 1
+--- !u!114 &2181402483046664271
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2342985956897581857}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 73471d878d57bc440ab621d68f71bf33, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HDY.Tutorial.TutorialUIHighlightTarget
+  tutorialManager: {fileID: 0}
+  targetKey: forge_button
 --- !u!1 &2397346963022269540
 GameObject:
   m_ObjectHideFlags: 0
@@ -1115,6 +1130,7 @@ GameObject:
   - component: {fileID: 6758800313145299200}
   - component: {fileID: 457224933689929602}
   - component: {fileID: 3814947752250774519}
+  - component: {fileID: 5420148471573205230}
   m_Layer: 5
   m_Name: P_TerritoryButton
   m_TagString: Untagged
@@ -1210,6 +1226,20 @@ MonoBehaviour:
   m_ChildScaleWidth: 0
   m_ChildScaleHeight: 0
   m_ReverseArrangement: 0
+--- !u!114 &5420148471573205230
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2560462323755035099}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 73471d878d57bc440ab621d68f71bf33, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HDY.Tutorial.TutorialUIHighlightTarget
+  tutorialManager: {fileID: 0}
+  targetKey: territory_hud
 --- !u!1 &2856561040879082704
 GameObject:
   m_ObjectHideFlags: 0
@@ -1222,6 +1252,7 @@ GameObject:
   - component: {fileID: 7815384199963091975}
   - component: {fileID: 6964306986725910541}
   - component: {fileID: 1167198803749340989}
+  - component: {fileID: 599173585184440434}
   m_Layer: 5
   m_Name: B_Map
   m_TagString: Untagged
@@ -1343,6 +1374,20 @@ MonoBehaviour:
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
   m_PixelsPerUnitMultiplier: 1
+--- !u!114 &599173585184440434
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2856561040879082704}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 73471d878d57bc440ab621d68f71bf33, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HDY.Tutorial.TutorialUIHighlightTarget
+  tutorialManager: {fileID: 0}
+  targetKey: map_button
 --- !u!1 &2962053050940245111
 GameObject:
   m_ObjectHideFlags: 0
@@ -1374,6 +1419,7 @@ RectTransform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 7593167898308533514}
+  - {fileID: 6478742097692730970}
   m_Father: {fileID: 465755928046886828}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
@@ -1728,8 +1774,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: -20, y: 0}
+  m_AnchoredPosition: {x: 30, y: 0}
+  m_SizeDelta: {x: -80, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &9149991994275885632
 CanvasRenderer:
@@ -1993,6 +2039,7 @@ GameObject:
   - component: {fileID: 1163675798572929021}
   - component: {fileID: 3824099105040178785}
   - component: {fileID: 2625426909958494154}
+  - component: {fileID: 8775322021579607333}
   m_Layer: 5
   m_Name: B_MemExplore
   m_TagString: Untagged
@@ -2102,6 +2149,20 @@ MonoBehaviour:
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
   m_PixelsPerUnitMultiplier: 1
+--- !u!114 &8775322021579607333
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4072592678652561416}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 73471d878d57bc440ab621d68f71bf33, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HDY.Tutorial.TutorialUIHighlightTarget
+  tutorialManager: {fileID: 0}
+  targetKey: exploration_button
 --- !u!1 &4302759024844324634
 GameObject:
   m_ObjectHideFlags: 0
@@ -2447,6 +2508,7 @@ GameObject:
   - component: {fileID: 7270055295874896133}
   - component: {fileID: 4126490637774552557}
   - component: {fileID: 9134210837726724280}
+  - component: {fileID: 3316748027461362247}
   m_Layer: 5
   m_Name: B_MemStorageOpen
   m_TagString: Untagged
@@ -2556,6 +2618,20 @@ MonoBehaviour:
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
   m_PixelsPerUnitMultiplier: 1
+--- !u!114 &3316748027461362247
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5372563775691717599}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 73471d878d57bc440ab621d68f71bf33, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HDY.Tutorial.TutorialUIHighlightTarget
+  tutorialManager: {fileID: 0}
+  targetKey: mem_storage_button
 --- !u!1 &5443307721348952489
 GameObject:
   m_ObjectHideFlags: 0
@@ -2689,6 +2765,7 @@ GameObject:
   - component: {fileID: 1303048634536081112}
   - component: {fileID: 2471662732574120386}
   - component: {fileID: 6004974617152240221}
+  - component: {fileID: 6223407454431424312}
   m_Layer: 5
   m_Name: P_TerritoryObjectButton
   m_TagString: Untagged
@@ -2754,6 +2831,20 @@ MonoBehaviour:
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
   m_PixelsPerUnitMultiplier: 1
+--- !u!114 &6223407454431424312
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5486671530894615360}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 73471d878d57bc440ab621d68f71bf33, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HDY.Tutorial.TutorialUIHighlightTarget
+  tutorialManager: {fileID: 0}
+  targetKey: build_menu_button
 --- !u!1 &5618946111009306578
 GameObject:
   m_ObjectHideFlags: 0
@@ -3559,6 +3650,81 @@ MonoBehaviour:
   m_hasFontAssetChanged: 0
   m_baseMaterial: {fileID: 0}
   m_maskOffset: {x: 0, y: 0, z: 0, w: 0}
+--- !u!1 &6846267708295539031
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 6478742097692730970}
+  - component: {fileID: 7328179684293199144}
+  - component: {fileID: 2671527216178050007}
+  m_Layer: 5
+  m_Name: Image
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &6478742097692730970
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6846267708295539031}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 7825404532469953374}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0, y: 0.5}
+  m_AnchorMax: {x: 0, y: 0.5}
+  m_AnchoredPosition: {x: 10, y: 0}
+  m_SizeDelta: {x: 40, y: 40}
+  m_Pivot: {x: 0, y: 0.5}
+--- !u!222 &7328179684293199144
+CanvasRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6846267708295539031}
+  m_CullTransparentMesh: 1
+--- !u!114 &2671527216178050007
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6846267708295539031}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
+  m_Material: {fileID: 0}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_RaycastTarget: 1
+  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
+  m_Maskable: 1
+  m_OnCullStateChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  m_Sprite: {fileID: 1099059207, guid: 161ab52a11c4f4543addf825e2e574f6, type: 3}
+  m_Type: 0
+  m_PreserveAspect: 0
+  m_FillCenter: 1
+  m_FillMethod: 4
+  m_FillAmount: 1
+  m_FillClockwise: 1
+  m_FillOrigin: 0
+  m_UseSpriteMesh: 0
+  m_PixelsPerUnitMultiplier: 1
 --- !u!1 &6951306632807396780
 GameObject:
   m_ObjectHideFlags: 0
@@ -3844,6 +4010,7 @@ GameObject:
   - component: {fileID: 4137126559001189903}
   - component: {fileID: 5175366437434193531}
   - component: {fileID: 3208901724705215845}
+  - component: {fileID: 396560107119425137}
   m_Layer: 5
   m_Name: B_GoddessOpen
   m_TagString: Untagged
@@ -3953,6 +4120,20 @@ MonoBehaviour:
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
   m_PixelsPerUnitMultiplier: 1
+--- !u!114 &396560107119425137
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7269763910102182340}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 73471d878d57bc440ab621d68f71bf33, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HDY.Tutorial.TutorialUIHighlightTarget
+  tutorialManager: {fileID: 0}
+  targetKey: goddess_statue_button
 --- !u!1 &7548282475821929537
 GameObject:
   m_ObjectHideFlags: 0
