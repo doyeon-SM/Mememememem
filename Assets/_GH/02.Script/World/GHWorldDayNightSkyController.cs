@@ -1,5 +1,6 @@
 using HDY.Territory;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.Serialization;
 
 #if UNITY_EDITOR
@@ -86,9 +87,9 @@ namespace GH.World
         [SerializeField] private float sunriseTransitionCenter = 0.06f;
 
         [Tooltip(
-            "일출 스카이박스 블렌딩에 사용할 하루 비율입니다. 기본 0.0125는 20분짜리 하루에서 약 15초 동안 전환됩니다.")]
+            "일출 스카이박스 블렌딩에 사용할 하루 비율입니다. 기본 0.045는 20분짜리 하루에서 약 54초 동안 전환됩니다.")]
         [Range(0.005f, 0.15f)]
-        [SerializeField] private float sunriseTransitionDuration = 0.0125f;
+        [SerializeField] private float sunriseTransitionDuration = 0.045f;
 
         [Tooltip(
             "하루 진행도에서 낮이 밤으로 바뀌는 중심 시점입니다. 일몰 시점을 앞뒤로 옮길 때 사용합니다.")]
@@ -96,9 +97,14 @@ namespace GH.World
         [SerializeField] private float sunsetTransitionCenter = 0.5f;
 
         [Tooltip(
-            "일몰 스카이박스 블렌딩에 사용할 하루 비율입니다. 기본 0.0125는 20분짜리 하루에서 약 15초 동안 전환됩니다.")]
+            "일몰 스카이박스 블렌딩에 사용할 하루 비율입니다. 기본 0.045는 20분짜리 하루에서 약 54초 동안 전환됩니다.")]
         [Range(0.005f, 0.15f)]
-        [SerializeField] private float sunsetTransitionDuration = 0.0125f;
+        [SerializeField] private float sunsetTransitionDuration = 0.045f;
+
+        [Tooltip(
+            "시간이 건너뛰거나 디버그 슬라이더가 크게 움직여도 스카이박스 혼합값이 한 프레임에 바뀌지 않도록 하는 실제 시간입니다.")]
+        [Min(0.05f)]
+        [SerializeField] private float skyboxBlendResponseSeconds = 1.25f;
 
         [Tooltip(
             "낮 스카이박스가 완전히 보일 때 적용할 노출값입니다. 값을 높이면 하늘 전체가 밝아지고, " +
@@ -171,6 +177,60 @@ namespace GH.World
         [SerializeField] private Gradient directionalLightColorOverDay =
             CreateDefaultDirectionalLightGradient();
 
+        [Header("연속형 월드 조명")]
+        [Tooltip(
+            "켜면 낮·전환·밤의 단계값을 사용하지 않고 낮 값과 밤 값을 하루 흐름에 따라 직접 연속 보간합니다. " +
+            "밝기와 색상이 특정 시점에 다음 단계로 튀는 현상을 방지하므로 기본적으로 켜 두는 것을 권장합니다.")]
+        [SerializeField] private bool useContinuousLightingFlow = true;
+
+        [Tooltip("완전한 낮에서 사용할 Directional Light 밝기 비율입니다.")]
+        [Range(0f, 1f)]
+        [SerializeField] private float continuousDayLightRatio = 1f;
+
+        [Tooltip(
+            "완전한 밤에서 유지할 Directional Light 밝기 비율입니다. " +
+            "밤에도 캐릭터와 지형 윤곽을 유지하기 위해 0보다 큰 값을 사용합니다.")]
+        [Range(0f, 1f)]
+        [SerializeField] private float continuousNightLightRatio = 0.8f;
+
+        [Tooltip("낮에 사용할 중성 계열 조명 색상입니다.")]
+        [SerializeField] private Color continuousDayLightColor =
+            new Color(1f, 0.956f, 0.84f, 1f);
+
+        [Tooltip(
+            "밤에 사용할 조명 색상입니다. 낮 색상과 큰 차이가 없는 따뜻한 중성색을 사용해 화면 전체가 파랗게 변하지 않도록 합니다.")]
+        [SerializeField] private Color continuousNightLightColor =
+            new Color(1f, 0.956f, 0.84f, 1f);
+
+        [Tooltip(
+            "시간 점프나 디버그 값 변경 시 맵 조명값이 목표값까지 따라가는 실제 시간입니다. " +
+            "일반적인 시간 흐름에서는 아래의 일출·일몰 조명 시간과 함께 자연스럽게 동작합니다.")]
+        [Min(0.05f)]
+        [SerializeField] private float lightingResponseSeconds = 2.5f;
+
+        [Tooltip(
+            "켜면 밤 스카이박스의 파란색이 지형과 캐릭터의 환경광으로 전달되지 않도록 Ambient Source를 중성 Trilight로 고정합니다. " +
+            "하늘 자체의 낮·밤 변화는 그대로 유지됩니다.")]
+        [SerializeField] private bool isolateWorldLightingFromSkyboxColor = true;
+
+        [Tooltip("월드 표면의 위쪽에 적용할 중성 환경광 색상입니다.")]
+        [SerializeField] private Color neutralAmbientSkyColor =
+            new Color(0.24f, 0.23f, 0.21f, 1f);
+
+        [Tooltip("월드 표면의 수평 방향에 적용할 중성 환경광 색상입니다.")]
+        [SerializeField] private Color neutralAmbientEquatorColor =
+            new Color(0.15f, 0.145f, 0.135f, 1f);
+
+        [Tooltip("월드 표면의 아래쪽에 적용할 중성 환경광 색상입니다.")]
+        [SerializeField] private Color neutralAmbientGroundColor =
+            new Color(0.07f, 0.065f, 0.06f, 1f);
+
+        [Tooltip(
+            "밤에만 중성 환경광 색상의 밝기를 추가로 증폭하는 값입니다. " +
+            "Directional Light가 지평선 아래로 내려가도 지형·캐릭터가 잘 보이도록 하며 낮 밝기에는 영향을 주지 않습니다.")]
+        [Range(1f, 3f)]
+        [SerializeField] private float nightAmbientColorMultiplier = 1.35f;
+
         [Header("환경광과 반사")]
         [Tooltip(
             "활성화하면 RenderSettings.ambientIntensity와 reflectionIntensity도 낮·밤에 맞춰 조절합니다. " +
@@ -183,7 +243,7 @@ namespace GH.World
 
         [Tooltip("밤의 환경광 강도입니다. 너무 낮으면 그림자 영역이 완전히 검게 뭉칠 수 있습니다.")]
         [Min(0f)]
-        [SerializeField] private float nightAmbientIntensity = 1.5f;
+        [SerializeField] private float nightAmbientIntensity = 1.85f;
 
         [Tooltip("낮의 스카이박스 반사 강도입니다. 금속 및 반사 재질이 낮 하늘을 얼마나 강하게 반영할지 결정합니다.")]
         [Min(0f)]
@@ -209,22 +269,41 @@ namespace GH.World
             "스카이박스 전환 중 유지할 Directional Light의 최소 밝기 비율입니다. " +
             "해질녘 하늘이 바뀌는 동안 낮 조명이 먼저 너무 어두워지는 현상을 방지합니다.")]
         [Range(0f, 1f)]
-        [SerializeField] private float minimumTransitionDirectionalLightRatio = 0.55f;
+        [SerializeField] private float minimumTransitionDirectionalLightRatio = 0.12f;
 
         [Tooltip(
-            "활성화하면 바뀐 스카이박스를 환경 반사에 주기적으로 다시 반영합니다. 호출 비용이 있으므로 매 프레임 실행하지 않습니다.")]
-        [SerializeField] private bool refreshEnvironmentReflections = true;
+            "일출 시 맵 조명·환경광이 밤에서 낮으로 변하는 하루 비율입니다. " +
+            "스카이박스 전환보다 길게 설정하면 하늘은 비교적 빠르게 바뀌면서 맵 밝기는 천천히 이어집니다.")]
+        [Range(0.02f, 0.4f)]
+        [SerializeField] private float sunriseLightingTransitionDuration = 0.12f;
+
+        [Tooltip(
+            "일몰 시 맵 조명·환경광이 낮에서 밤으로 변하는 하루 비율입니다. " +
+            "Directional Light와 환경광의 급격한 변화를 방지하려면 스카이박스 전환 시간보다 크게 설정하세요.")]
+        [Range(0.02f, 0.4f)]
+        [SerializeField] private float sunsetLightingTransitionDuration = 0.12f;
+
+        [Tooltip(
+            "활성화하면 바뀐 스카이박스를 환경 반사에 주기적으로 다시 반영합니다. " +
+            "밤 Cubemap의 푸른색이 월드 재질에 번질 수 있으므로 중성 월드 조명을 원하면 꺼 두세요.")]
+        [SerializeField] private bool refreshEnvironmentReflections;
 
         [Tooltip(
             "활성화하면 두 스카이박스가 섞이는 중간 프레임에서는 DynamicGI 환경 프로브를 갱신하지 않습니다. " +
             "중간 하늘색이 지형 전체에 번지는 밝기 튐을 막고, 전환 완료 시 즉시 다시 갱신합니다.")]
-        [SerializeField] private bool deferEnvironmentRefreshDuringTransition = true;
+        [SerializeField] private bool deferEnvironmentRefreshDuringTransition;
 
         [Tooltip(
             "DynamicGI.UpdateEnvironment를 다시 호출하는 실제 시간 간격(초)입니다. " +
             "값이 작을수록 반사가 자주 갱신되지만 성능 비용이 증가합니다.")]
         [Min(0.5f)]
         [SerializeField] private float environmentRefreshInterval = 8f;
+
+        [Tooltip(
+            "스카이박스가 전환 중일 때 Dynamic GI를 갱신하는 간격입니다. " +
+            "짧을수록 지형에 반영되는 하늘색이 부드럽지만 갱신 비용이 증가합니다.")]
+        [Min(0.5f)]
+        [SerializeField] private float transitionEnvironmentRefreshInterval = 0.5f;
 
         [Header("상태 확인")]
         [Tooltip(
@@ -235,6 +314,10 @@ namespace GH.World
             "현재 적용 중인 밤 스카이박스 혼합 비율입니다. 0이면 낮, 1이면 밤, 중간값이면 두 스카이박스가 블렌딩 중입니다.")]
         [SerializeField, Range(0f, 1f)] private float currentNightBlend;
 
+        [Tooltip(
+            "현재 맵 조명과 환경광에 적용 중인 밤 비율입니다. 스카이박스보다 긴 시간에 걸쳐 변화하도록 별도로 계산됩니다.")]
+        [SerializeField, Range(0f, 1f)] private float currentLightingNightBlend;
+
         private Material runtimeSkybox;
         private Material originalSkybox;
         private Light originalSun;
@@ -243,10 +326,15 @@ namespace GH.World
         private float originalLightIntensity;
         private float originalAmbientIntensity;
         private float originalReflectionIntensity;
+        private AmbientMode originalAmbientMode;
+        private Color originalAmbientSkyColor;
+        private Color originalAmbientEquatorColor;
+        private Color originalAmbientGroundColor;
         private float nextEnvironmentRefreshTime;
         private float nextReferenceRetryTime;
         private int lastStableEnvironment = -1;
         private bool originalStateCaptured;
+        private bool blendStateInitialized;
         private bool warnedMissingTimeManager;
         private bool warnedInvalidSkybox;
 
@@ -392,6 +480,10 @@ namespace GH.World
             originalSun = RenderSettings.sun;
             originalAmbientIntensity = RenderSettings.ambientIntensity;
             originalReflectionIntensity = RenderSettings.reflectionIntensity;
+            originalAmbientMode = RenderSettings.ambientMode;
+            originalAmbientSkyColor = RenderSettings.ambientSkyColor;
+            originalAmbientEquatorColor = RenderSettings.ambientEquatorColor;
+            originalAmbientGroundColor = RenderSettings.ambientGroundColor;
 
             if (mainDirectionalLight != null)
             {
@@ -472,7 +564,27 @@ namespace GH.World
             }
 
             currentNormalizedTime = normalizedTime;
-            currentNightBlend = EvaluateNightBlend(normalizedTime);
+            float targetNightBlend = EvaluateNightBlend(normalizedTime);
+            float targetLightingNightBlend = EvaluateLightingNightBlend(normalizedTime);
+
+            if (forceReflectionRefresh || !blendStateInitialized)
+            {
+                currentNightBlend = targetNightBlend;
+                currentLightingNightBlend = targetLightingNightBlend;
+                blendStateInitialized = true;
+            }
+            else
+            {
+                float unscaledDeltaTime = Mathf.Max(0f, Time.unscaledDeltaTime);
+                currentNightBlend = Mathf.MoveTowards(
+                    currentNightBlend,
+                    targetNightBlend,
+                    unscaledDeltaTime / Mathf.Max(0.05f, skyboxBlendResponseSeconds));
+                currentLightingNightBlend = Mathf.MoveTowards(
+                    currentLightingNightBlend,
+                    targetLightingNightBlend,
+                    unscaledDeltaTime / Mathf.Max(0.05f, lightingResponseSeconds));
+            }
 
             if (runtimeSkybox != null)
             {
@@ -532,19 +644,36 @@ namespace GH.World
                 return Mathf.Clamp01(nightBlendOverDay.Evaluate(normalizedTime));
             }
 
-            float sunriseHalfDuration = Mathf.Max(0.0025f, sunriseTransitionDuration * 0.5f);
+            return EvaluateCompactNightBlend(
+                normalizedTime,
+                sunriseTransitionDuration,
+                sunsetTransitionDuration);
+        }
+
+        private float EvaluateLightingNightBlend(float normalizedTime)
+        {
+            return EvaluateCompactNightBlend(
+                normalizedTime,
+                sunriseLightingTransitionDuration,
+                sunsetLightingTransitionDuration);
+        }
+
+        private float EvaluateCompactNightBlend(
+            float normalizedTime,
+            float sunriseDuration,
+            float sunsetDuration)
+        {
+            float sunriseHalfDuration = Mathf.Max(0.0025f, sunriseDuration * 0.5f);
             float sunriseStart = sunriseTransitionCenter - sunriseHalfDuration;
             float sunriseEnd = sunriseTransitionCenter + sunriseHalfDuration;
 
             if (normalizedTime <= sunriseEnd)
             {
-                return 1f - Mathf.SmoothStep(
-                    0f,
-                    1f,
+                return 1f - SmootherStep01(
                     Mathf.InverseLerp(sunriseStart, sunriseEnd, normalizedTime));
             }
 
-            float sunsetHalfDuration = Mathf.Max(0.0025f, sunsetTransitionDuration * 0.5f);
+            float sunsetHalfDuration = Mathf.Max(0.0025f, sunsetDuration * 0.5f);
             float sunsetStart = sunsetTransitionCenter - sunsetHalfDuration;
             float sunsetEnd = sunsetTransitionCenter + sunsetHalfDuration;
 
@@ -555,9 +684,7 @@ namespace GH.World
 
             if (normalizedTime <= sunsetEnd)
             {
-                return Mathf.SmoothStep(
-                    0f,
-                    1f,
+                return SmootherStep01(
                     Mathf.InverseLerp(sunsetStart, sunsetEnd, normalizedTime));
             }
 
@@ -571,20 +698,44 @@ namespace GH.World
                 return;
             }
 
-            float intensityRatio = Mathf.Max(
-                0f,
-                directionalLightIntensityOverDay.Evaluate(normalizedTime));
-            bool skyboxIsTransitioning =
-                currentNightBlend > 0.001f && currentNightBlend < 0.999f;
-            if (skyboxIsTransitioning)
+            float intensityRatio;
+            Color lightColor;
+
+            if (useContinuousLightingFlow)
+            {
+                intensityRatio = Mathf.Lerp(
+                    Mathf.Clamp01(continuousDayLightRatio),
+                    Mathf.Clamp01(continuousNightLightRatio),
+                    currentLightingNightBlend);
+                lightColor = Color.Lerp(
+                    continuousDayLightColor,
+                    continuousNightLightColor,
+                    currentLightingNightBlend);
+            }
+            else
             {
                 intensityRatio = Mathf.Max(
-                    intensityRatio,
-                    Mathf.Clamp01(minimumTransitionDirectionalLightRatio));
+                    0f,
+                    directionalLightIntensityOverDay.Evaluate(normalizedTime));
+                bool skyboxIsTransitioning =
+                    currentNightBlend > 0.001f && currentNightBlend < 0.999f;
+                if (skyboxIsTransitioning)
+                {
+                    float transitionWeight =
+                        1f - Mathf.Abs(currentNightBlend * 2f - 1f);
+                    transitionWeight = SmootherStep01(transitionWeight);
+                    intensityRatio = Mathf.Max(
+                        intensityRatio,
+                        Mathf.Clamp01(minimumTransitionDirectionalLightRatio)
+                        * transitionWeight);
+                }
+
+                lightColor = directionalLightColorOverDay.Evaluate(normalizedTime);
             }
+
             mainDirectionalLight.intensity =
                 Mathf.Max(0f, maximumDirectionalLightIntensity) * intensityRatio;
-            mainDirectionalLight.color = directionalLightColorOverDay.Evaluate(normalizedTime);
+            mainDirectionalLight.color = lightColor;
             mainDirectionalLight.transform.rotation = Quaternion.Euler(
                 sunPitchAtDayStart + normalizedTime * 360f,
                 sunYaw,
@@ -603,16 +754,45 @@ namespace GH.World
                 return;
             }
 
-            RenderSettings.ambientIntensity = EvaluateThreePointBlend(
-                Mathf.Max(0f, dayAmbientIntensity),
-                Mathf.Max(0f, transitionAmbientIntensity),
-                Mathf.Max(0f, nightAmbientIntensity),
-                currentNightBlend);
-            RenderSettings.reflectionIntensity = EvaluateThreePointBlend(
-                Mathf.Max(0f, dayReflectionIntensity),
-                Mathf.Max(0f, transitionReflectionIntensity),
-                Mathf.Max(0f, nightReflectionIntensity),
-                currentNightBlend);
+            if (useContinuousLightingFlow)
+            {
+                if (isolateWorldLightingFromSkyboxColor)
+                {
+                    float ambientColorMultiplier = Mathf.Lerp(
+                        1f,
+                        Mathf.Max(1f, nightAmbientColorMultiplier),
+                        currentLightingNightBlend);
+                    RenderSettings.ambientMode = AmbientMode.Trilight;
+                    RenderSettings.ambientSkyColor =
+                        MultiplyRgb(neutralAmbientSkyColor, ambientColorMultiplier);
+                    RenderSettings.ambientEquatorColor =
+                        MultiplyRgb(neutralAmbientEquatorColor, ambientColorMultiplier);
+                    RenderSettings.ambientGroundColor =
+                        MultiplyRgb(neutralAmbientGroundColor, ambientColorMultiplier);
+                }
+
+                RenderSettings.ambientIntensity = Mathf.Lerp(
+                    Mathf.Max(0f, dayAmbientIntensity),
+                    Mathf.Max(0f, nightAmbientIntensity),
+                    currentLightingNightBlend);
+                RenderSettings.reflectionIntensity = Mathf.Lerp(
+                    Mathf.Max(0f, dayReflectionIntensity),
+                    Mathf.Max(0f, nightReflectionIntensity),
+                    currentLightingNightBlend);
+            }
+            else
+            {
+                RenderSettings.ambientIntensity = EvaluateThreePointBlend(
+                    Mathf.Max(0f, dayAmbientIntensity),
+                    Mathf.Max(0f, transitionAmbientIntensity),
+                    Mathf.Max(0f, nightAmbientIntensity),
+                    currentLightingNightBlend);
+                RenderSettings.reflectionIntensity = EvaluateThreePointBlend(
+                    Mathf.Max(0f, dayReflectionIntensity),
+                    Mathf.Max(0f, transitionReflectionIntensity),
+                    Mathf.Max(0f, nightReflectionIntensity),
+                    currentLightingNightBlend);
+            }
 
             if (!refreshEnvironmentReflections)
             {
@@ -633,6 +813,9 @@ namespace GH.World
 
             bool enteredStableEnvironment =
                 stableEnvironment >= 0 && stableEnvironment != lastStableEnvironment;
+            float refreshInterval = stableEnvironment < 0
+                ? Mathf.Max(0.5f, transitionEnvironmentRefreshInterval)
+                : Mathf.Max(0.5f, environmentRefreshInterval);
             if (!forceRefresh
                 && !enteredStableEnvironment
                 && Time.unscaledTime < nextEnvironmentRefreshTime)
@@ -641,8 +824,7 @@ namespace GH.World
             }
 
             lastStableEnvironment = stableEnvironment;
-            nextEnvironmentRefreshTime =
-                Time.unscaledTime + Mathf.Max(0.5f, environmentRefreshInterval);
+            nextEnvironmentRefreshTime = Time.unscaledTime + refreshInterval;
             DynamicGI.UpdateEnvironment();
         }
 
@@ -654,8 +836,26 @@ namespace GH.World
         {
             float blend = Mathf.Clamp01(nightBlend);
             return blend <= 0.5f
-                ? Mathf.Lerp(dayValue, transitionValue, blend * 2f)
-                : Mathf.Lerp(transitionValue, nightValue, (blend - 0.5f) * 2f);
+                ? Mathf.Lerp(dayValue, transitionValue, SmootherStep01(blend * 2f))
+                : Mathf.Lerp(
+                    transitionValue,
+                    nightValue,
+                    SmootherStep01((blend - 0.5f) * 2f));
+        }
+
+        private static float SmootherStep01(float value)
+        {
+            float t = Mathf.Clamp01(value);
+            return t * t * t * (t * (t * 6f - 15f) + 10f);
+        }
+
+        private static Color MultiplyRgb(Color color, float multiplier)
+        {
+            return new Color(
+                color.r * multiplier,
+                color.g * multiplier,
+                color.b * multiplier,
+                color.a);
         }
 
         private void RestoreOriginalState()
@@ -681,6 +881,10 @@ namespace GH.World
 
             RenderSettings.ambientIntensity = originalAmbientIntensity;
             RenderSettings.reflectionIntensity = originalReflectionIntensity;
+            RenderSettings.ambientMode = originalAmbientMode;
+            RenderSettings.ambientSkyColor = originalAmbientSkyColor;
+            RenderSettings.ambientEquatorColor = originalAmbientEquatorColor;
+            RenderSettings.ambientGroundColor = originalAmbientGroundColor;
             originalStateCaptured = false;
         }
 
@@ -693,13 +897,20 @@ namespace GH.World
 
             Destroy(runtimeSkybox);
             runtimeSkybox = null;
+            blendStateInitialized = false;
         }
 
         private void OnValidate()
         {
             daySkyboxExposure = Mathf.Max(0f, daySkyboxExposure);
             nightSkyboxExposure = Mathf.Max(0f, nightSkyboxExposure);
+            skyboxBlendResponseSeconds = Mathf.Max(0.05f, skyboxBlendResponseSeconds);
             maximumDirectionalLightIntensity = Mathf.Max(0f, maximumDirectionalLightIntensity);
+            continuousDayLightRatio = Mathf.Clamp01(continuousDayLightRatio);
+            continuousNightLightRatio = Mathf.Clamp01(continuousNightLightRatio);
+            lightingResponseSeconds = Mathf.Max(0.05f, lightingResponseSeconds);
+            nightAmbientColorMultiplier =
+                Mathf.Clamp(nightAmbientColorMultiplier, 1f, 3f);
             dayAmbientIntensity = Mathf.Max(0f, dayAmbientIntensity);
             nightAmbientIntensity = Mathf.Max(0f, nightAmbientIntensity);
             dayReflectionIntensity = Mathf.Max(0f, dayReflectionIntensity);
@@ -709,8 +920,14 @@ namespace GH.World
             minimumTransitionDirectionalLightRatio =
                 Mathf.Clamp01(minimumTransitionDirectionalLightRatio);
             environmentRefreshInterval = Mathf.Max(0.5f, environmentRefreshInterval);
+            transitionEnvironmentRefreshInterval =
+                Mathf.Max(0.5f, transitionEnvironmentRefreshInterval);
             sunriseTransitionDuration = Mathf.Max(0.005f, sunriseTransitionDuration);
             sunsetTransitionDuration = Mathf.Max(0.005f, sunsetTransitionDuration);
+            sunriseLightingTransitionDuration =
+                Mathf.Clamp(sunriseLightingTransitionDuration, 0.02f, 0.4f);
+            sunsetLightingTransitionDuration =
+                Mathf.Clamp(sunsetLightingTransitionDuration, 0.02f, 0.4f);
         }
 
         private static AnimationCurve CreateDefaultNightBlendCurve()

@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -31,9 +32,42 @@ namespace GH.World
         [Tooltip("균열의 색과 불투명도입니다. 알파가 높을수록 균열이 선명하게 보입니다.")]
         [SerializeField] private Color crackColor = new Color(0.07f, 0.045f, 0.025f, 0.9f);
 
+        [Tooltip(
+            "어두운 나무와 광물에서도 균열이 보이도록 중심선 주변에 표시하는 밝은 테두리 색상입니다.")]
+        [SerializeField] private Color crackHighlightColor =
+            new Color(1f, 0.58f, 0.16f, 0.72f);
+
+        [Tooltip("균열 하이라이트의 픽셀 폭입니다. 나무처럼 어두운 오브젝트에서 잘 안 보이면 값을 올리세요.")]
+        [Range(0.5f, 4f)]
+        [SerializeField] private float crackHighlightWidth = 2f;
+
+        [Tooltip("균열 주변 하이라이트의 표시 강도입니다. 0이면 테두리를 표시하지 않습니다.")]
+        [Range(0f, 1f)]
+        [SerializeField] private float crackHighlightStrength = 0.72f;
+
+        [Header("Impact Feedback")]
+        [Tooltip(
+            "나무와 돌이 실제 피해를 받았을 때 전체 표면에 짧게 번지는 통일된 충격광 색상입니다.")]
+        [SerializeField] private Color impactFlashColor =
+            new Color(1f, 0.72f, 0.34f, 0.42f);
+
+        [Tooltip("피격 충격광이 사라질 때까지 걸리는 시간입니다.")]
+        [Range(0.05f, 0.5f)]
+        [SerializeField] private float impactFlashDuration = 0.18f;
+
+        [Tooltip("피격 충격광의 최대 강도입니다.")]
+        [Range(0f, 1f)]
+        [SerializeField] private float impactFlashIntensity = 0.9f;
+
         [Tooltip("균열 마스크가 오브젝트 UV 위에서 반복되는 횟수입니다. 값이 클수록 더 촘촘한 균열이 보입니다.")]
         [Range(0.25f, 4f)]
         [SerializeField] private float crackTiling = 1.15f;
+
+        [Tooltip(
+            "체력 감소량을 실제 균열 진행도로 변환하는 지수입니다. " +
+            "1보다 높을수록 첫 피해의 균열은 적게 보이고, 체력이 낮아질수록 균열이 더 확실하게 증가합니다.")]
+        [Range(1f, 3f)]
+        [SerializeField] private float crackGrowthExponent = 1.45f;
 
         [Tooltip(
             "원본 표면과 균열 표면이 겹쳐 깜박이지 않도록 균열 메시를 아주 조금 확대하는 비율입니다. " +
@@ -41,36 +75,24 @@ namespace GH.World
         [Range(1.0001f, 1.01f)]
         [SerializeField] private float overlayScale = 1.002f;
 
-        [Header("Discovery")]
-        [Tooltip(
-            "청크 활성화나 런타임 배치로 새로 나타난 WorldObject를 다시 찾는 간격입니다. " +
-            "매 프레임 검색하지 않아 성능 부담을 제한합니다.")]
-        [Min(0.1f)]
-        [SerializeField] private float discoveryIntervalSeconds = 1f;
-
         private readonly List<GHWorldObjectDamageRecovery> adapters = new();
         private Material runtimeCrackMaterial;
         private Texture2D runtimeCrackTexture;
-        private float nextDiscoveryTime;
 
         private void OnEnable()
         {
             CreateRuntimeResources();
-            DiscoverWorldObjects();
-        }
-
-        private void Update()
-        {
-            if (Time.unscaledTime < nextDiscoveryTime)
+            WorldObject.InstanceEnabled -= HandleWorldObjectEnabled;
+            WorldObject.InstanceEnabled += HandleWorldObjectEnabled;
+            foreach (WorldObject worldObject in WorldObject.ActiveInstances)
             {
-                return;
+                ConfigureWorldObject(worldObject);
             }
-
-            DiscoverWorldObjects();
         }
 
         private void OnDisable()
         {
+            WorldObject.InstanceEnabled -= HandleWorldObjectEnabled;
             for (int i = adapters.Count - 1; i >= 0; i--)
             {
                 if (adapters[i] != null)
@@ -83,50 +105,49 @@ namespace GH.World
             DestroyRuntimeResources();
         }
 
-        private void DiscoverWorldObjects()
+        private void HandleWorldObjectEnabled(WorldObject worldObject)
         {
-            nextDiscoveryTime =
-                Time.unscaledTime + Mathf.Max(0.1f, discoveryIntervalSeconds);
-            CreateRuntimeResources();
+            ConfigureWorldObject(worldObject);
+        }
 
+        private void ConfigureWorldObject(WorldObject worldObject)
+        {
+            CreateRuntimeResources();
             if (runtimeCrackMaterial == null)
             {
                 return;
             }
 
-            WorldObject[] worldObjects = FindObjectsByType<WorldObject>(
-                FindObjectsInactive.Include,
-                FindObjectsSortMode.None);
-
-            for (int i = 0; i < worldObjects.Length; i++)
+            if (worldObject == null)
             {
-                WorldObject worldObject = worldObjects[i];
-                if (worldObject == null)
-                {
-                    continue;
-                }
-
-                GHWorldObjectDamageRecovery adapter =
-                    worldObject.GetComponent<GHWorldObjectDamageRecovery>();
-                if (adapter == null)
-                {
-                    adapter = worldObject.gameObject.AddComponent<GHWorldObjectDamageRecovery>();
-                }
-
-                adapter.Configure(
-                    runtimeCrackMaterial,
-                    recoveryDelaySeconds,
-                    crackColor,
-                    crackTiling,
-                    overlayScale);
-
-                if (!adapters.Contains(adapter))
-                {
-                    adapters.Add(adapter);
-                }
+                return;
             }
 
-            adapters.RemoveAll(adapter => adapter == null);
+            GHWorldObjectDamageRecovery adapter =
+                worldObject.GetComponent<GHWorldObjectDamageRecovery>();
+            if (adapter == null)
+            {
+                adapter = worldObject.gameObject.AddComponent<GHWorldObjectDamageRecovery>();
+            }
+
+            adapter.Configure(
+                runtimeCrackMaterial,
+                recoveryDelaySeconds,
+                crackColor,
+                crackHighlightColor,
+                crackHighlightWidth,
+                crackHighlightStrength,
+                impactFlashColor,
+                impactFlashDuration,
+                impactFlashIntensity,
+                crackTiling,
+                crackGrowthExponent,
+                overlayScale);
+
+            if (!adapters.Contains(adapter))
+            {
+                adapters.Add(adapter);
+            }
         }
 
         private void CreateRuntimeResources()
@@ -179,13 +200,17 @@ namespace GH.World
             Color32[] pixels = new Color32[Size * Size];
             System.Random random = new System.Random(42719);
 
-            for (int root = 0; root < 11; root++)
+            const int RootCount = 11;
+            const int SegmentCount = 7;
+            int totalMainSegments = RootCount * SegmentCount;
+
+            for (int root = 0; root < RootCount; root++)
             {
                 int x = random.Next(18, Size - 18);
                 int y = random.Next(18, Size - 18);
                 float angle = (float)(random.NextDouble() * Math.PI * 2.0);
 
-                for (int segment = 0; segment < 7; segment++)
+                for (int segment = 0; segment < SegmentCount; segment++)
                 {
                     int length = random.Next(12, 26);
                     int nextX = Mathf.Clamp(
@@ -196,7 +221,15 @@ namespace GH.World
                         y + Mathf.RoundToInt(Mathf.Sin(angle) * length),
                         2,
                         Size - 3);
-                    DrawLine(pixels, Size, x, y, nextX, nextY, 255, 1);
+                    // 선분마다 서로 다른 등장 시점을 저장해 첫 피해에서
+                    // 모든 균열 뿌리가 한꺼번에 드러나지 않도록 한다.
+                    int segmentIndex = root * SegmentCount + segment;
+                    float revealStage = Mathf.Lerp(
+                        0.02f,
+                        0.92f,
+                        segmentIndex / Mathf.Max(1f, totalMainSegments - 1f));
+                    byte mainStage = EncodeRevealStage(revealStage);
+                    DrawLine(pixels, Size, x, y, nextX, nextY, mainStage, 1);
 
                     if (segment > 0)
                     {
@@ -212,7 +245,8 @@ namespace GH.World
                             y + Mathf.RoundToInt(Mathf.Sin(branchAngle) * branchLength),
                             1,
                             Size - 2);
-                        byte branchStage = (byte)(segment < 3 ? 205 : segment < 5 ? 165 : 125);
+                        byte branchStage = EncodeRevealStage(
+                            Mathf.Min(0.98f, revealStage + 0.055f));
                         DrawLine(pixels, Size, x, y, branchX, branchY, branchStage, 1);
                     }
 
@@ -237,6 +271,13 @@ namespace GH.World
             texture.SetPixels32(pixels);
             texture.Apply(false, true);
             return texture;
+        }
+
+        // 셰이더의 threshold 변화 범위와 동일하게 균열 등장 시점을 마스크 값으로 변환한다.
+        private static byte EncodeRevealStage(float revealStage)
+        {
+            float maskValue = Mathf.Lerp(0.96f, 0.18f, Mathf.Clamp01(revealStage));
+            return (byte)Mathf.Clamp(Mathf.RoundToInt(maskValue * 255f), 0, 255);
         }
 
         private static void DrawLine(
@@ -299,14 +340,28 @@ namespace GH.World
         {
             recoveryDelaySeconds = Mathf.Max(0.1f, recoveryDelaySeconds);
             crackTiling = Mathf.Clamp(crackTiling, 0.25f, 4f);
+            crackHighlightWidth = Mathf.Clamp(crackHighlightWidth, 0.5f, 4f);
+            crackHighlightStrength = Mathf.Clamp01(crackHighlightStrength);
+            impactFlashDuration = Mathf.Clamp(impactFlashDuration, 0.05f, 0.5f);
+            impactFlashIntensity = Mathf.Clamp01(impactFlashIntensity);
+            crackGrowthExponent = Mathf.Clamp(crackGrowthExponent, 1f, 3f);
             overlayScale = Mathf.Clamp(overlayScale, 1.0001f, 1.01f);
-            discoveryIntervalSeconds = Mathf.Max(0.1f, discoveryIntervalSeconds);
         }
     }
 
     internal sealed class GHWorldObjectDamageRecovery : MonoBehaviour
     {
         private static readonly int CrackColorId = Shader.PropertyToID("_CrackColor");
+        private static readonly int CrackHighlightColorId =
+            Shader.PropertyToID("_CrackHighlightColor");
+        private static readonly int CrackHighlightWidthId =
+            Shader.PropertyToID("_CrackHighlightWidth");
+        private static readonly int CrackHighlightStrengthId =
+            Shader.PropertyToID("_CrackHighlightStrength");
+        private static readonly int ImpactFlashColorId =
+            Shader.PropertyToID("_ImpactFlashColor");
+        private static readonly int ImpactFlashId =
+            Shader.PropertyToID("_ImpactFlash");
         private static readonly int SeverityId = Shader.PropertyToID("_Severity");
         private static readonly int TilingId = Shader.PropertyToID("_Tiling");
         private const string OverlayName = "__GH_CrackOverlay";
@@ -318,11 +373,21 @@ namespace GH.World
         private MaterialPropertyBlock propertyBlock;
         private float recoveryDelaySeconds;
         private Color crackColor;
+        private Color crackHighlightColor;
+        private float crackHighlightWidth;
+        private float crackHighlightStrength;
+        private Color impactFlashColor;
+        private float impactFlashDuration;
+        private float impactFlashIntensity;
         private float crackTiling;
+        private float crackGrowthExponent;
         private float overlayScale;
         private float lastDamageTime = float.PositiveInfinity;
+        private float impactFlashStartTime = float.NegativeInfinity;
         private int previousHp;
         private bool configured;
+        private bool impactFlashActive;
+        private Coroutine activeFeedbackRoutine;
 
         private void Awake()
         {
@@ -351,6 +416,9 @@ namespace GH.World
             {
                 worldObject.StateChanged -= HandleStateChanged;
             }
+
+            impactFlashActive = false;
+            activeFeedbackRoutine = null;
         }
 
         private void OnDestroy()
@@ -371,49 +439,42 @@ namespace GH.World
             Material material,
             float recoveryDelay,
             Color color,
+            Color highlightColor,
+            float highlightWidth,
+            float highlightStrength,
+            Color flashColor,
+            float flashDuration,
+            float flashIntensity,
             float tiling,
+            float growthExponent,
             float scale)
         {
             crackMaterial = material;
             recoveryDelaySeconds = Mathf.Max(0.1f, recoveryDelay);
             crackColor = color;
+            crackHighlightColor = highlightColor;
+            crackHighlightWidth = Mathf.Clamp(highlightWidth, 0.5f, 4f);
+            crackHighlightStrength = Mathf.Clamp01(highlightStrength);
+            impactFlashColor = flashColor;
+            impactFlashDuration = Mathf.Clamp(flashDuration, 0.05f, 0.5f);
+            impactFlashIntensity = Mathf.Clamp01(flashIntensity);
             crackTiling = Mathf.Max(0.01f, tiling);
+            crackGrowthExponent = Mathf.Max(1f, growthExponent);
             overlayScale = Mathf.Max(1.0001f, scale);
 
-            if (!configured)
-            {
-                CreateOverlays();
-                configured = true;
-            }
+            configured = true;
 
             RefreshVisual();
-        }
-
-        private void Update()
-        {
-            if (!configured || worldObject == null)
+            if (worldObject != null
+                && !worldObject.IsDepleted
+                && worldObject.CurrentHp < worldObject.MaxHp)
             {
-                return;
-            }
+                if (float.IsPositiveInfinity(lastDamageTime))
+                {
+                    lastDamageTime = Time.time;
+                }
 
-            int currentHp = worldObject.CurrentHp;
-            if (currentHp < previousHp)
-            {
-                lastDamageTime = Time.time;
-            }
-
-            if (!worldObject.IsDepleted
-                && currentHp < worldObject.MaxHp
-                && Time.time - lastDamageTime >= recoveryDelaySeconds)
-            {
-                worldObject.RestoreHealthToMaximum();
-                currentHp = worldObject.CurrentHp;
-            }
-
-            if (currentHp != previousHp)
-            {
-                previousHp = currentHp;
-                RefreshVisual();
+                StartActiveFeedbackRoutine();
             }
         }
 
@@ -427,10 +488,77 @@ namespace GH.World
             if (changedObject.CurrentHp < previousHp)
             {
                 lastDamageTime = Time.time;
+                TriggerImpactFlash();
+                StartActiveFeedbackRoutine();
             }
 
             previousHp = changedObject.CurrentHp;
             RefreshVisual();
+        }
+
+        private void StartActiveFeedbackRoutine()
+        {
+            if (activeFeedbackRoutine != null)
+            {
+                StopCoroutine(activeFeedbackRoutine);
+            }
+
+            activeFeedbackRoutine = StartCoroutine(RunActiveFeedbackAndRecovery());
+        }
+
+        private IEnumerator RunActiveFeedbackAndRecovery()
+        {
+            while (configured && worldObject != null)
+            {
+                bool needsRecovery = !worldObject.IsDepleted
+                    && worldObject.CurrentHp < worldObject.MaxHp;
+                if (needsRecovery && Time.time - lastDamageTime >= recoveryDelaySeconds)
+                {
+                    worldObject.RestoreHealthToMaximum();
+                    previousHp = worldObject.CurrentHp;
+                    needsRecovery = false;
+                }
+
+                if (impactFlashActive)
+                {
+                    RefreshVisual();
+                }
+
+                if (!needsRecovery && !impactFlashActive)
+                {
+                    break;
+                }
+
+                yield return null;
+            }
+
+            RefreshVisual();
+            activeFeedbackRoutine = null;
+        }
+
+        private void TriggerImpactFlash()
+        {
+            impactFlashStartTime = Time.time;
+            impactFlashActive = impactFlashIntensity > 0.001f;
+        }
+
+        private float EvaluateImpactFlash()
+        {
+            if (!impactFlashActive)
+            {
+                return 0f;
+            }
+
+            float normalizedTime =
+                (Time.time - impactFlashStartTime) / Mathf.Max(0.05f, impactFlashDuration);
+            if (normalizedTime >= 1f)
+            {
+                impactFlashActive = false;
+                return 0f;
+            }
+
+            float remaining = 1f - Mathf.Clamp01(normalizedTime);
+            return impactFlashIntensity * remaining * remaining;
         }
 
         private void CreateOverlays()
@@ -537,12 +665,25 @@ namespace GH.World
                 propertyBlock = new MaterialPropertyBlock();
             }
 
-            float severity = worldObject == null || worldObject.MaxHp <= 0
+            float damageRatio = worldObject == null || worldObject.MaxHp <= 0
                 ? 0f
                 : 1f - Mathf.Clamp01((float)worldObject.CurrentHp / worldObject.MaxHp);
+            float severity = Mathf.Pow(damageRatio, crackGrowthExponent);
+            float impactFlash = EvaluateImpactFlash();
+
+            if (overlayRenderers.Count == 0
+                && (severity > 0.001f || impactFlash > 0.001f))
+            {
+                CreateOverlays();
+            }
 
             propertyBlock.Clear();
             propertyBlock.SetColor(CrackColorId, crackColor);
+            propertyBlock.SetColor(CrackHighlightColorId, crackHighlightColor);
+            propertyBlock.SetFloat(CrackHighlightWidthId, crackHighlightWidth);
+            propertyBlock.SetFloat(CrackHighlightStrengthId, crackHighlightStrength);
+            propertyBlock.SetColor(ImpactFlashColorId, impactFlashColor);
+            propertyBlock.SetFloat(ImpactFlashId, impactFlash);
             propertyBlock.SetFloat(SeverityId, severity);
             propertyBlock.SetFloat(TilingId, crackTiling);
 
@@ -558,7 +699,8 @@ namespace GH.World
                     i < sourceRenderers.Count
                     && sourceRenderers[i] != null
                     && sourceRenderers[i].enabled;
-                overlay.enabled = severity > 0.001f && sourceVisible;
+                overlay.enabled =
+                    (severity > 0.001f || impactFlash > 0.001f) && sourceVisible;
                 overlay.SetPropertyBlock(propertyBlock);
             }
         }

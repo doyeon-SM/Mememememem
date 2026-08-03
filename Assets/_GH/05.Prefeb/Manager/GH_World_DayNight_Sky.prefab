@@ -54,9 +54,10 @@ MonoBehaviour:
   blendSkyboxShader: {fileID: 4800000, guid: da6001c9804641f09a384dda70d69e39, type: 3}
   useCompactSkyboxTransition: 1
   sunriseTransitionCenter: 0.06
-  sunriseTransitionDuration: 0.0125
+  sunriseTransitionDuration: 0.045
   sunsetTransitionCenter: 0.5
-  sunsetTransitionDuration: 0.0125
+  sunsetTransitionDuration: 0.045
+  skyboxBlendResponseSeconds: 1.25
   daySkyboxExposure: 1
   nightSkyboxExposure: 0.62
   daySkyboxTint: {r: 1, g: 1, b: 1, a: 1}
@@ -68,19 +69,34 @@ MonoBehaviour:
   sunPitchAtDayStart: -10
   sunYaw: -30
   maximumDirectionalLightIntensity: 1
+  useContinuousLightingFlow: 1
+  continuousDayLightRatio: 1
+  continuousNightLightRatio: 0.8
+  continuousDayLightColor: {r: 1, g: 0.956, b: 0.84, a: 1}
+  continuousNightLightColor: {r: 1, g: 0.956, b: 0.84, a: 1}
+  lightingResponseSeconds: 2.5
+  isolateWorldLightingFromSkyboxColor: 1
+  neutralAmbientSkyColor: {r: 0.24, g: 0.23, b: 0.21, a: 1}
+  neutralAmbientEquatorColor: {r: 0.15, g: 0.145, b: 0.135, a: 1}
+  neutralAmbientGroundColor: {r: 0.07, g: 0.065, b: 0.06, a: 1}
+  nightAmbientColorMultiplier: 1.35
   controlAmbientAndReflections: 1
   dayAmbientIntensity: 1
-  nightAmbientIntensity: 1.5
+  nightAmbientIntensity: 1.85
   dayReflectionIntensity: 1
   nightReflectionIntensity: 0.5
   transitionAmbientIntensity: 1.1
   transitionReflectionIntensity: 0.65
-  minimumTransitionDirectionalLightRatio: 0.55
-  refreshEnvironmentReflections: 1
-  deferEnvironmentRefreshDuringTransition: 1
+  minimumTransitionDirectionalLightRatio: 0.12
+  sunriseLightingTransitionDuration: 0.12
+  sunsetLightingTransitionDuration: 0.12
+  refreshEnvironmentReflections: 0
+  deferEnvironmentRefreshDuringTransition: 0
   environmentRefreshInterval: 8
+  transitionEnvironmentRefreshInterval: 0.5
   currentNormalizedTime: 0
   currentNightBlend: 0
+  currentLightingNightBlend: 0
 --- !u!114 &8435116066358048213
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -96,6 +112,13 @@ MonoBehaviour:
   recoveryDelaySeconds: 10
   crackOverlayShader: {fileID: 4800000, guid: e43c78003b184eacbc28f49e4d83c38a, type: 3}
   crackColor: {r: 0.07, g: 0.045, b: 0.025, a: 0.9}
+  crackHighlightColor: {r: 1, g: 0.58, b: 0.16, a: 0.72}
+  crackHighlightWidth: 2
+  crackHighlightStrength: 0.72
+  impactFlashColor: {r: 1, g: 0.72, b: 0.34, a: 0.42}
+  impactFlashDuration: 0.18
+  impactFlashIntensity: 0.9
   crackTiling: 1.15
+  crackGrowthExponent: 1.45
   overlayScale: 1.002
   discoveryIntervalSeconds: 1

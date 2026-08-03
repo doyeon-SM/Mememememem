@@ -20,15 +20,6 @@ using UnityEngine.InputSystem;
 /// 코드라 직접 수정하지 않고, 대신 CloseSingleManagedUI에서 닫으려는 대상이 PanelManager가 들고 있는
 /// 패널 중 하나(또는 그 하위 계층)인지 리플렉션으로 확인해서, 맞다면 기존 닫기 동작에 추가로
 /// PanelManager.CloseAllPanels()를 한 번 더 호출해 버튼 복구를 보장한다(NotifyPanelManagerIfOwned 참고).
-///
-/// [HDY 요청 - P_Placement는 더 이상 여기서 관리하지 않음] 예전에는 P_Placement를 managedUIObjects에
-/// 등록하고, 닫을 때 GridManager.ChangePlacementMode()를 호출하도록 특수 처리(TryClosePlacementMode)를
-/// 했었다. 하지만 실제로는 PlacementUI.HandlePlacementModeChanged가 P_Placement의 "자식들"
-/// (PlacementPanel/Button/KeyGuide)만 토글할 뿐 P_Placement 루트 자체는 코드 어디에서도 SetActive(true)로
-/// 켜주지 않는다는 게 확인되어(=P_Placement 루트를 "열고 닫을 수 있는 패널"로 취급한 것 자체가 잘못된
-/// 전제), P_Placement는 managedUIObjects에서 완전히 제거하고 항상 활성 상태로 두기로 했다(빈 컨테이너라
-/// 자식이 전부 꺼져 있으면 어차피 아무것도 안 보인다). 배치 모드 취소는 PanelManager.Update()가
-/// GridManager.CancelPlacement()로 이미 독립적으로, 정상적으로 처리하고 있다.
 /// </summary>
 [DefaultExecutionOrder(-1000)]
 [DisallowMultipleComponent]
@@ -68,6 +59,14 @@ public sealed class SceneUIManager : MonoBehaviour
 
     [Tooltip("KMS 플레이어를 찾을 때 사용할 레이어입니다.")]
     [SerializeField] private string playerLayerName = PlayerReferenceResolver.DefaultPlayerLayerName;
+
+    [Header("배치 모드 연동 (HDY 요청)")]
+    [Tooltip("여기 등록한 오브젝트를 닫을 때는 SetActive(false) 대신 GridManager.ChangePlacementMode()를 호출해서, " +
+        "GridManager 내부의 isPlacementMode 상태와 실제 활성 여부가 어긋나지 않도록 합니다(P_Placement 연결용). " +
+        "이 씬에 배치 모드 UI가 없으면 비워두며, 비어 있으면 기존 닫기 동작과 동일하게 동작합니다.")]
+    [SerializeField] private GameObject placementModeUIRoot;
+
+    private GridManager cachedGridManager;
 
     private float timeScaleBeforeSettings = 1f;
     private CursorLockMode cursorLockModeBeforeSettings;
@@ -920,6 +919,12 @@ public sealed class SceneUIManager : MonoBehaviour
     {
         if (!IsValidManagedUI(target))
         {
+            return;
+        }
+
+        if (TryClosePlacementMode(target))
+        {
+            NotifyPanelManagerIfOwned(target);
             return;
         }
 

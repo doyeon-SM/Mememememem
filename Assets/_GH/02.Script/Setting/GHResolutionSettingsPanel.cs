@@ -10,6 +10,16 @@ using UnityEngine.UI;
 [AddComponentMenu("GH/UI/Resolution And Audio Settings Panel")]
 public sealed class GHResolutionSettingsPanel : MonoBehaviour
 {
+    private struct SettingsSnapshot
+    {
+        public int resolutionIndex;
+        public int terrainQualityIndex;
+        public bool fullScreen;
+        public float masterVolume;
+        public float musicVolume;
+        public float sfxVolume;
+    }
+
     [System.Serializable]
     private sealed class TerrainQualityPreset
     {
@@ -51,6 +61,16 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
     private const string TreeDistancePreferenceKey = "GH.Graphics.TreeDistance";
     private const string DetailDensityPreferenceKey = "GH.Graphics.DetailDensity";
     private const string ChunkActiveRangePreferenceKey = "GH.Graphics.ChunkActiveRange";
+    private const int DefaultResolutionWidth = 1920;
+    private const int DefaultResolutionHeight = 1080;
+
+    private static readonly Vector2Int[] SupportedResolutionPresets =
+    {
+        new Vector2Int(1280, 720),
+        new Vector2Int(1366, 768),
+        new Vector2Int(1600, 900),
+        new Vector2Int(DefaultResolutionWidth, DefaultResolutionHeight)
+    };
 
     [Header("UI Assets")]
     [SerializeField] private TMP_FontAsset fontAsset;
@@ -65,10 +85,6 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
     [SerializeField] private Color applyButtonColor = new Color(0.12f, 0.62f, 0.45f, 1f);
     [SerializeField] private Color sliderFillColor = new Color(0.22f, 0.72f, 0.88f, 1f);
     [SerializeField] private Color textColor = new Color(0.95f, 0.98f, 1f, 1f);
-
-    [Header("Resolution Filter")]
-    [Min(320)] [SerializeField] private int minimumWidth = 1024;
-    [Min(240)] [SerializeField] private int minimumHeight = 576;
 
     [Header("Terrain And Chunk Quality Presets")]
     [InspectorName("하")]
@@ -87,6 +103,7 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
     [SerializeField] private Button nextButton;
     [SerializeField] private Button screenModeButton;
     [SerializeField] private Button applyButton;
+    [SerializeField] private Button resetDefaultsButton;
     [SerializeField] private TMP_Text resolutionValueText;
     [SerializeField] private TMP_Text screenModeText;
     [SerializeField] private Slider masterVolumeSlider;
@@ -103,6 +120,8 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
     private bool selectedFullScreen;
     private bool isInitialized;
     private bool isRefreshingAudioUi;
+    private bool hasCommittedSnapshot;
+    private SettingsSnapshot committedSnapshot;
 
     private void Awake()
     {
@@ -112,8 +131,19 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
     private void OnEnable()
     {
         Initialize();
-        SelectCurrentResolution();
-        RefreshResolutionLabels();
+        LoadCommittedSettingsIntoUi();
+        CaptureCommittedSnapshot();
+        RefreshAllSettingVisuals();
+    }
+
+    private void OnDisable()
+    {
+        if (!isInitialized || !hasCommittedSnapshot)
+        {
+            return;
+        }
+
+        RestoreCommittedSnapshot();
     }
 
     public void PreviousResolution()
@@ -125,7 +155,7 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
 
         selectedResolutionIndex =
             (selectedResolutionIndex - 1 + resolutionOptions.Count) % resolutionOptions.Count;
-        RefreshResolutionLabels();
+        RefreshAllSettingVisuals();
     }
 
     public void NextResolution()
@@ -136,13 +166,13 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
         }
 
         selectedResolutionIndex = (selectedResolutionIndex + 1) % resolutionOptions.Count;
-        RefreshResolutionLabels();
+        RefreshAllSettingVisuals();
     }
 
     public void ToggleScreenMode()
     {
         selectedFullScreen = !selectedFullScreen;
-        RefreshResolutionLabels();
+        RefreshAllSettingVisuals();
     }
 
     // 기존에 이 메서드를 연결해 둔 경우를 위해 이름을 유지합니다.
@@ -170,6 +200,39 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
         ApplyAudioValues();
         ApplySelectedTerrainQuality();
         PlayerPrefs.Save();
+        CaptureCommittedSnapshot();
+        RefreshApplyButtonState();
+    }
+
+    /// <summary>기본 해상도, 전체 화면, 중간 품질, 최대 음량을 편집 값으로 불러옵니다.</summary>
+    public void RestoreDefaults()
+    {
+        selectedResolutionIndex = FindClosestResolutionIndex(
+            resolutionOptions,
+            DefaultResolutionWidth,
+            DefaultResolutionHeight);
+        selectedFullScreen = true;
+        selectedTerrainQualityIndex = 1;
+
+        isRefreshingAudioUi = true;
+        masterVolumeSlider.SetValueWithoutNotify(1f);
+        musicVolumeSlider.SetValueWithoutNotify(1f);
+        sfxVolumeSlider.SetValueWithoutNotify(1f);
+        isRefreshingAudioUi = false;
+
+        ApplyAudioPreview();
+        RefreshAllSettingVisuals();
+    }
+
+    /// <summary>편집 중인 값을 취소하고 마지막 적용 상태로 돌아간 뒤 패널을 닫습니다.</summary>
+    public void CancelChanges()
+    {
+        if (hasCommittedSnapshot)
+        {
+            RestoreCommittedSnapshot();
+        }
+
+        gameObject.SetActive(false);
     }
 
     private void Initialize()
@@ -181,12 +244,9 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
 
         ConfigureRootOverlay();
         BuildRuntimeUi();
+        EnsureActionButtons();
         BuildResolutionOptions();
         BindControls();
-        SelectCurrentResolution();
-        LoadAudioValues();
-        LoadTerrainQualitySelection();
-        RefreshResolutionLabels();
         isInitialized = true;
     }
 
@@ -361,21 +421,73 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
             out sfxVolumeSlider,
             out sfxVolumeInput);
 
+        resetDefaultsButton = CreateButton(
+            "Reset Defaults",
+            panel,
+            "기본값 복원",
+            new Vector2(280f, 62f),
+            new Vector2(-155f, -322f),
+            buttonColor);
+
         applyButton = CreateButton(
             "Apply",
             panel,
             "적용",
             new Vector2(280f, 62f),
-            new Vector2(0f, -322f),
+            new Vector2(155f, -322f),
             applyButtonColor);
 
         CreateText(
             "Guide",
             panel,
-            "슬라이더는 즉시 반영되며, 적용 버튼을 누르면 설정이 저장됩니다.",
+            "사운드는 미리 들을 수 있으며, 적용 버튼을 눌러야 전체 설정이 저장됩니다.",
             17f,
             new Vector2(660f, 32f),
             new Vector2(0f, -395f));
+    }
+
+    private void EnsureActionButtons()
+    {
+        if (runtimeUiRoot == null || applyButton == null)
+        {
+            return;
+        }
+
+        RectTransform applyRect = applyButton.transform as RectTransform;
+        if (applyRect != null)
+        {
+            applyRect.sizeDelta = new Vector2(280f, 62f);
+            applyRect.anchoredPosition = new Vector2(155f, -322f);
+        }
+
+        if (resetDefaultsButton == null)
+        {
+            Transform existingReset = runtimeUiRoot.Find("Reset Defaults");
+            resetDefaultsButton = existingReset != null
+                ? existingReset.GetComponent<Button>()
+                : null;
+        }
+
+        if (resetDefaultsButton == null)
+        {
+            resetDefaultsButton = CreateButton(
+                "Reset Defaults",
+                runtimeUiRoot,
+                "기본값 복원",
+                new Vector2(280f, 62f),
+                new Vector2(-155f, -322f),
+                buttonColor);
+        }
+
+        Transform guideTransform = runtimeUiRoot.Find("Guide");
+        TMP_Text guideText = guideTransform != null
+            ? guideTransform.GetComponent<TMP_Text>()
+            : null;
+        if (guideText != null)
+        {
+            guideText.text =
+                "사운드는 미리 들을 수 있으며, 적용 버튼을 눌러야 전체 설정이 저장됩니다.";
+        }
     }
 
     private void CreateTerrainQualityRow(
@@ -705,57 +817,63 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
 
     private void BuildResolutionOptions()
     {
-        resolutionOptions.Clear();
-        HashSet<long> uniqueSizes = new HashSet<long>();
-        Resolution[] availableResolutions = Screen.resolutions;
-
-        for (int i = 0; i < availableResolutions.Length; i++)
-        {
-            Resolution resolution = availableResolutions[i];
-            if (resolution.width < minimumWidth || resolution.height < minimumHeight)
-            {
-                continue;
-            }
-
-            long key = ((long)resolution.width << 32) | (uint)resolution.height;
-            if (uniqueSizes.Add(key))
-            {
-                resolutionOptions.Add(new Vector2Int(resolution.width, resolution.height));
-            }
-        }
-
-        if (resolutionOptions.Count == 0)
-        {
-            AddFallbackResolution(1280, 720);
-            AddFallbackResolution(1600, 900);
-            AddFallbackResolution(1920, 1080);
-            AddFallbackResolution(2560, 1440);
-        }
-
-        AddFallbackResolution(Screen.width, Screen.height);
-        resolutionOptions.Sort(CompareResolutions);
+        PopulateAvailableResolutionOptions(resolutionOptions);
     }
 
-    private void AddFallbackResolution(int width, int height)
+    private static void PopulateAvailableResolutionOptions(List<Vector2Int> target)
     {
-        if (width < minimumWidth || height < minimumHeight)
+        target.Clear();
+        Resolution[] displayResolutions = Screen.resolutions;
+        bool hasDisplayResolutionInfo = displayResolutions != null
+            && displayResolutions.Length > 0;
+
+        for (int i = 0; i < SupportedResolutionPresets.Length; i++)
         {
-            return;
+            Vector2Int preset = SupportedResolutionPresets[i];
+            if (!hasDisplayResolutionInfo || IsResolutionSupportedByDisplay(
+                    preset,
+                    displayResolutions))
+            {
+                target.Add(preset);
+            }
         }
 
-        Vector2Int candidate = new Vector2Int(width, height);
-        if (!resolutionOptions.Contains(candidate))
+        // 일부 플랫폼과 에디터에서는 Screen.resolutions가 비거나 제한적으로 반환될 수 있습니다.
+        // 그 경우에도 설정 UI에는 합의된 네 가지 해상도만 노출합니다.
+        if (target.Count == 0)
         {
-            resolutionOptions.Add(candidate);
+            target.AddRange(SupportedResolutionPresets);
         }
+    }
+
+    private static bool IsResolutionSupportedByDisplay(
+        Vector2Int target,
+        Resolution[] displayResolutions)
+    {
+        for (int i = 0; i < displayResolutions.Length; i++)
+        {
+            Resolution resolution = displayResolutions[i];
+            if (resolution.width == target.x && resolution.height == target.y)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void BindControls()
     {
+        previousButton.onClick.RemoveListener(PreviousResolution);
+        nextButton.onClick.RemoveListener(NextResolution);
+        screenModeButton.onClick.RemoveListener(ToggleScreenMode);
+        applyButton.onClick.RemoveListener(ApplySettings);
+        resetDefaultsButton.onClick.RemoveListener(RestoreDefaults);
         previousButton.onClick.AddListener(PreviousResolution);
         nextButton.onClick.AddListener(NextResolution);
         screenModeButton.onClick.AddListener(ToggleScreenMode);
         applyButton.onClick.AddListener(ApplySettings);
+        resetDefaultsButton.onClick.AddListener(RestoreDefaults);
 
         masterVolumeSlider.onValueChanged.AddListener(HandleMasterVolumeChanged);
         musicVolumeSlider.onValueChanged.AddListener(HandleMusicVolumeChanged);
@@ -784,6 +902,7 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
     private void HandleTerrainQualityChanged(int value)
     {
         selectedTerrainQualityIndex = Mathf.Clamp(value, 0, 2);
+        RefreshApplyButtonState();
     }
 
     private void LoadAudioValues()
@@ -802,7 +921,97 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
         RefreshVolumeInput(sfxVolumeInput, sfx);
         isRefreshingAudioUi = false;
 
-        ApplyAudioValues();
+        ApplyAudioPreview();
+    }
+
+    private void LoadCommittedSettingsIntoUi()
+    {
+        SelectCurrentResolution();
+        LoadAudioValues();
+        LoadTerrainQualitySelection();
+    }
+
+    private void CaptureCommittedSnapshot()
+    {
+        committedSnapshot = CreateCurrentSnapshot();
+        hasCommittedSnapshot = true;
+    }
+
+    private SettingsSnapshot CreateCurrentSnapshot()
+    {
+        return new SettingsSnapshot
+        {
+            resolutionIndex = selectedResolutionIndex,
+            terrainQualityIndex = selectedTerrainQualityIndex,
+            fullScreen = selectedFullScreen,
+            masterVolume = masterVolumeSlider != null ? masterVolumeSlider.value : 1f,
+            musicVolume = musicVolumeSlider != null ? musicVolumeSlider.value : 1f,
+            sfxVolume = sfxVolumeSlider != null ? sfxVolumeSlider.value : 1f
+        };
+    }
+
+    private void RestoreCommittedSnapshot()
+    {
+        selectedResolutionIndex = committedSnapshot.resolutionIndex;
+        selectedTerrainQualityIndex = committedSnapshot.terrainQualityIndex;
+        selectedFullScreen = committedSnapshot.fullScreen;
+
+        isRefreshingAudioUi = true;
+        masterVolumeSlider.SetValueWithoutNotify(committedSnapshot.masterVolume);
+        musicVolumeSlider.SetValueWithoutNotify(committedSnapshot.musicVolume);
+        sfxVolumeSlider.SetValueWithoutNotify(committedSnapshot.sfxVolume);
+        isRefreshingAudioUi = false;
+
+        // KMSAudioService의 미리듣기 setter가 PlayerPrefs 메모리 값도 갱신하므로
+        // 취소 시 마지막 적용 값으로 함께 되돌립니다. 디스크 저장은 하지 않습니다.
+        PlayerPrefs.SetFloat(MasterVolumePreferenceKey, committedSnapshot.masterVolume);
+        PlayerPrefs.SetFloat(MusicVolumePreferenceKey, committedSnapshot.musicVolume);
+        PlayerPrefs.SetFloat(SfxVolumePreferenceKey, committedSnapshot.sfxVolume);
+        ApplyAudioPreview();
+        RefreshAllSettingVisuals();
+    }
+
+    private void RefreshAllSettingVisuals()
+    {
+        RefreshResolutionLabels();
+        RefreshVolumeInput(
+            masterVolumeInput,
+            masterVolumeSlider != null ? masterVolumeSlider.value : 1f);
+        RefreshVolumeInput(
+            musicVolumeInput,
+            musicVolumeSlider != null ? musicVolumeSlider.value : 1f);
+        RefreshVolumeInput(
+            sfxVolumeInput,
+            sfxVolumeSlider != null ? sfxVolumeSlider.value : 1f);
+
+        if (terrainQualityDropdown != null)
+        {
+            terrainQualityDropdown.SetValueWithoutNotify(selectedTerrainQualityIndex);
+            terrainQualityDropdown.RefreshShownValue();
+        }
+
+        RefreshApplyButtonState();
+    }
+
+    private void RefreshApplyButtonState()
+    {
+        if (applyButton == null)
+        {
+            return;
+        }
+
+        applyButton.interactable = hasCommittedSnapshot && HasUnappliedChanges();
+    }
+
+    private bool HasUnappliedChanges()
+    {
+        SettingsSnapshot current = CreateCurrentSnapshot();
+        return current.resolutionIndex != committedSnapshot.resolutionIndex
+            || current.terrainQualityIndex != committedSnapshot.terrainQualityIndex
+            || current.fullScreen != committedSnapshot.fullScreen
+            || !Mathf.Approximately(current.masterVolume, committedSnapshot.masterVolume)
+            || !Mathf.Approximately(current.musicVolume, committedSnapshot.musicVolume)
+            || !Mathf.Approximately(current.sfxVolume, committedSnapshot.sfxVolume);
     }
 
     private void HandleMasterVolumeChanged(float value)
@@ -814,7 +1023,7 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
 
         RefreshVolumeInput(masterVolumeInput, value);
         AudioListener.volume = Mathf.Clamp01(value);
-        PlayerPrefs.SetFloat(MasterVolumePreferenceKey, AudioListener.volume);
+        RefreshApplyButtonState();
     }
 
     private void HandleMusicVolumeChanged(float value)
@@ -826,6 +1035,7 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
 
         RefreshVolumeInput(musicVolumeInput, value);
         KMSAudioService.SetMusicVolume(value);
+        RefreshApplyButtonState();
     }
 
     private void HandleSfxVolumeChanged(float value)
@@ -837,6 +1047,7 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
 
         RefreshVolumeInput(sfxVolumeInput, value);
         KMSAudioService.SetSfxVolume(value);
+        RefreshApplyButtonState();
     }
 
     private void HandleMasterVolumeInput(string value)
@@ -885,6 +1096,17 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
 
         AudioListener.volume = Mathf.Clamp01(master);
         PlayerPrefs.SetFloat(MasterVolumePreferenceKey, AudioListener.volume);
+        KMSAudioService.SetMusicVolume(music);
+        KMSAudioService.SetSfxVolume(sfx);
+    }
+
+    private void ApplyAudioPreview()
+    {
+        float master = masterVolumeSlider != null ? masterVolumeSlider.value : 1f;
+        float music = musicVolumeSlider != null ? musicVolumeSlider.value : 1f;
+        float sfx = sfxVolumeSlider != null ? sfxVolumeSlider.value : 1f;
+
+        AudioListener.volume = Mathf.Clamp01(master);
         KMSAudioService.SetMusicVolume(music);
         KMSAudioService.SetSfxVolume(sfx);
     }
@@ -991,6 +1213,49 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
         ApplyStoredTerrainQuality();
     }
 
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+    private static void ApplyInitialResolution()
+    {
+        if (Application.isBatchMode)
+        {
+            return;
+        }
+
+        var availableOptions = new List<Vector2Int>();
+        PopulateAvailableResolutionOptions(availableOptions);
+
+        int requestedWidth = PlayerPrefs.GetInt(
+            WidthPreferenceKey,
+            DefaultResolutionWidth);
+        int requestedHeight = PlayerPrefs.GetInt(
+            HeightPreferenceKey,
+            DefaultResolutionHeight);
+        bool fullScreen = PlayerPrefs.GetInt(FullScreenPreferenceKey, 1) != 0;
+        int selectedIndex = FindClosestResolutionIndex(
+            availableOptions,
+            requestedWidth,
+            requestedHeight);
+        Vector2Int resolution = availableOptions[selectedIndex];
+        FullScreenMode mode = fullScreen
+            ? FullScreenMode.FullScreenWindow
+            : FullScreenMode.Windowed;
+
+        Screen.SetResolution(resolution.x, resolution.y, mode);
+
+        bool shouldNormalizePreferences = !PlayerPrefs.HasKey(WidthPreferenceKey)
+            || !PlayerPrefs.HasKey(HeightPreferenceKey)
+            || !PlayerPrefs.HasKey(FullScreenPreferenceKey)
+            || requestedWidth != resolution.x
+            || requestedHeight != resolution.y;
+        if (shouldNormalizePreferences)
+        {
+            PlayerPrefs.SetInt(WidthPreferenceKey, resolution.x);
+            PlayerPrefs.SetInt(HeightPreferenceKey, resolution.y);
+            PlayerPrefs.SetInt(FullScreenPreferenceKey, fullScreen ? 1 : 0);
+            PlayerPrefs.Save();
+        }
+    }
+
     private void SelectCurrentResolution()
     {
         if (resolutionOptions.Count == 0)
@@ -998,17 +1263,28 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
             return;
         }
 
-        int currentWidth = Screen.width;
-        int currentHeight = Screen.height;
+        selectedResolutionIndex = FindClosestResolutionIndex(
+            resolutionOptions,
+            Screen.width,
+            Screen.height);
+        selectedFullScreen = Screen.fullScreenMode != FullScreenMode.Windowed;
+    }
+
+    private static int FindClosestResolutionIndex(
+        List<Vector2Int> options,
+        int targetWidth,
+        int targetHeight)
+    {
         int bestIndex = 0;
         long bestDistance = long.MaxValue;
 
-        for (int i = 0; i < resolutionOptions.Count; i++)
+        for (int i = 0; i < options.Count; i++)
         {
-            Vector2Int option = resolutionOptions[i];
-            long widthDifference = option.x - currentWidth;
-            long heightDifference = option.y - currentHeight;
-            long distance = widthDifference * widthDifference + heightDifference * heightDifference;
+            Vector2Int option = options[i];
+            long widthDifference = option.x - targetWidth;
+            long heightDifference = option.y - targetHeight;
+            long distance = widthDifference * widthDifference
+                + heightDifference * heightDifference;
             if (distance < bestDistance)
             {
                 bestDistance = distance;
@@ -1016,8 +1292,7 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
             }
         }
 
-        selectedResolutionIndex = bestIndex;
-        selectedFullScreen = Screen.fullScreenMode != FullScreenMode.Windowed;
+        return bestIndex;
     }
 
     private void RefreshResolutionLabels()
@@ -1199,24 +1474,9 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
         rect.sizeDelta = Vector2.zero;
     }
 
-    private static int CompareResolutions(Vector2Int left, Vector2Int right)
-    {
-        int pixelComparison = (left.x * left.y).CompareTo(right.x * right.y);
-        if (pixelComparison != 0)
-        {
-            return pixelComparison;
-        }
-
-        int widthComparison = left.x.CompareTo(right.x);
-        return widthComparison != 0 ? widthComparison : left.y.CompareTo(right.y);
-    }
-
 #if UNITY_EDITOR
     private void OnValidate()
     {
-        minimumWidth = Mathf.Max(320, minimumWidth);
-        minimumHeight = Mathf.Max(240, minimumHeight);
-
         if (lowTerrainQuality == null)
         {
             lowTerrainQuality = new TerrainQualityPreset(75f, 100f, 50f, 1);

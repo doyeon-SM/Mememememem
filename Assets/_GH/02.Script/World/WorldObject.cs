@@ -22,6 +22,14 @@ public enum WorldObjectInteractionState
 /// </summary>
 public class WorldObject : MonoBehaviour, KMS.IInteractable
 {
+    private static readonly HashSet<WorldObject> ActiveWorldObjects = new HashSet<WorldObject>();
+
+    /// <summary>활성화된 월드 오브젝트가 나타날 때 균열 등 보조 시스템에 알립니다.</summary>
+    public static event System.Action<WorldObject> InstanceEnabled;
+
+    /// <summary>현재 활성화된 월드 오브젝트입니다. 주기적인 전체 씬 검색을 대체합니다.</summary>
+    public static IReadOnlyCollection<WorldObject> ActiveInstances => ActiveWorldObjects;
+
     [Header("Setting")]
     [Tooltip("UI에 표시할 이름입니다. 비워 두면 GameObject 이름을 사용합니다.")]
     [SerializeField] private string displayName;
@@ -139,7 +147,21 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
 
     private void OnEnable()
     {
+        ActiveWorldObjects.Add(this);
+        InstanceEnabled?.Invoke(this);
         RefreshRespawnState();
+    }
+
+    private void OnDisable()
+    {
+        ActiveWorldObjects.Remove(this);
+    }
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetActiveRegistry()
+    {
+        ActiveWorldObjects.Clear();
+        InstanceEnabled = null;
     }
 
     private void Update()
