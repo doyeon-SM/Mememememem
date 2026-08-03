@@ -44,6 +44,7 @@ using MemSystem.Interface;
 using MemSystem.AI;
 using MemSystem.Movement;
 using MemSystem.Visual;
+using MemSystem.Sound;
 
 namespace MemSystem.Core
 {
@@ -80,6 +81,9 @@ namespace MemSystem.Core
         /// <summary>모델/애니메이션 제어</summary>
         public MemVisual Visual { get; private set; }
 
+        /// <summary>효과음 제어 (배회 울음소리 등). 프리팹에 없으면 null.</summary>
+        public MemSound Sound { get; private set; }
+
         /// <summary>이 멤의 원본 데이터 에셋 참조</summary>
         public MemData Data { get; private set; }
 
@@ -100,6 +104,7 @@ namespace MemSystem.Core
             AI = GetComponent<MemAI>();
             Movement = GetComponent<MemMovement>();
             Visual = GetComponentInChildren<MemVisual>();
+            Sound = GetComponent<MemSound>();
         }
 
         // =================================================================
@@ -161,6 +166,7 @@ namespace MemSystem.Core
             if (AI != null) AI.ResetState();
             if (Movement != null) Movement.Stop();
             if (Visual != null) Visual.ResetVisual();
+            if (Sound != null) Sound.ResetSound();
         }
 
         // =================================================================
@@ -277,6 +283,9 @@ namespace MemSystem.Core
 
             // 캡슐 위치 저장 (포획 실패 시 탈출 연출 시작점에 사용)
             lastCapsulePosition = capsulePosition;
+
+            // 캡슐 피격음 — 성공/실패 판정 전, 시도 시점에 재생
+            if (Sound != null) Sound.PlayCatch();
 
             // CapturedState에 캡슐 위치 전달 (PlayCaptureAbsorb 목표 위치)
             if (AI != null)
