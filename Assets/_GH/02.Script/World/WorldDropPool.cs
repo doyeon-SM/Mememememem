@@ -135,7 +135,10 @@ public static class WorldDropPool
         dropRigidbody.interpolation = RigidbodyInterpolation.None;
         dropRigidbody.collisionDetectionMode = CollisionDetectionMode.Discrete;
 
-        instance.AddComponent<WorldItem>();
+        WorldItem worldItem = instance.AddComponent<WorldItem>();
+        instance.AddComponent<WorldItemDropMotion>();
+        WorldItemPickupAttractor pickupAttractor = instance.AddComponent<WorldItemPickupAttractor>();
+        pickupAttractor.Bind(worldItem);
         instance.AddComponent<PooledWorldDrop>();
         return instance;
     }

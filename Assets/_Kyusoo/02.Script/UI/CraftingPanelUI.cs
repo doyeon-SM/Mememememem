@@ -10,6 +10,7 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using DG.Tweening;
 
 public class CraftingPanelUI : MonoBehaviour
 {
@@ -63,6 +64,7 @@ public class CraftingPanelUI : MonoBehaviour
     [SerializeField] private GameObject bottomCraftingModeObject;
     [SerializeField] private Slider progressBar;
     [SerializeField] private TextMeshProUGUI durationText;
+    [SerializeField] private TextMeshProUGUI craftingStatusText;
     [SerializeField] private Button cancelBtn;
     [SerializeField] private Button getBtn;
 
@@ -77,6 +79,9 @@ public class CraftingPanelUI : MonoBehaviour
 
     private bool isUpdatingQuantitySystem = false;
     private Coroutine errorFeedbackCoroutine;
+
+    private Sequence dotsSequence;
+    private bool isAnimatingDots = false;
 
     private void Awake()
     {
@@ -98,6 +103,11 @@ public class CraftingPanelUI : MonoBehaviour
         if (singleMemSlot != null) singleMemSlot.InitializeSlot(0);
     }
 
+    private void OnDisable()
+    {
+        StopDotsAnimation();
+    }
+
     private void Update()
     {
         if (targetFacility == null) return;
@@ -108,6 +118,8 @@ public class CraftingPanelUI : MonoBehaviour
             if (progressBar != null) progressBar.value = progressNormalized;
 
             if (durationText != null) durationText.text = $"{Mathf.Clamp(progressNormalized * 100f, 0f, 100f):F0}%";
+
+            UpdateCraftingStatusUI();
         }
 
         bool canGet = (targetFacility.currentStorageCount > 0);
@@ -115,6 +127,93 @@ public class CraftingPanelUI : MonoBehaviour
         if (collectRewardBtn != null) collectRewardBtn.interactable = canGet;
 
         UpdateStorageText();
+    }
+
+    private void UpdateCraftingStatusUI()
+    {
+        if (targetFacility == null) return;
+
+        bool isStarving = ConsumeFoodSystem.Instance != null && ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation;
+
+        if (isStarving)
+        {
+            StopDotsAnimation();
+            if (craftingStatusText != null)
+            {
+                craftingStatusText.color = Color.red;
+                craftingStatusText.text = "식량이 부족합니다";
+            }
+        }
+        else if (targetFacility.isProducing)
+        {
+            StartDotsAnimation();
+        }
+        else
+        {
+            StopDotsAnimation();
+            if (craftingStatusText != null)
+            {
+                craftingStatusText.color = Color.white;
+                if (targetFacility.currentStorageCount >= targetFacility.maxStorageCount)
+                    craftingStatusText.text = "보관함 가득 참";
+                else if (targetFacility.DeployedMems.Count == 0)
+                    craftingStatusText.text = "멤 미배치";
+                else
+                    craftingStatusText.text = "제작 대기 중";
+            }
+        }
+    }
+
+    /// <summary>
+    /// 🌟 아이템 이름 + "제작중 . . ." 애니메이션 적용
+    /// </summary>
+    private void StartDotsAnimation()
+    {
+        if (isAnimatingDots) return;
+        isAnimatingDots = true;
+
+        if (dotsSequence != null) dotsSequence.Kill();
+
+        if (craftingStatusText != null) craftingStatusText.color = Color.white;
+
+        // 아이템 이름 추출
+        string itemName = "";
+        if (targetFacility != null && !string.IsNullOrEmpty(targetFacility.currentCraftingItem))
+        {
+            ItemData targetItemData = FindItemDataInCatalog(targetFacility.currentCraftingItem);
+            if (targetItemData != null)
+            {
+                itemName = targetItemData.ItemName;
+            }
+        }
+
+        string prefix = string.IsNullOrEmpty(itemName) ? "제작중" : $"{itemName} 제작중";
+
+        dotsSequence = DOTween.Sequence();
+        dotsSequence.AppendCallback(() => { SetStatusText($"{prefix} ."); })
+                    .AppendInterval(0.4f)
+                    .AppendCallback(() => { SetStatusText($"{prefix} .."); })
+                    .AppendInterval(0.4f)
+                    .AppendCallback(() => { SetStatusText($"{prefix} ..."); })
+                    .AppendInterval(0.4f)
+                    .SetLoops(-1, LoopType.Restart);
+    }
+
+    private void SetStatusText(string text)
+    {
+        if (craftingStatusText != null) craftingStatusText.text = text;
+    }
+
+    private void StopDotsAnimation()
+    {
+        if (!isAnimatingDots && dotsSequence == null) return;
+
+        isAnimatingDots = false;
+        if (dotsSequence != null)
+        {
+            dotsSequence.Kill();
+            dotsSequence = null;
+        }
     }
 
     public void OpenPanel(ProductionCraftRuntime facility)
@@ -144,7 +243,8 @@ public class CraftingPanelUI : MonoBehaviour
     {
         if (targetFacility == null) return;
 
-        buildingName.text = targetFacility.buildingData.buildingName;
+        if (buildingName != null && targetFacility.buildingData != null)
+            buildingName.text = targetFacility.buildingData.buildingName;
 
         MemData placedMemData = targetFacility.DeployedMems.Count > 0 ? targetFacility.DeployedMems[0] : null;
         CapturedMemEntry placedEntryData = targetFacility.DeployedMemEntries.Count > 0 ? targetFacility.DeployedMemEntries[0] : null;
@@ -184,6 +284,12 @@ public class CraftingPanelUI : MonoBehaviour
                 if (craftingItemIcon != null) craftingItemIcon.sprite = currentItem.ItemIcon;
                 if (craftingItemName != null) craftingItemName.text = currentItem.ItemName;
             }
+
+            UpdateCraftingStatusUI();
+        }
+        else
+        {
+            StopDotsAnimation();
         }
     }
 
@@ -518,7 +624,6 @@ public class CraftingPanelUI : MonoBehaviour
 
     public bool TryDeployMemFromUI(MemData targetMem, CapturedMemEntry targetEntry)
     {
-        // 🌟 [보완]: targetFacility가 null인 경우 씬에서 활성화된 ProductionCraftRuntime을 자동 탐색해 할당
         if (targetFacility == null)
         {
             targetFacility = FindFirstObjectByType<ProductionCraftRuntime>();
@@ -569,6 +674,7 @@ public class CraftingPanelUI : MonoBehaviour
         if (errorFeedbackCoroutine != null) StopCoroutine(errorFeedbackCoroutine);
         errorFeedbackCoroutine = null;
 
+        StopDotsAnimation();
         targetFacility = null;
     }
 

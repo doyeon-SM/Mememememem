@@ -11,41 +11,50 @@ using UnityEngine;
 
 public class ProductionCraftRuntime : MonoBehaviour
 {
-    [Header("제작 시설 기반 정보")]
+    [Header("시설 기본 정보")]
     public BuildingData buildingData;
 
-    [Header("제작 상태 여부")]
+    [Header("제작 가동 상태")]
     public bool isProducing = false;
-
     public string currentCraftingItem;
-
     public float totalRequiredTime;
     public float currentProgressTime = 0f;
 
-    [Header("제작 수량 데이터: 목표 설정 수량, 남은 수량")]
+    [Header("제작 수량 데이터")]
     public int targetQuantity = 1;
     public int remainingQuantity = 0;
 
-    [Header("제작 완료 데이터: 제작 완료된 수량, 최대 수량")]
+    [Header("제작 완료 데이터")]
     public int currentStorageCount = 0;
     public int maxStorageCount;
 
-    [Header("제작대에 배치된 멤 정보")]
+    [Header("배치된 멤 정보")]
     [SerializeField] private List<MemData> addMems = new List<MemData>();
     [SerializeField] private List<CapturedMemEntry> addMemEntries = new List<CapturedMemEntry>();
 
     public List<MemData> DeployedMems => addMems;
     public List<CapturedMemEntry> DeployedMemEntries => addMemEntries;
 
-    public static event Action OnMemDeploymentChanged;
+    // 🌟 MemPos 트랜스폼 캐싱 리스트
+    [SerializeField] private List<Transform> memPositions = new List<Transform>();
+    public List<Transform> MemPositions
+    {
+        get
+        {
+            if (memPositions == null || memPositions.Count == 0) CacheMemPositions();
+            return memPositions;
+        }
+    }
 
-    public static event Action<BuildingType, MemData, bool> MemAdded;
-    public static event Action<BuildingType, List<MemData>> FacilityStarted;
-    public static event Action<BuildingType, List<MemData>, FacilityStopReason> FacilityStopped;
+    public static event Action OnMemDeploymentChanged;
+    public static event Action<BuildingType, MemData, bool, List<Transform>> MemAdded;
+    public static event Action<BuildingType, List<MemData>, List<Transform>> FacilityStarted;
+    public static event Action<BuildingType, List<MemData>, FacilityStopReason, List<Transform>> FacilityStopped;
 
     private void Start()
     {
         EnsureBuildingData();
+        CacheMemPositions();
         maxStorageCount = 10;
 
         if (FacilityCollectManager.Instance != null)
@@ -63,6 +72,18 @@ public class ProductionCraftRuntime : MonoBehaviour
         if (buildingData == null && TryGetComponent<BuildingRuntime>(out var br))
         {
             buildingData = br.buildingData;
+        }
+    }
+
+    private void CacheMemPositions()
+    {
+        memPositions.Clear();
+        foreach (Transform child in GetComponentsInChildren<Transform>(true))
+        {
+            if (child != null && child.name.StartsWith("MemPos"))
+            {
+                memPositions.Add(child);
+            }
         }
     }
 
@@ -147,22 +168,11 @@ public class ProductionCraftRuntime : MonoBehaviour
         }
     }
 
-    // 🌟 [목장 기반 복사 및 커스텀]: 제작대 멤 배치 로직
     public bool TryAddMem(MemData targetMem, CapturedMemEntry targetEntry)
     {
         EnsureBuildingData();
 
-        if (targetEntry == null)
-        {
-            Debug.LogWarning("[제작대] ❌ CapturedMemEntry 인자가 null입니다.");
-            return false;
-        }
-
-        if (buildingData == null)
-        {
-            Debug.LogError("[제작대] ❌ BuildingData가 할당되어 있지 않아 배치를 진행할 수 없습니다.");
-            return false;
-        }
+        if (targetEntry == null || buildingData == null) return false;
 
         MemData realMemData = targetMem;
         if ((realMemData == null || string.IsNullOrEmpty(realMemData.memId)) && MemCatalogManager.Instance != null && !string.IsNullOrEmpty(targetEntry.MemId))
@@ -170,43 +180,23 @@ public class ProductionCraftRuntime : MonoBehaviour
             realMemData = MemCatalogManager.Instance.FindMemData(targetEntry.MemId);
         }
 
-        if (realMemData == null)
-        {
-            Debug.LogError($"[제작대] ❌ targetEntry의 MemId('{targetEntry.MemId}')에 해당되는 MemData SO가 존재하지 않습니다.");
-            return false;
-        }
+        if (realMemData == null) return false;
 
-        if (addMemEntries.Exists(e => e != null && e.KeyId == targetEntry.KeyId))
-        {
-            Debug.LogWarning($"[제작대] ⚠️ 동일한 멤 개체(KeyID: {targetEntry.KeyId})가 이미 배치되어 있습니다.");
-            return false;
-        }
-
-        if (targetEntry.IsActive)
-        {
-            Debug.LogWarning($"[제작대] ⚠️ {realMemData.memName}(KeyID: {targetEntry.KeyId})은/는 이미 IsActive == true 상태(다른 시설/탐험대 근무 중)입니다.");
-            return false;
-        }
+        if (addMemEntries.Exists(e => e != null && e.KeyId == targetEntry.KeyId)) return false;
+        if (targetEntry.IsActive) return false;
 
         ProductionStatType requiredStat = ProductionCalculator.GetRequiredStatType(buildingData.buildingType);
-        int currentStatVal = realMemData.productionStats.GetStat(requiredStat);
 
-        if (!ProductionCalculator.CanDeployToFacility(realMemData, buildingData.buildingType))
-        {
-            Debug.LogWarning($"[제작대] ⚠️ {realMemData.memName}의 {requiredStat} 스탯이 {currentStatVal}단계입니다. ({buildingData.buildingName} 배치 요구 조건: 1단계 이상)");
-            return false;
-        }
+        if (!ProductionCalculator.CanDeployToFacility(realMemData, buildingData.buildingType)) return false;
 
         if (addMems.Count >= 1 && addMemEntries.Count > 0)
         {
-            Debug.Log($"[제작대] 🔄 기존 멤({addMems[0].memName})을 자동 해제하고 새 멤({realMemData.memName})으로 교체합니다.");
             RemoveMem(addMemEntries[0]);
         }
 
         addMems.Add(realMemData);
         addMemEntries.Add(targetEntry);
         targetEntry.IsActive = true;
-        Debug.Log($"<color=lime>[제작대]</color> ✅ {realMemData.memName} 배치 성공! (스탯: {requiredStat} Lv.{currentStatVal})");
 
         RecalculateCraftingTimer();
 
@@ -216,7 +206,7 @@ public class ProductionCraftRuntime : MonoBehaviour
 
         if (buildingData != null)
         {
-            MemAdded?.Invoke(buildingData.buildingType, realMemData, true);
+            MemAdded?.Invoke(buildingData.buildingType, realMemData, true, MemPositions);
         }
 
         return true;
@@ -243,7 +233,7 @@ public class ProductionCraftRuntime : MonoBehaviour
 
             if (buildingData != null && removedMem != null)
             {
-                MemAdded?.Invoke(buildingData.buildingType, removedMem, false);
+                MemAdded?.Invoke(buildingData.buildingType, removedMem, false, MemPositions);
             }
         }
     }
@@ -263,14 +253,12 @@ public class ProductionCraftRuntime : MonoBehaviour
     {
         currentStorageCount++;
         remainingQuantity--;
-
         currentProgressTime = 0f;
 
         if (remainingQuantity > 0)
         {
             RecipeData recipe = FindRecipeDataInCatalog(currentCraftingItem);
             float baseDuration = recipe != null ? recipe.time : 20f;
-
             totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, addMems);
         }
         else
@@ -279,7 +267,7 @@ public class ProductionCraftRuntime : MonoBehaviour
 
             if (buildingData != null)
             {
-                FacilityStopped?.Invoke(buildingData.buildingType, addMems, FacilityStopReason.CompleteCrafting);
+                FacilityStopped?.Invoke(buildingData.buildingType, addMems, FacilityStopReason.CompleteCrafting, MemPositions);
             }
         }
 
@@ -291,7 +279,6 @@ public class ProductionCraftRuntime : MonoBehaviour
         if (!isProducing && string.IsNullOrEmpty(currentCraftingItem)) return;
 
         bool wasWorking = isProducing;
-
         var inventory = FindFirstObjectByType<PlayerInventory>();
         var warehouse = FindFirstObjectByType<WarehouseInventory>();
 
@@ -307,13 +294,11 @@ public class ProductionCraftRuntime : MonoBehaviour
         if (remainingQuantity > 0)
         {
             RecipeData matchedRecipe = FindRecipeDataInCatalog(currentCraftingItem);
-
             if (matchedRecipe != null && matchedRecipe.Requset_Items_ID != null)
             {
                 foreach (var req in matchedRecipe.Requset_Items_ID)
                 {
                     if (req == null || string.IsNullOrEmpty(req.Item_ID)) continue;
-
                     int refundAmount = req.Amount * remainingQuantity;
                     if (refundAmount <= 0) continue;
 
@@ -338,7 +323,7 @@ public class ProductionCraftRuntime : MonoBehaviour
 
         if (wasWorking && buildingData != null)
         {
-            FacilityStopped?.Invoke(buildingData.buildingType, addMems, FacilityStopReason.CancelCrafting);
+            FacilityStopped?.Invoke(buildingData.buildingType, addMems, FacilityStopReason.CancelCrafting, MemPositions);
         }
     }
 
@@ -370,12 +355,7 @@ public class ProductionCraftRuntime : MonoBehaviour
     private ItemData FindItemDataInCatalog(string itemId)
     {
         if (string.IsNullOrEmpty(itemId)) return null;
-
-        if (ItemCatalogManager.Instance == null)
-        {
-            Debug.LogError($"[ItemCatalogManager] 인스턴스가 존재하지 않아 아이템 '{itemId}'을(를) 탐색할 수 없습니다.");
-            return null;
-        }
+        if (ItemCatalogManager.Instance == null) return null;
 
         return ItemCatalogManager.Instance.FindItemData(itemId);
     }
@@ -383,12 +363,7 @@ public class ProductionCraftRuntime : MonoBehaviour
     private RecipeData FindRecipeDataInCatalog(string recipeItemId)
     {
         if (string.IsNullOrEmpty(recipeItemId)) return null;
-
-        if (ItemCatalogManager.Instance == null)
-        {
-            Debug.LogError($"[ItemCatalogManager] 인스턴스가 존재하지 않아 레시피 '{recipeItemId}'을(를) 탐색할 수 없습니다.");
-            return null;
-        }
+        if (ItemCatalogManager.Instance == null) return null;
 
         return ItemCatalogManager.Instance.FindRecipeData(recipeItemId);
     }
@@ -400,7 +375,7 @@ public class ProductionCraftRuntime : MonoBehaviour
 
         if (isProducing && buildingData != null)
         {
-            FacilityStarted?.Invoke(buildingData.buildingType, addMems);
+            FacilityStarted?.Invoke(buildingData.buildingType, addMems, MemPositions);
         }
     }
 
@@ -411,7 +386,7 @@ public class ProductionCraftRuntime : MonoBehaviour
 
         if (buildingData != null)
         {
-            FacilityStopped?.Invoke(buildingData.buildingType, addMems, FacilityStopReason.Starvation);
+            FacilityStopped?.Invoke(buildingData.buildingType, addMems, FacilityStopReason.Starvation, MemPositions);
         }
     }
 

@@ -306,6 +306,10 @@ namespace MemSystem.AI.States
             // 데미지 이벤트 발행 → 플레이어 시스템이 수신하여 HP 감소 처리
             MemEvents.OnMemAttackPlayer?.Invoke(ai.Owner, stats.AttackDamage);
 
+            // 타격음 — 돌진이 플레이어에 닿아 보이는 타이밍에 맞춰 약간 늦게 재생됩니다.
+            if (ai.Sound != null)
+                ai.Sound.PlayAttackHit();
+
             Debug.Log($"[CombatState] {stats.MemName} 공격! 데미지: {stats.AttackDamage}");
         }
     }

@@ -1,4 +1,4 @@
-using System;
+ï»¿using System;
 using System.Collections.Generic;
 using UnityEngine;
 using HDY.Capture;
@@ -7,48 +7,49 @@ using HDY.Mem;
 using MemSystem.Data;
 using KMS.InventoryDuped;
 
-/// <summary>
-/// ¹ßÀü±â ½Ã¼³ÀÇ ·±Å¸ÀÓ ·ÎÁ÷À» ´ã´çÇÕ´Ï´Ù.
-/// ¸â 1¸¶¸®¸¦ ¹èÄ¡ÇÏ¿© Àü·ÂÀ» ÀÚµ¿ »ı»ê ¹× ÃàÀûÇÕ´Ï´Ù.
-/// </summary>
 public class GeneratorRuntime : MonoBehaviour
 {
-    [Header("±âº» ½Ã¼³ Á¤º¸")]
+    [Header("ì‹œì„¤ ê¸°ë³¸ ì •ë³´")]
     public BuildingData buildingData;
     public int currentLevel = 1;
 
-    [Header("Àü·Â ¹ßÀü ¼³Á¤")]
+    [Header("ë°œì „ ìƒíƒœ")]
     public bool isPowerGenerating = false;
-    [Tooltip("±âº» ¹ßÀü ¼Ò¿ä ½Ã°£ (30ÃÊ)")]
     public float basePowerGenerationTime = 30f;
-    [Tooltip("1È¸ ¹ßÀü ½Ã »ı¼ºµÇ´Â Àü·Â·® (10Watt)")]
     public int powerPerUnit = 10;
-
     public float totalPowerRequiredTime;
     public float currentPowerProgressTime = 0f;
 
-    [Header("Àü·Â ÀúÀå ¿ë·®")]
-    [Tooltip("ÇöÀç ÃàÀûµÈ Àü·Â·® (Watt)")]
+    [Header("ì „ë ¥ ë³´ê´€ ì •ë³´")]
     public int currentPowerStorage = 0;
-    [Tooltip("ÃÖ´ë ÀúÀå °¡´É Àü·Â·® (Watt)")]
     public int maxPowerStorage = 300;
 
-    [Header("¹èÄ¡µÈ ¸â µ¥ÀÌÅÍ (ÃÖ´ë 1¸¶¸®)")]
+    [Header("ë°°ì¹˜ëœ ë©¤ ì •ë³´")]
     [SerializeField] private List<MemData> addMems = new List<MemData>();
     [SerializeField] private List<CapturedMemEntry> addMemEntries = new List<CapturedMemEntry>();
 
     public List<MemData> DeployedMems => addMems;
     public List<CapturedMemEntry> DeployedMemEntries => addMemEntries;
 
-    // ´ëÀå°£/½Ã¼³ ÀúÀå¼Ò ¹× ¿ÜºÎ ¿¬µ¿¿ë °ø¿ë ÀÌº¥Æ®
+    [SerializeField] private List<Transform> memPositions = new List<Transform>();
+    public List<Transform> MemPositions
+    {
+        get
+        {
+            if (memPositions == null || memPositions.Count == 0) CacheMemPositions();
+            return memPositions;
+        }
+    }
+
     public static event Action OnMemDeploymentChanged;
-    public static event Action<BuildingType, MemData, bool> MemAdded;
-    public static event Action<BuildingType, List<MemData>> FacilityStarted;
-    public static event Action<BuildingType, List<MemData>, FacilityStopReason> FacilityStopped;
+    public static event Action<BuildingType, MemData, bool, List<Transform>> MemAdded;
+    public static event Action<BuildingType, List<MemData>, List<Transform>> FacilityStarted;
+    public static event Action<BuildingType, List<MemData>, FacilityStopReason, List<Transform>> FacilityStopped;
 
     private void Start()
     {
         EnsureBuildingData();
+        CacheMemPositions();
         UpdateMaxPowerStorage();
         CheckPowerCondition();
     }
@@ -61,18 +62,28 @@ public class GeneratorRuntime : MonoBehaviour
         }
     }
 
+    private void CacheMemPositions()
+    {
+        memPositions.Clear();
+        foreach (Transform child in GetComponentsInChildren<Transform>(true))
+        {
+            if (child != null && child.name.StartsWith("MemPos"))
+            {
+                memPositions.Add(child);
+            }
+        }
+    }
+
     public void LevelUp()
     {
         currentLevel++;
         UpdateMaxPowerStorage();
         CheckPowerCondition();
         OnMemDeploymentChanged?.Invoke();
-        Debug.Log($"<color=lime>[¹ßÀü±â ·¹º§¾÷]</color> {buildingData?.buildingName} ·¹º§ÀÌ Lv.{currentLevel}·Î »ó½ÂÇß½À´Ï´Ù.");
     }
 
     public void UpdateMaxPowerStorage()
     {
-        // 1. ¿ä±¸»çÇ× ¹İ¿µ: ·¹º§´ç 300Watt¾¿ ÃÖ´ë ÀúÀå ¿ë·® ¼³Á¤
         maxPowerStorage = currentLevel * 300;
     }
 
@@ -80,7 +91,6 @@ public class GeneratorRuntime : MonoBehaviour
     {
         if (!isPowerGenerating) return;
 
-        // Àü·Â ÀúÀå ¿ë·®ÀÌ °¡µæ Â÷¸é ¹ßÀü ÀÚµ¿ Á¤Áö
         if (currentPowerStorage >= maxPowerStorage)
         {
             isPowerGenerating = false;
@@ -88,15 +98,13 @@ public class GeneratorRuntime : MonoBehaviour
         }
 
         currentPowerProgressTime += Time.deltaTime;
+
         if (currentPowerProgressTime >= totalPowerRequiredTime)
         {
             CompletePowerUnit();
         }
     }
 
-    /// <summary>
-    /// 3. ¿ä±¸»çÇ× ¹İ¿µ: ¼ö·É ¹öÆ° Å¬¸¯ ÇÊ¿ä ¾øÀÌ ¹ßÀü Áï½Ã ³»ºÎ¿¡ Àü·ÂÀÌ ÀÚµ¿À¸·Î ¼ö±Ş/ÀúÀåµË´Ï´Ù.
-    /// </summary>
     private void CompletePowerUnit()
     {
         currentPowerStorage = Mathf.Min(maxPowerStorage, currentPowerStorage + powerPerUnit);
@@ -104,7 +112,6 @@ public class GeneratorRuntime : MonoBehaviour
 
         if (addMems.Count > 0)
         {
-            // 2. ¿ä±¸»çÇ× ¹İ¿µ: ProductionCalculator Á¤Àû Å¬·¡½º ¸Ş¼­µå È£Ãâ
             totalPowerRequiredTime = ProductionCalculator.CalculatePowerGenerationTime(basePowerGenerationTime, addMems[0]);
         }
     }
@@ -120,7 +127,6 @@ public class GeneratorRuntime : MonoBehaviour
 
         float currentProgressPercent = (totalPowerRequiredTime > 0f) ? (currentPowerProgressTime / totalPowerRequiredTime) : 0f;
 
-        // 2. ¿ä±¸»çÇ× ¹İ¿µ: ProductionCalculator È£Ãâ
         totalPowerRequiredTime = ProductionCalculator.CalculatePowerGenerationTime(basePowerGenerationTime, addMems[0]);
         currentPowerProgressTime = totalPowerRequiredTime * currentProgressPercent;
 
@@ -134,24 +140,11 @@ public class GeneratorRuntime : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// ¹ßÀü±â¿¡ ¸â ¹èÄ¡¸¦ ½ÃµµÇÕ´Ï´Ù (ÃÖ´ë 1¸¶¸® Á¦ÇÑ).
-    /// </summary>
     public bool TryAddMem(MemData targetMem, CapturedMemEntry targetEntry)
     {
         EnsureBuildingData();
 
-        if (targetEntry == null)
-        {
-            Debug.LogWarning("[¹ßÀü±â] CapturedMemEntry°¡ nullÀÔ´Ï´Ù.");
-            return false;
-        }
-
-        if (buildingData == null)
-        {
-            Debug.LogError("[¹ßÀü±â] BuildingData°¡ ¿¬°áµÇÁö ¾Ê¾Ò½À´Ï´Ù.");
-            return false;
-        }
+        if (targetEntry == null || buildingData == null) return false;
 
         MemData realMemData = targetMem;
         if ((realMemData == null || string.IsNullOrEmpty(realMemData.memId)) && MemCatalogManager.Instance != null && !string.IsNullOrEmpty(targetEntry.MemId))
@@ -159,37 +152,17 @@ public class GeneratorRuntime : MonoBehaviour
             realMemData = MemCatalogManager.Instance.FindMemData(targetEntry.MemId);
         }
 
-        if (realMemData == null)
-        {
-            Debug.LogError($"[¹ßÀü±â] targetEntryÀÇ MemId('{targetEntry.MemId}')¿¡ ÇØ´çÇÏ´Â MemData SO¸¦ Ã£À» ¼ö ¾ø½À´Ï´Ù.");
-            return false;
-        }
+        if (realMemData == null) return false;
 
-        if (addMemEntries.Exists(e => e != null && e.KeyId == targetEntry.KeyId))
-        {
-            Debug.LogWarning($"[¹ßÀü±â] ÀÌ¹Ì ¹èÄ¡µÈ ¸â(KeyID: {targetEntry.KeyId})ÀÔ´Ï´Ù.");
-            return false;
-        }
-
-        if (targetEntry.IsActive)
-        {
-            Debug.LogWarning($"[¹ßÀü±â] {realMemData.memName}(KeyID: {targetEntry.KeyId})´Â ÀÌ¹Ì ´Ù¸¥ °÷¿¡¼­ IsActive == true »óÅÂÀÔ´Ï´Ù.");
-            return false;
-        }
+        if (addMemEntries.Exists(e => e != null && e.KeyId == targetEntry.KeyId)) return false;
+        if (targetEntry.IsActive) return false;
 
         ProductionStatType requiredStat = ProductionCalculator.GetRequiredStatType(buildingData.buildingType);
-        int currentStatVal = realMemData.productionStats.GetStat(requiredStat);
 
-        if (!ProductionCalculator.CanDeployToFacility(realMemData, buildingData.buildingType))
-        {
-            Debug.LogWarning($"[¹ßÀü±â] {realMemData.memName}ÀÇ {requiredStat} ½ºÅÈÀÌ 1 ¹Ì¸¸({currentStatVal})ÀÌ¹Ç·Î ¹èÄ¡ÇÒ ¼ö ¾ø½À´Ï´Ù.");
-            return false;
-        }
+        if (!ProductionCalculator.CanDeployToFacility(realMemData, buildingData.buildingType)) return false;
 
-        // 1¸¶¸® Á¦ÇÑ: ±âÁ¸ ¸âÀÌ ÀÖ´Ù¸é ±³Ã¼
         if (addMems.Count >= 1 && addMemEntries.Count > 0)
         {
-            Debug.Log($"[¹ßÀü±â] ±âÁ¸ ¹èÄ¡µÈ ¸â({addMems[0].memName})À» »õ ¸â({realMemData.memName})À¸·Î ±³Ã¼ÇÕ´Ï´Ù.");
             RemoveMem(addMemEntries[0]);
         }
 
@@ -200,11 +173,12 @@ public class GeneratorRuntime : MonoBehaviour
         CheckPowerCondition();
 
         if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
+
         OnMemDeploymentChanged?.Invoke();
 
         if (buildingData != null)
         {
-            MemAdded?.Invoke(buildingData.buildingType, realMemData, true);
+            MemAdded?.Invoke(buildingData.buildingType, realMemData, true, MemPositions);
         }
 
         return true;
@@ -218,6 +192,7 @@ public class GeneratorRuntime : MonoBehaviour
         if (index >= 0)
         {
             MemData removedMem = (index < addMems.Count) ? addMems[index] : null;
+
             addMemEntries[index].IsActive = false;
             addMemEntries.RemoveAt(index);
             if (index < addMems.Count) addMems.RemoveAt(index);
@@ -225,11 +200,12 @@ public class GeneratorRuntime : MonoBehaviour
             CheckPowerCondition();
 
             if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
+
             OnMemDeploymentChanged?.Invoke();
 
             if (buildingData != null && removedMem != null)
             {
-                MemAdded?.Invoke(buildingData.buildingType, removedMem, false);
+                MemAdded?.Invoke(buildingData.buildingType, removedMem, false, MemPositions);
             }
         }
     }
@@ -245,9 +221,6 @@ public class GeneratorRuntime : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// ÃàÀûµÈ Àü·ÂÀ» »ç¿ë/¼ÒºñÇÕ´Ï´Ù.
-    /// </summary>
     public int ConsumePower(int amount)
     {
         if (currentPowerStorage <= 0) return 0;
@@ -256,6 +229,7 @@ public class GeneratorRuntime : MonoBehaviour
         currentPowerStorage -= consumed;
 
         CheckPowerCondition();
+
         return consumed;
     }
 
@@ -266,7 +240,7 @@ public class GeneratorRuntime : MonoBehaviour
 
         if (isPowerGenerating && buildingData != null)
         {
-            FacilityStarted?.Invoke(buildingData.buildingType, addMems);
+            FacilityStarted?.Invoke(buildingData.buildingType, addMems, MemPositions);
         }
     }
 
@@ -277,7 +251,7 @@ public class GeneratorRuntime : MonoBehaviour
 
         if (buildingData != null)
         {
-            FacilityStopped?.Invoke(buildingData.buildingType, addMems, FacilityStopReason.Starvation);
+            FacilityStopped?.Invoke(buildingData.buildingType, addMems, FacilityStopReason.Starvation, MemPositions);
         }
     }
 }

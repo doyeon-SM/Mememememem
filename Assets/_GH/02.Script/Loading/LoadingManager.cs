@@ -348,18 +348,33 @@ namespace GH.Loading
                 return;
             }
 
-            CharacterController controller = PlayerReferenceResolver
-                .FindComponentInPlayerHierarchy<CharacterController>(playerObject);
-            if (controller != null)
+            if (WayPointManager.Instance != null)
             {
-                controller.enabled = false;
+                if (!WayPointManager.Instance.TryPlacePlayerAtDestination(
+                        playerObject.transform,
+                        destinationStone.SpawnPosition))
+                {
+                    Debug.LogWarning(
+                        $"[LoadingManager] 목적지에 배치할 플레이어를 찾지 못했습니다. waypoint={destinationWayPointId}",
+                        destinationStone);
+                    return;
+                }
             }
-
-            playerObject.transform.position = destinationStone.SpawnPosition;
-
-            if (controller != null)
+            else
             {
-                controller.enabled = true;
+                CharacterController controller = PlayerReferenceResolver
+                    .FindComponentInPlayerHierarchy<CharacterController>(playerObject);
+                if (controller != null)
+                {
+                    controller.enabled = false;
+                }
+
+                playerObject.transform.position = destinationStone.SpawnPosition;
+
+                if (controller != null)
+                {
+                    controller.enabled = true;
+                }
             }
 
             WorldChunkManager chunkManager = FindFirstObjectByType<WorldChunkManager>(FindObjectsInactive.Include);

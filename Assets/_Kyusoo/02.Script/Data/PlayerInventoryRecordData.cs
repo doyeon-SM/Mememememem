@@ -1,7 +1,7 @@
 ﻿using System;
 using System.IO;
+using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using KMS.InventoryDuped;
 
 public class PlayerInventoryRecord : MonoBehaviour, IRecord
@@ -10,37 +10,49 @@ public class PlayerInventoryRecord : MonoBehaviour, IRecord
 
     private void OnEnable()
     {
-        RefreshInventoryReference();
+        RefreshReference();
     }
 
     private void OnDisable()
     {
-        UnsubscribeInventory();
+        Unsubscribe();
     }
 
-    private void RefreshInventoryReference()
+    private void RefreshReference()
     {
-        UnsubscribeInventory();
+        Unsubscribe();
         liveInventory = FindFirstObjectByType<PlayerInventory>();
         if (liveInventory != null)
         {
-            liveInventory.OnInventoryChanged += OnInventoryChangedHandler;
+            liveInventory.OnInventoryChanged += OnInventoryDataChangedHandler;
+            liveInventory.OnInventorySlotCountChanged += OnInventoryDataChangedHandler;
+            liveInventory.OnSelectedQuickSlotChanged += OnQuickSlotSelectionChangedHandler;
         }
     }
 
-    private void UnsubscribeInventory()
+    private void Unsubscribe()
     {
         if (liveInventory != null)
         {
-            liveInventory.OnInventoryChanged -= OnInventoryChangedHandler;
+            liveInventory.OnInventoryChanged -= OnInventoryDataChangedHandler;
+            liveInventory.OnInventorySlotCountChanged -= OnInventoryDataChangedHandler;
+            liveInventory.OnSelectedQuickSlotChanged -= OnQuickSlotSelectionChangedHandler;
             liveInventory = null;
         }
     }
 
-    private void OnInventoryChangedHandler()
+    private void OnInventoryDataChangedHandler()
     {
         if (RecordManager.IsLoadingData) return;
+        if (RecordManager.Instance != null)
+        {
+            SaveData(RecordManager.Instance.SaveFilePath);
+        }
+    }
 
+    private void OnQuickSlotSelectionChangedHandler(int selectedIndex)
+    {
+        if (RecordManager.IsLoadingData) return;
         if (RecordManager.Instance != null)
         {
             SaveData(RecordManager.Instance.SaveFilePath);
@@ -49,69 +61,70 @@ public class PlayerInventoryRecord : MonoBehaviour, IRecord
 
     public void InitDefaultData(ref SaveData saveData)
     {
+        // 1. 인벤토리: 기본 10x6 = 60칸 규격
         saveData.playerInventoryData = new ContainerData { width = 10, height = 6 };
-        saveData.playerQuickSlotsData = new ContainerData { width = 10, height = 1 };
-        saveData.selectedQuickSlotIndex = 0;
+        saveData.playerInventoryData.slots = new List<ItemStackData>();
+        for (int i = 0; i < 60; i++)
+        {
+            saveData.playerInventoryData.slots.Add(new ItemStackData { itemId = "", amount = 0 });
+        }
 
-        for (int i = 0; i < 60; i++) saveData.playerInventoryData.slots.Add(new ItemStackData { itemId = "", amount = 0 });
-        for (int i = 0; i < 10; i++) saveData.playerQuickSlotsData.slots.Add(new ItemStackData { itemId = "", amount = 0 });
+        // 2. 퀵슬롯: 기본 10x1 = 10칸 규격
+        saveData.playerQuickSlotsData = new ContainerData { width = 10, height = 1 };
+        saveData.playerQuickSlotsData.slots = new List<ItemStackData>();
+        for (int i = 0; i < 10; i++)
+        {
+            saveData.playerQuickSlotsData.slots.Add(new ItemStackData { itemId = "", amount = 0 });
+        }
+
+        saveData.selectedQuickSlotIndex = 0;
+        saveData.unlockedInventorySlotCount = 10; // 초기 언락 슬롯 10개
     }
 
     public void SaveData(string saveFilePath)
     {
+        if (liveInventory == null) RefreshReference();
         if (liveInventory == null) return;
 
         SaveData currentData = RecordManager.Instance.ReadRawSaveFileOnly();
+        if (currentData == null) currentData = new SaveData();
 
-        // 🌟 [수정]: 세이브 파일 읽기 실패 시 데이터 초기화로 인한 기존 데이터 유실 방지
-        if (currentData == null)
-        {
-            Debug.LogWarning("[PlayerInventoryRecord] 기존 세이브 데이터를 읽어오지 못해 인벤토리 단독 저장을 중단합니다.");
-            return;
-        }
-
-        if (liveInventory.inventory != null) currentData.playerInventoryData = RecordManager.Instance.PackContainerData(liveInventory.inventory);
-        if (liveInventory.quickSlots != null) currentData.playerQuickSlotsData = RecordManager.Instance.PackContainerData(liveInventory.quickSlots);
+        currentData.playerInventoryData = RecordManager.Instance.PackContainerData(liveInventory.inventory);
+        currentData.playerQuickSlotsData = RecordManager.Instance.PackContainerData(liveInventory.quickSlots);
         currentData.selectedQuickSlotIndex = liveInventory.selectedQuickSlotIndex;
+        currentData.unlockedInventorySlotCount = liveInventory.UnlockedInventorySlotCount;
 
         currentData.lastSaveTime = DateTime.UtcNow.ToString("o");
-
-        string outputJson = JsonUtility.ToJson(currentData, true);
-        File.WriteAllText(saveFilePath, outputJson);
-        Debug.Log("<color=lime>[PlayerInventoryRecord]</color> 인벤토리 데이터 변경 감지 및 데이터 업데이트");
+        File.WriteAllText(saveFilePath, JsonUtility.ToJson(currentData, true));
+        Debug.Log("<color=lime>[PlayerInventoryRecord]</color> 🎒 플레이어 인벤토리 및 퀵슬롯 세이브 성공!");
     }
 
     public void ApplyData(SaveData saveData, SceneType sceneType)
     {
-        RefreshInventoryReference();
-        if (liveInventory == null)
-        {
-            Debug.LogWarning("[PlayerInventoryRecord] 씬에서 PlayerInventory 참조를 찾을 수 없습니다.");
-            return;
-        }
+        RefreshReference();
+        if (liveInventory == null) return;
 
-        // 🌟 [수정]: PlayerInventory 내부 컨테이너 생성 여부 방어막
-        if (liveInventory.inventory != null && saveData.playerInventoryData != null)
+        // 1. 업그레이드 언락 슬롯 수 복원
+        int unlockedCount = saveData.unlockedInventorySlotCount > 0 ? saveData.unlockedInventorySlotCount : liveInventory.StartingInventorySlotCount;
+        RecordManager.Instance.SetPrivateFieldSafely(liveInventory, "unlockedInventorySlotCount", unlockedCount);
+
+        // 2. 인벤토리 실물 슬롯 데이터 복원
+        if (saveData.playerInventoryData != null)
         {
             RecordManager.Instance.UnpackContainerData(saveData.playerInventoryData, liveInventory.inventory);
         }
 
-        if (liveInventory.quickSlots != null && saveData.playerQuickSlotsData != null)
+        // 3. 퀵슬롯 데이터 복원
+        if (saveData.playerQuickSlotsData != null)
         {
             RecordManager.Instance.UnpackContainerData(saveData.playerQuickSlotsData, liveInventory.quickSlots);
-
-            liveInventory.selectedQuickSlotIndex = liveInventory.quickSlots.IsValidIndex(saveData.selectedQuickSlotIndex)
-                ? saveData.selectedQuickSlotIndex : 0;
         }
 
-        var onInventoryChangedField = typeof(PlayerInventory).GetField("OnInventoryChanged", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
-        if (onInventoryChangedField != null)
-        {
-            System.Action onInventoryChanged = onInventoryChangedField.GetValue(liveInventory) as System.Action;
-            onInventoryChanged?.Invoke();
-        }
+        // 4. 선택된 퀵슬롯 인덱스 복원
+        liveInventory.selectedQuickSlotIndex = liveInventory.quickSlots.IsValidIndex(saveData.selectedQuickSlotIndex) ? saveData.selectedQuickSlotIndex : 0;
 
-        var notifyAllQuickSlotsMethod = typeof(PlayerInventory).GetMethod("NotifyAllQuickSlotsChanged", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
-        if (notifyAllQuickSlotsMethod != null) notifyAllQuickSlotsMethod.Invoke(liveInventory, null);
+        liveInventory.PublishInventoryChanged();
+
+        Debug.Log($"<color=cyan>[PlayerInventoryRecord]</color> 🎒 플레이어 인벤토리 완전 복구 완료! (언락 슬롯: {unlockedCount}칸)");
     }
 }

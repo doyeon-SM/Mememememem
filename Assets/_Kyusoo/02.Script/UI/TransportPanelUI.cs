@@ -1,14 +1,12 @@
 ﻿using HDY.Capture;
 using HDY.Item;
+using HDY.Upgrade;
 using MemSystem.Data;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 using DG.Tweening;
 
-/// <summary>
-/// 운반 시설 전용 패널 UI 스크립트입니다.
-/// </summary>
 public class TransportPanelUI : MonoBehaviour
 {
     public static TransportPanelUI Instance { get; private set; }
@@ -17,15 +15,16 @@ public class TransportPanelUI : MonoBehaviour
     [SerializeField] private TextMeshProUGUI buildingName;
     [SerializeField] private TextMeshProUGUI buildingLevel;
     [SerializeField] private Button levelUpBtn;
+    [SerializeField] private TextMeshProUGUI levelUpBtnText; // 버튼 내 텍스트 참조
 
     [Header("중앙 - 멤 슬롯 (최대 3개)")]
     [SerializeField] private MemSlotUI[] memSlots = new MemSlotUI[3];
 
     [Header("하단 - 진행도 및 텍스트")]
     [SerializeField] private Slider progressBar;
-    [SerializeField] private TextMeshProUGUI percentText;  // Slider 내 % 표시 [TMP]
-    [SerializeField] private TextMeshProUGUI statusText;   // 상태 메시지 표시 [TMP]
-    [SerializeField] private TextMeshProUGUI durationText; // 운반 주기 표시 [TMP]
+    [SerializeField] private TextMeshProUGUI percentText;
+    [SerializeField] private TextMeshProUGUI statusText;
+    [SerializeField] private TextMeshProUGUI durationText;
 
     public TransportRuntime TargetFacility => targetFacility;
     private TransportRuntime targetFacility;
@@ -39,10 +38,7 @@ public class TransportPanelUI : MonoBehaviour
         if (Instance == null) Instance = this;
         else Destroy(gameObject);
 
-        if (levelUpBtn != null)
-        {
-            levelUpBtn.onClick.AddListener(OnClickLevelUp);
-        }
+        if (levelUpBtn != null) levelUpBtn.onClick.AddListener(OnClickLevelUp);
 
         InitializeSlotIndexes();
     }
@@ -106,6 +102,18 @@ public class TransportPanelUI : MonoBehaviour
 
             memSlots[i].RefreshStatus(isUnlocked, placedMemData, placedEntryData);
         }
+
+        // 운송 시설은 3레벨이 최대 레벨임
+        if (levelUpBtn != null)
+        {
+            bool isMax = targetFacility.currentLevel >= 3;
+            levelUpBtn.interactable = !isMax;
+
+            if (levelUpBtnText != null)
+            {
+                levelUpBtnText.text = isMax ? "Lv.Max" : "레벨업";
+            }
+        }
     }
 
     public void RefreshUI()
@@ -132,20 +140,17 @@ public class TransportPanelUI : MonoBehaviour
                 durationText.text = $"운반 주기: {targetFacility.totalRequiredTime:F1}초";
             }
 
-            // 1. 5초 수거 작업 진행 중일 때
             if (targetFacility.isCollecting)
             {
                 string targetItemName = targetFacility.GetTargetItemName();
                 string prefix = string.IsNullOrEmpty(targetItemName) ? "아이템 수거중" : $"{targetItemName} 수거중";
                 StartDotsAnimation(prefix);
             }
-            // 2. 타이머 100% 도달했으나 조건(10개 이상) 충족 시설이 없을 때
             else if (percent >= 100f || targetFacility.currentProgressTime >= targetFacility.totalRequiredTime)
             {
                 StopDotsAnimation();
                 if (statusText != null) statusText.text = "운반 대기중";
             }
-            // 3. 0% ~ 99% 정상 타이머 진행 중일 때
             else
             {
                 StartDotsAnimation("운송 준비중");
@@ -201,8 +206,18 @@ public class TransportPanelUI : MonoBehaviour
     private void OnClickLevelUp()
     {
         if (targetFacility == null) return;
-        targetFacility.LevelUp();
-        RefreshStaticUI();
+
+        if (targetFacility.TryGetComponent<FacilityUpgrade>(out var upgradeAdapter))
+        {
+            if (UpgradePopupUI.Instance != null)
+            {
+                UpgradePopupUI.Instance.Show(upgradeAdapter);
+            }
+        }
+        else
+        {
+            Debug.LogWarning($"[PanelUI] {targetFacility.name} 건물 프리팹에 FacilityUpgrade 컴포넌트가 부착되어 있지 않습니다.");
+        }
     }
 
     public bool TryDeployMemFromUI(MemData targetMem, CapturedMemEntry targetEntry)
@@ -210,10 +225,7 @@ public class TransportPanelUI : MonoBehaviour
         if (targetFacility == null || targetEntry == null) return false;
 
         bool isSuccess = targetFacility.TryAddMem(targetMem, targetEntry);
-        if (isSuccess)
-        {
-            RefreshStaticUI();
-        }
+        if (isSuccess) RefreshStaticUI();
         return isSuccess;
     }
 

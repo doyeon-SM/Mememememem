@@ -14,11 +14,6 @@ public class TimeRecordData : MonoBehaviour, IRecord
         RefreshManagerReference();
     }
 
-    private void OnDisable()
-    {
-        // 🌟 [교정]: 씬 해제 도중 OnDestroy에서 시간을 저장할 수 있도록 OnDisable에서 reference를 null로 만들지 않습니다.
-    }
-
     private void RefreshManagerReference()
     {
         if (liveTimeManager == null)
@@ -58,14 +53,14 @@ public class TimeRecordData : MonoBehaviour, IRecord
         saveData.timeData = new GameTimeSaveData
         {
             elapsedTime = 0f,
-            lastSaveRealTimeKst = DateTime.UtcNow.AddHours(9).ToString("yyyy-MM-dd HH:mm:ss")
+            lastSaveRealTimeKst = DateTime.UtcNow.AddHours(9).ToString("o")
         };
+        saveData.lastSaveTime = DateTime.UtcNow.ToString("o");
     }
 
     public void SaveData(string saveFilePath)
     {
         RefreshManagerReference();
-
         SaveData currentData = RecordManager.Instance.ReadRawSaveFileOnly();
         if (currentData == null) currentData = new SaveData();
 
@@ -79,28 +74,26 @@ public class TimeRecordData : MonoBehaviour, IRecord
         {
             if (liveTimeManager != null)
             {
-                currentData.timeData.lastSaveRealTimeKst = liveTimeManager.CurrentRealTimeKst.ToString("yyyy-MM-dd HH:mm:ss");
+                currentData.timeData.lastSaveRealTimeKst = liveTimeManager.CurrentRealTimeKst.ToString("o");
             }
             else
             {
-                // 🌟 [폴백 안전 장치]: 씬 파괴 타이밍에 GameTimeManager가 먼저 Unload되었을 경우 KST 실시간 백업
-                currentData.timeData.lastSaveRealTimeKst = DateTime.UtcNow.AddHours(9).ToString("yyyy-MM-dd HH:mm:ss");
+                currentData.timeData.lastSaveRealTimeKst = DateTime.UtcNow.AddHours(9).ToString("o");
             }
         }
 
+        // 🌟 종료/일시정지 전용 타임스탬프 갱신
         currentData.lastSaveTime = DateTime.UtcNow.ToString("o");
         File.WriteAllText(saveFilePath, JsonUtility.ToJson(currentData, true));
-        Debug.Log("<color=lime>[TimeRecordData]</color> 🟩 시간 및 일자 데이터 안전 세이브 완료!");
+        Debug.Log("<color=lime>[TimeRecordData]</color> ⏰ 게임 종료/일시정지 시점 시각 및 진행 시간 세이브 성공!");
     }
 
     public void ApplyData(SaveData saveData, SceneType sceneType)
     {
         RefreshManagerReference();
-
-        if (liveTimeManager != null)
+        if (liveTimeManager != null && saveData.timeData != null)
         {
             float targetElapsedTime = saveData.timeData.elapsedTime;
-
             RecordManager.Instance.SetPrivateFieldSafely(liveTimeManager, "elapsedTime", targetElapsedTime);
 
             var territoryData = FindFirstObjectByType<TerritoryData>();
@@ -111,8 +104,7 @@ public class TimeRecordData : MonoBehaviour, IRecord
 
             MethodInfo syncMethod = typeof(GameTimeManager).GetMethod("SyncInitialState", BindingFlags.NonPublic | BindingFlags.Instance);
             syncMethod?.Invoke(liveTimeManager, null);
-
-            Debug.Log($"<color=cyan>[TimeRecordData]</color> 🟦 인게임 누적 시간 복구 완료: {targetElapsedTime:F1}초");
+            Debug.Log($"<color=cyan>[TimeRecordData]</color> ⏰ 플레이 시간 데이터 복구 완료: {targetElapsedTime:F1}초");
         }
     }
 }

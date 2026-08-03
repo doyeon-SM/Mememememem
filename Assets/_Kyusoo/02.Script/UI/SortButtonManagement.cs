@@ -29,7 +29,7 @@ public class SortButtonManagement : MonoBehaviour
         MemStorageUI_Sort[] activeSortComponents = Object.FindObjectsByType<MemStorageUI_Sort>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
         if (activeSortComponents == null || activeSortComponents.Length == 0)
         {
-            Debug.LogWarning("[SortButtonManagement] 활성화된 P_Sort(MemStorageUI_Sort)를 찾을 수 없습니다.");
+            Debug.LogWarning("[SortButtonManagement] 활성화된 P_Sort(MemStorageUI_Sort)가 없습니다.");
             return;
         }
 
@@ -70,6 +70,20 @@ public class SortButtonManagement : MonoBehaviour
 
     private string GetKeywordFromFacility(GameObject facilityObject)
     {
+        var kitchenRuntime = facilityObject.GetComponentInParent<KitchenRuntime>();
+        if (kitchenRuntime == null) kitchenRuntime = facilityObject.GetComponentInChildren<KitchenRuntime>();
+        if (kitchenRuntime != null && kitchenRuntime.buildingData != null)
+        {
+            return GetKeywordByBuildingType(kitchenRuntime.buildingData.buildingType);
+        }
+
+        var kitchenUI = facilityObject.GetComponentInParent<KitchenPanelUI>();
+        if (kitchenUI == null) kitchenUI = facilityObject.GetComponentInChildren<KitchenPanelUI>();
+        if (kitchenUI != null && kitchenUI.TargetFacility != null && kitchenUI.TargetFacility.buildingData != null)
+        {
+            return GetKeywordByBuildingType(kitchenUI.TargetFacility.buildingData.buildingType);
+        }
+
         var campFireRuntime = facilityObject.GetComponentInParent<CampFireRuntime>();
         if (campFireRuntime == null) campFireRuntime = facilityObject.GetComponentInChildren<CampFireRuntime>();
         if (campFireRuntime != null && campFireRuntime.buildingData != null)
@@ -140,8 +154,8 @@ public class SortButtonManagement : MonoBehaviour
             return GetKeywordByBuildingType(facilityRuntime.buildingData.buildingType);
         }
 
-        var expUI = facilityObject.GetComponentInParent<ExplorationPanelUI>();
-        if (expUI == null) expUI = facilityObject.GetComponentInChildren<ExplorationPanelUI>();
+        var expUI = facilityObject.GetComponentInParent<HDY.UI.ExplorationPanelUI>();
+        if (expUI == null) expUI = facilityObject.GetComponentInChildren<HDY.UI.ExplorationPanelUI>();
         if (expUI != null)
         {
             return "exp";
@@ -154,14 +168,27 @@ public class SortButtonManagement : MonoBehaviour
     {
         switch (type)
         {
-            case BuildingType.Workshop: return "craft";
-            case BuildingType.LoggingCamp: return "log";
-            case BuildingType.MiningCamp: return "mining";
-            case BuildingType.TransportFacility: return "trans";
-            case BuildingType.Generator: return "trans";
-            case BuildingType.Farm: return "farm";
-            case BuildingType.Ranch: return "farm";
-            default: return "craft";
+            case BuildingType.Workshop:
+            case BuildingType.CampFire: 
+            case BuildingType.Kitchen:  
+                return "craft";
+
+            case BuildingType.LoggingCamp:
+                return "log";
+
+            case BuildingType.MiningCamp:
+                return "mining";
+
+            case BuildingType.TransportFacility:
+            case BuildingType.Generator:
+                return "trans";
+
+            case BuildingType.Farm:
+            case BuildingType.Ranch:
+                return "farm";
+
+            default:
+                return "Error: Empty Type";
         }
     }
 }

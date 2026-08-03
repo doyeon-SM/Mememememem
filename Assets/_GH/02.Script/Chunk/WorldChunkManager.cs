@@ -23,7 +23,18 @@ public class WorldChunkManager : MonoBehaviour
     [SerializeField] private bool updateInEditMode;
 
     [Header("Gizmos")]
+    [InspectorName("Show All Chunk Gizmos")]
+    [Tooltip("모든 WorldChunk의 개별 경계를 표시합니다.")]
     [SerializeField] private bool showGizmos = true;
+    [InspectorName("Show Active Range Gizmo")]
+    [Tooltip("플레이어의 현재 청크를 기준으로 실제 활성화 범위의 외곽선을 표시합니다.")]
+    [SerializeField] private bool showActiveRangeGizmo = true;
+    [InspectorName("Show Chunk Coordinate Labels")]
+    [Tooltip("각 청크 기즈모 중앙에 청크 이름과 좌표 (x, z)를 표시합니다.")]
+    [SerializeField] private bool showChunkCoordinateLabels = true;
+    [InspectorName("Always Show Gizmos")]
+    [Tooltip("활성화하면 WorldChunkManager를 선택하지 않아도 선택한 종류의 기즈모를 Scene 뷰에 계속 표시합니다.")]
+    [SerializeField] private bool alwaysShowAllChunkGizmos;
     [SerializeField] private Color inactiveColor = new Color(0.45f, 0.45f, 0.45f, 0.35f);
     [SerializeField] private Color activeColor = new Color(0.1f, 0.85f, 0.25f, 0.8f);
     [SerializeField] private Color currentColor = new Color(1f, 0.85f, 0.1f, 1f);
@@ -35,6 +46,7 @@ public class WorldChunkManager : MonoBehaviour
 
     /// <summary>현재 플레이어 위치를 기준으로 계산한 청크 좌표입니다.</summary>
     public Vector2Int CurrentPlayerChunkCoord => GetChunkCoord(player != null ? player.position : Vector3.zero);
+    public int ActiveRange => activeRange;
 
     private void Awake()
     {
@@ -134,6 +146,18 @@ public class WorldChunkManager : MonoBehaviour
         }
     }
 
+    /// <summary>런타임 그래픽 설정에서 활성 청크 반경을 변경하고 즉시 다시 계산합니다.</summary>
+    public void SetActiveRange(int newActiveRange, bool refreshImmediately = true)
+    {
+        activeRange = Mathf.Max(0, newActiveRange);
+        lastPlayerChunkCoord = new Vector2Int(int.MinValue, int.MinValue);
+
+        if (refreshImmediately && isActiveAndEnabled)
+        {
+            RefreshActiveChunks(true);
+        }
+    }
+
     private bool ResolvePlayerReference()
     {
         player = PlayerReferenceResolver.ResolveTransform(player);
@@ -169,47 +193,70 @@ public class WorldChunkManager : MonoBehaviour
         }
     }
 
-    private void OnDrawGizmosSelected()
+    private void OnDrawGizmos()
     {
-        if (!showGizmos)
+        if (!alwaysShowAllChunkGizmos)
         {
             return;
         }
 
-        if (chunks.Count == 0)
+        DrawAllChunkGizmos();
+    }
+
+    private void OnDrawGizmosSelected()
+    {
+        if (alwaysShowAllChunkGizmos)
+        {
+            return;
+        }
+
+        DrawAllChunkGizmos();
+    }
+
+    private void DrawAllChunkGizmos()
+    {
+        if (!showGizmos && !showActiveRangeGizmo)
+        {
+            return;
+        }
+
+        if (showGizmos && chunks.Count == 0)
         {
             CollectChunks();
         }
 
         Vector2Int currentCoord = player != null ? GetChunkCoord(player.position) : lastPlayerChunkCoord;
 
-        foreach (WorldChunk chunk in chunks)
+        if (showGizmos)
         {
-            if (chunk == null)
+            foreach (WorldChunk chunk in chunks)
             {
-                continue;
-            }
+                if (chunk == null)
+                {
+                    continue;
+                }
 
-            Color color = inactiveColor;
+                Color color = inactiveColor;
 
-            if (chunk.HasOutOfBoundsChildren)
-            {
-                color = errorColor;
-            }
-            else if (player != null && chunk.Coord == currentCoord)
-            {
-                color = currentColor;
-            }
-            else if (player != null && IsWithinActiveRange(currentCoord, chunk.Coord))
-            {
-                color = activeColor;
-            }
+                if (chunk.HasOutOfBoundsChildren)
+                {
+                    color = errorColor;
+                }
+                else if (player != null && chunk.Coord == currentCoord)
+                {
+                    color = currentColor;
+                }
+                else if (player != null && IsWithinActiveRange(currentCoord, chunk.Coord))
+                {
+                    color = activeColor;
+                }
 
-            chunk.Configure(chunkSize, worldOrigin);
-            chunk.DrawChunkGizmos(color, false);
+                chunk.Configure(chunkSize, worldOrigin);
+                chunk.DrawChunkGizmos(color, showChunkCoordinateLabels);
+            }
         }
 
-        if (player != null)
+        if (showActiveRangeGizmo && player != null)
         {
             DrawActiveRangeGizmo(currentCoord);
         }

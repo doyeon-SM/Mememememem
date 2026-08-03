@@ -14,6 +14,7 @@ public class PanelManager : MonoBehaviour
     [SerializeField] private GameObject generatorPanel;
     [SerializeField] private GameObject transportPanel;
     [SerializeField] private GameObject campFirePanel;
+    [SerializeField] private GameObject kitchenPanel;
     [SerializeField] private GameObject foodWarehousePanel;
     [SerializeField] private GameObject exploreMapPanel;
     [SerializeField] private GameObject UIPanel;
@@ -24,7 +25,8 @@ public class PanelManager : MonoBehaviour
     [SerializeField] private RanchPanelUI ranchPanelUI;
     [SerializeField] private GeneratorPanelUI generatorPanelUI;
     [SerializeField] private TransportPanelUI transportPanelUI;
-    [SerializeField] private CampFirePanelUI campFirePanelUI; 
+    [SerializeField] private CampFirePanelUI campFirePanelUI;
+    [SerializeField] private KitchenPanelUI kitchenPanelUI;
 
     [Header("공통 UI 버튼 그룹")]
     [SerializeField] private GameObject closeButtonGroup;
@@ -38,7 +40,8 @@ public class PanelManager : MonoBehaviour
     public bool IsRanchPanelActive => ranchPanel != null && ranchPanel.activeSelf;
     public bool IsGeneratorPanelActive => generatorPanel != null && generatorPanel.activeSelf;
     public bool IsTransportPanelActive => transportPanel != null && transportPanel.activeSelf;
-    public bool IsCampFirePanelActive => campFirePanel != null && campFirePanel.activeSelf; 
+    public bool IsCampFirePanelActive => campFirePanel != null && campFirePanel.activeSelf;
+    public bool IsKitchenPanelActive => kitchenPanel != null && kitchenPanel.activeSelf;
 
     private void Awake()
     {
@@ -197,6 +200,23 @@ public class PanelManager : MonoBehaviour
         }
     }
 
+    public void OpenKitchenPanel(KitchenRuntime facility)
+    {
+        if (facility == null) return;
+        if (UIManager.Instance != null) UIManager.Instance.CloseCurrent();
+        CloseAllPanels();
+
+        if (kitchenPanel != null && kitchenPanelUI != null)
+        {
+            SetCommonGroupActive(true);
+            SetCameraControllersEnabled(false);
+            UIPanel.SetActive(true);
+            kitchenPanel.SetActive(true);
+            kitchenPanelUI.OpenPanel(facility);
+            SortButtonManagement.Instance?.UpdateSortFilters(facility.gameObject);
+        }
+    }
+
     public void OpenFoodWareHousePanel()
     {
         if (UIManager.Instance != null) UIManager.Instance.CloseCurrent();
@@ -234,7 +254,8 @@ public class PanelManager : MonoBehaviour
         if (ranchPanelUI != null) ranchPanelUI.ClosePanel();
         if (generatorPanelUI != null) generatorPanelUI.ClosePanel();
         if (transportPanelUI != null) transportPanelUI.ClosePanel();
-        if (campFirePanelUI != null) campFirePanelUI.ClosePanel(); 
+        if (campFirePanelUI != null) campFirePanelUI.ClosePanel();
+        if (kitchenPanelUI != null) kitchenPanelUI.ClosePanel();
 
         if (foodWarehousePanel != null) foodWarehousePanel.SetActive(false);
         if (exploreMapPanel != null) exploreMapPanel.SetActive(false);
@@ -244,7 +265,8 @@ public class PanelManager : MonoBehaviour
         if (ranchPanel != null) ranchPanel.SetActive(false);
         if (generatorPanel != null) generatorPanel.SetActive(false);
         if (transportPanel != null) transportPanel.SetActive(false);
-        if (campFirePanel != null) campFirePanel.SetActive(false); 
+        if (campFirePanel != null) campFirePanel.SetActive(false);
+        if (kitchenPanel != null) kitchenPanel.SetActive(false);
 
         SetCommonGroupActive(true);
         SetCameraControllersEnabled(false);
@@ -267,7 +289,8 @@ public class PanelManager : MonoBehaviour
         if (ranchPanelUI != null) ranchPanelUI.ClosePanel();
         if (generatorPanelUI != null) generatorPanelUI.ClosePanel();
         if (transportPanelUI != null) transportPanelUI.ClosePanel();
-        if (campFirePanelUI != null) campFirePanelUI.ClosePanel(); 
+        if (campFirePanelUI != null) campFirePanelUI.ClosePanel();
+        if (kitchenPanelUI != null) kitchenPanelUI.ClosePanel();
 
         if (foodWarehousePanel != null) foodWarehousePanel.SetActive(false);
         if (exploreMapPanel != null) exploreMapPanel.SetActive(false);
@@ -277,7 +300,8 @@ public class PanelManager : MonoBehaviour
         if (ranchPanel != null) ranchPanel.SetActive(false);
         if (generatorPanel != null) generatorPanel.SetActive(false);
         if (transportPanel != null) transportPanel.SetActive(false);
-        if (campFirePanel != null) campFirePanel.SetActive(false); 
+        if (campFirePanel != null) campFirePanel.SetActive(false);
+        if (kitchenPanel != null) kitchenPanel.SetActive(false);
 
         SetCommonGroupActive(false);
         SetCameraControllersEnabled(true);
@@ -291,11 +315,12 @@ public class PanelManager : MonoBehaviour
         bool isGenActive = generatorPanel != null && generatorPanel.activeSelf;
         bool isTransActive = transportPanel != null && transportPanel.activeSelf;
         bool isCampFireActive = campFirePanel != null && campFirePanel.activeSelf;
+        bool isKitchenActive = kitchenPanel != null && kitchenPanel.activeSelf;
         bool isInventoryActive = foodWarehousePanel != null && foodWarehousePanel.activeSelf;
         bool isHUDActive = UIManager.Instance != null && UIManager.Instance.HasActivePanel();
         bool isMapActive = exploreMapPanel != null && exploreMapPanel.activeSelf;
 
-        return isCraftActive || isProductActive || isRanchActive || isGenActive || isInventoryActive || isHUDActive || isMapActive || isTransActive || isCampFireActive;
+        return isCraftActive || isProductActive || isRanchActive || isGenActive || isInventoryActive || isHUDActive || isMapActive || isTransActive || isCampFireActive || isKitchenActive;
     }
 
     private void SetCommonGroupActive(bool isPanelOpen)

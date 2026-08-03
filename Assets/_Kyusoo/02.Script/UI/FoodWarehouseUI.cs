@@ -75,9 +75,11 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner, IInventorySlo
     [SerializeField] private InventorySlotUI storageSlotPrefab;
     [SerializeField] private WarehouseSortUI sortUI;
 
-    [Header("음식 창고 업그레이드 (한 줄 - 5칸 확장)")]
+    [Header("음식 창고 업그레이드 (1칸 확장)")]
     [SerializeField] private Button upgradeButton;
-    [SerializeField] private WarehouseUpgrade warehouseUpgrade;
+    [SerializeField] private FoodWarehouseUpgrade foodWarehouseUpgrade;
+
+    private int extraUpgradedSlotCount = 0;
 
     [Header("우측 퀵슬롯 (고정 10칸, 슬롯은 런타임 생성 - [HDY 요청])")]
     [SerializeField] private Transform quickSlotGrid;
@@ -95,6 +97,8 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner, IInventorySlo
     [SerializeField] private ItemDragUI itemDragUI;
     [SerializeField] private ItemTooltipUI itemTooltipUI;
     [SerializeField] private TextMeshProUGUI totalHungerText;
+
+
 
     private InventorySlotUI[] storageSlots;   
     private InventorySlotUI[] quickSlots;     
@@ -119,7 +123,7 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner, IInventorySlo
         if (warehouseInventory == null) warehouseInventory = FindFirstObjectByType<WarehouseInventory>();
         catalogManager = ItemCatalogManager.Resolve(catalogManager);
 
-        if (upgradeButton != null && warehouseUpgrade != null)
+        if (upgradeButton != null && foodWarehouseUpgrade != null)
         {
             upgradeButton.onClick.AddListener(HandleUpgradeButtonClicked);
         }
@@ -350,27 +354,28 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner, IInventorySlo
     private void EnsureFoodStorageSlotCount()
     {
         var storageContainer = FoodStorageContainer;
-        if (storageSlotPrefab == null || storageContentParent == null || warehouseInventory == null || storageContainer == null) return;
+        if (storageSlotPrefab == null || storageContentParent == null || storageContainer == null) return;
 
-        int upgradedRows = warehouseInventory.storage.height - warehouseInventory.StartingRows;
-        int currentRows = 1 + Mathf.Max(0, upgradedRows);
+        storageContainer.width = 10;
 
-        int required = 5 * currentRows;
+        if (storageContainer.slots == null || storageContainer.slots.Length == 0)
+        {
+            ItemStack[] initialSlots = new ItemStack[5];
+            for (int i = 0; i < 5; i++)
+            {
+                initialSlots[i] = new ItemStack();
+            }
+            storageContainer.slots = initialSlots;
+        }
+
+        int required = storageContainer.slots.Length; 
         int current = storageSlots != null ? storageSlots.Length : 0;
 
-        ItemStack[] oldSlots = storageContainer.slots;
-        storageContainer.slots = new ItemStack[required];
-        for (int i = 0; i < required; i++)
-        {
-            if (oldSlots != null && i < oldSlots.Length) storageContainer.slots[i] = oldSlots[i];
-            else storageContainer.slots[i] = new ItemStack();
-        }
-        storageContainer.width = 5;
-        storageContainer.height = required / 5;
-
         if (required <= current) return;
+
         var grown = new InventorySlotUI[required];
         for (int i = 0; i < current; i++) grown[i] = storageSlots[i];
+
         for (int i = current; i < required; i++)
         {
             var slot = Instantiate(storageSlotPrefab, storageContentParent);
@@ -378,6 +383,8 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner, IInventorySlo
             grown[i] = slot;
         }
         storageSlots = grown;
+
+        RebuildGridAndAncestorLayout(storageContentParent);
     }
 
     public void RefreshAllPanelsAndSlots()
@@ -1208,10 +1215,55 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner, IInventorySlo
 
     private void HandleUpgradeButtonClicked()
     {
-        if (warehouseUpgrade != null && UpgradePopupUI.Instance != null)
+        if (foodWarehouseUpgrade != null && UpgradePopupUI.Instance != null)
         {
-            UpgradePopupUI.Instance.Show(warehouseUpgrade);
+            UpgradePopupUI.Instance.Show(foodWarehouseUpgrade);
         }
+    }
+
+    /// <summary>
+    /// 현재까지 업그레이드로 추가된 슬롯 개수 반환
+    /// </summary>
+    public int GetCurrentUpgradedSlotCount()
+    {
+        return extraUpgradedSlotCount;
+    }
+
+    /// <summary>
+    /// 현재 음식 창고의 전체 슬롯 개수 반환
+    /// </summary>
+    public int GetTotalFoodStorageSlotCount()
+    {
+        var container = FoodStorageContainer;
+        return container != null && container.slots != null ? container.slots.Length : 0;
+    }
+
+    /// <summary>
+    /// 음식 창고 슬롯 1개 추가 함수
+    /// </summary>
+    public void AddSingleFoodStorageSlot()
+    {
+        var container = FoodStorageContainer;
+        if (container == null) return;
+
+        int currentLength = container.slots != null ? container.slots.Length : 0;
+        int newLength = currentLength + 1;
+
+        ItemStack[] newSlots = new ItemStack[newLength];
+        for (int i = 0; i < newLength; i++)
+        {
+            newSlots[i] = (i < currentLength && container.slots[i] != null) ? container.slots[i] : new ItemStack();
+        }
+        container.slots = newSlots;
+
+        extraUpgradedSlotCount++;
+
+        EnsureFoodStorageSlotCount();
+        RefreshStorageSlots();
+
+        OnFoodDataChanged?.Invoke();
+
+        Debug.Log($"[FoodWarehouseUI] 음식 창고 슬롯 1개 확장 완료! 현재 총 슬롯 수: {container.slots.Length}개");
     }
 
     private void HandleRowCountChanged()

@@ -89,7 +89,7 @@ namespace HDY.Territory
 
         [Header("그리드 크기 추적 (GridManager가 현재 크기를 공개하지 않아 자체 추적)")]
         [Tooltip("GridManager.Start()의 InitializeGrid(5,5)와 반드시 맞춰야 한다.")]
-        [SerializeField] private int startingGridSize = 5;
+        [SerializeField] private int startingGridSize = 10;
 
         private int currentGridSize;
 

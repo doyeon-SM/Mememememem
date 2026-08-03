@@ -37,6 +37,9 @@ public class TotalHungerManager : MonoBehaviour
 
         CampFireRuntime.FacilityStarted += OnFacilityStartedHandler;
         CampFireRuntime.FacilityStopped += OnFacilityStoppedHandler;
+
+        KitchenRuntime.FacilityStarted += OnFacilityStartedHandler;
+        KitchenRuntime.FacilityStopped += OnFacilityStoppedHandler;
     }
 
     private void OnDisable()
@@ -58,6 +61,9 @@ public class TotalHungerManager : MonoBehaviour
 
         CampFireRuntime.FacilityStarted -= OnFacilityStartedHandler;
         CampFireRuntime.FacilityStopped -= OnFacilityStoppedHandler;
+
+        KitchenRuntime.FacilityStarted -= OnFacilityStartedHandler;
+        KitchenRuntime.FacilityStopped -= OnFacilityStoppedHandler;
     }
 
     private void Start()
@@ -65,10 +71,8 @@ public class TotalHungerManager : MonoBehaviour
         RecalculateTotalHunger();
     }
 
-    private void OnFacilityStartedHandler(BuildingType type, List<MemData> mems) => RecalculateTotalHunger();
-    private void OnFacilityStartedHandler(BuildingType type) => RecalculateTotalHunger();
-    private void OnFacilityStoppedHandler(BuildingType type, List<MemData> mems, FacilityStopReason reason) => RecalculateTotalHunger();
-    private void OnFacilityStoppedHandler(BuildingType type, FacilityStopReason reason) => RecalculateTotalHunger();
+    private void OnFacilityStartedHandler(BuildingType type, List<MemData> mems, List<Transform> positions) => RecalculateTotalHunger();
+    private void OnFacilityStoppedHandler(BuildingType type, List<MemData> mems, FacilityStopReason reason, List<Transform> positions) => RecalculateTotalHunger();
 
     public void RecalculateTotalHunger()
     {
@@ -130,7 +134,7 @@ public class TotalHungerManager : MonoBehaviour
             }
         }
 
-        // 5. 목장 시설 
+        // 5. 목장 시설
         var ranches = FindObjectsByType<RanchFacilityRuntime>(FindObjectsSortMode.None);
         foreach (var ranch in ranches)
         {
@@ -142,7 +146,7 @@ public class TotalHungerManager : MonoBehaviour
             }
         }
 
-        // 6. 모닥불(요리) 시설 식량 소모 합산
+        // 6. 모닥불 시설
         var campFires = FindObjectsByType<CampFireRuntime>(FindObjectsSortMode.None);
         foreach (var cf in campFires)
         {
@@ -150,6 +154,20 @@ public class TotalHungerManager : MonoBehaviour
             if (!cf.isCooking) continue;
 
             foreach (MemData mem in cf.DeployedMems)
+            {
+                if (mem == null) continue;
+                newTotalHunger += mem.maxHunger;
+            }
+        }
+
+        // 7. 주방 시설
+        var kitchens = FindObjectsByType<KitchenRuntime>(FindObjectsSortMode.None);
+        foreach (var k in kitchens)
+        {
+            if (k == null || k.DeployedMems == null || k.DeployedMems.Count == 0) continue;
+            if (!k.isCooking) continue;
+
+            foreach (MemData mem in k.DeployedMems)
             {
                 if (mem == null) continue;
                 newTotalHunger += mem.maxHunger;

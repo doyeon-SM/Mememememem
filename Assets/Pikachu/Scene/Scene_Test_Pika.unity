@@ -202,9 +202,41 @@ PrefabInstance:
       propertyPath: 'waypoints.Array.data[0]'
       value: 
       objectReference: {fileID: 1489626806}
+    - target: {fileID: 8093623029131725433, guid: 1fd7f05ccdad1e542a072a6d84143edd, type: 3}
+      propertyPath: spawnTableIds.Array.size
+      value: 6
+      objectReference: {fileID: 0}
+    - target: {fileID: 8093623029131725433, guid: 1fd7f05ccdad1e542a072a6d84143edd, type: 3}
+      propertyPath: 'spawnTableIds.Array.data[0]'
+      value: Mem_Rare_01
+      objectReference: {fileID: 0}
+    - target: {fileID: 8093623029131725433, guid: 1fd7f05ccdad1e542a072a6d84143edd, type: 3}
+      propertyPath: 'spawnTableIds.Array.data[1]'
+      value: Mem_Rare_01_A
+      objectReference: {fileID: 0}
+    - target: {fileID: 8093623029131725433, guid: 1fd7f05ccdad1e542a072a6d84143edd, type: 3}
+      propertyPath: 'spawnTableIds.Array.data[2]'
+      value: Mem_Rare_02
+      objectReference: {fileID: 0}
+    - target: {fileID: 8093623029131725433, guid: 1fd7f05ccdad1e542a072a6d84143edd, type: 3}
+      propertyPath: 'spawnTableIds.Array.data[3]'
+      value: Mem_Rare_03
+      objectReference: {fileID: 0}
+    - target: {fileID: 8093623029131725433, guid: 1fd7f05ccdad1e542a072a6d84143edd, type: 3}
+      propertyPath: 'spawnTableIds.Array.data[4]'
+      value: Mem_Rare_04
+      objectReference: {fileID: 0}
+    - target: {fileID: 8093623029131725433, guid: 1fd7f05ccdad1e542a072a6d84143edd, type: 3}
+      propertyPath: 'spawnTableIds.Array.data[5]'
+      value: Mem_Rare_05
+      objectReference: {fileID: 0}
     - target: {fileID: 8527542342734120356, guid: 1fd7f05ccdad1e542a072a6d84143edd, type: 3}
       propertyPath: m_Name
       value: Spawner_Zone_01
+      objectReference: {fileID: 0}
+    - target: {fileID: 8527542342734120356, guid: 1fd7f05ccdad1e542a072a6d84143edd, type: 3}
+      propertyPath: m_IsActive
+      value: 1
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -535,9 +567,25 @@ PrefabInstance:
       propertyPath: 'waypoints.Array.data[0]'
       value: 
       objectReference: {fileID: 945545935}
+    - target: {fileID: 8093623029131725433, guid: b8aa83686ffdc094abf6a5c1ce36df8a, type: 3}
+      propertyPath: spawnTableIds.Array.size
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: 8093623029131725433, guid: b8aa83686ffdc094abf6a5c1ce36df8a, type: 3}
+      propertyPath: 'spawnTableIds.Array.data[0]'
+      value: Mem_Rare_01_Leaf
+      objectReference: {fileID: 0}
+    - target: {fileID: 8093623029131725433, guid: b8aa83686ffdc094abf6a5c1ce36df8a, type: 3}
+      propertyPath: 'spawnTableIds.Array.data[1]'
+      value: Mem_Rare_01_Sunflower
+      objectReference: {fileID: 0}
     - target: {fileID: 8527542342734120356, guid: b8aa83686ffdc094abf6a5c1ce36df8a, type: 3}
       propertyPath: m_Name
       value: Spawner_Zone_02
+      objectReference: {fileID: 0}
+    - target: {fileID: 8527542342734120356, guid: b8aa83686ffdc094abf6a5c1ce36df8a, type: 3}
+      propertyPath: m_IsActive
+      value: 1
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -632,6 +680,26 @@ PrefabInstance:
       propertyPath: 'spawnTable.Array.data[2]'
       value: 
       objectReference: {fileID: 11400000, guid: cb56219a606adbf4bacac9046fa0f26b, type: 2}
+    - target: {fileID: 8093623029131725433, guid: a7844086167aed14ab841cad78766c24, type: 3}
+      propertyPath: spawnTableIds.Array.size
+      value: 4
+      objectReference: {fileID: 0}
+    - target: {fileID: 8093623029131725433, guid: a7844086167aed14ab841cad78766c24, type: 3}
+      propertyPath: 'spawnTableIds.Array.data[0]'
+      value: Mem_Rare_01
+      objectReference: {fileID: 0}
+    - target: {fileID: 8093623029131725433, guid: a7844086167aed14ab841cad78766c24, type: 3}
+      propertyPath: 'spawnTableIds.Array.data[1]'
+      value: Mem_Rare_01_A
+      objectReference: {fileID: 0}
+    - target: {fileID: 8093623029131725433, guid: a7844086167aed14ab841cad78766c24, type: 3}
+      propertyPath: 'spawnTableIds.Array.data[2]'
+      value: Mem_Rare_02
+      objectReference: {fileID: 0}
+    - target: {fileID: 8093623029131725433, guid: a7844086167aed14ab841cad78766c24, type: 3}
+      propertyPath: 'spawnTableIds.Array.data[3]'
+      value: Mem_Rare_02_A
+      objectReference: {fileID: 0}
     - target: {fileID: 8527542342734120356, guid: a7844086167aed14ab841cad78766c24, type: 3}
       propertyPath: m_Name
       value: Mem_Spawner
@@ -1688,7 +1756,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &1979042214
 MonoBehaviour:
   m_ObjectHideFlags: 0

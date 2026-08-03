@@ -111,6 +111,9 @@ namespace MemSystem.Visual
         // 아주 과거로 초기화해 스폰 직후에는 숨겨진 상태로 시작한다.
         private float lastActiveTime = -999f;
 
+        // 전투가 없는 씬(영지 등)에서 HP 바를 통째로 숨기기 위한 스위치. SetHidden()으로 제어.
+        private bool forceHidden;
+
         // =================================================================
         // 외부 주입 API
         // =================================================================
@@ -122,6 +125,19 @@ namespace MemSystem.Visual
         public void SetStyle(MemHealthBarStyle newStyle)
         {
             if (newStyle != null) style = newStyle;
+        }
+
+        /// <summary>
+        /// HP 바를 완전히 숨깁니다. 영지처럼 전투가 없는 씬에서 사용합니다.
+        /// 스타일 설정(showOnlyWhenFocused 등)보다 우선하며, 숨긴 동안은 갱신도 하지 않습니다.
+        /// 풀에서 재사용될 때마다 소환 측(TerritoryWanderSpawner 등)이 매번 지정합니다.
+        /// </summary>
+        public void SetHidden(bool hidden)
+        {
+            forceHidden = hidden;
+
+            if (canvas != null)
+                canvas.enabled = !hidden && canvas.enabled;
         }
 
         // =================================================================
@@ -169,6 +185,12 @@ namespace MemSystem.Visual
         private void LateUpdate()
         {
             if (!built) return;
+
+            if (forceHidden)
+            {
+                if (canvas.enabled) canvas.enabled = false;
+                return;
+            }
 
             Refresh();
 

@@ -60,9 +60,36 @@ public class PlayerInfo
 }
 
 [Serializable]
+public class MemFirstCapturedEntry
+{
+    public string memId;
+    public long firstCapturedTimestamp; 
+}
+
+[Serializable]
+public class Vector3Data
+{
+    public float x;
+    public float y;
+    public float z;
+    public Vector3Data(Vector3 vector)
+    {
+        x = vector.x;
+        y = vector.y;
+        z = vector.z;
+    }
+    public Vector3 ToVector3() => new Vector3(x, y, z);
+}
+
+[Serializable]
 public class SaveData
 {
     public string lastSaveTime;
+    public string lastPlayScene = "Main_World2";
+
+    [Header("탐험 씬 플레이어 마지막 좌표 데이터")]
+    public Vector3Data lastPlayerPos;      
+    public bool hasSavedPlayerPos = false; 
 
     [Header("영지 기초 성장 데이터")]
     public int territoryLevel = 1;
@@ -76,18 +103,20 @@ public class SaveData
     public int currentGridSize = 5;
     public List<bool> expansionExpandedStates = new List<bool>();
 
-    // 🌟 [정식 추가]: 레시피 도감 해금 상태를 저장할 전용 리스트 규격 바인딩
     [Header("제작법 해금 데이터")]
     public List<bool> recipeUnlockedStates = new List<bool>();
+
+    [Header("요리 제작법 해금 데이터")]
+    public List<string> cookRecipeUnlockedStates = new List<string>();
 
     [Header("창고 및 인벤토리 실물 데이터")]
     public ContainerData playerInventoryData;
     public ContainerData warehouseStorageData;
     public ContainerData foodWarehouseStorageData;
-
-    // 퀵슬롯 영구 보존 규격 바인딩
+    
     public ContainerData playerQuickSlotsData;
     public int selectedQuickSlotIndex;
+    public int unlockedInventorySlotCount = 10;
 
     [Header("음식 소모 시뮬레이션 데이터")]
     public int maxSatiety;
@@ -97,6 +126,9 @@ public class SaveData
     [Header("멤 창고 데이터")]
     public int unlockedPageCount = 2;
     public List<CapturedMemEntry> serializedCapturedMems = new List<CapturedMemEntry>();
+
+    [Header("도감 최초 포획 시간 기록 데이터")]
+    public List<MemFirstCapturedEntry> firstCapturedTimestamps = new List<MemFirstCapturedEntry>();
 
     [Header("배치된 시설 레이아웃 청사진 및 일꾼 마스터 데이터")]
     public List<PlacedBuildingData> placedBuildings = new List<PlacedBuildingData>();

@@ -1,17 +1,21 @@
-using System.Collections.Generic;
+ï»¿using System.Collections.Generic;
 using UnityEngine;
 
 public class FacilityCollectUI : MonoBehaviour
 {
     public static FacilityCollectUI Instance { get; private set; }
 
-    [Header("ÇÁ¸®ÆÕ ¹× ÄÁÅ×ÀÌ³Ê")]
+    [Header("í”„ë¦¬íŒ¹ ë° ì»¨í…Œì´ë„ˆ")]
     [SerializeField] private GameObject bubblePrefab;
     [SerializeField] private Transform bubbleParentContainer;
 
     private Camera mainCamera;
     private Dictionary<MonoBehaviour, FacilityBubbleUI> activeBubbles = new Dictionary<MonoBehaviour, FacilityBubbleUI>();
     private Queue<FacilityBubbleUI> bubblePool = new Queue<FacilityBubbleUI>();
+
+    [Header("ìœ„ì¹˜ ì¡°ì ˆ ì„¤ì •")]
+    [Tooltip("ì‹œì„¤ ê¸°ì¤€ ë²„ë¸”ì˜ ë†’ì´ ì˜¤í”„ì…‹ì…ë‹ˆë‹¤. ìˆ˜ì¹˜ë¥¼ ì¤„ì´ë©´ ì•„ë˜ë¡œ ë‚´ë ¤ì˜µë‹ˆë‹¤.")]
+    [SerializeField] private Vector3 bubbleOffset = new Vector3(0f, 1.0f, 0f);
 
     private void Awake()
     {
@@ -26,7 +30,6 @@ public class FacilityCollectUI : MonoBehaviour
         if (mainCamera == null) mainCamera = Camera.main;
         if (mainCamera == null) return;
 
-        // È°¼ºÈ­µÈ ¸ğµç ¸»Ç³¼±À» 3D ¿ùµå À§Ä¡¿¡ ¸ÂÃß¾î Screen À§Ä¡ ÃßÀû
         foreach (var pair in activeBubbles)
         {
             MonoBehaviour facility = pair.Key;
@@ -34,10 +37,9 @@ public class FacilityCollectUI : MonoBehaviour
 
             if (facility != null && bubble != null && bubble.gameObject.activeInHierarchy)
             {
-                Vector3 worldPos = facility.transform.position + new Vector3(0f, 2.2f, 0f);
+                Vector3 worldPos = facility.transform.position + bubbleOffset;
                 Vector3 screenPos = mainCamera.WorldToScreenPoint(worldPos);
 
-                // Ä«¸Ş¶ó µÚÆíÀ¸·Î ³Ñ¾î°£ °æ¿ì ¾Èº¸ÀÌ°Ô Ã³¸®
                 if (screenPos.z > 0)
                 {
                     bubble.transform.position = screenPos;
@@ -56,7 +58,7 @@ public class FacilityCollectUI : MonoBehaviour
             activeBubbles[facility] = bubble;
         }
 
-        bubble.Setup(icon, () => FacilityCollectManager.Instance.CollectAll());
+        bubble.Setup(facility, icon, (f) => FacilityCollectManager.Instance.CollectSingleFacility(f));
         bubble.PlayPopShowAnimation();
     }
 
@@ -76,17 +78,18 @@ public class FacilityCollectUI : MonoBehaviour
         HideBubble(facility);
     }
 
-    public void AnimateCollectAllBubbles()
+    /// <summary>
+    /// ğŸŒŸ íŠ¹ì • ì‹œì„¤ì˜ ë§í’ì„  í•˜ë‚˜ë§Œ ìˆ˜ë ¹ ì• ë‹ˆë©”ì´ì…˜ ì¬ìƒ í›„ ë‹«ê¸°
+    /// </summary>
+    public void AnimateCollectSingleBubble(MonoBehaviour facility)
     {
-        List<MonoBehaviour> keys = new List<MonoBehaviour>(activeBubbles.Keys);
-        foreach (var key in keys)
+        if (facility == null) return;
+
+        if (activeBubbles.TryGetValue(facility, out FacilityBubbleUI bubble))
         {
-            if (activeBubbles.TryGetValue(key, out FacilityBubbleUI bubble))
-            {
-                bubble.PlayCollectAnimation(() => ReturnToPool(bubble));
-            }
+            activeBubbles.Remove(facility);
+            bubble.PlayCollectAnimation(() => ReturnToPool(bubble));
         }
-        activeBubbles.Clear();
     }
 
     private FacilityBubbleUI GetBubbleFromPool()

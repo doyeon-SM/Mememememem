@@ -2,12 +2,25 @@
 using System.IO;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Linq;
 using UnityEngine;
 using HDY.Capture;
 
 public class MemRecordData : MonoBehaviour, IRecord
 {
     private MemCaptureManager liveMemManager;
+    private MemDexRecordManager liveDexRecordManager;
+
+    private static Dictionary<string, long> firstCaptureDict = new Dictionary<string, long>();
+
+    public static long? GetFirstCapturedTimestamp(string memId)
+    {
+        if (!string.IsNullOrEmpty(memId) && firstCaptureDict.TryGetValue(memId, out long timestamp))
+        {
+            return timestamp;
+        }
+        return null;
+    }
 
     private void OnEnable()
     {
@@ -23,9 +36,17 @@ public class MemRecordData : MonoBehaviour, IRecord
     {
         UnsubscribeManager();
         liveMemManager = FindFirstObjectByType<MemCaptureManager>();
+        liveDexRecordManager = MemDexRecordManager.Resolve(liveDexRecordManager);
+
         if (liveMemManager != null)
         {
-            liveMemManager.OnCapturedMemsChanged += OnCapturedMemsChangedHandler;
+            liveMemManager.OnCapturedMemsChanged += OnCapturedDataChangedHandler;
+            liveMemManager.OnStorageCapacityChanged += OnCapturedDataChangedHandler;
+        }
+
+        if (liveDexRecordManager != null)
+        {
+            liveDexRecordManager.OnFirstCaptureRecorded += OnFirstCaptureRecordedHandler;
         }
     }
 
@@ -33,14 +54,22 @@ public class MemRecordData : MonoBehaviour, IRecord
     {
         if (liveMemManager != null)
         {
-            liveMemManager.OnCapturedMemsChanged -= OnCapturedMemsChangedHandler;
+            liveMemManager.OnCapturedMemsChanged -= OnCapturedDataChangedHandler;
+            liveMemManager.OnStorageCapacityChanged -= OnCapturedDataChangedHandler;
             liveMemManager = null;
+        }
+
+        if (liveDexRecordManager != null)
+        {
+            liveDexRecordManager.OnFirstCaptureRecorded -= OnFirstCaptureRecordedHandler;
+            liveDexRecordManager = null;
         }
     }
 
-    private void OnCapturedMemsChangedHandler()
+    private void OnCapturedDataChangedHandler()
     {
         if (RecordManager.IsLoadingData) return;
+        CheckAndRegisterFirstCaptureTimestamps();
 
         if (RecordManager.Instance != null)
         {
@@ -48,16 +77,38 @@ public class MemRecordData : MonoBehaviour, IRecord
         }
     }
 
-    /// <summary>
-    /// 최초 세이브 파일 생성 시 규격 가동
-    /// </summary>
+    private void OnFirstCaptureRecordedHandler(string memId, long timestamp)
+    {
+        if (!string.IsNullOrEmpty(memId))
+        {
+            firstCaptureDict[memId] = timestamp;
+        }
+        OnCapturedDataChangedHandler();
+    }
+
+    private void CheckAndRegisterFirstCaptureTimestamps()
+    {
+        if (liveMemManager == null || liveMemManager.CapturedMems == null) return;
+
+        long currentUnixTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
+        foreach (var entry in liveMemManager.CapturedMems)
+        {
+            if (entry == null || entry.IsEmpty || string.IsNullOrEmpty(entry.MemId)) continue;
+
+            if (!firstCaptureDict.ContainsKey(entry.MemId))
+            {
+                firstCaptureDict[entry.MemId] = currentUnixTimestamp;
+            }
+        }
+    }
+
     public void InitDefaultData(ref SaveData saveData)
     {
         saveData.unlockedPageCount = 2;
         saveData.serializedCapturedMems = new List<CapturedMemEntry>();
+        saveData.firstCapturedTimestamps = new List<MemFirstCapturedEntry>();
 
-        // 🌟 [480칸 선제 할당]: 최초 기동 시 빈 장부가 생성될 때, 
-        // 480개(48칸 x 10페이지)의 빈 칸 데이터를 미리 채워 가방 규격을 초기 세팅합니다.
         int defaultMaxCapacity = 48 * 10;
         for (int i = 0; i < defaultMaxCapacity; i++)
         {
@@ -73,18 +124,23 @@ public class MemRecordData : MonoBehaviour, IRecord
         SaveData currentData = RecordManager.Instance.ReadRawSaveFileOnly();
         if (currentData == null) currentData = new SaveData();
 
+        CheckAndRegisterFirstCaptureTimestamps();
+
         currentData.unlockedPageCount = liveMemManager.UnlockedPageCount;
 
-        // 🌟 매니저 본체가 항상 EnsureCapacity()로 480개를 유지하고 있으므로,
-        // 이 복사 생성자 연산만으로 빈 칸을 포함한 480개 리스트 전체가 통째로 백업됩니다.
         if (liveMemManager.CapturedMems != null)
         {
             currentData.serializedCapturedMems = new List<CapturedMemEntry>(liveMemManager.CapturedMems);
         }
 
+        currentData.firstCapturedTimestamps = firstCaptureDict.Select(kvp => new MemFirstCapturedEntry
+        {
+            memId = kvp.Key,
+            firstCapturedTimestamp = kvp.Value
+        }).ToList();
+
         currentData.lastSaveTime = DateTime.UtcNow.ToString("o");
         File.WriteAllText(saveFilePath, JsonUtility.ToJson(currentData, true));
-        Debug.Log("<color=lime>[MemRecordData]</color> 🟩 포획 멤 인벤토리 변동 감지 ➡️ 실시간 세이브 디스크 라이팅 성공!");
     }
 
     public void ApplyData(SaveData saveData, SceneType sceneType)
@@ -92,7 +148,30 @@ public class MemRecordData : MonoBehaviour, IRecord
         RefreshManagerReference();
         if (liveMemManager == null) return;
 
-        // 1. 리플렉션을 통해 팀원 코드 내부의 private 진짜 리스트("capturedMems") 주입 개시
+        firstCaptureDict.Clear();
+        List<MemDexRecord> dexRecordsForManager = new List<MemDexRecord>();
+
+        if (saveData.firstCapturedTimestamps != null)
+        {
+            foreach (var entry in saveData.firstCapturedTimestamps)
+            {
+                if (entry != null && !string.IsNullOrEmpty(entry.memId))
+                {
+                    firstCaptureDict[entry.memId] = entry.firstCapturedTimestamp;
+                    dexRecordsForManager.Add(new MemDexRecord
+                    {
+                        MemId = entry.memId,
+                        FirstCapturedTimestamp = entry.firstCapturedTimestamp
+                    });
+                }
+            }
+        }
+
+        if (liveDexRecordManager != null)
+        {
+            liveDexRecordManager.LoadRecords(dexRecordsForManager);
+        }
+
         FieldInfo listField = typeof(MemCaptureManager).GetField("capturedMems", BindingFlags.NonPublic | BindingFlags.Instance);
         if (listField != null)
         {
@@ -107,31 +186,11 @@ public class MemRecordData : MonoBehaviour, IRecord
             }
         }
 
-        // 2. 해금된 페이지 수 private 필드 안전 주입
         RecordManager.Instance.SetPrivateFieldSafely(liveMemManager, "unlockedPageCount", saveData.unlockedPageCount);
 
-        // 🌟 [핵심 보완 가드]: 만약 옛날 세이브 파일이거나 데이터가 깨져서 480칸이 안 채워진 채 로드되었을 경우를 대비합니다.
-        // 팀원 코드 내부의 private 메서드인 "EnsureCapacity"를 조준해 호출함으로써 강제로 480칸을 다시 정상화시킵니다.
         MethodInfo ensureMethod = typeof(MemCaptureManager).GetMethod("EnsureCapacity", BindingFlags.NonPublic | BindingFlags.Instance);
-        if (ensureMethod != null)
-        {
-            ensureMethod.Invoke(liveMemManager, null);
-        }
+        ensureMethod?.Invoke(liveMemManager, null);
 
-        // 3. 데이터 변경 알림 이벤트 필드("OnCapturedMemsChanged") 강제 Invoke 트리거 발행 (UI 갱신 유도)
-        FieldInfo eventField = typeof(MemCaptureManager).GetField("OnCapturedMemsChanged", BindingFlags.NonPublic | BindingFlags.Instance);
-        if (eventField != null)
-        {
-            MulticastDelegate eventDelegate = eventField.GetValue(liveMemManager) as MulticastDelegate;
-            if (eventDelegate != null)
-            {
-                foreach (var handler in eventDelegate.GetInvocationList())
-                {
-                    handler.DynamicInvoke();
-                }
-            }
-        }
-
-        Debug.Log("<color=lime>[MemRecordData]</color> 👑 480칸 규격 완전 검증 및 멤 데이터 복구 성공!");
+        CheckAndRegisterFirstCaptureTimestamps();
     }
 }

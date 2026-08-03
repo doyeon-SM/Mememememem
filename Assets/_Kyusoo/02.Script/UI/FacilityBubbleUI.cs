@@ -5,11 +5,16 @@ using DG.Tweening;
 
 public class FacilityBubbleUI : MonoBehaviour
 {
-    [Header("UI 컴포넌트 연결")]
+    [Header("기본 UI 연결")]
     [SerializeField] private Image itemIconImage;
     [SerializeField] private Button clickButton;
 
-    private Action onClickCallback;
+    [Header("플라잉 연출 설정")]
+    [SerializeField] private GameObject flyingItemPrefab; // FlyingItemUI 부착된 프리팹
+    [SerializeField] private RectTransform bagTargetRect;  // 우측 상단 가방 UI RectTransform (자동 탐색)
+
+    private MonoBehaviour ownerFacility;
+    private Action<MonoBehaviour> onClickCallback;
 
     private void Awake()
     {
@@ -20,8 +25,9 @@ public class FacilityBubbleUI : MonoBehaviour
         }
     }
 
-    public void Setup(Sprite icon, Action clickCallback)
+    public void Setup(MonoBehaviour facility, Sprite icon, Action<MonoBehaviour> clickCallback)
     {
+        ownerFacility = facility;
         onClickCallback = clickCallback;
 
         if (itemIconImage != null)
@@ -31,9 +37,6 @@ public class FacilityBubbleUI : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// 🌟 생성/노출 연출: 0에서 1로 튀어나오는 Pop-up 애니메이션
-    /// </summary>
     public void PlayPopShowAnimation()
     {
         transform.DOKill();
@@ -41,11 +44,11 @@ public class FacilityBubbleUI : MonoBehaviour
         transform.DOScale(Vector3.one, 0.35f).SetEase(Ease.OutBack);
     }
 
-    /// <summary>
-    /// 🌟 수령 시 DOTween 연출: 순간적으로 1.25배 커진 후 빠르게 축소되며 사라짐
-    /// </summary>
     public void PlayCollectAnimation(Action onComplete)
     {
+        EnsureBagTargetReference();
+
+        // 2. 기존 버블 팝업 축소 연출
         transform.DOKill();
         transform.DOScale(1.25f, 0.12f).OnComplete(() =>
         {
@@ -54,10 +57,63 @@ public class FacilityBubbleUI : MonoBehaviour
                 onComplete?.Invoke();
             });
         });
+
+        // 3. 가방으로 아이콘 날아가는 연출 쏘기
+        if (flyingItemPrefab != null && bagTargetRect != null && itemIconImage != null && itemIconImage.sprite != null)
+        {
+            Canvas rootCanvas = GetComponentInParent<Canvas>();
+            GameObject flyingObj = Instantiate(flyingItemPrefab, rootCanvas.transform);
+
+            if (flyingObj.TryGetComponent<FlyingItemUI>(out var flyingUI))
+            {
+                Vector3 startPos = transform.position;
+                Vector3 targetPos = bagTargetRect.position;
+
+                flyingUI.PlayFlyAnimation(itemIconImage.sprite, startPos, targetPos, () =>
+                {
+                    // 가방 둠칫 튀어나오는 연출 (Punch Scale)
+                    bagTargetRect.DOKill();
+                    bagTargetRect.localScale = Vector3.one;
+                    bagTargetRect.DOPunchScale(Vector3.one * 0.25f, 0.2f, 5, 1f);
+                });
+            }
+        }
+    }
+
+    /// <summary>
+    /// 씬 내에 있는 인벤토리 오브젝트를 찾아 RectTransform을 자동 연결합니다.
+    /// </summary>
+    private void EnsureBagTargetReference()
+    {
+        if (bagTargetRect != null) return;
+
+        GameObject bagObj = GameObject.Find("B_Inventory");
+
+        if (bagObj == null)
+        {
+            var allTransforms = Resources.FindObjectsOfTypeAll<RectTransform>();
+            foreach (var rect in allTransforms)
+            {
+                if (rect.gameObject.hideFlags == HideFlags.None && rect.name.Equals("B_Inventory"))
+                {
+                    bagObj = rect.gameObject;
+                    break;
+                }
+            }
+        }
+
+        if (bagObj != null)
+        {
+            bagTargetRect = bagObj.GetComponent<RectTransform>();
+        }
+        else
+        {
+            Debug.LogWarning("[FacilityBubbleUI] 씬에서 'B_Inventory' 오브젝트를 찾을 수 없습니다. 오브젝트 이름을 확인해주세요.");
+        }
     }
 
     private void OnClickBubble()
     {
-        onClickCallback?.Invoke();
+        onClickCallback?.Invoke(ownerFacility);
     }
 }

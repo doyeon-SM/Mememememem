@@ -44,6 +44,7 @@ public class WarehouseRecordData : MonoBehaviour, IRecord
 
     private void OnWarehouseDataChangedHandler()
     {
+        if (RecordManager.IsLoadingData) return;
         if (RecordManager.Instance != null)
         {
             SaveData(RecordManager.Instance.SaveFilePath);
@@ -52,6 +53,7 @@ public class WarehouseRecordData : MonoBehaviour, IRecord
 
     public void InitDefaultData(ref SaveData saveData)
     {
+        // 일반 창고: 기본 10x2 = 20칸 규격 (startingRows = 2)
         saveData.warehouseStorageData = new ContainerData { width = 10, height = 2 };
         saveData.warehouseStorageData.slots = new List<ItemStackData>();
 
@@ -69,84 +71,31 @@ public class WarehouseRecordData : MonoBehaviour, IRecord
         SaveData currentData = RecordManager.Instance.ReadRawSaveFileOnly();
         if (currentData == null) currentData = new SaveData();
 
-        currentData.warehouseStorageData = new ContainerData
-        {
-            width = liveWarehouse.storage.width,
-            height = liveWarehouse.storage.height
-        };
-        currentData.warehouseStorageData.slots = new List<ItemStackData>();
-
-        if (liveWarehouse.storage.slots != null)
-        {
-            foreach (var slot in liveWarehouse.storage.slots)
-            {
-                currentData.warehouseStorageData.slots.Add(new ItemStackData
-                {
-                    itemId = (slot != null && !slot.IsEmpty) ? slot.itemId : "",
-                    amount = slot != null ? slot.amount : 0
-                });
-            }
-        }
+        currentData.warehouseStorageData = RecordManager.Instance.PackContainerData(liveWarehouse.storage);
 
         currentData.lastSaveTime = DateTime.UtcNow.ToString("o");
         File.WriteAllText(saveFilePath, JsonUtility.ToJson(currentData, true));
-        Debug.Log("<color=lime>[WarehouseRecordData]</color> 창고 자원 변동 감지를 통한 데이터 업데이트");
+        Debug.Log("<color=lime>[WarehouseRecordData]</color> 📦 일반 창고 데이터 세이브 성공!");
     }
 
     public void ApplyData(SaveData saveData, SceneType sceneType)
     {
-        if (sceneType == SceneType.Exploration)
-        {
-            Debug.Log("[WarehouseRecordData] 탐험 씬이므로 실물 창고 복구를 스킵합니다.");
-            return;
-        }
+        if (sceneType == SceneType.Exploration) return;
 
         RefreshWarehouseReference();
 
         if (liveWarehouse == null || liveWarehouse.storage == null || saveData.warehouseStorageData == null ||
             saveData.warehouseStorageData.width <= 0 || saveData.warehouseStorageData.height <= 0)
         {
-            Debug.LogWarning("[WarehouseRecordData] ⚠️ 세이브 파일의 창고 규격이 비어있거나 비정상적입니다. 인스펙터 초기 기본 설정을 유지합니다.");
+            Debug.LogWarning("[WarehouseRecordData] ⚠️ 세이브 파일의 창고 규격이 비어있거나 비정상적입니다.");
             return;
         }
 
-        liveWarehouse.storage.width = saveData.warehouseStorageData.width;
-        liveWarehouse.storage.height = saveData.warehouseStorageData.height;
+        // 업그레이드로 늘어난 가로/세로 규격 및 슬롯 전체 복원
+        RecordManager.Instance.UnpackContainerData(saveData.warehouseStorageData, liveWarehouse.storage);
 
-        int totalSlots = saveData.warehouseStorageData.slots.Count;
-        liveWarehouse.storage.slots = new ItemStack[totalSlots];
+        liveWarehouse.PublishWarehouseChanged();
 
-        for (int i = 0; i < totalSlots; i++)
-        {
-            liveWarehouse.storage.slots[i] = new ItemStack();
-            var savedStack = saveData.warehouseStorageData.slots[i];
-
-            if (savedStack != null && !string.IsNullOrEmpty(savedStack.itemId) && savedStack.amount > 0)
-            {
-                liveWarehouse.storage.slots[i].Set(savedStack.itemId, savedStack.amount);
-            }
-            else
-            {
-                liveWarehouse.storage.slots[i].Clear();
-            }
-        }
-
-        var storageChangedField = typeof(WarehouseInventory).GetField("OnStorageChanged",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        if (storageChangedField != null)
-        {
-            Action onStorageChanged = storageChangedField.GetValue(liveWarehouse) as Action;
-            onStorageChanged?.Invoke();
-        }
-
-        var rowCountChangedField = typeof(WarehouseInventory).GetField("OnRowCountChanged",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        if (rowCountChangedField != null)
-        {
-            Action onRowCountChanged = rowCountChangedField.GetValue(liveWarehouse) as Action;
-            onRowCountChanged?.Invoke();
-        }
-
-        Debug.Log("<color=cyan>[WarehouseRecordData]</color> 🟦 안전 규격 검증 통과 ➡️ 창고 실물 오브젝트 완전 복구 완료!");
+        Debug.Log($"<color=cyan>[WarehouseRecordData]</color> 📦 일반 창고 완전 복구 완료! ({liveWarehouse.storage.height}행 / 총 {liveWarehouse.storage.slots.Length}슬롯)");
     }
 }

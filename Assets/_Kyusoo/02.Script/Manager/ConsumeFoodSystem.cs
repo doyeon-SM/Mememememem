@@ -21,7 +21,7 @@ public class ConsumeFoodSystem : MonoBehaviour
     [SerializeField] private int maxSatiety = 0;
     [SerializeField] private int currentSatiety = 0;
 
-    private InventoryContainer foodStorageContainer = new InventoryContainer { width = 5, height = 2 };
+    private InventoryContainer foodStorageContainer = new InventoryContainer { width = 10, height = 1 };
     private InventoryContainer foodBagContainer = new InventoryContainer { width = 10, height = 7 };
 
     public bool IsWorkStoppedDueToStarvation => isWorkStoppedDueToStarvation;
@@ -40,7 +40,14 @@ public class ConsumeFoodSystem : MonoBehaviour
             Instance = this;
             DontDestroyOnLoad(gameObject);
 
-            foodStorageContainer.Initialize();
+            foodStorageContainer.width = 10;
+            foodStorageContainer.height = 1;
+            foodStorageContainer.slots = new ItemStack[5];
+            for (int i = 0; i < 5; i++)
+            {
+                foodStorageContainer.slots[i] = new ItemStack();
+            }
+
             foodBagContainer.Initialize();
         }
         else
@@ -48,8 +55,6 @@ public class ConsumeFoodSystem : MonoBehaviour
             Destroy(gameObject);
             return;
         }
-
-        if (foodWarehouseUI == null) foodWarehouseUI = FindFirstObjectByType<FoodWarehouseUI>();
     }
 
     private void Start()
@@ -298,13 +303,22 @@ public class ConsumeFoodSystem : MonoBehaviour
             else trans.CheckProductionCondition();
         }
 
-        // 6. 모닥불(요리) 시설 기아 조치
+        // 6. 모닥불 시설
         var campFires = FindObjectsByType<CampFireRuntime>(FindObjectsSortMode.None);
         foreach (var cf in campFires)
         {
             if (cf == null) continue;
             if (!isWorking) cf.StopWorkDueToStarvation();
             else cf.ResumeWorkAfterStarvation();
+        }
+
+        // 7. 주방 시설
+        var kitchens = FindObjectsByType<KitchenRuntime>(FindObjectsSortMode.None);
+        foreach (var k in kitchens)
+        {
+            if (k == null) continue;
+            if (!isWorking) k.StopWorkDueToStarvation();
+            else k.ResumeWorkAfterStarvation();
         }
     }
 

@@ -44,6 +44,11 @@ public sealed class WorldItemRarityVfxManager : MonoBehaviour
     private const string GroundRingName = "Ground Ring";
     private const string SecondaryRingName = "Secondary Ring";
     private const string SparkName = "Spark Particles";
+    private const string GroundGlowName = "Ground Glow";
+    private const string BeamCoreName = "Loot Beam Core";
+    private const string BeamHaloName = "Loot Beam Halo";
+    private const string SecondaryBeamName = "Loot Beam Secondary";
+    private const string RarityLightName = "Rarity Light";
 
     private static WorldItemRarityVfxManager instance;
 
@@ -62,6 +67,14 @@ public sealed class WorldItemRarityVfxManager : MonoBehaviour
     [Tooltip("반짝임이 위로 흘러가는 속도입니다.")]
     [Range(0f, 1f)]
     [SerializeField] private float particleRiseSpeed = 0.12f;
+
+    [Header("Soft Loot Beam")]
+    [Min(0.2f)] [SerializeField] private float beamHeight = 2.7f;
+    [Min(0.01f)] [SerializeField] private float beamWidth = 0.055f;
+    [Min(0.02f)] [SerializeField] private float beamHaloWidth = 0.24f;
+    [Min(0.1f)] [SerializeField] private float groundGlowScale = 1.05f;
+    [Min(0f)] [SerializeField] private float pointLightIntensity = 0.8f;
+    [Min(0.1f)] [SerializeField] private float pointLightRange = 1.65f;
 
     private readonly Dictionary<CommonClass, Material> glowMaterials =
         new Dictionary<CommonClass, Material>();
@@ -124,18 +137,25 @@ public sealed class WorldItemRarityVfxManager : MonoBehaviour
         visualRoot.gameObject.SetActive(true);
         visualRoot.localRotation = Quaternion.identity;
         visualRoot.localScale = Vector3.one * Mathf.Max(0.01f, visualSize);
-        visualRoot.localPosition = Vector3.up *
-                                   (Mathf.Max(0f, groundClearance) + Mathf.Max(0.01f, visualSize) * 0.42f);
+        visualRoot.localPosition = Vector3.up * (Mathf.Max(0f, groundClearance) + 0.015f);
 
-        ConfigureCore(visualRoot, itemClass, style);
-        ConfigureRing(visualRoot, GroundRingName, style, Quaternion.identity, 1f, true);
-        ConfigureRing(
+        SetChildActive(visualRoot, CoreName, false);
+        SetChildActive(visualRoot, GroundRingName, false);
+        SetChildActive(visualRoot, SecondaryRingName, false);
+
+        ConfigureGroundGlow(visualRoot, itemClass, style);
+        ConfigureBeam(visualRoot, BeamHaloName, itemClass, style, true, Vector3.zero, 1f);
+        ConfigureBeam(visualRoot, BeamCoreName, itemClass, style, false, Vector3.zero, 1f);
+        ConfigureBeam(
             visualRoot,
-            SecondaryRingName,
+            SecondaryBeamName,
+            itemClass,
             style,
-            Quaternion.Euler(90f, 0f, 0f),
-            1.2f,
+            false,
+            new Vector3(style.ringRadius * 0.34f, 0f, 0f),
+            0.62f,
             style.useSecondaryRing);
+        ConfigureRarityLight(visualRoot, style);
         ConfigureParticles(visualRoot, style);
 
         return visualRoot;
@@ -154,6 +174,134 @@ public sealed class WorldItemRarityVfxManager : MonoBehaviour
         {
             visualRoot.gameObject.SetActive(false);
         }
+    }
+
+    private void ConfigureGroundGlow(
+        Transform visualRoot,
+        CommonClass itemClass,
+        RarityStyle style)
+    {
+        Transform glow = visualRoot.Find(GroundGlowName);
+        MeshRenderer renderer;
+
+        if (glow == null)
+        {
+            GameObject glowObject = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            glowObject.name = GroundGlowName;
+            glow = glowObject.transform;
+            glow.SetParent(visualRoot, false);
+
+            Collider generatedCollider = glowObject.GetComponent<Collider>();
+            if (generatedCollider != null)
+            {
+                generatedCollider.enabled = false;
+                Destroy(generatedCollider);
+            }
+
+            renderer = glowObject.GetComponent<MeshRenderer>();
+            renderer.shadowCastingMode = ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+            renderer.lightProbeUsage = LightProbeUsage.Off;
+            renderer.reflectionProbeUsage = ReflectionProbeUsage.Off;
+        }
+        else
+        {
+            renderer = glow.GetComponent<MeshRenderer>();
+        }
+
+        float diameter = Mathf.Max(0.1f, style.ringRadius * 2f * groundGlowScale);
+        glow.localPosition = Vector3.up * 0.018f;
+        glow.localRotation = Quaternion.Euler(90f, 0f, 0f);
+        glow.localScale = new Vector3(diameter, diameter, 1f);
+        glow.gameObject.SetActive(true);
+
+        if (renderer != null)
+        {
+            renderer.sharedMaterial = GetGlowMaterial(itemClass, style);
+        }
+    }
+
+    private void ConfigureBeam(
+        Transform visualRoot,
+        string beamName,
+        CommonClass itemClass,
+        RarityStyle style,
+        bool halo,
+        Vector3 offset,
+        float heightMultiplier,
+        bool visible = true)
+    {
+        Transform beamTransform = GetOrCreateChild(visualRoot, beamName);
+        beamTransform.gameObject.SetActive(visible);
+        if (!visible)
+        {
+            return;
+        }
+
+        LineRenderer line = beamTransform.GetComponent<LineRenderer>();
+        if (line == null)
+        {
+            line = beamTransform.gameObject.AddComponent<LineRenderer>();
+        }
+
+        float rarityFactor = Mathf.InverseLerp(1.8f, 4.3f, style.emissionIntensity);
+        float height = beamHeight * Mathf.Lerp(0.88f, 1.18f, rarityFactor) * heightMultiplier;
+        float width = halo
+            ? beamHaloWidth * Mathf.Lerp(0.9f, 1.18f, rarityFactor)
+            : Mathf.Max(beamWidth, style.ringWidth * 2.2f);
+
+        beamTransform.localPosition = offset;
+        beamTransform.localRotation = Quaternion.identity;
+        beamTransform.localScale = Vector3.one;
+
+        line.useWorldSpace = false;
+        line.loop = false;
+        line.positionCount = 2;
+        line.SetPosition(0, new Vector3(0f, 0.025f, 0f));
+        line.SetPosition(1, new Vector3(0f, height, 0f));
+        line.widthMultiplier = width;
+        line.widthCurve = new AnimationCurve(
+            new Keyframe(0f, 0.08f),
+            new Keyframe(0.06f, 1f),
+            new Keyframe(0.62f, halo ? 0.54f : 0.72f),
+            new Keyframe(1f, 0f));
+        line.colorGradient = CreateBeamGradient(halo ? 0.2f : 0.72f);
+        line.alignment = LineAlignment.View;
+        line.textureMode = LineTextureMode.Stretch;
+        line.numCapVertices = 4;
+        line.shadowCastingMode = ShadowCastingMode.Off;
+        line.receiveShadows = false;
+        line.lightProbeUsage = LightProbeUsage.Off;
+        line.reflectionProbeUsage = ReflectionProbeUsage.Off;
+        line.sharedMaterial = GetGlowMaterial(itemClass, style);
+    }
+
+    private void ConfigureRarityLight(Transform visualRoot, RarityStyle style)
+    {
+        Transform lightTransform = GetOrCreateChild(visualRoot, RarityLightName);
+        Light rarityLight = lightTransform.GetComponent<Light>();
+        if (rarityLight == null)
+        {
+            rarityLight = lightTransform.gameObject.AddComponent<Light>();
+        }
+
+        float rarityFactor = Mathf.InverseLerp(1.8f, 4.3f, style.emissionIntensity);
+        lightTransform.localPosition = Vector3.up * 0.18f;
+        lightTransform.localRotation = Quaternion.identity;
+        lightTransform.localScale = Vector3.one;
+
+        rarityLight.type = LightType.Point;
+        rarityLight.color = new Color(
+            Mathf.Clamp01(style.color.r),
+            Mathf.Clamp01(style.color.g),
+            Mathf.Clamp01(style.color.b),
+            1f);
+        rarityLight.intensity = pointLightIntensity * Mathf.Lerp(0.62f, 1.28f, rarityFactor);
+        rarityLight.range = pointLightRange * Mathf.Lerp(0.86f, 1.2f, rarityFactor);
+        rarityLight.shadows = LightShadows.None;
+        rarityLight.bounceIntensity = 0f;
+        rarityLight.renderMode = LightRenderMode.Auto;
+        rarityLight.gameObject.SetActive(pointLightIntensity > 0f);
     }
 
     private void ConfigureCore(Transform visualRoot, CommonClass itemClass, RarityStyle style)
@@ -251,36 +399,41 @@ public sealed class WorldItemRarityVfxManager : MonoBehaviour
             particles = particleTransform.gameObject.AddComponent<ParticleSystem>();
         }
 
-        particleTransform.localPosition = Vector3.zero;
+        particleTransform.localPosition = Vector3.up * 0.08f;
         particleTransform.localRotation = Quaternion.identity;
         particleTransform.localScale = Vector3.one;
 
-        Color particleColor = MultiplyRgb(style.color, Mathf.Max(1f, style.emissionIntensity * 0.65f));
+        Color particleColor = MultiplyRgb(style.color, Mathf.Max(1f, style.emissionIntensity * 0.72f));
+        particleColor.a = 0.62f;
 
         ParticleSystem.MainModule main = particles.main;
         main.loop = true;
         main.playOnAwake = true;
         main.simulationSpace = ParticleSystemSimulationSpace.Local;
-        main.maxParticles = Mathf.Max(8, Mathf.CeilToInt(style.sparkRate * 4f));
-        main.startLifetime = new ParticleSystem.MinMaxCurve(0.75f, 1.35f);
-        main.startSpeed = new ParticleSystem.MinMaxCurve(0.01f, 0.08f);
-        main.startSize = new ParticleSystem.MinMaxCurve(style.sparkSize * 0.65f, style.sparkSize * 1.35f);
+        main.maxParticles = Mathf.Max(6, Mathf.CeilToInt(style.sparkRate * 2f));
+        main.startLifetime = new ParticleSystem.MinMaxCurve(0.9f, 1.65f);
+        main.startSpeed = new ParticleSystem.MinMaxCurve(0f, 0.025f);
+        main.startSize3D = true;
+        main.startSizeX = new ParticleSystem.MinMaxCurve(style.sparkSize * 0.38f, style.sparkSize * 0.75f);
+        main.startSizeY = new ParticleSystem.MinMaxCurve(style.sparkSize * 5.5f, style.sparkSize * 11f);
+        main.startSizeZ = new ParticleSystem.MinMaxCurve(style.sparkSize * 0.38f, style.sparkSize * 0.75f);
         main.startColor = particleColor;
 
         ParticleSystem.EmissionModule emission = particles.emission;
         emission.enabled = style.sparkRate > 0f;
-        emission.rateOverTime = style.sparkRate;
+        emission.rateOverTime = Mathf.Max(1.5f, style.sparkRate * 0.45f);
 
         ParticleSystem.ShapeModule shape = particles.shape;
         shape.enabled = true;
-        shape.shapeType = ParticleSystemShapeType.Sphere;
-        shape.radius = particleRadius;
-        shape.radiusThickness = 1f;
+        shape.shapeType = ParticleSystemShapeType.Circle;
+        shape.radius = particleRadius * 0.72f;
+        shape.radiusThickness = 0.82f;
+        shape.rotation = new Vector3(90f, 0f, 0f);
 
         ParticleSystem.VelocityOverLifetimeModule velocity = particles.velocityOverLifetime;
         velocity.enabled = true;
         velocity.space = ParticleSystemSimulationSpace.Local;
-        velocity.y = particleRiseSpeed;
+        velocity.y = Mathf.Max(0.06f, particleRiseSpeed);
 
         Gradient alphaGradient = new Gradient();
         alphaGradient.SetKeys(
@@ -292,8 +445,8 @@ public sealed class WorldItemRarityVfxManager : MonoBehaviour
             new[]
             {
                 new GradientAlphaKey(0f, 0f),
-                new GradientAlphaKey(1f, 0.15f),
-                new GradientAlphaKey(0.8f, 0.7f),
+                new GradientAlphaKey(0.45f, 0.12f),
+                new GradientAlphaKey(0.28f, 0.62f),
                 new GradientAlphaKey(0f, 1f)
             });
 
@@ -329,10 +482,31 @@ public sealed class WorldItemRarityVfxManager : MonoBehaviour
                 name = $"World Item Glow - {itemClass}",
                 hideFlags = HideFlags.HideAndDontSave
             };
+
+            material.renderQueue = (int)RenderQueue.Transparent;
+            material.SetFloat("_Surface", 1f);
+            material.SetFloat("_Blend", 1f);
+            material.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);
+            material.SetFloat("_DstBlend", (float)BlendMode.One);
+            material.SetFloat("_ZWrite", 0f);
+            material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+
+            Texture2D softTexture = GetParticleTexture();
+            if (material.HasProperty("_BaseMap"))
+            {
+                material.SetTexture("_BaseMap", softTexture);
+            }
+
+            if (material.HasProperty("_MainTex"))
+            {
+                material.SetTexture("_MainTex", softTexture);
+            }
+
             glowMaterials[itemClass] = material;
         }
 
-        Color hdrColor = MultiplyRgb(style.color, style.emissionIntensity);
+        Color hdrColor = MultiplyRgb(style.color, style.emissionIntensity * 0.72f);
+        hdrColor.a = 0.82f;
         SetMaterialColor(material, hdrColor);
         return material;
     }
@@ -453,6 +627,34 @@ public sealed class WorldItemRarityVfxManager : MonoBehaviour
         return child;
     }
 
+    private static void SetChildActive(Transform parent, string childName, bool active)
+    {
+        Transform child = parent.Find(childName);
+        if (child != null)
+        {
+            child.gameObject.SetActive(active);
+        }
+    }
+
+    private static Gradient CreateBeamGradient(float peakAlpha)
+    {
+        Gradient gradient = new Gradient();
+        gradient.SetKeys(
+            new[]
+            {
+                new GradientColorKey(Color.white, 0f),
+                new GradientColorKey(Color.white, 1f)
+            },
+            new[]
+            {
+                new GradientAlphaKey(0f, 0f),
+                new GradientAlphaKey(peakAlpha, 0.08f),
+                new GradientAlphaKey(peakAlpha * 0.58f, 0.58f),
+                new GradientAlphaKey(0f, 1f)
+            });
+        return gradient;
+    }
+
     private static void SetMaterialColor(Material material, Color color)
     {
         if (material.HasProperty("_BaseColor"))
@@ -502,7 +704,7 @@ public sealed class WorldItemRarityVfxManager : MonoBehaviour
             new RarityStyle
             {
                 itemClass = CommonClass.Unique,
-                color = new Color(0.05f, 1f, 0.72f, 1f),
+                color = new Color(0.934f, 1f, 0f, 1f),
                 emissionIntensity = 2.8f,
                 sparkRate = 10f,
                 sparkSize = 0.045f,
@@ -540,6 +742,12 @@ public sealed class WorldItemRarityVfxManager : MonoBehaviour
         coreScale = Mathf.Clamp(coreScale, 0.05f, 0.6f);
         particleRadius = Mathf.Clamp(particleRadius, 0.05f, 1f);
         particleRiseSpeed = Mathf.Clamp01(particleRiseSpeed);
+        beamHeight = Mathf.Max(0.2f, beamHeight);
+        beamWidth = Mathf.Max(0.01f, beamWidth);
+        beamHaloWidth = Mathf.Max(beamWidth, beamHaloWidth);
+        groundGlowScale = Mathf.Max(0.1f, groundGlowScale);
+        pointLightIntensity = Mathf.Max(0f, pointLightIntensity);
+        pointLightRange = Mathf.Max(0.1f, pointLightRange);
 
         if (rarityStyles == null || rarityStyles.Length == 0)
         {

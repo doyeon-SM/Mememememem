@@ -58,18 +58,72 @@ public class RecordManager : MonoBehaviour
 
             if (sceneName.Contains("territory"))
             {
-                Debug.Log("<color=cyan>[RecordManager]</color> 영지 씬 로드 감지 ➡️ 즉시 데이터 완전 복구 개시");
                 LoadAndBroadcastTerritoryData(SceneType.Territory);
             }
             else if (sceneName.Contains("main_world"))
             {
-                Debug.Log("<color=yellow>[RecordManager]</color> 탐험 씬(Main_World) 로드 감지 ➡️ 플레이어 귀속 데이터 한정 복구 개시");
                 LoadAndBroadcastTerritoryData(SceneType.Exploration);
             }
         }
         finally
         {
             IsLoadingData = false;
+        }
+    }
+
+    public void StartNewGame(string defaultStartScene = "Main_World2")
+    {
+        try
+        {
+            if (File.Exists(saveFilePath))
+            {
+                File.Delete(saveFilePath);
+            }
+
+            SaveData defaultData = new SaveData();
+            List<IRecord> subRecords = FindObjectsByType<MonoBehaviour>(FindObjectsInactive.Include, FindObjectsSortMode.None)
+                                        .OfType<IRecord>()
+                                        .ToList();
+
+            foreach (var record in subRecords)
+            {
+                record.InitDefaultData(ref defaultData);
+            }
+
+            defaultData.lastPlayScene = defaultStartScene;
+            defaultData.lastSaveTime = DateTime.UtcNow.ToString("o");
+
+            File.WriteAllText(saveFilePath, JsonUtility.ToJson(defaultData, true));
+
+            SceneManager.LoadScene(defaultStartScene);
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"[RecordManager] 새 게임 시작 중 오류: {e.Message}");
+        }
+    }
+
+    public void ContinueGame(string fallbackScene = "Main_World2")
+    {
+        if (!File.Exists(saveFilePath))
+        {
+            StartNewGame(fallbackScene);
+            return;
+        }
+
+        try
+        {
+            SaveData saveData = ReadRawSaveFileOnly();
+            string targetScene = (saveData != null && !string.IsNullOrEmpty(saveData.lastPlayScene))
+                ? saveData.lastPlayScene
+                : fallbackScene;
+
+            SceneManager.LoadScene(targetScene);
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"[RecordManager] 이어하기 중 오류: {e.Message}");
+            SceneManager.LoadScene(fallbackScene);
         }
     }
 
@@ -101,6 +155,9 @@ public class RecordManager : MonoBehaviour
 
             IsBlueprintGiven = saveData.isBlueprintGiven;
 
+            var sceneRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "SceneRecordData");
+            sceneRecord?.ApplyData(saveData, sceneType);
+
             var territoryRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "TerritoryRecordData");
             territoryRecord?.ApplyData(saveData, sceneType);
 
@@ -131,14 +188,21 @@ public class RecordManager : MonoBehaviour
             var timeRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "TimeRecordData");
             timeRecord?.ApplyData(saveData, sceneType);
 
+            var cookRecipeRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "CookRecipeRecordData");
+            cookRecipeRecord?.ApplyData(saveData, sceneType);
+
+            var playerPosRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "PlayerPosRecordData");
+            playerPosRecord?.ApplyData(saveData, sceneType);
+
             var offlineRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "OfflineRewardRecordData");
             offlineRecord?.ApplyData(saveData, sceneType);
 
             foreach (var record in subRecords)
             {
-                if (record == territoryRecord || record == waypointRecord || record == chestRecord || record == memRecord ||
-                    record == forgeRecord || record == inventoryRecord || record == playerStatsRecord || record == facilityRecord || record == foodRecord ||
-                    record == timeRecord || record == offlineRecord)
+                if (record == sceneRecord || record == territoryRecord || record == waypointRecord || record == chestRecord ||
+                    record == memRecord || record == forgeRecord || record == inventoryRecord || record == playerStatsRecord ||
+                    record == facilityRecord || record == foodRecord || record == timeRecord || record == cookRecipeRecord ||
+                    record == playerPosRecord || record == offlineRecord)
                     continue;
 
                 record.ApplyData(saveData, sceneType);
@@ -196,6 +260,69 @@ public class RecordManager : MonoBehaviour
                 facilityDatabase[pair.Key] = pair.Value;
             }
         }
+    }
+
+    // 🌟 [추가] 배치 모드 롤백용 백업 클론 생성
+    public Dictionary<string, FacilityData> GetFacilityDatabaseClone()
+    {
+        var cloneDict = new Dictionary<string, FacilityData>();
+        foreach (var pair in facilityDatabase)
+        {
+            if (pair.Value == null) continue;
+            cloneDict[pair.Key] = CloneFacilityData(pair.Value);
+        }
+        return cloneDict;
+    }
+
+    // 🌟 [추가] 백업된 데이터베이스로 원복
+    public void RestoreFacilityDatabase(Dictionary<string, FacilityData> backupDict)
+    {
+        facilityDatabase.Clear();
+        if (backupDict != null)
+        {
+            foreach (var pair in backupDict)
+            {
+                if (pair.Value == null) continue;
+                facilityDatabase[pair.Key] = CloneFacilityData(pair.Value);
+            }
+        }
+    }
+
+    private FacilityData CloneFacilityData(FacilityData source)
+    {
+        if (source == null) return null;
+        FacilityData clone = new FacilityData
+        {
+            Building_ID = source.Building_ID,
+            currentLevel = source.currentLevel,
+            isActive = source.isActive,
+            currentCraftingItemId = source.currentCraftingItemId,
+            targetQuantity = source.targetQuantity,
+            remainingQuantity = source.remainingQuantity,
+            currentProgressTime = source.currentProgressTime,
+            currentStorageCount = source.currentStorageCount,
+            DeployedMemIDs = source.DeployedMemIDs != null ? new List<string>(source.DeployedMemIDs) : new List<string>(),
+            ranchSlots = new List<RanchSlotSaveData>()
+        };
+
+        if (source.ranchSlots != null)
+        {
+            foreach (var slot in source.ranchSlots)
+            {
+                if (slot == null) continue;
+                clone.ranchSlots.Add(new RanchSlotSaveData
+                {
+                    slotIndex = slot.slotIndex,
+                    isUnlocked = slot.isUnlocked,
+                    deployedMemKeyId = slot.deployedMemKeyId,
+                    craftingItemId = slot.craftingItemId,
+                    isProducing = slot.isProducing,
+                    currentProgressTime = slot.currentProgressTime,
+                    currentStorageCount = slot.currentStorageCount
+                });
+            }
+        }
+        return clone;
     }
 
     public ContainerData PackContainerData(InventoryContainer container)
@@ -277,6 +404,7 @@ public class RecordManager : MonoBehaviour
         foreach (var g in FindObjectsByType<GeneratorPanelUI>(FindObjectsInactive.Include, FindObjectsSortMode.None)) if (g.gameObject.activeInHierarchy) g.RefreshUI();
         foreach (var t in FindObjectsByType<TransportPanelUI>(FindObjectsInactive.Include, FindObjectsSortMode.None)) if (t.gameObject.activeInHierarchy) t.RefreshUI();
         foreach (var cf in FindObjectsByType<CampFirePanelUI>(FindObjectsInactive.Include, FindObjectsSortMode.None)) if (cf.gameObject.activeInHierarchy) cf.RefreshUI();
+        foreach (var k in FindObjectsByType<KitchenPanelUI>(FindObjectsInactive.Include, FindObjectsSortMode.None)) if (k.gameObject.activeInHierarchy) k.RefreshUI();
     }
 
     private IEnumerator SpawnWarehouseWanderersWithDelayRoutine()
