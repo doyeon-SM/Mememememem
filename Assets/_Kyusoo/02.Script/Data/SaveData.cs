@@ -67,9 +67,29 @@ public class MemFirstCapturedEntry
 }
 
 [Serializable]
+public class Vector3Data
+{
+    public float x;
+    public float y;
+    public float z;
+    public Vector3Data(Vector3 vector)
+    {
+        x = vector.x;
+        y = vector.y;
+        z = vector.z;
+    }
+    public Vector3 ToVector3() => new Vector3(x, y, z);
+}
+
+[Serializable]
 public class SaveData
 {
     public string lastSaveTime;
+    public string lastPlayScene = "Main_World2";
+
+    [Header("탐험 씬 플레이어 마지막 좌표 데이터")]
+    public Vector3Data lastPlayerPos;      
+    public bool hasSavedPlayerPos = false; 
 
     [Header("영지 기초 성장 데이터")]
     public int territoryLevel = 1;
@@ -86,11 +106,14 @@ public class SaveData
     [Header("제작법 해금 데이터")]
     public List<bool> recipeUnlockedStates = new List<bool>();
 
+    [Header("요리 제작법 해금 데이터")]
+    public List<string> cookRecipeUnlockedStates = new List<string>();
+
     [Header("창고 및 인벤토리 실물 데이터")]
     public ContainerData playerInventoryData;
     public ContainerData warehouseStorageData;
     public ContainerData foodWarehouseStorageData;
-
+    
     public ContainerData playerQuickSlotsData;
     public int selectedQuickSlotIndex;
 
