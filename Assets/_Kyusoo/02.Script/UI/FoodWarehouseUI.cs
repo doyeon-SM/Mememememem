@@ -1261,6 +1261,8 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner, IInventorySlo
         EnsureFoodStorageSlotCount();
         RefreshStorageSlots();
 
+        OnFoodDataChanged?.Invoke();
+
         Debug.Log($"[FoodWarehouseUI] 음식 창고 슬롯 1개 확장 완료! 현재 총 슬롯 수: {container.slots.Length}개");
     }
 

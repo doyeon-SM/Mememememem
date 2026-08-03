@@ -169,7 +169,6 @@ public class TerritoryRecordData : MonoBehaviour, IRecord
 
         currentData.lastSaveTime = DateTime.UtcNow.ToString("o");
         File.WriteAllText(saveFilePath, JsonUtility.ToJson(currentData, true));
-        Debug.Log("<color=lime>[TerritoryRecordData]</color> 🟩 영지 골드/만족도 및 기초 데이터 백업 완료!");
     }
 
     public void ApplyData(SaveData saveData, SceneType sceneType)
@@ -222,10 +221,9 @@ public class TerritoryRecordData : MonoBehaviour, IRecord
                 }
             }
 
-            // 🌟 [핵심 수정]: 탐험 씬(Exploration)일 경우, 영지 씬 전용 요소(레시피 UI/그리드 생성)만 스킵
+            // 탐험 씬(Exploration)일 경우, 영지 씬 전용 요소(레시피 UI/그리드 생성)만 스킵
             if (sceneType == SceneType.Exploration)
             {
-                Debug.Log("<color=yellow>[TerritoryRecordData]</color> 탐험 씬 진입: 골드/레벨 기초 데이터만 동기화 완료");
                 return;
             }
 
@@ -323,6 +321,5 @@ public class TerritoryRecordData : MonoBehaviour, IRecord
             isApplyingData = false;
         }
 
-        Debug.Log("<color=cyan>[TerritoryRecordData]</color> 🟦 영지 전체 데이터 복구 공정 완수!");
     }
 }

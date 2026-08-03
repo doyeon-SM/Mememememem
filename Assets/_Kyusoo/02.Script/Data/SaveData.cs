@@ -116,6 +116,7 @@ public class SaveData
     
     public ContainerData playerQuickSlotsData;
     public int selectedQuickSlotIndex;
+    public int unlockedInventorySlotCount = 10;
 
     [Header("음식 소모 시뮬레이션 데이터")]
     public int maxSatiety;

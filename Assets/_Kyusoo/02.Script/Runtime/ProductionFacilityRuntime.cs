@@ -121,33 +121,31 @@ public class ProductionFacilityRuntime : MonoBehaviour
         }
 
         float baseDuration = baseProductionTime;
-        if (currentProgressTime > 0f && totalRequiredTime > 0f)
+        float newTotalTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, addMems);
+
+        // 🌟 [수정] 진행 소요 시간을 먼저 구한 뒤 기존 진행 시간을 보존
+        if (totalRequiredTime > 0f && currentProgressTime > 0f)
         {
             float currentProgressPercent = currentProgressTime / totalRequiredTime;
-            totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, addMems);
+            totalRequiredTime = newTotalTime;
             currentProgressTime = totalRequiredTime * currentProgressPercent;
-            if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
-            {
-                SetProducingActive(true);
-            }
-            else
-            {
-                isProducing = false;
-            }
         }
         else
         {
-            totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, addMems);
-            if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
+            totalRequiredTime = newTotalTime;
+            if (currentProgressTime > totalRequiredTime)
             {
-                SetProducingActive(true);
                 currentProgressTime = 0f;
             }
-            else
-            {
-                isProducing = false;
-                currentProgressTime = 0f;
-            }
+        }
+
+        if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
+        {
+            SetProducingActive(true);
+        }
+        else
+        {
+            isProducing = false;
         }
     }
 

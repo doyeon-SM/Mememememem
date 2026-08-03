@@ -18,7 +18,7 @@ public class FlyingItemUI : MonoBehaviour
         }
 
         transform.position = startScreenPos;
-        transform.localScale = Vector3.one * 0.8f; // 처음 크기
+        transform.localScale = Vector3.one; 
 
         Sequence flySequence = DOTween.Sequence();
 

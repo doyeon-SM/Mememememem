@@ -13,6 +13,7 @@ public class FacilityRecordData : MonoBehaviour, IRecord
     private void OnEnable()
     {
         GridManager.OnGridDataChanged += OnFacilityDataChanged;
+        FacilityCollectManager.OnFacilityChangedEvent += OnFacilityCollectChangedHandler;
 
         ProductionFacilityRuntime.OnMemDeploymentChanged += OnFacilityDataChanged;
         ProductionCraftRuntime.OnMemDeploymentChanged += OnFacilityDataChanged;
@@ -47,6 +48,7 @@ public class FacilityRecordData : MonoBehaviour, IRecord
     private void OnDisable()
     {
         GridManager.OnGridDataChanged -= OnFacilityDataChanged;
+        FacilityCollectManager.OnFacilityChangedEvent -= OnFacilityCollectChangedHandler;
 
         ProductionFacilityRuntime.OnMemDeploymentChanged -= OnFacilityDataChanged;
         ProductionCraftRuntime.OnMemDeploymentChanged -= OnFacilityDataChanged;
@@ -78,6 +80,17 @@ public class FacilityRecordData : MonoBehaviour, IRecord
         KitchenRuntime.FacilityStopped -= OnFacilityStoppedHandler;
     }
 
+    private void OnApplicationQuit()
+    {
+        OnFacilityDataChanged();
+    }
+
+    private void OnApplicationPause(bool pauseStatus)
+    {
+        if (pauseStatus) OnFacilityDataChanged();
+    }
+
+    private void OnFacilityCollectChangedHandler(MonoBehaviour facility) => OnFacilityDataChanged();
     private void OnFacilityStartedHandler(BuildingType type, List<MemData> mems, List<Transform> positions) => OnFacilityDataChanged();
     private void OnFacilityStoppedHandler(BuildingType type, List<MemData> mems, FacilityStopReason reason, List<Transform> positions) => OnFacilityDataChanged();
 
@@ -85,7 +98,6 @@ public class FacilityRecordData : MonoBehaviour, IRecord
     {
         if (RecordManager.IsLoadingData) return;
 
-        // 🌟 [핵심 방어] 배치 모드 중일 때는 실시간 저장을 차단하여 백업 데이터 오염 방지
         var gridManager = FindFirstObjectByType<GridManager>();
         if (gridManager != null)
         {
@@ -204,7 +216,7 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                 rData.currentLevel = gen.currentLevel;
                 rData.isActive = gen.isPowerGenerating;
                 rData.currentProgressTime = gen.currentPowerProgressTime;
-                rData.currentStorageCount = gen.currentPowerStorage;
+                rData.currentStorageCount = gen.currentPowerStorage; // 🌟 발전기의 전력 축적량을 currentStorageCount에 저장
 
                 if (gen.DeployedMemEntries != null)
                 {
@@ -282,9 +294,8 @@ public class FacilityRecordData : MonoBehaviour, IRecord
             }
         }
 
-        currentData.lastSaveTime = DateTime.UtcNow.ToString("o");
         File.WriteAllText(saveFilePath, JsonUtility.ToJson(currentData, true));
-        Debug.Log("<color=lime>[FacilityLayoutRecord]</color> 시설 데이터 저장 완료!");
+        Debug.Log("<color=lime>[FacilityRecordData]</color> 🏗️ 시설 런타임 상태 및 진행도 세이브 성공!");
     }
 
     public void ApplyData(SaveData saveData, SceneType sceneType)
@@ -352,6 +363,8 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                     facility.currentStorageCount = entry.currentStorageCount;
                     facility.craftingItem = entry.currentCraftingItemId;
 
+                    float savedProgressTime = entry.currentProgressTime;
+
                     if (facility.DeployedMems != null) facility.DeployedMems.Clear();
                     if (facility.DeployedMemEntries != null) facility.DeployedMemEntries.Clear();
 
@@ -373,6 +386,8 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                             }
                         }
                     }
+                    facility.currentProgressTime = savedProgressTime;
+                    facility.isProducing = entry.isActive;
                     facility.CheckProductionCondition();
                 }
                 else if (spawnedObj.TryGetComponent<ProductionCraftRuntime>(out var craft))
@@ -452,10 +467,7 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                 {
                     gen.buildingData = matchData;
                     gen.currentLevel = entry.currentLevel > 0 ? entry.currentLevel : 1;
-                    gen.isPowerGenerating = entry.isActive;
-                    gen.currentPowerProgressTime = entry.currentProgressTime;
-                    gen.currentPowerStorage = entry.currentStorageCount;
-                    gen.UpdateMaxPowerStorage();
+                    gen.UpdateMaxPowerStorage(); 
 
                     if (gen.DeployedMems != null) gen.DeployedMems.Clear();
                     if (gen.DeployedMemEntries != null) gen.DeployedMemEntries.Clear();
@@ -476,6 +488,14 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                             }
                         }
                     }
+
+                    gen.currentPowerStorage = entry.currentStorageCount;
+                    if (gen.DeployedMems.Count > 0)
+                    {
+                        gen.totalPowerRequiredTime = ProductionCalculator.CalculatePowerGenerationTime(gen.basePowerGenerationTime, gen.DeployedMems[0]);
+                    }
+                    gen.currentPowerProgressTime = entry.currentProgressTime;
+                    gen.isPowerGenerating = entry.isActive;
                     gen.CheckPowerCondition();
                 }
                 else if (spawnedObj.TryGetComponent<TransportRuntime>(out var trans))
@@ -484,8 +504,10 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                     trans.currentLevel = entry.currentLevel > 0 ? entry.currentLevel : 1;
                     trans.isWorking = entry.isActive;
                     trans.currentProgressTime = entry.currentProgressTime;
+
                     if (trans.DeployedMems != null) trans.DeployedMems.Clear();
                     if (trans.DeployedMemEntries != null) trans.DeployedMemEntries.Clear();
+
                     if (memManager != null && entry.DeployedMemIDs != null)
                     {
                         int maxCapacity = ProductionCalculator.GetTransportMaxMemCount(trans.currentLevel);
@@ -589,17 +611,6 @@ public class FacilityRecordData : MonoBehaviour, IRecord
         RecordManager.Instance.SetPrivateFieldSafely(gridManager, "buildingDataGrid", buildingDataGrid);
         RecordManager.Instance.RefreshActivePanelMemSlotsRealtime();
 
-        var territoryDataObj = HDY.Territory.TerritoryData.Resolve(null);
-        if (gridManager != null && territoryDataObj != null)
-        {
-            int calculatedSatisfaction = gridManager.GetTotalSatisfactionFromGrid();
-            RecordManager.Instance.SetPrivateFieldSafely(territoryDataObj, "satisfaction", calculatedSatisfaction);
-
-            var satisfactionUI = FindFirstObjectByType<SatisFactoryUI>();
-            if (satisfactionUI != null)
-            {
-                satisfactionUI.RecalculateSatisfaction();
-            }
-        }
+        Debug.Log("<color=cyan>[FacilityRecordData]</color> 🏗️ 배치 시설 복원 완료!");
     }
 }

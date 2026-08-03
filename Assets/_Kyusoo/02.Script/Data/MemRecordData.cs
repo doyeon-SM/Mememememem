@@ -9,13 +9,10 @@ using HDY.Capture;
 public class MemRecordData : MonoBehaviour, IRecord
 {
     private MemCaptureManager liveMemManager;
+    private MemDexRecordManager liveDexRecordManager;
 
-    // 🌟 [핵심] 런타임 동안 종족별 최초 포획 시간을 보관할 딕셔너리 (MemId -> Timestamp)
     private static Dictionary<string, long> firstCaptureDict = new Dictionary<string, long>();
 
-    /// <summary>
-    /// 외부 UI(도감 등)에서 특정 MemId의 최초 포획 시간을 조회할 때 사용하는 정적 메서드
-    /// </summary>
     public static long? GetFirstCapturedTimestamp(string memId)
     {
         if (!string.IsNullOrEmpty(memId) && firstCaptureDict.TryGetValue(memId, out long timestamp))
@@ -39,9 +36,17 @@ public class MemRecordData : MonoBehaviour, IRecord
     {
         UnsubscribeManager();
         liveMemManager = FindFirstObjectByType<MemCaptureManager>();
+        liveDexRecordManager = MemDexRecordManager.Resolve(liveDexRecordManager);
+
         if (liveMemManager != null)
         {
-            liveMemManager.OnCapturedMemsChanged += OnCapturedMemsChangedHandler;
+            liveMemManager.OnCapturedMemsChanged += OnCapturedDataChangedHandler;
+            liveMemManager.OnStorageCapacityChanged += OnCapturedDataChangedHandler;
+        }
+
+        if (liveDexRecordManager != null)
+        {
+            liveDexRecordManager.OnFirstCaptureRecorded += OnFirstCaptureRecordedHandler;
         }
     }
 
@@ -49,31 +54,38 @@ public class MemRecordData : MonoBehaviour, IRecord
     {
         if (liveMemManager != null)
         {
-            liveMemManager.OnCapturedMemsChanged -= OnCapturedMemsChangedHandler;
+            liveMemManager.OnCapturedMemsChanged -= OnCapturedDataChangedHandler;
+            liveMemManager.OnStorageCapacityChanged -= OnCapturedDataChangedHandler;
             liveMemManager = null;
+        }
+
+        if (liveDexRecordManager != null)
+        {
+            liveDexRecordManager.OnFirstCaptureRecorded -= OnFirstCaptureRecordedHandler;
+            liveDexRecordManager = null;
         }
     }
 
-    /// <summary>
-    /// 포획 멤 인벤토리 변동 감지 이벤트 핸들러
-    /// </summary>
-    private void OnCapturedMemsChangedHandler()
+    private void OnCapturedDataChangedHandler()
     {
         if (RecordManager.IsLoadingData) return;
-
-        // 🌟 1. 현재 포획된 멤 목록을 스캔하여 신규 MemId 발견 시 최초 포획 시간 기록
         CheckAndRegisterFirstCaptureTimestamps();
 
-        // 2. 파일 저장
         if (RecordManager.Instance != null)
         {
             SaveData(RecordManager.Instance.SaveFilePath);
         }
     }
 
-    /// <summary>
-    /// 🌟 포획된 멤 목록에서 미등록된 MemId가 있으면 현재 시간(Timestamp)으로 최초 포획 기록 등록
-    /// </summary>
+    private void OnFirstCaptureRecordedHandler(string memId, long timestamp)
+    {
+        if (!string.IsNullOrEmpty(memId))
+        {
+            firstCaptureDict[memId] = timestamp;
+        }
+        OnCapturedDataChangedHandler();
+    }
+
     private void CheckAndRegisterFirstCaptureTimestamps()
     {
         if (liveMemManager == null || liveMemManager.CapturedMems == null) return;
@@ -82,13 +94,11 @@ public class MemRecordData : MonoBehaviour, IRecord
 
         foreach (var entry in liveMemManager.CapturedMems)
         {
-            if (entry == null || string.IsNullOrEmpty(entry.MemId)) continue;
+            if (entry == null || entry.IsEmpty || string.IsNullOrEmpty(entry.MemId)) continue;
 
-            // 딕셔너리에 아직 기록되지 않은 MemId라면 최초 포획으로 판정하고 시간 기록
             if (!firstCaptureDict.ContainsKey(entry.MemId))
             {
                 firstCaptureDict[entry.MemId] = currentUnixTimestamp;
-                Debug.Log($"<color=cyan>[MemRecordData]</color> 🎉 신규 종족 최초 포획 감지! MemId: {entry.MemId} | 포획 시각: {DateTimeOffset.FromUnixTimeSeconds(currentUnixTimestamp).ToLocalTime():yyyy-MM-dd HH:mm}");
             }
         }
     }
@@ -114,7 +124,6 @@ public class MemRecordData : MonoBehaviour, IRecord
         SaveData currentData = RecordManager.Instance.ReadRawSaveFileOnly();
         if (currentData == null) currentData = new SaveData();
 
-        // 🌟 세이브 전 신규 최초 포획 건 재확인
         CheckAndRegisterFirstCaptureTimestamps();
 
         currentData.unlockedPageCount = liveMemManager.UnlockedPageCount;
@@ -124,7 +133,6 @@ public class MemRecordData : MonoBehaviour, IRecord
             currentData.serializedCapturedMems = new List<CapturedMemEntry>(liveMemManager.CapturedMems);
         }
 
-        // 🌟 [핵심] 딕셔너리 -> SaveData 리스트로 직렬화 변환 저장
         currentData.firstCapturedTimestamps = firstCaptureDict.Select(kvp => new MemFirstCapturedEntry
         {
             memId = kvp.Key,
@@ -133,7 +141,6 @@ public class MemRecordData : MonoBehaviour, IRecord
 
         currentData.lastSaveTime = DateTime.UtcNow.ToString("o");
         File.WriteAllText(saveFilePath, JsonUtility.ToJson(currentData, true));
-        Debug.Log("<color=lime>[MemRecordData]</color> 🟩 포획 멤 인벤토리 및 최초 포획 타임스탬프 세이브 성공!");
     }
 
     public void ApplyData(SaveData saveData, SceneType sceneType)
@@ -142,6 +149,8 @@ public class MemRecordData : MonoBehaviour, IRecord
         if (liveMemManager == null) return;
 
         firstCaptureDict.Clear();
+        List<MemDexRecord> dexRecordsForManager = new List<MemDexRecord>();
+
         if (saveData.firstCapturedTimestamps != null)
         {
             foreach (var entry in saveData.firstCapturedTimestamps)
@@ -149,8 +158,18 @@ public class MemRecordData : MonoBehaviour, IRecord
                 if (entry != null && !string.IsNullOrEmpty(entry.memId))
                 {
                     firstCaptureDict[entry.memId] = entry.firstCapturedTimestamp;
+                    dexRecordsForManager.Add(new MemDexRecord
+                    {
+                        MemId = entry.memId,
+                        FirstCapturedTimestamp = entry.firstCapturedTimestamp
+                    });
                 }
             }
+        }
+
+        if (liveDexRecordManager != null)
+        {
+            liveDexRecordManager.LoadRecords(dexRecordsForManager);
         }
 
         FieldInfo listField = typeof(MemCaptureManager).GetField("capturedMems", BindingFlags.NonPublic | BindingFlags.Instance);
@@ -170,26 +189,8 @@ public class MemRecordData : MonoBehaviour, IRecord
         RecordManager.Instance.SetPrivateFieldSafely(liveMemManager, "unlockedPageCount", saveData.unlockedPageCount);
 
         MethodInfo ensureMethod = typeof(MemCaptureManager).GetMethod("EnsureCapacity", BindingFlags.NonPublic | BindingFlags.Instance);
-        if (ensureMethod != null)
-        {
-            ensureMethod.Invoke(liveMemManager, null);
-        }
+        ensureMethod?.Invoke(liveMemManager, null);
 
         CheckAndRegisterFirstCaptureTimestamps();
-
-        FieldInfo eventField = typeof(MemCaptureManager).GetField("OnCapturedMemsChanged", BindingFlags.NonPublic | BindingFlags.Instance);
-        if (eventField != null)
-        {
-            MulticastDelegate eventDelegate = eventField.GetValue(liveMemManager) as MulticastDelegate;
-            if (eventDelegate != null)
-            {
-                foreach (var handler in eventDelegate.GetInvocationList())
-                {
-                    handler.DynamicInvoke();
-                }
-            }
-        }
-
-        Debug.Log("<color=lime>[MemRecordData]</color> 👑 최초 포획 타임스탬프 및 멤 데이터 복구 성공!");
     }
 }

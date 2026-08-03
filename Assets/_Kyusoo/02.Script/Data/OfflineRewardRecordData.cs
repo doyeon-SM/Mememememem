@@ -1,278 +1,267 @@
-﻿using System;
+﻿using HDY.Capture;
+using HDY.Cook;
+using HDY.Item;
+using HDY.Recipe;
+using HDY.Territory;
+using MemSystem.Data;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.IO;
-using System.Reflection;
 using UnityEngine;
-using HDY.Territory;
-using HDY.Item;
-using KMS.InventoryDuped;
 
 public class OfflineRewardRecordData : MonoBehaviour, IRecord
 {
     public void InitDefaultData(ref SaveData saveData) { }
+
     public void SaveData(string saveFilePath) { }
 
     public void ApplyData(SaveData saveData, SceneType sceneType)
     {
         if (sceneType == SceneType.Exploration) return;
 
-        string lastKstString = saveData.timeData.lastSaveRealTimeKst;
-        if (string.IsNullOrEmpty(lastKstString)) return;
+        string lastTimeStr = saveData.timeData != null ? saveData.timeData.lastSaveRealTimeKst : null;
+        if (string.IsNullOrEmpty(lastTimeStr)) lastTimeStr = saveData.lastSaveTime;
+        if (string.IsNullOrEmpty(lastTimeStr)) return;
 
-        if (!DateTime.TryParseExact(lastKstString, "yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime lastKstTime))
+        DateTime lastSaveUtc;
+
+        // 🌟 [수정] DateTimeStyles.RoundtripKind 단독 사용 (AdjustToUniversal과 중복 사용 시 예외 발생 방지)
+        if (!DateTime.TryParse(lastTimeStr, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out lastSaveUtc))
         {
-            Debug.LogWarning($"[OfflineReward] 저장된 시간 포맷이 올바르지 않습니다: {lastKstString}");
-            return;
+            if (!DateTime.TryParseExact(lastTimeStr, "yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out lastSaveUtc))
+            {
+                if (!DateTime.TryParse(lastTimeStr, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out lastSaveUtc))
+                {
+                    Debug.LogWarning($"[OfflineRewardRecordData] ⚠️ 시각 파싱 실패: {lastTimeStr}");
+                    return;
+                }
+            }
         }
 
-        DateTime currentKstTime = DateTime.UtcNow.AddHours(9);
-        TimeSpan timeDiff = currentKstTime - lastKstTime;
-        double realElapsedSeconds = timeDiff.TotalSeconds;
+        lastSaveUtc = lastSaveUtc.ToUniversalTime();
+        TimeSpan offlineDuration = DateTime.UtcNow - lastSaveUtc;
+        float offlineSeconds = (float)offlineDuration.TotalSeconds;
 
-        if (realElapsedSeconds < 5.0)
-        {
-            Debug.Log($"[OfflineReward] 오프라인 경과 시간이 미비하여 정산을 스킵합니다. ({realElapsedSeconds:F1}초)");
-            return;
-        }
+        if (offlineSeconds <= 5f) return; // 5초 미만 오프라인 스킵
 
-        Debug.Log($"<color=yellow>[OfflineReward] 영지 이탈 후 오프라인 경과 시간: {realElapsedSeconds:F1}초 ({timeDiff.TotalMinutes:F1}분)</color>");
+        Debug.Log($"<color=yellow>[OfflineRewardRecordData]</color> ⏳ 오프라인 경과 시간 감지: {offlineSeconds:F1}초");
 
+        // 1. 오프라인 허기율 계산
         if (TotalHungerManager.Instance != null)
         {
             TotalHungerManager.Instance.RecalculateTotalHunger();
         }
 
-        int totalHungerPerMinute = TotalHungerManager.Instance != null ? TotalHungerManager.Instance.TotalHungerPerMinute : 0;
+        int totalHungerPerMin = TotalHungerManager.Instance != null ? TotalHungerManager.Instance.TotalHungerPerMinute : 0;
+        float totalHungerPerSec = totalHungerPerMin / 60f;
 
-        int elapsedMinutes = Mathf.FloorToInt((float)realElapsedSeconds / 60f);
-        float remainingSecondsFraction = (float)realElapsedSeconds % 60f;
-
-        int activeWorkingMinutes = 0;
+        float effectiveWorkSeconds = offlineSeconds;
         bool isStarved = false;
 
-        for (int m = 0; m < elapsedMinutes; m++)
+        if (ConsumeFoodSystem.Instance != null && totalHungerPerSec > 0f)
         {
-            if (totalHungerPerMinute <= 0)
-            {
-                activeWorkingMinutes++;
-                continue;
-            }
+            int currentSatiety = ConsumeFoodSystem.Instance.CurrentSatiety;
+            float satietyRunoutSeconds = currentSatiety / totalHungerPerSec;
 
-            int currentTotalSatiety = GetTotalStorageSatiety();
-
-            if (totalHungerPerMinute > currentTotalSatiety)
+            if (satietyRunoutSeconds < offlineSeconds)
             {
+                effectiveWorkSeconds = satietyRunoutSeconds;
                 isStarved = true;
-                Debug.LogWarning($"[OfflineReward] 오프라인 {m + 1}분째에 음식이 부족하여 가동이 정지되었습니다.");
-                break;
+                ConsumeFoodSystem.Instance.ConsumeSatietyFromWarehouse(currentSatiety);
+                ConsumeFoodSystem.Instance.ForceSyncManualState(0, ConsumeFoodSystem.Instance.MaxSatiety, true);
+                Debug.LogWarning("<color=red>[OfflineRewardRecordData]</color> ⚠️ 오프라인 도중 식량이 고갈되어 작업이 정지되었습니다.");
             }
-
-            Deduct1MinuteFoodSatiety(totalHungerPerMinute);
-            activeWorkingMinutes++;
+            else
+            {
+                int consumedSatiety = Mathf.FloorToInt(totalHungerPerSec * offlineSeconds);
+                ConsumeFoodSystem.Instance.ConsumeSatietyFromWarehouse(consumedSatiety);
+            }
         }
 
-        // 유효 가동 시간 계산 (정상 가동된 분 수 * 60초 + 자투리 초)
-        double effectiveWorkSeconds = (activeWorkingMinutes * 60.0);
-        if (!isStarved)
+        if (effectiveWorkSeconds > 0f)
         {
-            effectiveWorkSeconds += remainingSecondsFraction;
+            // 2. 7종 시설 오프라인 생산 시뮬레이션
+            SimulateAllFacilitiesProgress(effectiveWorkSeconds, isStarved);
         }
 
-        Debug.Log($"[OfflineReward] 최종 유효 가동 시간: {effectiveWorkSeconds:F1}초 | 최종 남은 포만감: {GetTotalStorageSatiety()} | 기근 여부: {isStarved}");
-
-        // 1. 보급고 및 기근 상태 동기화
-        if (ConsumeFoodSystem.Instance != null)
-        {
-            ConsumeFoodSystem.Instance.ForceSyncManualState(GetTotalStorageSatiety(), ConsumeFoodSystem.Instance.MaxSatiety, isStarved);
-        }
-
-        // 2. 제작 시설 오프라인 생산 정산
-        SimulateCraftFacilities(effectiveWorkSeconds, isStarved);
-
-        // 3. 생산 시설 오프라인 생산 정산
-        SimulateProductionFacilities(effectiveWorkSeconds, isStarved);
-
-        // 4. UI 갱신
         var warehouseUI = FindFirstObjectByType<FoodWarehouseUI>();
         if (warehouseUI != null) warehouseUI.RefreshAllPanelsAndSlots();
 
-        // 5. 정산 완료 후 세이브 파일 즉시 재기록
-        RecordManager.Instance.SetPrivateFieldSafely(RecordManager.Instance, "IsLoadingData", false);
-
-        var inventoryRecord = FindFirstObjectByType<PlayerInventoryRecord>();
-        inventoryRecord?.SaveData(RecordManager.Instance.SaveFilePath);
-
-        var consumeFoodRecord = FindFirstObjectByType<ConsumeFoodRecordData>();
-        consumeFoodRecord?.SaveData(RecordManager.Instance.SaveFilePath);
-
-        var facilityRecord = FindFirstObjectByType<FacilityRecordData>();
-        facilityRecord?.SaveData(RecordManager.Instance.SaveFilePath);
-
-        Debug.Log("<color=lime>[OfflineReward] 오프라인 1분 단위 동기화 시뮬레이션 완료!</color>");
+        Debug.Log($"<color=lime>[OfflineRewardRecordData]</color> 🎁 유효 오프라인 작업 ({effectiveWorkSeconds:F1}초) 보상 정산 완료!");
     }
 
-    /// <summary>
-    /// 실시간 ConsumeFoodSystem과 동일하게 0번 슬롯(왼쪽 위)부터 1분 분량 허기를 올림 연산으로 차감합니다.
-    /// </summary>
-    private void Deduct1MinuteFoodSatiety(int hungerToConsume)
+    private void SimulateAllFacilitiesProgress(float workSeconds, bool isStarved)
     {
-        if (ConsumeFoodSystem.Instance == null || ConsumeFoodSystem.Instance.FoodStorageContainer == null) return;
-        var container = ConsumeFoodSystem.Instance.FoodStorageContainer;
-        if (container.slots == null) return;
-
-        int neededHunger = hungerToConsume;
-
-        for (int i = 0; i < container.slots.Length; i++)
+        // 1) 일반 생산 시설 (호박석 채석장 포함)
+        var prodFacilities = FindObjectsByType<ProductionFacilityRuntime>(FindObjectsSortMode.None);
+        foreach (var prod in prodFacilities)
         {
-            if (neededHunger <= 0) break;
+            if (prod == null || !prod.isProducing || string.IsNullOrEmpty(prod.craftingItem) || prod.DeployedMems.Count == 0) continue;
 
-            ItemStack slot = container.slots[i];
-            if (slot == null || slot.IsEmpty) continue;
+            float unitTime = ProductionCalculator.CalculateFinalProductionTime(prod.baseProductionTime, prod.DeployedMems);
+            if (unitTime <= 0f) continue;
 
-            ItemData data = RecordManager.Instance != null ? RecordManager.Instance.FindItemDataInProject(slot.itemId) : null;
-            int singleSatiety = GetItemSatietyValue(data);
-            if (singleSatiety <= 0) continue;
+            float totalProgress = prod.currentProgressTime + workSeconds;
+            int units = Mathf.FloorToInt(totalProgress / unitTime);
 
-            int itemsNeeded = Mathf.CeilToInt((float)neededHunger / singleSatiety);
-            int itemsToConsume = Mathf.Min(slot.amount, itemsNeeded);
-
-            slot.amount -= itemsToConsume;
-            neededHunger -= (itemsToConsume * singleSatiety);
-
-            if (slot.amount <= 0)
+            prod.currentStorageCount = Mathf.Min(prod.maxStorageCount, prod.currentStorageCount + units);
+            if (prod.currentStorageCount >= prod.maxStorageCount || isStarved)
             {
-                slot.Clear();
-            }
-        }
-    }
-
-    private int GetTotalStorageSatiety()
-    {
-        if (ConsumeFoodSystem.Instance == null || ConsumeFoodSystem.Instance.FoodStorageContainer == null) return 0;
-        int totalSatiety = 0;
-
-        foreach (var slot in ConsumeFoodSystem.Instance.FoodStorageContainer.slots)
-        {
-            if (slot == null || slot.IsEmpty) continue;
-            ItemData data = RecordManager.Instance != null ? RecordManager.Instance.FindItemDataInProject(slot.itemId) : null;
-            int singleSatiety = GetItemSatietyValue(data);
-            totalSatiety += singleSatiety * slot.amount;
-        }
-        return totalSatiety;
-    }
-
-    private int GetItemSatietyValue(ItemData data)
-    {
-        if (data == null || data.EatEffects == null) return 0;
-        foreach (var effect in data.EatEffects)
-        {
-            if (effect != null && effect.Effect == EffectType.Satiety) return (int)effect.Value;
-        }
-        return 0;
-    }
-
-    private void SimulateCraftFacilities(double workSeconds, bool isStarved)
-    {
-        var crafts = FindObjectsByType<ProductionCraftRuntime>(FindObjectsSortMode.None);
-        foreach (var craft in crafts)
-        {
-            if (craft == null || !craft.isProducing || craft.currentCraftingItem == null) continue;
-
-            float craftDuration = GetCraftingDuration(craft);
-            if (craftDuration <= 0f) craftDuration = 20f;
-
-            double totalTime = workSeconds + craft.currentProgressTime;
-            int producedCount = Mathf.FloorToInt((float)(totalTime / craftDuration));
-            int actualToProduce = Math.Min(producedCount, craft.remainingQuantity);
-
-            if (actualToProduce > 0)
-            {
-                craft.currentStorageCount += actualToProduce;
-                craft.remainingQuantity -= actualToProduce;
-                craft.currentProgressTime = (float)(totalTime - (actualToProduce * craftDuration));
+                prod.isProducing = false;
+                prod.currentProgressTime = 0f;
             }
             else
             {
-                craft.currentProgressTime = (float)totalTime;
+                prod.currentProgressTime = totalProgress % unitTime;
             }
+        }
 
-            if (craft.remainingQuantity <= 0)
+        // 2) 제작대 시설
+        var craftFacilities = FindObjectsByType<ProductionCraftRuntime>(FindObjectsSortMode.None);
+        foreach (var craft in craftFacilities)
+        {
+            if (craft == null || !craft.isProducing || string.IsNullOrEmpty(craft.currentCraftingItem) || craft.DeployedMems.Count == 0) continue;
+
+            RecipeData recipe = ItemCatalogManager.Instance != null ? ItemCatalogManager.Instance.FindRecipeData(craft.currentCraftingItem) : null;
+            float baseDuration = recipe != null ? recipe.time : 20f;
+            float unitTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, craft.DeployedMems);
+            if (unitTime <= 0f) continue;
+
+            float totalProgress = craft.currentProgressTime + workSeconds;
+            int units = Mathf.FloorToInt(totalProgress / unitTime);
+            int actualProduced = Mathf.Min(units, craft.remainingQuantity);
+
+            craft.currentStorageCount = Mathf.Min(craft.maxStorageCount, craft.currentStorageCount + actualProduced);
+            craft.remainingQuantity -= actualProduced;
+
+            if (craft.remainingQuantity <= 0 || isStarved)
             {
-                craft.remainingQuantity = 0;
+                craft.isProducing = false;
                 craft.currentProgressTime = 0f;
-                craft.isProducing = false;
-            }
-
-            if (isStarved)
-            {
-                craft.isProducing = false;
-            }
-        }
-    }
-
-    private void SimulateProductionFacilities(double workSeconds, bool isStarved)
-    {
-        var facilities = FindObjectsByType<ProductionFacilityRuntime>(FindObjectsSortMode.None);
-        foreach (var facility in facilities)
-        {
-            if (facility == null || !facility.isProducing || facility.craftingItem == null) continue;
-
-            float prodDuration = GetProductionDuration(facility);
-            if (prodDuration <= 0f) prodDuration = 30f;
-
-            int maxStorage = GetMaxStorage(facility);
-            int availableStorageSpace = maxStorage - facility.currentStorageCount;
-
-            if (availableStorageSpace <= 0)
-            {
-                facility.isProducing = false;
-                continue;
-            }
-
-            double totalTime = workSeconds + facility.currentProgressTime;
-            int producedCount = Mathf.FloorToInt((float)(totalTime / prodDuration));
-
-            int actualToProduce = Math.Min(producedCount, availableStorageSpace);
-
-            if (actualToProduce > 0)
-            {
-                facility.currentStorageCount += actualToProduce;
-                facility.currentProgressTime = (float)(totalTime - (actualToProduce * prodDuration));
             }
             else
             {
-                facility.currentProgressTime = (float)totalTime;
-            }
-
-            if (facility.currentStorageCount >= maxStorage || isStarved)
-            {
-                facility.isProducing = false;
+                craft.currentProgressTime = totalProgress % unitTime;
             }
         }
-    }
 
-    private float GetCraftingDuration(ProductionCraftRuntime craft)
-    {
-        if (craft == null) return 20f;
-        var field = typeof(ProductionCraftRuntime).GetField("craftingDuration", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-        if (field != null) return Convert.ToSingle(field.GetValue(craft));
-        return 20f;
-    }
+        // 3) 모닥불 시설
+        var campFires = FindObjectsByType<CampFireRuntime>(FindObjectsSortMode.None);
+        foreach (var cf in campFires)
+        {
+            if (cf == null || !cf.isCooking || string.IsNullOrEmpty(cf.currentCookingItem) || cf.DeployedMems.Count == 0) continue;
 
-    private float GetProductionDuration(ProductionFacilityRuntime facility)
-    {
-        if (facility == null) return 30f;
-        var field = typeof(ProductionFacilityRuntime).GetField("baseProductionTime", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-        if (field != null) return Convert.ToSingle(field.GetValue(facility));
-        return 30f;
-    }
+            CookRecipeData recipe = ItemCatalogManager.Instance != null ? ItemCatalogManager.Instance.FindCookRecipeData(cf.currentCookingItem) : null;
+            float baseDuration = recipe != null ? recipe.Time : 15f;
+            float unitTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, cf.DeployedMems);
+            if (unitTime <= 0f) continue;
 
-    private int GetMaxStorage(ProductionFacilityRuntime facility)
-    {
-        if (facility == null) return 100;
-        var field = typeof(ProductionFacilityRuntime).GetField("maxStorageCount", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-        if (field != null) return Convert.ToInt32(field.GetValue(facility));
-        return 100;
+            float totalProgress = cf.currentProgressTime + workSeconds;
+            int units = Mathf.FloorToInt(totalProgress / unitTime);
+            int actualProduced = Mathf.Min(units, cf.remainingQuantity);
+
+            cf.currentStorageCount = Mathf.Min(cf.maxStorageCount, cf.currentStorageCount + actualProduced);
+            cf.remainingQuantity -= actualProduced;
+
+            if (cf.remainingQuantity <= 0 || isStarved)
+            {
+                cf.isCooking = false;
+                cf.currentProgressTime = 0f;
+            }
+            else
+            {
+                cf.currentProgressTime = totalProgress % unitTime;
+            }
+        }
+
+        // 4) 주방 시설
+        var kitchens = FindObjectsByType<KitchenRuntime>(FindObjectsSortMode.None);
+        foreach (var k in kitchens)
+        {
+            if (k == null || !k.isCooking || string.IsNullOrEmpty(k.currentCookingItem) || k.DeployedMems.Count == 0) continue;
+
+            CookRecipeData recipe = ItemCatalogManager.Instance != null ? ItemCatalogManager.Instance.FindCookRecipeData(k.currentCookingItem) : null;
+            float baseDuration = recipe != null ? recipe.Time : 15f;
+            float unitTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, k.DeployedMems);
+            if (unitTime <= 0f) continue;
+
+            float totalProgress = k.currentProgressTime + workSeconds;
+            int units = Mathf.FloorToInt(totalProgress / unitTime);
+            int actualProduced = Mathf.Min(units, k.remainingQuantity);
+
+            k.currentStorageCount = Mathf.Min(k.maxStorageCount, k.currentStorageCount + actualProduced);
+            k.remainingQuantity -= actualProduced;
+
+            if (k.remainingQuantity <= 0 || isStarved)
+            {
+                k.isCooking = false;
+                k.currentProgressTime = 0f;
+            }
+            else
+            {
+                k.currentProgressTime = totalProgress % unitTime;
+            }
+        }
+
+        // 5) 발전기 시설
+        var generators = FindObjectsByType<GeneratorRuntime>(FindObjectsSortMode.None);
+        foreach (var gen in generators)
+        {
+            if (gen == null || !gen.isPowerGenerating || gen.DeployedMems.Count == 0) continue;
+
+            float unitTime = ProductionCalculator.CalculatePowerGenerationTime(gen.basePowerGenerationTime, gen.DeployedMems[0]);
+            if (unitTime <= 0f) continue;
+
+            float totalProgress = gen.currentPowerProgressTime + workSeconds;
+            int units = Mathf.FloorToInt(totalProgress / unitTime);
+
+            gen.currentPowerStorage = Mathf.Min(gen.maxPowerStorage, gen.currentPowerStorage + (units * gen.powerPerUnit));
+
+            if (gen.currentPowerStorage >= gen.maxPowerStorage || isStarved)
+            {
+                gen.isPowerGenerating = false;
+                gen.currentPowerProgressTime = 0f;
+            }
+            else
+            {
+                gen.currentPowerProgressTime = totalProgress % unitTime;
+            }
+        }
+
+        // 6) 목장 시설
+        var ranches = FindObjectsByType<RanchFacilityRuntime>(FindObjectsSortMode.None);
+        foreach (var ranch in ranches)
+        {
+            if (ranch == null || !ranch.isProducing) continue;
+
+            foreach (var slot in ranch.Slots)
+            {
+                if (!slot.isUnlocked || !slot.isProducing || slot.deployedMem == null) continue;
+
+                float targetBaseTime = ranch.baseProductionTime;
+                if (ranch.TryGetRanchProduceData(slot.deployedMem, out _, out float customBaseTime))
+                {
+                    targetBaseTime = customBaseTime;
+                }
+
+                float unitTime = ProductionCalculator.CalculateFinalProductionTime(targetBaseTime, new List<MemData> { slot.deployedMem });
+                if (unitTime <= 0f) continue;
+
+                float totalProgress = slot.currentProgressTime + workSeconds;
+                int units = Mathf.FloorToInt(totalProgress / unitTime);
+
+                slot.currentStorageCount = Mathf.Min(RanchSlotRuntime.maxStorage, slot.currentStorageCount + units);
+
+                if (slot.currentStorageCount >= RanchSlotRuntime.maxStorage || isStarved)
+                {
+                    slot.isProducing = false;
+                    slot.currentProgressTime = 0f;
+                }
+                else
+                {
+                    slot.currentProgressTime = totalProgress % unitTime;
+                }
+            }
+        }
     }
 }

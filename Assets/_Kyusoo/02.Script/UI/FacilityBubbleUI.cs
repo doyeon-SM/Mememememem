@@ -46,7 +46,6 @@ public class FacilityBubbleUI : MonoBehaviour
 
     public void PlayCollectAnimation(Action onComplete)
     {
-        // 🌟 1. bagTargetRect가 안 비어있다면 씬에서 B_Inventory 자동 탐색
         EnsureBagTargetReference();
 
         // 2. 기존 버블 팝업 축소 연출
@@ -82,16 +81,14 @@ public class FacilityBubbleUI : MonoBehaviour
     }
 
     /// <summary>
-    /// 🌟 씬 내에 있는 B_Inventory 오브젝트를 찾아 RectTransform을 자동 연결합니다.
+    /// 씬 내에 있는 인벤토리 오브젝트를 찾아 RectTransform을 자동 연결합니다.
     /// </summary>
     private void EnsureBagTargetReference()
     {
         if (bagTargetRect != null) return;
 
-        // 1. "B_Inventory"라는 이름의 오브젝트 직접 탐색
         GameObject bagObj = GameObject.Find("B_Inventory");
 
-        // 2. 만약 이름을 못 찾으면 씬 내부를 비활성화 오브젝트 포함하여 전수 탐색
         if (bagObj == null)
         {
             var allTransforms = Resources.FindObjectsOfTypeAll<RectTransform>();
