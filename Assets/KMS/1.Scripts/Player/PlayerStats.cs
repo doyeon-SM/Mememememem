@@ -10,7 +10,7 @@ namespace KMS
     public class PlayerStats : MonoBehaviour
     {
         [Header("Health")]
-        [SerializeField] private float maxHealth = 100f;
+        [SerializeField, Min(1f)] private float maxHealth = 100f;
         [SerializeField] private float startingHealth = 100f;
 
         [Header("Hunger")]
@@ -34,11 +34,14 @@ namespace KMS
         public event Action Died;
         public event Action Revived;
 
+        private bool healthInitialized;
+
         private void Awake()
         {
             CurrentHealth = Mathf.Clamp(startingHealth, 0f, maxHealth);
             CurrentHunger = Mathf.Clamp(startingHunger, 0f, maxHunger);
             IsAlive = CurrentHealth > 0f;
+            healthInitialized = true;
 
             ResolveFoodEffects();
             foodEffects.InitializeAsNormal(CurrentHunger, false);
@@ -98,6 +101,52 @@ namespace KMS
                 Healed?.Invoke(healedAmount);
                 HealthChanged?.Invoke(CurrentHealth, maxHealth);
             }
+        }
+
+        /// <summary>
+        /// Updates the runtime maximum health. When increasing the maximum, the
+        /// amount of missing health is preserved so a level-up is not a full heal.
+        /// </summary>
+        public void SetMaxHealth(float value, bool preserveMissingHealth = true)
+        {
+            value = Mathf.Max(1f, value);
+            if (Mathf.Approximately(maxHealth, value)) return;
+
+            float previousMaxHealth = maxHealth;
+            float previousHealth = CurrentHealth;
+            maxHealth = value;
+
+            // The territory-health controller can run before PlayerStats.Awake so
+            // save restoration sees the correct maximum health from the beginning.
+            if (!healthInitialized)
+            {
+                if (startingHealth >= previousMaxHealth - Mathf.Epsilon)
+                {
+                    startingHealth = maxHealth;
+                }
+                else
+                {
+                    startingHealth = Mathf.Clamp(startingHealth, 0f, maxHealth);
+                }
+
+                return;
+            }
+
+            if (!IsAlive)
+            {
+                CurrentHealth = 0f;
+            }
+            else if (preserveMissingHealth && maxHealth > previousMaxHealth)
+            {
+                float missingHealth = Mathf.Max(0f, previousMaxHealth - previousHealth);
+                CurrentHealth = Mathf.Clamp(maxHealth - missingHealth, 0f, maxHealth);
+            }
+            else
+            {
+                CurrentHealth = Mathf.Clamp(previousHealth, 0f, maxHealth);
+            }
+
+            HealthChanged?.Invoke(CurrentHealth, maxHealth);
         }
 
         public bool ConsumeHunger(float amount)

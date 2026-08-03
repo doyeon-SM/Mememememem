@@ -231,6 +231,52 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 134219034}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!1 &154546184
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 154546186}
+  - component: {fileID: 154546185}
+  m_Layer: 0
+  m_Name: KMS_ForgeTestInventorySeeder
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &154546185
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 154546184}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e3e155af5cd87884985f31adbce4fbbe, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::KMS.Testing.KMSForgeTestInventorySeeder
+  baseItemId: tool_shabby_axe
+  enhanceLevel: 5
+--- !u!4 &154546186
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 154546184}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &197901799
 GameObject:
   m_ObjectHideFlags: 0
@@ -1310,6 +1356,63 @@ Transform:
   - {fileID: 1612103869}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1001 &598454711
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 2679181794698395931, guid: fce50fffdc2f5104dbd41bbe8411b0e3, type: 3}
+      propertyPath: m_Name
+      value: ForgeManager
+      objectReference: {fileID: 0}
+    - target: {fileID: 5614541373382203805, guid: fce50fffdc2f5104dbd41bbe8411b0e3, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5614541373382203805, guid: fce50fffdc2f5104dbd41bbe8411b0e3, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5614541373382203805, guid: fce50fffdc2f5104dbd41bbe8411b0e3, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5614541373382203805, guid: fce50fffdc2f5104dbd41bbe8411b0e3, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 5614541373382203805, guid: fce50fffdc2f5104dbd41bbe8411b0e3, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5614541373382203805, guid: fce50fffdc2f5104dbd41bbe8411b0e3, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5614541373382203805, guid: fce50fffdc2f5104dbd41bbe8411b0e3, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5614541373382203805, guid: fce50fffdc2f5104dbd41bbe8411b0e3, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5614541373382203805, guid: fce50fffdc2f5104dbd41bbe8411b0e3, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5614541373382203805, guid: fce50fffdc2f5104dbd41bbe8411b0e3, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: fce50fffdc2f5104dbd41bbe8411b0e3, type: 3}
 --- !u!1 &796495907
 GameObject:
   m_ObjectHideFlags: 0
@@ -3779,16 +3882,16 @@ PrefabInstance:
       value: 20
       objectReference: {fileID: 0}
     - target: {fileID: 8093623029131725433, guid: a7844086167aed14ab841cad78766c24, type: 3}
+      propertyPath: waypoints.Array.size
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8093623029131725433, guid: a7844086167aed14ab841cad78766c24, type: 3}
       propertyPath: spawnTableIds.Array.size
       value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 8093623029131725433, guid: a7844086167aed14ab841cad78766c24, type: 3}
-      propertyPath: spawnTableIds.Array.data[0]
+      propertyPath: 'spawnTableIds.Array.data[0]'
       value: Mem_Rare_01
-      objectReference: {fileID: 0}
-    - target: {fileID: 8093623029131725433, guid: a7844086167aed14ab841cad78766c24, type: 3}
-      propertyPath: waypoints.Array.size
-      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 8527542342734120356, guid: a7844086167aed14ab841cad78766c24, type: 3}
       propertyPath: m_Name
@@ -6649,6 +6752,7 @@ MonoBehaviour:
   iconTable: {fileID: 11400000, guid: b685f5679d2a6d84d8fa47808411f5ce, type: 2}
   recipeCatalogSheet: {fileID: 4900000, guid: 2e5f72ed83c306242b7ca6df04bd5e3d, type: 3}
   shopItemCatalogSheet: {fileID: 4900000, guid: e1ae6213884775a48b91428862421199, type: 3}
+  cookRecipeCatalogSheet: {fileID: 0}
 --- !u!33 &5887966209909148790
 MeshFilter:
   m_ObjectHideFlags: 0
@@ -6959,3 +7063,5 @@ SceneRoots:
   - {fileID: 1530980595}
   - {fileID: 2067920257}
   - {fileID: 536298081}
+  - {fileID: 598454711}
+  - {fileID: 154546186}

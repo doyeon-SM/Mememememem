@@ -2837,6 +2837,7 @@ GameObject:
   - component: {fileID: 1375091862226142176}
   - component: {fileID: 7938680308663795052}
   - component: {fileID: 6812409213719045063}
+  - component: {fileID: 6812409213719045064}
   m_Layer: 3
   m_Name: 0720_Player_KMS
   m_TagString: Player
@@ -3007,6 +3008,21 @@ MonoBehaviour:
   safeImpactSpeed: 11
   damagePerExcessSpeed: 8
   maximumDamage: 100
+--- !u!114 &6812409213719045064
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5320301024596143200}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 59d6e20133664f948662a0c34fc4af2f, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::KMS.PlayerTerritoryHealthController
+  stats: {fileID: 4191295553828768883}
+  territoryData: {fileID: 0}
+  healthTable: {fileID: 11400000, guid: b604cddcba544659b8f6d7985df68382, type: 2}
 --- !u!114 &540356905414934518
 MonoBehaviour:
   m_ObjectHideFlags: 0

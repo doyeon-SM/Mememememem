@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using HDY.Forge;
 using UnityEngine;
 
 namespace KMS
@@ -19,9 +20,14 @@ namespace KMS
 
         public GameObject GetPrefab(string itemId)
         {
-            BuildLookupIfNeeded();
-
             if (string.IsNullOrEmpty(itemId)) return null;
+
+            if (ForgeInstanceRegistry.TryParseCompositeId(itemId, out string baseItemId, out _))
+            {
+                itemId = baseItemId;
+            }
+
+            BuildLookupIfNeeded();
             return lookup.TryGetValue(itemId, out GameObject prefab) ? prefab : null;
         }
 

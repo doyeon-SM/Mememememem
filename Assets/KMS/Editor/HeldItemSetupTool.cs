@@ -82,6 +82,8 @@ namespace KMS.EditorTools
                     itemId = definition.ItemId,
                     prefab = heldPrefab
                 });
+
+                AddTemporaryTierAliases(entries, definition.ItemId, heldPrefab);
             }
 
             HeldItemPrefabTable table = CreateOrUpdateTable(entries);
@@ -94,6 +96,31 @@ namespace KMS.EditorTools
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
             Debug.Log("[HeldItemSetup] 장착용 프리팹 5개, 프리팹 테이블, 플레이어 연결을 갱신했습니다.");
+        }
+
+        private static void AddTemporaryTierAliases(
+            List<HeldItemPrefabTable.Entry> entries,
+            string shabbyItemId,
+            GameObject heldPrefab)
+        {
+            string[] aliases = shabbyItemId switch
+            {
+                "tool_shabby_axe" => new[] { "tool_axe", "tool_decent_axe" },
+                "tool_shabby_club" => new[] { "tool_club", "tool_decent_club" },
+                "tool_shabby_hoe" => new[] { "tool_hoe", "tool_decent_hoe" },
+                "tool_shabby_pickax" => new[] { "tool_pickax", "tool_decent_pickax" },
+                "tool_shabby_capsule" => new[] { "tool_decent_capsule" },
+                _ => System.Array.Empty<string>()
+            };
+
+            foreach (string alias in aliases)
+            {
+                entries.Add(new HeldItemPrefabTable.Entry
+                {
+                    itemId = alias,
+                    prefab = heldPrefab
+                });
+            }
         }
 
         [MenuItem("KMS/Render Held Item Model Previews")]
