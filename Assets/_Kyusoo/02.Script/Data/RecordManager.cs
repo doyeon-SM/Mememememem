@@ -71,9 +71,6 @@ public class RecordManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// [새로하기] 기존 세이브 파일 삭제 -> 새로운 파일 만들기 진행
-    /// </summary>
     public void StartNewGame(string defaultStartScene = "Main_World2")
     {
         try
@@ -102,12 +99,10 @@ public class RecordManager : MonoBehaviour
         }
         catch (Exception e)
         {
+            Debug.LogError($"[RecordManager] 새 게임 시작 중 오류: {e.Message}");
         }
     }
 
-    /// <summary>
-    /// [이어하기] LastPlayScene기반 이동 진행. 없을 경우 자동 탐험씬으로 진행
-    /// </summary>
     public void ContinueGame(string fallbackScene = "Main_World2")
     {
         if (!File.Exists(saveFilePath))
@@ -127,6 +122,7 @@ public class RecordManager : MonoBehaviour
         }
         catch (Exception e)
         {
+            Debug.LogError($"[RecordManager] 이어하기 중 오류: {e.Message}");
             SceneManager.LoadScene(fallbackScene);
         }
     }
@@ -159,59 +155,45 @@ public class RecordManager : MonoBehaviour
 
             IsBlueprintGiven = saveData.isBlueprintGiven;
 
-            // 1. 씬 기록 데이터 복구
             var sceneRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "SceneRecordData");
             sceneRecord?.ApplyData(saveData, sceneType);
 
-            // 2. 영지 기초 데이터 복구
             var territoryRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "TerritoryRecordData");
             territoryRecord?.ApplyData(saveData, sceneType);
 
-            // 3. 웨이포인트 해금 데이터 복구
             var waypointRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "WaypointRecordData");
             waypointRecord?.ApplyData(saveData, sceneType);
 
-            // 4. 상자 개봉 데이터 복구
             var chestRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "ChestRecordData");
             chestRecord?.ApplyData(saveData, sceneType);
 
-            // 5. 멤 창고 데이터 복구
             var memRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "MemRecordData");
             memRecord?.ApplyData(saveData, sceneType);
 
-            // 6. 대장간 데이터 복구
             var forgeRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "ForgeRecordData");
             forgeRecord?.ApplyData(saveData, sceneType);
 
-            // 7. 플레이어 인벤토리 복구
             var inventoryRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "PlayerInventoryRecord");
             inventoryRecord?.ApplyData(saveData, sceneType);
 
-            // 8. 플레이어 스탯 복구
             var playerStatsRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "PlayerStatsRecordData");
             playerStatsRecord?.ApplyData(saveData, sceneType);
 
-            // 9. 배치된 시설 복원
             var facilityRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "FacilityRecordData");
             facilityRecord?.ApplyData(saveData, sceneType);
 
-            // 10. 음식 소모 데이터 복구
             var foodRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "ConsumeFoodRecordData");
             foodRecord?.ApplyData(saveData, sceneType);
 
-            // 11. 시간 데이터 복구
             var timeRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "TimeRecordData");
             timeRecord?.ApplyData(saveData, sceneType);
 
-            // 12. 요리 레시피 해금 데이터 복구
             var cookRecipeRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "CookRecipeRecordData");
             cookRecipeRecord?.ApplyData(saveData, sceneType);
 
-            // 13. 탐험 씬 플레이어 위치 데이터 복구
             var playerPosRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "PlayerPosRecordData");
             playerPosRecord?.ApplyData(saveData, sceneType);
 
-            // 14. 오프라인 보상 정산
             var offlineRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "OfflineRewardRecordData");
             offlineRecord?.ApplyData(saveData, sceneType);
 
@@ -278,6 +260,69 @@ public class RecordManager : MonoBehaviour
                 facilityDatabase[pair.Key] = pair.Value;
             }
         }
+    }
+
+    // 🌟 [추가] 배치 모드 롤백용 백업 클론 생성
+    public Dictionary<string, FacilityData> GetFacilityDatabaseClone()
+    {
+        var cloneDict = new Dictionary<string, FacilityData>();
+        foreach (var pair in facilityDatabase)
+        {
+            if (pair.Value == null) continue;
+            cloneDict[pair.Key] = CloneFacilityData(pair.Value);
+        }
+        return cloneDict;
+    }
+
+    // 🌟 [추가] 백업된 데이터베이스로 원복
+    public void RestoreFacilityDatabase(Dictionary<string, FacilityData> backupDict)
+    {
+        facilityDatabase.Clear();
+        if (backupDict != null)
+        {
+            foreach (var pair in backupDict)
+            {
+                if (pair.Value == null) continue;
+                facilityDatabase[pair.Key] = CloneFacilityData(pair.Value);
+            }
+        }
+    }
+
+    private FacilityData CloneFacilityData(FacilityData source)
+    {
+        if (source == null) return null;
+        FacilityData clone = new FacilityData
+        {
+            Building_ID = source.Building_ID,
+            currentLevel = source.currentLevel,
+            isActive = source.isActive,
+            currentCraftingItemId = source.currentCraftingItemId,
+            targetQuantity = source.targetQuantity,
+            remainingQuantity = source.remainingQuantity,
+            currentProgressTime = source.currentProgressTime,
+            currentStorageCount = source.currentStorageCount,
+            DeployedMemIDs = source.DeployedMemIDs != null ? new List<string>(source.DeployedMemIDs) : new List<string>(),
+            ranchSlots = new List<RanchSlotSaveData>()
+        };
+
+        if (source.ranchSlots != null)
+        {
+            foreach (var slot in source.ranchSlots)
+            {
+                if (slot == null) continue;
+                clone.ranchSlots.Add(new RanchSlotSaveData
+                {
+                    slotIndex = slot.slotIndex,
+                    isUnlocked = slot.isUnlocked,
+                    deployedMemKeyId = slot.deployedMemKeyId,
+                    craftingItemId = slot.craftingItemId,
+                    isProducing = slot.isProducing,
+                    currentProgressTime = slot.currentProgressTime,
+                    currentStorageCount = slot.currentStorageCount
+                });
+            }
+        }
+        return clone;
     }
 
     public ContainerData PackContainerData(InventoryContainer container)

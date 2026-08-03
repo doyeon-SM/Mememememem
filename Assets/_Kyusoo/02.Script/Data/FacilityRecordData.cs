@@ -84,6 +84,18 @@ public class FacilityRecordData : MonoBehaviour, IRecord
     private void OnFacilityDataChanged()
     {
         if (RecordManager.IsLoadingData) return;
+
+        // 🌟 [핵심 방어] 배치 모드 중일 때는 실시간 저장을 차단하여 백업 데이터 오염 방지
+        var gridManager = FindFirstObjectByType<GridManager>();
+        if (gridManager != null)
+        {
+            var fieldInfo = typeof(GridManager).GetField("isPlacementMode", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+            if (fieldInfo != null && (bool)fieldInfo.GetValue(gridManager))
+            {
+                return;
+            }
+        }
+
         if (RecordManager.Instance != null)
         {
             SaveData(RecordManager.Instance.SaveFilePath);
@@ -331,7 +343,6 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                 var entry = bSave.runtimeData ?? new FacilityData { Building_ID = $"{matchData.buildingName}_{bSave.gridX}_{bSave.gridZ}" };
                 var memManager = FindFirstObjectByType<MemCaptureManager>();
 
-                // 1. 일반 생산 시설
                 if (spawnedObj.TryGetComponent<ProductionFacilityRuntime>(out var facility))
                 {
                     facility.buildingData = matchData;
@@ -364,7 +375,6 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                     }
                     facility.CheckProductionCondition();
                 }
-                // 2. 제작대 시설
                 else if (spawnedObj.TryGetComponent<ProductionCraftRuntime>(out var craft))
                 {
                     craft.buildingData = matchData;
@@ -395,7 +405,6 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                         }
                     }
                 }
-                // 3. 목장 시설
                 else if (spawnedObj.TryGetComponent<RanchFacilityRuntime>(out var ranch))
                 {
                     ranch.buildingData = matchData;
@@ -439,7 +448,6 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                     }
                     ranch.CheckAllSlotsProductionCondition();
                 }
-                // 4. 발전기 시설
                 else if (spawnedObj.TryGetComponent<GeneratorRuntime>(out var gen))
                 {
                     gen.buildingData = matchData;
@@ -470,7 +478,6 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                     }
                     gen.CheckPowerCondition();
                 }
-                // 5. 운송 시설
                 else if (spawnedObj.TryGetComponent<TransportRuntime>(out var trans))
                 {
                     trans.buildingData = matchData;
@@ -499,7 +506,6 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                     }
                     trans.CheckProductionCondition();
                 }
-                // 6. 모닥불 시설
                 else if (spawnedObj.TryGetComponent<CampFireRuntime>(out var campFire))
                 {
                     campFire.buildingData = matchData;
@@ -530,7 +536,6 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                         }
                     }
                 }
-                // 7. 주방 시설
                 else if (spawnedObj.TryGetComponent<KitchenRuntime>(out var kitchen))
                 {
                     kitchen.buildingData = matchData;

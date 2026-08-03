@@ -1,8 +1,10 @@
 ﻿using DG.Tweening;
 using HDY.Capture;
+using HDY.Cook;
 using HDY.Inventory;
 using HDY.Item;
 using HDY.Mem;
+using HDY.Recipe;
 using KMS.InventoryDuped;
 using MemSystem.Data;
 using System;
@@ -91,6 +93,8 @@ public class GridManager : MonoBehaviour
 
     private List<SessionBlueprintRecord> sessionRemovedBlueprints = new List<SessionBlueprintRecord>();
     private List<SessionBlueprintRecord> sessionAddedBlueprints = new List<SessionBlueprintRecord>();
+
+    private Dictionary<string, FacilityData> rollbackFacilityDatabaseBackup = new Dictionary<string, FacilityData>();
 
     private class PickedUpBuildingRuntimeState
     {
@@ -383,6 +387,11 @@ public class GridManager : MonoBehaviour
             sessionRemovedBlueprints.Clear();
             sessionAddedBlueprints.Clear();
             buildRecordManager?.SaveRollbackData(buildingObjectsGrid, buildingDataGrid, currentWidth, currentHeight);
+
+            if (RecordManager.Instance != null)
+            {
+                rollbackFacilityDatabaseBackup = RecordManager.Instance.GetFacilityDatabaseClone();
+            }
         }
         else
         {
@@ -554,6 +563,15 @@ public class GridManager : MonoBehaviour
             previewRenderers = null;
             canPlaceCurrent = false;
             isShaking = false;
+
+            // 🌟 우클릭 등으로 프리뷰 취소 시 멤들의 IsActive 상태 안전 해제
+            if (cachedPickedUpState != null && cachedPickedUpState.deployedMemEntries != null)
+            {
+                foreach (var entry in cachedPickedUpState.deployedMemEntries)
+                {
+                    if (entry != null) entry.IsActive = false;
+                }
+            }
             cachedPickedUpState = null;
         }
     }
@@ -705,139 +723,230 @@ public class GridManager : MonoBehaviour
 
         string newUniqueId = $"{selectedBuildingData.buildingName}_{currentStartGridX}_{currentStartGridZ}";
 
-        // 🌟 [핵심 보완] 위치 재배치(PickUp 후 Place) 시 레벨, 멤 배치, 작업 수치 완벽 승계
+        // 🌟 [핵심 수정] 들어올렸던(PickUp) 건물을 다시 배치할 때 멤, 레벨, 작업 진행도 완벽 복원
         if (cachedPickedUpState != null && cachedPickedUpState.facilityData != null)
         {
             cachedPickedUpState.facilityData.Building_ID = newUniqueId;
 
+            // 1. 일반 생산 시설
             if (realBuilding.TryGetComponent<ProductionFacilityRuntime>(out ProductionFacilityRuntime prodRuntime))
             {
                 prodRuntime.buildingData = selectedBuildingData;
-                prodRuntime.currentLevel = cachedPickedUpState.facilityData.currentLevel > 0 ? cachedPickedUpState.facilityData.currentLevel : 1; // 🌟 레벨 승계
-                prodRuntime.isProducing = cachedPickedUpState.facilityData.isActive;
-                prodRuntime.currentProgressTime = cachedPickedUpState.facilityData.currentProgressTime;
-                prodRuntime.currentStorageCount = cachedPickedUpState.facilityData.currentStorageCount;
+                prodRuntime.currentLevel = cachedPickedUpState.facilityData.currentLevel > 0 ? cachedPickedUpState.facilityData.currentLevel : 1;
                 prodRuntime.craftingItem = cachedPickedUpState.facilityData.currentCraftingItemId;
 
-                if (prodRuntime.DeployedMems != null && prodRuntime.DeployedMemEntries != null)
+                if (prodRuntime.DeployedMems != null) prodRuntime.DeployedMems.Clear();
+                if (prodRuntime.DeployedMemEntries != null) prodRuntime.DeployedMemEntries.Clear();
+
+                for (int i = 0; i < cachedPickedUpState.deployedMems.Count && i < cachedPickedUpState.deployedMemEntries.Count; i++)
                 {
-                    prodRuntime.DeployedMems.Clear();
-                    prodRuntime.DeployedMemEntries.Clear();
-                    prodRuntime.DeployedMems.AddRange(cachedPickedUpState.deployedMems);
-                    prodRuntime.DeployedMemEntries.AddRange(cachedPickedUpState.deployedMemEntries);
+                    var mData = cachedPickedUpState.deployedMems[i];
+                    var mEntry = cachedPickedUpState.deployedMemEntries[i];
+                    if (mData != null && mEntry != null)
+                    {
+                        mEntry.IsActive = false; // IsActive 리셋하여 TryAddMem 통과 허용
+                        prodRuntime.TryAddMem(mData, mEntry);
+                    }
                 }
+
+                prodRuntime.currentStorageCount = cachedPickedUpState.facilityData.currentStorageCount;
+                float baseDuration = prodRuntime.baseProductionTime;
+                prodRuntime.totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, prodRuntime.DeployedMems);
+                prodRuntime.currentProgressTime = cachedPickedUpState.facilityData.currentProgressTime;
+                prodRuntime.isProducing = cachedPickedUpState.facilityData.isActive;
                 prodRuntime.CheckProductionCondition();
             }
+            // 2. 제작대 시설
             else if (realBuilding.TryGetComponent<ProductionCraftRuntime>(out ProductionCraftRuntime craftRuntime))
             {
                 craftRuntime.buildingData = selectedBuildingData;
-                craftRuntime.isProducing = cachedPickedUpState.facilityData.isActive;
+                craftRuntime.currentCraftingItem = cachedPickedUpState.facilityData.currentCraftingItemId;
                 craftRuntime.targetQuantity = cachedPickedUpState.facilityData.targetQuantity;
                 craftRuntime.remainingQuantity = cachedPickedUpState.facilityData.remainingQuantity;
-                craftRuntime.currentProgressTime = cachedPickedUpState.facilityData.currentProgressTime;
-                craftRuntime.currentStorageCount = cachedPickedUpState.facilityData.currentStorageCount;
-                craftRuntime.currentCraftingItem = cachedPickedUpState.facilityData.currentCraftingItemId;
 
-                if (craftRuntime.DeployedMems != null && craftRuntime.DeployedMemEntries != null)
+                if (craftRuntime.DeployedMems != null) craftRuntime.DeployedMems.Clear();
+                if (craftRuntime.DeployedMemEntries != null) craftRuntime.DeployedMemEntries.Clear();
+
+                for (int i = 0; i < cachedPickedUpState.deployedMems.Count && i < cachedPickedUpState.deployedMemEntries.Count; i++)
                 {
-                    craftRuntime.DeployedMems.Clear();
-                    craftRuntime.DeployedMemEntries.Clear();
-                    craftRuntime.DeployedMems.AddRange(cachedPickedUpState.deployedMems);
-                    craftRuntime.DeployedMemEntries.AddRange(cachedPickedUpState.deployedMemEntries);
+                    var mData = cachedPickedUpState.deployedMems[i];
+                    var mEntry = cachedPickedUpState.deployedMemEntries[i];
+                    if (mData != null && mEntry != null)
+                    {
+                        mEntry.IsActive = false;
+                        craftRuntime.TryAddMem(mData, mEntry);
+                    }
                 }
+
+                craftRuntime.currentStorageCount = cachedPickedUpState.facilityData.currentStorageCount;
+                if (!string.IsNullOrEmpty(craftRuntime.currentCraftingItem))
+                {
+                    RecipeData recipe = ItemCatalogManager.Instance != null ? ItemCatalogManager.Instance.FindRecipeData(craftRuntime.currentCraftingItem) : null;
+                    float baseDuration = recipe != null ? recipe.time : 20f;
+                    craftRuntime.totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, craftRuntime.DeployedMems);
+                }
+                craftRuntime.currentProgressTime = cachedPickedUpState.facilityData.currentProgressTime;
+                craftRuntime.isProducing = cachedPickedUpState.facilityData.isActive;
             }
+            // 3. 목장 시설
             else if (realBuilding.TryGetComponent<RanchFacilityRuntime>(out RanchFacilityRuntime ranchRuntime))
             {
                 ranchRuntime.buildingData = selectedBuildingData;
-                ranchRuntime.currentLevel = cachedPickedUpState.facilityData.currentLevel > 0 ? cachedPickedUpState.facilityData.currentLevel : 1; // 🌟 레벨 승계
+                ranchRuntime.currentLevel = cachedPickedUpState.facilityData.currentLevel > 0 ? cachedPickedUpState.facilityData.currentLevel : 1;
                 ranchRuntime.UpdateSlotCapacity();
 
                 if (cachedPickedUpState.facilityData.ranchSlots != null && cachedPickedUpState.facilityData.ranchSlots.Count > 0)
                 {
-                    for (int i = 0; i < cachedPickedUpState.facilityData.ranchSlots.Count && i < ranchRuntime.Slots.Count; i++)
+                    foreach (var slotSave in cachedPickedUpState.facilityData.ranchSlots)
                     {
-                        var slotSave = cachedPickedUpState.facilityData.ranchSlots[i];
-                        var slotRuntime = ranchRuntime.Slots[i];
-                        slotRuntime.isUnlocked = slotSave.isUnlocked;
-                        slotRuntime.craftingItemId = slotSave.craftingItemId;
-                        slotRuntime.currentProgressTime = slotSave.currentProgressTime;
-                        slotRuntime.currentStorageCount = slotSave.currentStorageCount;
-                        slotRuntime.isProducing = slotSave.isProducing;
-                    }
-                }
+                        if (slotSave.slotIndex >= 0 && slotSave.slotIndex < ranchRuntime.Slots.Count)
+                        {
+                            var slotRuntime = ranchRuntime.Slots[slotSave.slotIndex];
+                            slotRuntime.isUnlocked = slotSave.isUnlocked;
 
-                for (int i = 0; i < cachedPickedUpState.deployedMems.Count && i < cachedPickedUpState.deployedMemEntries.Count; i++)
-                {
-                    ranchRuntime.TryAddMemToSlot(i, cachedPickedUpState.deployedMems[i], cachedPickedUpState.deployedMemEntries[i]);
+                            if (!string.IsNullOrEmpty(slotSave.deployedMemKeyId))
+                            {
+                                int entryIndex = cachedPickedUpState.deployedMemEntries.FindIndex(e => e != null && e.KeyId == slotSave.deployedMemKeyId);
+                                if (entryIndex >= 0)
+                                {
+                                    var mData = cachedPickedUpState.deployedMems[entryIndex];
+                                    var mEntry = cachedPickedUpState.deployedMemEntries[entryIndex];
+                                    mEntry.IsActive = false;
+                                    ranchRuntime.TryAddMemToSlot(slotSave.slotIndex, mData, mEntry);
+                                }
+                            }
+
+                            string produceItemId = !string.IsNullOrEmpty(slotSave.craftingItemId)
+                                ? slotSave.craftingItemId
+                                : (slotRuntime.deployedMem != null ? ranchRuntime.GetRanchProduceItemId(slotRuntime.deployedMem) : string.Empty);
+
+                            slotRuntime.craftingItemId = produceItemId;
+                            slotRuntime.currentProgressTime = slotSave.currentProgressTime;
+                            slotRuntime.currentStorageCount = slotSave.currentStorageCount;
+                            slotRuntime.isProducing = slotSave.isProducing;
+                        }
+                    }
                 }
                 ranchRuntime.CheckAllSlotsProductionCondition();
             }
+            // 4. 발전기 시설
             else if (realBuilding.TryGetComponent<GeneratorRuntime>(out GeneratorRuntime genRuntime))
             {
                 genRuntime.buildingData = selectedBuildingData;
-                genRuntime.currentLevel = cachedPickedUpState.facilityData.currentLevel > 0 ? cachedPickedUpState.facilityData.currentLevel : 1; // 🌟 레벨 승계
-                genRuntime.isPowerGenerating = cachedPickedUpState.facilityData.isActive;
-                genRuntime.currentPowerProgressTime = cachedPickedUpState.facilityData.currentProgressTime;
-                genRuntime.currentPowerStorage = cachedPickedUpState.facilityData.currentStorageCount;
+                genRuntime.currentLevel = cachedPickedUpState.facilityData.currentLevel > 0 ? cachedPickedUpState.facilityData.currentLevel : 1;
                 genRuntime.UpdateMaxPowerStorage();
 
-                if (genRuntime.DeployedMems != null && genRuntime.DeployedMemEntries != null)
+                if (genRuntime.DeployedMems != null) genRuntime.DeployedMems.Clear();
+                if (genRuntime.DeployedMemEntries != null) genRuntime.DeployedMemEntries.Clear();
+
+                for (int i = 0; i < cachedPickedUpState.deployedMems.Count && i < cachedPickedUpState.deployedMemEntries.Count; i++)
                 {
-                    genRuntime.DeployedMems.Clear();
-                    genRuntime.DeployedMemEntries.Clear();
-                    genRuntime.DeployedMems.AddRange(cachedPickedUpState.deployedMems);
-                    genRuntime.DeployedMemEntries.AddRange(cachedPickedUpState.deployedMemEntries);
+                    var mData = cachedPickedUpState.deployedMems[i];
+                    var mEntry = cachedPickedUpState.deployedMemEntries[i];
+                    if (mData != null && mEntry != null)
+                    {
+                        mEntry.IsActive = false;
+                        genRuntime.TryAddMem(mData, mEntry);
+                    }
                 }
+
+                genRuntime.currentPowerStorage = cachedPickedUpState.facilityData.currentStorageCount;
+                if (genRuntime.DeployedMems.Count > 0)
+                {
+                    genRuntime.totalPowerRequiredTime = ProductionCalculator.CalculatePowerGenerationTime(genRuntime.basePowerGenerationTime, genRuntime.DeployedMems[0]);
+                }
+                genRuntime.currentPowerProgressTime = cachedPickedUpState.facilityData.currentProgressTime;
+                genRuntime.isPowerGenerating = cachedPickedUpState.facilityData.isActive;
                 genRuntime.CheckPowerCondition();
             }
+            // 5. 운송 시설
             else if (realBuilding.TryGetComponent<TransportRuntime>(out TransportRuntime transRuntime))
             {
                 transRuntime.buildingData = selectedBuildingData;
-                transRuntime.currentLevel = cachedPickedUpState.facilityData.currentLevel > 0 ? cachedPickedUpState.facilityData.currentLevel : 1; // 🌟 레벨 승계
-                if (transRuntime.DeployedMems != null && transRuntime.DeployedMemEntries != null)
+                transRuntime.currentLevel = cachedPickedUpState.facilityData.currentLevel > 0 ? cachedPickedUpState.facilityData.currentLevel : 1;
+
+                if (transRuntime.DeployedMems != null) transRuntime.DeployedMems.Clear();
+                if (transRuntime.DeployedMemEntries != null) transRuntime.DeployedMemEntries.Clear();
+
+                for (int i = 0; i < cachedPickedUpState.deployedMems.Count && i < cachedPickedUpState.deployedMemEntries.Count; i++)
                 {
-                    transRuntime.DeployedMems.Clear();
-                    transRuntime.DeployedMemEntries.Clear();
-                    transRuntime.DeployedMems.AddRange(cachedPickedUpState.deployedMems);
-                    transRuntime.DeployedMemEntries.AddRange(cachedPickedUpState.deployedMemEntries);
+                    var mData = cachedPickedUpState.deployedMems[i];
+                    var mEntry = cachedPickedUpState.deployedMemEntries[i];
+                    if (mData != null && mEntry != null)
+                    {
+                        mEntry.IsActive = false;
+                        transRuntime.TryAddMem(mData, mEntry);
+                    }
                 }
+
+                transRuntime.totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(transRuntime.baseIntervalTime, transRuntime.DeployedMems);
+                transRuntime.currentProgressTime = cachedPickedUpState.facilityData.currentProgressTime;
+                transRuntime.isWorking = cachedPickedUpState.facilityData.isActive;
                 transRuntime.CheckProductionCondition();
             }
+            // 6. 모닥불 시설
             else if (realBuilding.TryGetComponent<CampFireRuntime>(out CampFireRuntime campFireRuntime))
             {
                 campFireRuntime.buildingData = selectedBuildingData;
-                campFireRuntime.isCooking = cachedPickedUpState.facilityData.isActive;
+                campFireRuntime.currentCookingItem = cachedPickedUpState.facilityData.currentCraftingItemId;
                 campFireRuntime.targetQuantity = cachedPickedUpState.facilityData.targetQuantity;
                 campFireRuntime.remainingQuantity = cachedPickedUpState.facilityData.remainingQuantity;
-                campFireRuntime.currentProgressTime = cachedPickedUpState.facilityData.currentProgressTime;
-                campFireRuntime.currentStorageCount = cachedPickedUpState.facilityData.currentStorageCount;
-                campFireRuntime.currentCookingItem = cachedPickedUpState.facilityData.currentCraftingItemId;
 
-                if (campFireRuntime.DeployedMems != null && campFireRuntime.DeployedMemEntries != null)
+                if (campFireRuntime.DeployedMems != null) campFireRuntime.DeployedMems.Clear();
+                if (campFireRuntime.DeployedMemEntries != null) campFireRuntime.DeployedMemEntries.Clear();
+
+                for (int i = 0; i < cachedPickedUpState.deployedMems.Count && i < cachedPickedUpState.deployedMemEntries.Count; i++)
                 {
-                    campFireRuntime.DeployedMems.Clear();
-                    campFireRuntime.DeployedMemEntries.Clear();
-                    campFireRuntime.DeployedMems.AddRange(cachedPickedUpState.deployedMems);
-                    campFireRuntime.DeployedMemEntries.AddRange(cachedPickedUpState.deployedMemEntries);
+                    var mData = cachedPickedUpState.deployedMems[i];
+                    var mEntry = cachedPickedUpState.deployedMemEntries[i];
+                    if (mData != null && mEntry != null)
+                    {
+                        mEntry.IsActive = false;
+                        campFireRuntime.TryAddMem(mData, mEntry);
+                    }
                 }
+
+                campFireRuntime.currentStorageCount = cachedPickedUpState.facilityData.currentStorageCount;
+                if (!string.IsNullOrEmpty(campFireRuntime.currentCookingItem))
+                {
+                    CookRecipeData recipe = ItemCatalogManager.Instance != null ? ItemCatalogManager.Instance.FindCookRecipeData(campFireRuntime.currentCookingItem) : null;
+                    float baseDuration = recipe != null ? recipe.Time : 15f;
+                    campFireRuntime.totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, campFireRuntime.DeployedMems);
+                }
+                campFireRuntime.currentProgressTime = cachedPickedUpState.facilityData.currentProgressTime;
+                campFireRuntime.isCooking = cachedPickedUpState.facilityData.isActive;
             }
+            // 7. 주방 시설
             else if (realBuilding.TryGetComponent<KitchenRuntime>(out KitchenRuntime kitchenRuntime))
             {
                 kitchenRuntime.buildingData = selectedBuildingData;
-                kitchenRuntime.isCooking = cachedPickedUpState.facilityData.isActive;
+                kitchenRuntime.currentCookingItem = cachedPickedUpState.facilityData.currentCraftingItemId;
                 kitchenRuntime.targetQuantity = cachedPickedUpState.facilityData.targetQuantity;
                 kitchenRuntime.remainingQuantity = cachedPickedUpState.facilityData.remainingQuantity;
-                kitchenRuntime.currentProgressTime = cachedPickedUpState.facilityData.currentProgressTime;
-                kitchenRuntime.currentStorageCount = cachedPickedUpState.facilityData.currentStorageCount;
-                kitchenRuntime.currentCookingItem = cachedPickedUpState.facilityData.currentCraftingItemId;
 
-                if (kitchenRuntime.DeployedMems != null && kitchenRuntime.DeployedMemEntries != null)
+                if (kitchenRuntime.DeployedMems != null) kitchenRuntime.DeployedMems.Clear();
+                if (kitchenRuntime.DeployedMemEntries != null) kitchenRuntime.DeployedMemEntries.Clear();
+
+                for (int i = 0; i < cachedPickedUpState.deployedMems.Count && i < cachedPickedUpState.deployedMemEntries.Count; i++)
                 {
-                    kitchenRuntime.DeployedMems.Clear();
-                    kitchenRuntime.DeployedMemEntries.Clear();
-                    kitchenRuntime.DeployedMems.AddRange(cachedPickedUpState.deployedMems);
-                    kitchenRuntime.DeployedMemEntries.AddRange(cachedPickedUpState.deployedMemEntries);
+                    var mData = cachedPickedUpState.deployedMems[i];
+                    var mEntry = cachedPickedUpState.deployedMemEntries[i];
+                    if (mData != null && mEntry != null)
+                    {
+                        mEntry.IsActive = false;
+                        kitchenRuntime.TryAddMem(mData, mEntry);
+                    }
                 }
+
+                kitchenRuntime.currentStorageCount = cachedPickedUpState.facilityData.currentStorageCount;
+                if (!string.IsNullOrEmpty(kitchenRuntime.currentCookingItem))
+                {
+                    CookRecipeData recipe = ItemCatalogManager.Instance != null ? ItemCatalogManager.Instance.FindCookRecipeData(kitchenRuntime.currentCookingItem) : null;
+                    float baseDuration = recipe != null ? recipe.Time : 15f;
+                    kitchenRuntime.totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, kitchenRuntime.DeployedMems);
+                }
+                kitchenRuntime.currentProgressTime = cachedPickedUpState.facilityData.currentProgressTime;
+                kitchenRuntime.isCooking = cachedPickedUpState.facilityData.isActive;
             }
 
             if (RecordManager.Instance != null)
@@ -948,10 +1057,9 @@ public class GridManager : MonoBehaviour
             cachedPickedUpState.originalBlueprintSource = source;
         }
 
-        // 🌟 [핵심 보완] 건물 PickUp 시 레벨 수치 및 목장 슬롯 캐싱 강화
         if (targetBuilding.TryGetComponent<ProductionFacilityRuntime>(out var facility))
         {
-            cachedPickedUpState.facilityData.currentLevel = facility.currentLevel; // 🌟 레벨 캐싱
+            cachedPickedUpState.facilityData.currentLevel = facility.currentLevel;
             cachedPickedUpState.facilityData.isActive = facility.isProducing;
             cachedPickedUpState.facilityData.currentProgressTime = facility.currentProgressTime;
             cachedPickedUpState.facilityData.currentStorageCount = facility.currentStorageCount;
@@ -988,7 +1096,7 @@ public class GridManager : MonoBehaviour
         }
         else if (targetBuilding.TryGetComponent<RanchFacilityRuntime>(out var ranch))
         {
-            cachedPickedUpState.facilityData.currentLevel = ranch.currentLevel; // 🌟 레벨 캐싱
+            cachedPickedUpState.facilityData.currentLevel = ranch.currentLevel;
             cachedPickedUpState.facilityData.isActive = ranch.isProducing;
             cachedPickedUpState.facilityData.ranchSlots = new List<RanchSlotSaveData>();
 
@@ -1020,7 +1128,7 @@ public class GridManager : MonoBehaviour
         }
         else if (targetBuilding.TryGetComponent<GeneratorRuntime>(out var gen))
         {
-            cachedPickedUpState.facilityData.currentLevel = gen.currentLevel; // 🌟 레벨 캐싱
+            cachedPickedUpState.facilityData.currentLevel = gen.currentLevel;
             cachedPickedUpState.facilityData.isActive = gen.isPowerGenerating;
             cachedPickedUpState.facilityData.currentProgressTime = gen.currentPowerProgressTime;
             cachedPickedUpState.facilityData.currentStorageCount = gen.currentPowerStorage;
@@ -1037,7 +1145,7 @@ public class GridManager : MonoBehaviour
         }
         else if (targetBuilding.TryGetComponent<TransportRuntime>(out var trans))
         {
-            cachedPickedUpState.facilityData.currentLevel = trans.currentLevel; // 🌟 레벨 캐싱
+            cachedPickedUpState.facilityData.currentLevel = trans.currentLevel;
             cachedPickedUpState.facilityData.isActive = trans.isWorking;
             cachedPickedUpState.facilityData.currentProgressTime = trans.currentProgressTime;
 
@@ -1235,6 +1343,8 @@ public class GridManager : MonoBehaviour
         if (buildRecordManager == null) return;
 
         buildRecordManager.ClearRecordOnSave();
+        rollbackFacilityDatabaseBackup.Clear();
+
         ChangePlacementMode();
 
         sessionRemovedBlueprints.Clear();
@@ -1247,6 +1357,12 @@ public class GridManager : MonoBehaviour
     {
         if (!isPlacementMode) return;
         if (buildRecordManager == null) return;
+
+        if (RecordManager.Instance != null && rollbackFacilityDatabaseBackup != null && rollbackFacilityDatabaseBackup.Count > 0)
+        {
+            RecordManager.Instance.RestoreFacilityDatabase(rollbackFacilityDatabaseBackup);
+            rollbackFacilityDatabaseBackup.Clear();
+        }
 
         ClearAllPlacedBuildings();
 
@@ -1369,70 +1485,81 @@ public class GridManager : MonoBehaviour
                 FacilityData entry = RecordManager.Instance.GetFacilityData(uniqueId);
                 if (entry != null)
                 {
-                    List<CapturedMemEntry> matchedEntries = new List<CapturedMemEntry>();
-                    List<MemData> restoredMems = new List<MemData>();
-
-                    if (memManager != null && entry.DeployedMemIDs != null)
-                    {
-                        var warehouseList = memManager.CapturedMems;
-                        foreach (var savedKeyId in entry.DeployedMemIDs)
-                        {
-                            var warehouseMatch = warehouseList.FirstOrDefault(m => m != null && m.KeyId == savedKeyId);
-                            if (warehouseMatch != null)
-                            {
-                                warehouseMatch.IsActive = true;
-                                matchedEntries.Add(warehouseMatch);
-
-                                MemData mData = new MemData { memName = warehouseMatch.MemId, memId = warehouseMatch.MemId };
-                                var template = MemCatalogManager.Instance != null ? MemCatalogManager.Instance.FindMemData(warehouseMatch.MemId) : null;
-                                if (template != null)
-                                {
-                                    mData.maxHunger = template.maxHunger;
-                                    mData.productionStats = template.productionStats;
-                                    mData.modelPrefab = template.modelPrefab;
-                                }
-
-                                restoredMems.Add(mData);
-                            }
-                        }
-                    }
-
+                    // 1. 일반 생산 시설 복원
                     if (restoredBuilding.TryGetComponent<ProductionFacilityRuntime>(out var facility))
                     {
                         facility.buildingData = snap.data;
                         facility.currentLevel = entry.currentLevel > 0 ? entry.currentLevel : 1;
-                        facility.isProducing = entry.isActive;
-                        facility.currentProgressTime = entry.currentProgressTime;
-                        facility.currentStorageCount = entry.currentStorageCount;
                         facility.craftingItem = entry.currentCraftingItemId;
 
-                        if (facility.DeployedMems != null && facility.DeployedMemEntries != null)
+                        if (facility.DeployedMems != null) facility.DeployedMems.Clear();
+                        if (facility.DeployedMemEntries != null) facility.DeployedMemEntries.Clear();
+
+                        if (memManager != null && entry.DeployedMemIDs != null)
                         {
-                            facility.DeployedMems.Clear();
-                            facility.DeployedMemEntries.Clear();
-                            facility.DeployedMems.AddRange(restoredMems);
-                            facility.DeployedMemEntries.AddRange(matchedEntries);
+                            int maxCapacity = ProductionCalculator.GetMaxMemCount(facility.currentLevel);
+                            var safeMemIDs = entry.DeployedMemIDs.Distinct().Take(maxCapacity).ToList();
+                            foreach (var savedKeyId in safeMemIDs)
+                            {
+                                var match = memManager.CapturedMems.FirstOrDefault(m => m != null && m.KeyId == savedKeyId);
+                                if (match != null)
+                                {
+                                    MemData realMemData = MemCatalogManager.Instance != null ? MemCatalogManager.Instance.FindMemData(match.MemId) : null;
+                                    if (realMemData != null)
+                                    {
+                                        match.IsActive = false;
+                                        facility.TryAddMem(realMemData, match);
+                                    }
+                                }
+                            }
                         }
+
+                        facility.currentStorageCount = entry.currentStorageCount;
+                        float baseDuration = facility.baseProductionTime;
+                        facility.totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, facility.DeployedMems);
+                        facility.currentProgressTime = entry.currentProgressTime;
+                        facility.isProducing = entry.isActive;
                         facility.CheckProductionCondition();
                     }
+                    // 2. 제작대 복원
                     else if (restoredBuilding.TryGetComponent<ProductionCraftRuntime>(out var craft))
                     {
                         craft.buildingData = snap.data;
-                        craft.isProducing = entry.isActive;
+                        craft.currentCraftingItem = entry.currentCraftingItemId;
                         craft.targetQuantity = entry.targetQuantity;
                         craft.remainingQuantity = entry.remainingQuantity;
-                        craft.currentProgressTime = entry.currentProgressTime;
-                        craft.currentStorageCount = entry.currentStorageCount;
-                        craft.currentCraftingItem = entry.currentCraftingItemId;
 
-                        if (craft.DeployedMems != null && craft.DeployedMemEntries != null)
+                        if (craft.DeployedMems != null) craft.DeployedMems.Clear();
+                        if (craft.DeployedMemEntries != null) craft.DeployedMemEntries.Clear();
+
+                        if (memManager != null && entry.DeployedMemIDs != null)
                         {
-                            craft.DeployedMems.Clear();
-                            craft.DeployedMemEntries.Clear();
-                            craft.DeployedMems.AddRange(restoredMems);
-                            craft.DeployedMemEntries.AddRange(matchedEntries);
+                            foreach (var savedKeyId in entry.DeployedMemIDs)
+                            {
+                                var match = memManager.CapturedMems.FirstOrDefault(m => m != null && m.KeyId == savedKeyId);
+                                if (match != null)
+                                {
+                                    MemData realMemData = MemCatalogManager.Instance != null ? MemCatalogManager.Instance.FindMemData(match.MemId) : null;
+                                    if (realMemData != null)
+                                    {
+                                        match.IsActive = false;
+                                        craft.TryAddMem(realMemData, match);
+                                    }
+                                }
+                            }
                         }
+
+                        craft.currentStorageCount = entry.currentStorageCount;
+                        if (!string.IsNullOrEmpty(craft.currentCraftingItem))
+                        {
+                            RecipeData recipe = ItemCatalogManager.Instance != null ? ItemCatalogManager.Instance.FindRecipeData(craft.currentCraftingItem) : null;
+                            float baseDuration = recipe != null ? recipe.time : 20f;
+                            craft.totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, craft.DeployedMems);
+                        }
+                        craft.currentProgressTime = entry.currentProgressTime;
+                        craft.isProducing = entry.isActive;
                     }
+                    // 3. 목장 시설 복원
                     else if (restoredBuilding.TryGetComponent<RanchFacilityRuntime>(out var ranch))
                     {
                         ranch.buildingData = snap.data;
@@ -1456,9 +1583,8 @@ public class GridManager : MonoBehaviour
                                             MemData realMemData = MemCatalogManager.Instance != null ? MemCatalogManager.Instance.FindMemData(match.MemId) : null;
                                             if (realMemData != null)
                                             {
-                                                slotRuntime.deployedMem = realMemData;
-                                                slotRuntime.deployedMemEntry = match;
-                                                match.IsActive = true;
+                                                match.IsActive = false;
+                                                ranch.TryAddMemToSlot(slotSave.slotIndex, realMemData, match);
                                             }
                                         }
                                     }
@@ -1476,13 +1602,11 @@ public class GridManager : MonoBehaviour
                         }
                         ranch.CheckAllSlotsProductionCondition();
                     }
+                    // 4. 발전기 복원
                     else if (restoredBuilding.TryGetComponent<GeneratorRuntime>(out var gen))
                     {
                         gen.buildingData = snap.data;
                         gen.currentLevel = entry.currentLevel > 0 ? entry.currentLevel : 1;
-                        gen.isPowerGenerating = entry.isActive;
-                        gen.currentPowerProgressTime = entry.currentProgressTime;
-                        gen.currentPowerStorage = entry.currentStorageCount;
                         gen.UpdateMaxPowerStorage();
 
                         if (gen.DeployedMems != null) gen.DeployedMems.Clear();
@@ -1504,14 +1628,21 @@ public class GridManager : MonoBehaviour
                                 }
                             }
                         }
+
+                        gen.currentPowerStorage = entry.currentStorageCount;
+                        if (gen.DeployedMems.Count > 0)
+                        {
+                            gen.totalPowerRequiredTime = ProductionCalculator.CalculatePowerGenerationTime(gen.basePowerGenerationTime, gen.DeployedMems[0]);
+                        }
+                        gen.currentPowerProgressTime = entry.currentProgressTime;
+                        gen.isPowerGenerating = entry.isActive;
                         gen.CheckPowerCondition();
                     }
+                    // 5. 운송 시설 복원
                     else if (restoredBuilding.TryGetComponent<TransportRuntime>(out var trans))
                     {
                         trans.buildingData = snap.data;
                         trans.currentLevel = entry.currentLevel > 0 ? entry.currentLevel : 1;
-                        trans.isWorking = entry.isActive;
-                        trans.currentProgressTime = entry.currentProgressTime;
 
                         if (trans.DeployedMems != null) trans.DeployedMems.Clear();
                         if (trans.DeployedMemEntries != null) trans.DeployedMemEntries.Clear();
@@ -1534,17 +1665,19 @@ public class GridManager : MonoBehaviour
                                 }
                             }
                         }
+
+                        trans.totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(trans.baseIntervalTime, trans.DeployedMems);
+                        trans.currentProgressTime = entry.currentProgressTime;
+                        trans.isWorking = entry.isActive;
                         trans.CheckProductionCondition();
                     }
+                    // 6. 모닥불 복원
                     else if (restoredBuilding.TryGetComponent<CampFireRuntime>(out var campFire))
                     {
                         campFire.buildingData = snap.data;
-                        campFire.isCooking = entry.isActive;
+                        campFire.currentCookingItem = entry.currentCraftingItemId;
                         campFire.targetQuantity = entry.targetQuantity;
                         campFire.remainingQuantity = entry.remainingQuantity;
-                        campFire.currentProgressTime = entry.currentProgressTime;
-                        campFire.currentStorageCount = entry.currentStorageCount;
-                        campFire.currentCookingItem = entry.currentCraftingItemId;
 
                         if (campFire.DeployedMems != null) campFire.DeployedMems.Clear();
                         if (campFire.DeployedMemEntries != null) campFire.DeployedMemEntries.Clear();
@@ -1565,16 +1698,24 @@ public class GridManager : MonoBehaviour
                                 }
                             }
                         }
+
+                        campFire.currentStorageCount = entry.currentStorageCount;
+                        if (!string.IsNullOrEmpty(campFire.currentCookingItem))
+                        {
+                            CookRecipeData recipe = ItemCatalogManager.Instance != null ? ItemCatalogManager.Instance.FindCookRecipeData(campFire.currentCookingItem) : null;
+                            float baseDuration = recipe != null ? recipe.Time : 15f;
+                            campFire.totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, campFire.DeployedMems);
+                        }
+                        campFire.currentProgressTime = entry.currentProgressTime;
+                        campFire.isCooking = entry.isActive;
                     }
+                    // 7. 주방 복원
                     else if (restoredBuilding.TryGetComponent<KitchenRuntime>(out var kitchen))
                     {
                         kitchen.buildingData = snap.data;
-                        kitchen.isCooking = entry.isActive;
+                        kitchen.currentCookingItem = entry.currentCraftingItemId;
                         kitchen.targetQuantity = entry.targetQuantity;
                         kitchen.remainingQuantity = entry.remainingQuantity;
-                        kitchen.currentProgressTime = entry.currentProgressTime;
-                        kitchen.currentStorageCount = entry.currentStorageCount;
-                        kitchen.currentCookingItem = entry.currentCraftingItemId;
 
                         if (kitchen.DeployedMems != null) kitchen.DeployedMems.Clear();
                         if (kitchen.DeployedMemEntries != null) kitchen.DeployedMemEntries.Clear();
@@ -1595,6 +1736,16 @@ public class GridManager : MonoBehaviour
                                 }
                             }
                         }
+
+                        kitchen.currentStorageCount = entry.currentStorageCount;
+                        if (!string.IsNullOrEmpty(kitchen.currentCookingItem))
+                        {
+                            CookRecipeData recipe = ItemCatalogManager.Instance != null ? ItemCatalogManager.Instance.FindCookRecipeData(kitchen.currentCookingItem) : null;
+                            float baseDuration = recipe != null ? recipe.Time : 15f;
+                            kitchen.totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, kitchen.DeployedMems);
+                        }
+                        kitchen.currentProgressTime = entry.currentProgressTime;
+                        kitchen.isCooking = entry.isActive;
                     }
                 }
             }
@@ -1807,7 +1958,6 @@ public class GridManager : MonoBehaviour
             }
             else
             {
-                // ItemData를 찾지 못한 경우 string overload로 직접 지급 시도
                 int remaining = inventory.AddItem(bpId, 1);
                 if (remaining == 0) successCount++;
                 else Debug.LogWarning($"[GridManager] 설계도 '{bpId}' 지급 실패 (아이템 카탈로그 미등록 또는 인벤토리 가득 참)");
