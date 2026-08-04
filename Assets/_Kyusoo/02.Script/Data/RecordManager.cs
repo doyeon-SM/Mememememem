@@ -79,7 +79,7 @@ public class RecordManager : MonoBehaviour
     /// <summary>
     /// 씬 컴포넌트 유무와 관계없이 100% 완전한 기본 SaveData 구조를 생성합니다.
     /// </summary>
-    public SaveData CreateFullDefaultSaveData(string startScene = "Main_World2")
+    public SaveData CreateFullDefaultSaveData(string startScene = "Main_World_3")
     {
         SaveData data = new SaveData
         {
@@ -184,7 +184,7 @@ public class RecordManager : MonoBehaviour
     /// <summary>
     /// 씬 이동 전에 완전한 구조의 신규 세이브 파일만 미리 디스크에 생성합니다.
     /// </summary>
-    public void PrepareNewGameFile(string defaultStartScene = "Main_World2")
+    public void PrepareNewGameFile(string defaultStartScene = "Main_World_3")
     {
         try
         {
@@ -220,7 +220,7 @@ public class RecordManager : MonoBehaviour
     /// <summary>
     /// [새로하기] 세이브 파일 삭제 ➡️ 완전한 기본 파일 생성 ➡️ Direct 씬 로딩
     /// </summary>
-    public void StartNewGame(string defaultStartScene = "Main_World2")
+    public void StartNewGame(string defaultStartScene = "Main_World_3")
     {
         PrepareNewGameFile(defaultStartScene);
         SceneManager.LoadScene(defaultStartScene);
@@ -229,7 +229,7 @@ public class RecordManager : MonoBehaviour
     /// <summary>
     /// [이어하기] 세이브 데이터의 lastPlayScene을 읽어와 이동
     /// </summary>
-    public void ContinueGame(string fallbackScene = "Main_World2")
+    public void ContinueGame(string fallbackScene = "Main_World_3")
     {
         if (!File.Exists(saveFilePath))
         {
