@@ -55,6 +55,11 @@ public class GridManager : MonoBehaviour
     [SerializeField] private Color occupiedBorderColor = new Color(0.95f, 0.65f, 0.2f, 0.85f);
     [SerializeField][Range(1, 16)] private int occupiedBorderWidth = 3;
 
+    // 🌟 [추가] 가동 중인 시설 이동 시도 시 출력할 경고 팝업 UI (CanvasGroup 부착 필요)
+    [Header("가동 중 시설 이동 차단 알림 UI")]
+    [SerializeField] private CanvasGroup activeBuildingWarningCanvasGroup;
+    private Sequence warningPopupSequence;
+
     private BuildingData selectedBuildingData;
     private GameObject currentPreviewInstance;
     private MeshRenderer[] previewRenderers;
@@ -118,6 +123,13 @@ public class GridManager : MonoBehaviour
     {
         if (buildRecordManager == null) buildRecordManager = FindFirstObjectByType<BuildRecordManager>();
         InitGridMaterials();
+
+        // 🌟 경고 팝업 초기화
+        if (activeBuildingWarningCanvasGroup != null)
+        {
+            activeBuildingWarningCanvasGroup.alpha = 0f;
+            activeBuildingWarningCanvasGroup.gameObject.SetActive(false);
+        }
     }
 
     private void Start()
@@ -564,7 +576,6 @@ public class GridManager : MonoBehaviour
             canPlaceCurrent = false;
             isShaking = false;
 
-            // 🌟 우클릭 등으로 프리뷰 취소 시 멤들의 IsActive 상태 안전 해제
             if (cachedPickedUpState != null && cachedPickedUpState.deployedMemEntries != null)
             {
                 foreach (var entry in cachedPickedUpState.deployedMemEntries)
@@ -582,14 +593,16 @@ public class GridManager : MonoBehaviour
 
         Vector2 mousePosition = Mouse.current.position.ReadValue();
         Ray ray = Camera.main.ScreenPointToRay(mousePosition);
-        LayerMask maskToUse = gridLayerMask.value != 0 ? gridLayerMask : (LayerMask)(~0);
 
-        if (Physics.Raycast(ray, out RaycastHit hit, Mathf.Infinity, maskToUse))
+        Plane gridPlane = new Plane(Vector3.up, new Vector3(0f, innerPlaneY, 0f));
+        if (gridPlane.Raycast(ray, out float enter))
         {
-            raycastHitPoint = hit.point;
-            MouseGridX = Mathf.FloorToInt(hit.point.x);
-            MouseGridZ = Mathf.FloorToInt(hit.point.z);
-            IsMouseOnGrid = true;
+            raycastHitPoint = ray.GetPoint(enter);
+            MouseGridX = Mathf.FloorToInt(raycastHitPoint.x);
+            MouseGridZ = Mathf.FloorToInt(raycastHitPoint.z);
+
+            IsMouseOnGrid = (MouseGridX >= 0 && MouseGridX < currentWidth &&
+                             MouseGridZ >= 0 && MouseGridZ < currentHeight);
         }
         else
         {
@@ -607,13 +620,17 @@ public class GridManager : MonoBehaviour
         currentTargetWidth = isRotated ? selectedBuildingData.height : selectedBuildingData.width;
         currentTargetHeight = isRotated ? selectedBuildingData.width : selectedBuildingData.height;
 
-        currentStartGridX = Mathf.FloorToInt(raycastHitPoint.x - (currentTargetWidth / 2.0f));
-        currentStartGridZ = Mathf.FloorToInt(raycastHitPoint.z - (currentTargetHeight / 2.0f));
+        float offsetX = (currentTargetWidth % 2 == 0) ? 0.5f : 0f;
+        float offsetZ = (currentTargetHeight % 2 == 0) ? 0.5f : 0f;
 
-        float offsetX = currentStartGridX + (currentTargetWidth / 2.0f);
-        float offsetZ = currentStartGridZ + (currentTargetHeight / 2.0f);
+        currentStartGridX = Mathf.FloorToInt(raycastHitPoint.x + offsetX - (currentTargetWidth / 2.0f));
+        currentStartGridZ = Mathf.FloorToInt(raycastHitPoint.z + offsetZ - (currentTargetHeight / 2.0f));
+
+        float previewX = currentStartGridX + (currentTargetWidth / 2.0f);
+        float previewZ = currentStartGridZ + (currentTargetHeight / 2.0f);
         float previewY = gridOverlayY + 0.008f;
-        currentPreviewInstance.transform.position = new Vector3(offsetX, previewY, offsetZ);
+
+        currentPreviewInstance.transform.position = new Vector3(previewX, previewY, previewZ);
 
         canPlaceCurrent = CheckPlacement(currentStartGridX, currentStartGridZ, currentTargetWidth, currentTargetHeight);
 
@@ -723,12 +740,10 @@ public class GridManager : MonoBehaviour
 
         string newUniqueId = $"{selectedBuildingData.buildingName}_{currentStartGridX}_{currentStartGridZ}";
 
-        // 🌟 [핵심 수정] 들어올렸던(PickUp) 건물을 다시 배치할 때 멤, 레벨, 작업 진행도 완벽 복원
         if (cachedPickedUpState != null && cachedPickedUpState.facilityData != null)
         {
             cachedPickedUpState.facilityData.Building_ID = newUniqueId;
 
-            // 1. 일반 생산 시설
             if (realBuilding.TryGetComponent<ProductionFacilityRuntime>(out ProductionFacilityRuntime prodRuntime))
             {
                 prodRuntime.buildingData = selectedBuildingData;
@@ -744,7 +759,7 @@ public class GridManager : MonoBehaviour
                     var mEntry = cachedPickedUpState.deployedMemEntries[i];
                     if (mData != null && mEntry != null)
                     {
-                        mEntry.IsActive = false; // IsActive 리셋하여 TryAddMem 통과 허용
+                        mEntry.IsActive = false;
                         prodRuntime.TryAddMem(mData, mEntry);
                     }
                 }
@@ -756,7 +771,6 @@ public class GridManager : MonoBehaviour
                 prodRuntime.isProducing = cachedPickedUpState.facilityData.isActive;
                 prodRuntime.CheckProductionCondition();
             }
-            // 2. 제작대 시설
             else if (realBuilding.TryGetComponent<ProductionCraftRuntime>(out ProductionCraftRuntime craftRuntime))
             {
                 craftRuntime.buildingData = selectedBuildingData;
@@ -788,7 +802,6 @@ public class GridManager : MonoBehaviour
                 craftRuntime.currentProgressTime = cachedPickedUpState.facilityData.currentProgressTime;
                 craftRuntime.isProducing = cachedPickedUpState.facilityData.isActive;
             }
-            // 3. 목장 시설
             else if (realBuilding.TryGetComponent<RanchFacilityRuntime>(out RanchFacilityRuntime ranchRuntime))
             {
                 ranchRuntime.buildingData = selectedBuildingData;
@@ -829,7 +842,6 @@ public class GridManager : MonoBehaviour
                 }
                 ranchRuntime.CheckAllSlotsProductionCondition();
             }
-            // 4. 발전기 시설
             else if (realBuilding.TryGetComponent<GeneratorRuntime>(out GeneratorRuntime genRuntime))
             {
                 genRuntime.buildingData = selectedBuildingData;
@@ -859,7 +871,6 @@ public class GridManager : MonoBehaviour
                 genRuntime.isPowerGenerating = cachedPickedUpState.facilityData.isActive;
                 genRuntime.CheckPowerCondition();
             }
-            // 5. 운송 시설
             else if (realBuilding.TryGetComponent<TransportRuntime>(out TransportRuntime transRuntime))
             {
                 transRuntime.buildingData = selectedBuildingData;
@@ -884,7 +895,6 @@ public class GridManager : MonoBehaviour
                 transRuntime.isWorking = cachedPickedUpState.facilityData.isActive;
                 transRuntime.CheckProductionCondition();
             }
-            // 6. 모닥불 시설
             else if (realBuilding.TryGetComponent<CampFireRuntime>(out CampFireRuntime campFireRuntime))
             {
                 campFireRuntime.buildingData = selectedBuildingData;
@@ -916,7 +926,6 @@ public class GridManager : MonoBehaviour
                 campFireRuntime.currentProgressTime = cachedPickedUpState.facilityData.currentProgressTime;
                 campFireRuntime.isCooking = cachedPickedUpState.facilityData.isActive;
             }
-            // 7. 주방 시설
             else if (realBuilding.TryGetComponent<KitchenRuntime>(out KitchenRuntime kitchenRuntime))
             {
                 kitchenRuntime.buildingData = selectedBuildingData;
@@ -1040,12 +1049,59 @@ public class GridManager : MonoBehaviour
         TotalHungerManager.Instance?.RecalculateTotalHunger();
     }
 
+    // 🌟 [추가] 시설의 가동(작업) 중 여부를 판별하는 헬퍼 함수
+    private bool IsFacilityActive(GameObject building)
+    {
+        if (building == null) return false;
+
+        if (building.TryGetComponent<ProductionFacilityRuntime>(out var prod)) return prod.isProducing;
+        if (building.TryGetComponent<ProductionCraftRuntime>(out var craft)) return craft.isProducing;
+        if (building.TryGetComponent<RanchFacilityRuntime>(out var ranch)) return ranch.isProducing;
+        if (building.TryGetComponent<GeneratorRuntime>(out var gen)) return gen.isPowerGenerating;
+        if (building.TryGetComponent<TransportRuntime>(out var trans)) return trans.isWorking;
+        if (building.TryGetComponent<CampFireRuntime>(out var campFire)) return campFire.isCooking;
+        if (building.TryGetComponent<KitchenRuntime>(out var kitchen)) return kitchen.isCooking;
+
+        return false;
+    }
+
+    // 🌟 [추가] DOTween을 이용해 가동 중 경과 팝업을 2초간 출력하는 연출 함수
+    private void ShowActiveFacilityWarningPopup()
+    {
+        if (activeBuildingWarningCanvasGroup == null) return;
+
+        if (warningPopupSequence != null && warningPopupSequence.IsActive())
+        {
+            warningPopupSequence.Kill();
+        }
+
+        activeBuildingWarningCanvasGroup.gameObject.SetActive(true);
+        activeBuildingWarningCanvasGroup.alpha = 0f;
+
+        warningPopupSequence = DOTween.Sequence();
+        warningPopupSequence.Append(activeBuildingWarningCanvasGroup.DOFade(1f, 0.25f))
+                            .AppendInterval(2.0f)
+                            .Append(activeBuildingWarningCanvasGroup.DOFade(0f, 0.35f))
+                            .OnComplete(() =>
+                            {
+                                activeBuildingWarningCanvasGroup.gameObject.SetActive(false);
+                            });
+    }
+
     private void TryPickUpBuilding(int x, int z)
     {
         if (x < 0 || x >= currentWidth || z < 0 || z >= currentHeight) return;
         if (!occupiedCells[x, z] || buildingObjectsGrid[x, z] == null) return;
 
         GameObject targetBuilding = buildingObjectsGrid[x, z];
+
+        // 🌟 [수정] 클릭한 시설이 가동 중이면 들어올리기를 차단하고 경고 팝업만 출력
+        if (IsFacilityActive(targetBuilding))
+        {
+            ShowActiveFacilityWarningPopup();
+            return;
+        }
+
         BuildingData retrievedData = buildingDataGrid[x, z];
         Quaternion targetRotation = targetBuilding.transform.rotation;
 
@@ -1351,6 +1407,8 @@ public class GridManager : MonoBehaviour
         sessionAddedBlueprints.Clear();
 
         TriggerSatisfactionUpdate();
+
+        OnGridDataChanged?.Invoke();
     }
 
     public void CancelPlacement()
@@ -1485,7 +1543,6 @@ public class GridManager : MonoBehaviour
                 FacilityData entry = RecordManager.Instance.GetFacilityData(uniqueId);
                 if (entry != null)
                 {
-                    // 1. 일반 생산 시설 복원
                     if (restoredBuilding.TryGetComponent<ProductionFacilityRuntime>(out var facility))
                     {
                         facility.buildingData = snap.data;
@@ -1521,7 +1578,6 @@ public class GridManager : MonoBehaviour
                         facility.isProducing = entry.isActive;
                         facility.CheckProductionCondition();
                     }
-                    // 2. 제작대 복원
                     else if (restoredBuilding.TryGetComponent<ProductionCraftRuntime>(out var craft))
                     {
                         craft.buildingData = snap.data;
@@ -1559,7 +1615,6 @@ public class GridManager : MonoBehaviour
                         craft.currentProgressTime = entry.currentProgressTime;
                         craft.isProducing = entry.isActive;
                     }
-                    // 3. 목장 시설 복원
                     else if (restoredBuilding.TryGetComponent<RanchFacilityRuntime>(out var ranch))
                     {
                         ranch.buildingData = snap.data;
@@ -1602,7 +1657,6 @@ public class GridManager : MonoBehaviour
                         }
                         ranch.CheckAllSlotsProductionCondition();
                     }
-                    // 4. 발전기 복원
                     else if (restoredBuilding.TryGetComponent<GeneratorRuntime>(out var gen))
                     {
                         gen.buildingData = snap.data;
@@ -1638,7 +1692,6 @@ public class GridManager : MonoBehaviour
                         gen.isPowerGenerating = entry.isActive;
                         gen.CheckPowerCondition();
                     }
-                    // 5. 운송 시설 복원
                     else if (restoredBuilding.TryGetComponent<TransportRuntime>(out var trans))
                     {
                         trans.buildingData = snap.data;
@@ -1671,7 +1724,6 @@ public class GridManager : MonoBehaviour
                         trans.isWorking = entry.isActive;
                         trans.CheckProductionCondition();
                     }
-                    // 6. 모닥불 복원
                     else if (restoredBuilding.TryGetComponent<CampFireRuntime>(out var campFire))
                     {
                         campFire.buildingData = snap.data;
@@ -1709,7 +1761,6 @@ public class GridManager : MonoBehaviour
                         campFire.currentProgressTime = entry.currentProgressTime;
                         campFire.isCooking = entry.isActive;
                     }
-                    // 7. 주방 복원
                     else if (restoredBuilding.TryGetComponent<KitchenRuntime>(out var kitchen))
                     {
                         kitchen.buildingData = snap.data;
@@ -1965,5 +2016,43 @@ public class GridManager : MonoBehaviour
         }
 
         Debug.Log($"<color=lime>[GridManager]</color> 🛠️ 총 {successCount}/{blueprintIds.Length}개의 설계도를 PlayerInventory에 지급했습니다.");
+    }
+
+    public void SyncRestoredBuilding(GameObject buildingObj, BuildingData data, int gridX, int gridZ, float rotationY)
+    {
+        if (buildingObj == null || data == null) return;
+
+        int defaultSize = currentWidth > 0 ? currentWidth : 10;
+        if (tileGrid == null || occupiedCells == null || buildingObjectsGrid == null)
+        {
+            InitializeGrid(defaultSize, defaultSize);
+        }
+
+        int currentRotationIndex = Mathf.RoundToInt(rotationY / 90f) % 4;
+        bool isRotated = (currentRotationIndex == 1 || currentRotationIndex == 3);
+        int bWidth = isRotated ? data.height : data.width;
+        int bHeight = isRotated ? data.width : data.height;
+
+        int requiredWidth = Mathf.Max(currentWidth, gridX + bWidth);
+        int requiredHeight = Mathf.Max(currentHeight, gridZ + bHeight);
+        if (requiredWidth > currentWidth || requiredHeight > currentHeight)
+        {
+            ExpandGrid(requiredWidth, requiredHeight);
+        }
+
+        for (int x = gridX; x < gridX + bWidth; x++)
+        {
+            for (int z = gridZ; z < gridZ + bHeight; z++)
+            {
+                if (x >= 0 && x < currentWidth && z >= 0 && z < currentHeight)
+                {
+                    occupiedCells[x, z] = true;
+                    buildingObjectsGrid[x, z] = buildingObj;
+                    buildingDataGrid[x, z] = data;
+                }
+            }
+        }
+
+        UpdateTileOccupiedVisuals();
     }
 }

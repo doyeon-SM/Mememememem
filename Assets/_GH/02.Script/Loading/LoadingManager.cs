@@ -190,6 +190,12 @@ namespace GH.Loading
 
         private IEnumerator RunLoading(LoadingContext context, List<ILoadingTask> tasks)
         {
+            if (RecordManager.Instance != null)
+            {
+                RecordManager.Instance.SaveAllData();
+                RecordManager.Instance.SetSceneUnloading(true);
+            }
+
             ShowRandomTip();
             onLoadingStarted?.Invoke();
 

@@ -42,6 +42,7 @@ namespace KMS
         public event Action<float> Healed;
         public event Action Died;
         public event Action Revived;
+        public event Action<PlayerStats> PlayerStatsDestroyed;
 
         private bool healthInitialized;
 
@@ -70,6 +71,13 @@ namespace KMS
         private void OnDisable()
         {
             MemEvents.OnMemAttackPlayer -= HandleMemAttack;
+        }
+
+        private void OnDestroy()
+        {
+            HealthChanged?.Invoke(CurrentHealth, maxHealth);
+            HungerChanged?.Invoke(CurrentHunger, maxHunger);
+            PlayerStatsDestroyed?.Invoke(this);
         }
 
         private void Update()

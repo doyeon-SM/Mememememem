@@ -69,7 +69,15 @@ public class FacilityCollectUI : MonoBehaviour
         if (activeBubbles.TryGetValue(facility, out FacilityBubbleUI bubble))
         {
             activeBubbles.Remove(facility);
-            ReturnToPool(bubble);
+
+            if (bubble != null && bubble.gameObject.activeInHierarchy)
+            {
+                bubble.PlayCollectAnimation(() => ReturnToPool(bubble));
+            }
+            else
+            {
+                ReturnToPool(bubble);
+            }
         }
     }
 

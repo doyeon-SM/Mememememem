@@ -244,6 +244,7 @@ public class ProductionFacilityRuntime : MonoBehaviour
             int remaining = warehouse.AddItem(targetItemData, amountToCollect);
             currentStorageCount = remaining;
         }
+        FacilityCollectManager.Instance?.NotifyFacilityChanged(this);
     }
 
     private ItemData FindItemDataInCatalog(string itemId)

@@ -76,7 +76,6 @@ public class FacilityCollectManager : MonoBehaviour
         }
         UpdateFacilityState(facility);
 
-        // 🌟 생산/제작 수량 및 상태 변동 시 레코드 저장용 이벤트 발행
         OnFacilityChangedEvent?.Invoke(facility);
     }
 
@@ -123,7 +122,7 @@ public class FacilityCollectManager : MonoBehaviour
         bool shouldShowBubble = CheckBubbleCondition(data);
         if (FacilityCollectUI.Instance != null)
         {
-            if (shouldShowBubble && !string.IsNullOrEmpty(data.currentItemId))
+            if (shouldShowBubble && !string.IsNullOrEmpty(data.currentItemId) && data.currentCount > 0)
             {
                 ItemData itemData = ItemCatalogManager.Instance != null ? ItemCatalogManager.Instance.FindItemData(data.currentItemId) : null;
                 Sprite icon = itemData != null ? itemData.ItemIcon : null;

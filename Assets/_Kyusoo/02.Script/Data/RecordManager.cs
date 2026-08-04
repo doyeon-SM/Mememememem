@@ -1,4 +1,6 @@
-﻿using HDY.Item;
+﻿using HDY.Capture;
+using HDY.Forge;
+using HDY.Item;
 using HDY.Mem;
 using KMS.InventoryDuped;
 using MemSystem.Data;
@@ -21,6 +23,8 @@ public class RecordManager : MonoBehaviour
     public bool IsBlueprintGiven { get; private set; }
 
     public static bool IsLoadingData { get; private set; } = false;
+
+    public static bool IsSceneUnloading { get; private set; } = false;
 
     private void Awake()
     {
@@ -51,6 +55,7 @@ public class RecordManager : MonoBehaviour
     private void OnSceneLoadedTrigger(Scene scene, LoadSceneMode mode)
     {
         IsLoadingData = true;
+        IsSceneUnloading = false;
 
         try
         {
@@ -71,7 +76,115 @@ public class RecordManager : MonoBehaviour
         }
     }
 
-    public void StartNewGame(string defaultStartScene = "Main_World2")
+    /// <summary>
+    /// 씬 컴포넌트 유무와 관계없이 100% 완전한 기본 SaveData 구조를 생성합니다.
+    /// </summary>
+    public SaveData CreateFullDefaultSaveData(string startScene = "Main_World2")
+    {
+        SaveData data = new SaveData
+        {
+            lastSaveTime = DateTime.UtcNow.ToString("o"),
+            lastPlayScene = startScene,
+            territoryLevel = 1,
+            currentExp = 0,
+            requiredExp = 100,
+            gold = 0,
+            satisfaction = 0,
+            isBlueprintGiven = false,
+            currentGridSize = 5,
+            expansionExpandedStates = new List<bool>(),
+            recipeUnlockedStates = new List<bool>(),
+            cookRecipeUnlockedStates = new List<string>(),
+            maxSatiety = 0,
+            currentSatiety = 0,
+            isWorkStoppedDueToStarvation = false,
+            unlockedPageCount = 2,
+            serializedCapturedMems = new List<CapturedMemEntry>(),
+            firstCapturedTimestamps = new List<MemFirstCapturedEntry>(),
+            placedBuildings = new List<PlacedBuildingData>(),
+            waypointInfo = new List<WaypointInfo>(),
+            chestInfo = new List<ChestInfo>(),
+            forgeInstanceDataList = new List<ForgeInstanceData>(),
+            hasSavedPlayerPos = false,
+            lastPlayerPos = null
+        };
+
+        // 1. 인벤토리 기본 구조 (10x6 = 60 슬롯)
+        data.playerInventoryData = new ContainerData { width = 10, height = 6, slots = new List<ItemStackData>() };
+        for (int i = 0; i < 60; i++)
+        {
+            data.playerInventoryData.slots.Add(new ItemStackData { itemId = "", amount = 0 });
+        }
+
+        // 2. 퀵슬롯 기본 구조 (10x1 = 10 슬롯)
+        data.playerQuickSlotsData = new ContainerData { width = 10, height = 1, slots = new List<ItemStackData>() };
+        for (int i = 0; i < 10; i++)
+        {
+            data.playerQuickSlotsData.slots.Add(new ItemStackData { itemId = "", amount = 0 });
+        }
+        data.selectedQuickSlotIndex = 0;
+        data.unlockedInventorySlotCount = 10;
+
+        // 3. 일반 창고 기본 구조 (10x2 = 20 슬롯)
+        data.warehouseStorageData = new ContainerData { width = 10, height = 2, slots = new List<ItemStackData>() };
+        for (int i = 0; i < 20; i++)
+        {
+            data.warehouseStorageData.slots.Add(new ItemStackData { itemId = "", amount = 0 });
+        }
+
+        // 4. 음식 창고 기본 구조 (10x1 = 5 슬롯)
+        data.foodWarehouseStorageData = new ContainerData { width = 10, height = 1, slots = new List<ItemStackData>() };
+        for (int i = 0; i < 5; i++)
+        {
+            data.foodWarehouseStorageData.slots.Add(new ItemStackData { itemId = "", amount = 0 });
+        }
+
+        // 5. 시간 및 플레이어 스탯 기본값
+        data.timeData = new GameTimeSaveData
+        {
+            elapsedTime = 0f,
+            lastSaveRealTimeKst = DateTime.UtcNow.ToString("o")
+        };
+
+        data.playerInfo = new PlayerInfo
+        {
+            maxHealth = 100f,
+            maxHunger = 100f,
+            currentHealth = 100f,
+            currentHunger = 100f
+        };
+
+        return data;
+    }
+
+    public void SaveAllData()
+    {
+        if (IsLoadingData || IsSceneUnloading) return;
+
+        List<IRecord> subRecords = FindObjectsByType<MonoBehaviour>(FindObjectsInactive.Include, FindObjectsSortMode.None)
+                                      .OfType<IRecord>()
+                                      .ToList();
+
+        foreach (var record in subRecords)
+        {
+            record.SaveData(saveFilePath);
+        }
+
+        Debug.Log("<color=lime>[RecordManager]</color> 💾 씬 전환 전 전체 데이터 통합 세이브 완료!");
+    }
+
+    /// <summary>
+    /// 씬 언로드 시작 시 호출하여 오브젝트 파괴 이벤트에 의한 세이브 파일 오염을 차단
+    /// </summary>
+    public void SetSceneUnloading(bool unloading)
+    {
+        IsSceneUnloading = unloading;
+    }
+
+    /// <summary>
+    /// 씬 이동 전에 완전한 구조의 신규 세이브 파일만 미리 디스크에 생성합니다.
+    /// </summary>
+    public void PrepareNewGameFile(string defaultStartScene = "Main_World2")
     {
         try
         {
@@ -80,29 +193,42 @@ public class RecordManager : MonoBehaviour
                 File.Delete(saveFilePath);
             }
 
-            SaveData defaultData = new SaveData();
-            List<IRecord> subRecords = FindObjectsByType<MonoBehaviour>(FindObjectsInactive.Include, FindObjectsSortMode.None)
-                                        .OfType<IRecord>()
-                                        .ToList();
+            SaveData defaultData = CreateFullDefaultSaveData(defaultStartScene);
 
+            List<IRecord> subRecords = GetAllRecordsInSceneAndPersistent();
             foreach (var record in subRecords)
             {
-                record.InitDefaultData(ref defaultData);
+                try
+                {
+                    record.InitDefaultData(ref defaultData);
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning($"[RecordManager] {record.GetType().Name}.InitDefaultData 예외 무시: {ex.Message}");
+                }
             }
 
-            defaultData.lastPlayScene = defaultStartScene;
-            defaultData.lastSaveTime = DateTime.UtcNow.ToString("o");
-
             File.WriteAllText(saveFilePath, JsonUtility.ToJson(defaultData, true));
-
-            SceneManager.LoadScene(defaultStartScene);
+            Debug.Log($"<color=lime>[RecordManager]</color> ✨ 완전한 기본 구조 세이브 파일 사전 생성 완료 ({defaultStartScene})");
         }
         catch (Exception e)
         {
-            Debug.LogError($"[RecordManager] 새 게임 시작 중 오류: {e.Message}");
+            Debug.LogError($"[RecordManager] 새 게임 파일 생성 중 오류: {e.Message}");
         }
     }
 
+    /// <summary>
+    /// [새로하기] 세이브 파일 삭제 ➡️ 완전한 기본 파일 생성 ➡️ Direct 씬 로딩
+    /// </summary>
+    public void StartNewGame(string defaultStartScene = "Main_World2")
+    {
+        PrepareNewGameFile(defaultStartScene);
+        SceneManager.LoadScene(defaultStartScene);
+    }
+
+    /// <summary>
+    /// [이어하기] 세이브 데이터의 lastPlayScene을 읽어와 이동
+    /// </summary>
     public void ContinueGame(string fallbackScene = "Main_World2")
     {
         if (!File.Exists(saveFilePath))
@@ -118,6 +244,7 @@ public class RecordManager : MonoBehaviour
                 ? saveData.lastPlayScene
                 : fallbackScene;
 
+            Debug.Log($"<color=lime>[RecordManager]</color> 🚀 이어하기 성공 ➡️ 저장된 씬으로 이동: <color=yellow>{targetScene}</color>");
             SceneManager.LoadScene(targetScene);
         }
         catch (Exception e)
@@ -129,21 +256,22 @@ public class RecordManager : MonoBehaviour
 
     public void LoadAndBroadcastTerritoryData(SceneType sceneType)
     {
-        List<IRecord> subRecords = FindObjectsByType<MonoBehaviour>(FindObjectsInactive.Include, FindObjectsSortMode.None)
-                                      .OfType<IRecord>()
-                                      .ToList();
+        List<IRecord> subRecords = GetAllRecordsInSceneAndPersistent();
 
         if (!File.Exists(saveFilePath))
         {
-            Debug.Log("<color=cyan>[RecordManager]</color> 세이브 파일이 없어 초기 장부를 생성합니다.");
-            SaveData defaultData = new SaveData();
+            Debug.Log("<color=cyan>[RecordManager]</color> 세이브 파일이 없어 초기 장부를 자동 생성합니다.");
+            SaveData defaultData = CreateFullDefaultSaveData();
 
             foreach (var record in subRecords)
             {
-                record.InitDefaultData(ref defaultData);
+                try
+                {
+                    record.InitDefaultData(ref defaultData);
+                }
+                catch { }
             }
 
-            defaultData.lastSaveTime = DateTime.UtcNow.ToString("o");
             File.WriteAllText(saveFilePath, JsonUtility.ToJson(defaultData, true));
         }
 
@@ -213,11 +341,32 @@ public class RecordManager : MonoBehaviour
                 StartCoroutine(SpawnWarehouseWanderersWithDelayRoutine());
             }
 
-            Debug.Log($"<color=lime>[RecordManager]</color> {sceneType} 환경 맞춤 데이터 복구 및 정산 완료!");
+            ResynchronizeLoadedSceneState(subRecords, saveData);
+
+            Debug.Log($"<color=lime>[RecordManager]</color> {sceneType} 환경 맞춤 데이터 복구 및 재구성 완료!");
         }
         catch (Exception e)
         {
             Debug.LogError($"[RecordManager] 로드 및 분배 중 치명적 예외 발생:\n{e.ToString()}");
+        }
+    }
+
+    private List<IRecord> GetAllRecordsInSceneAndPersistent()
+    {
+        return FindObjectsByType<MonoBehaviour>(FindObjectsInactive.Include, FindObjectsSortMode.None)
+                .OfType<IRecord>()
+                .ToList();
+    }
+
+    private void ResynchronizeLoadedSceneState(List<IRecord> records, SaveData currentData)
+    {
+        foreach (var record in records)
+        {
+            try
+            {
+                record.SaveData(saveFilePath);
+            }
+            catch { }
         }
     }
 
@@ -262,7 +411,6 @@ public class RecordManager : MonoBehaviour
         }
     }
 
-    // 🌟 [추가] 배치 모드 롤백용 백업 클론 생성
     public Dictionary<string, FacilityData> GetFacilityDatabaseClone()
     {
         var cloneDict = new Dictionary<string, FacilityData>();
@@ -274,7 +422,6 @@ public class RecordManager : MonoBehaviour
         return cloneDict;
     }
 
-    // 🌟 [추가] 백업된 데이터베이스로 원복
     public void RestoreFacilityDatabase(Dictionary<string, FacilityData> backupDict)
     {
         facilityDatabase.Clear();
