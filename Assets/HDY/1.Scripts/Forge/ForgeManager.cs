@@ -731,7 +731,8 @@ namespace HDY.Forge
 
         /// <summary>
         /// 재료 도구의 연마칸 수·옵션을 받는 도구에 그대로 옮긴다(받는 도구의 기존 연마 옵션은 버려짐).
-        /// 도구 종류만 같으면 티어는 달라도 무관하다. 무조건 성공하며 추가 비용은 없다. 재료 도구는 소멸한다.
+        /// 도구의 ObjectType(벌목/채굴/채집 대상 - ItemData 기준)만 같으면 티어는 달라도 무관하다.
+        /// 무조건 성공하며 추가 비용은 없다. 재료 도구는 소멸한다.
         /// </summary>
         public InheritanceOutcome TryInherit(ItemStack materialStack, ItemStack targetStack)
         {
@@ -760,7 +761,12 @@ namespace HDY.Forge
                 return InheritanceOutcome.Rejected(InheritanceFailReason.NotForgeableTool);
             }
 
-            if (materialInstance.ToolType != targetInstance.ToolType)
+            // [수정] 도구 종류(ForgeToolType) 대신 실제 아이템 데이터의 ObjectType(벌목/채굴/채집 대상)이
+            // 같은지로 판정한다. ItemCatalog.csv 기준 ObjectType(Tree/Stone/Bush)이 전승 가능 여부의 기준이 된다.
+            var materialItemData = catalogManager.FindItemData(materialInstance.BaseItemId);
+            var targetItemData = catalogManager.FindItemData(targetInstance.BaseItemId);
+
+            if (materialItemData == null || targetItemData == null || materialItemData.ObjectType != targetItemData.ObjectType)
             {
                 return InheritanceOutcome.Rejected(InheritanceFailReason.ToolTypeMismatch);
             }

@@ -23,6 +23,11 @@ namespace HDY.Forge
     /// 클릭하면 그 아이템을 새 재료로 다시 선택(처음부터 다시 시작)한다. 가운데 재료 슬롯을 클릭하면
     /// 선택을 전부 초기화하고, 대상 슬롯을 클릭하면 대상만 초기화한다.
     ///
+    /// [도구 종류 제한] 재료와 ObjectType(벌목/채굴/채집 대상 - ItemData 기준)이 다른 도구는 애초에
+    /// 전승받을 대상으로 선택되지 않는다(<see cref="IsSameObjectType"/>). ForgeManager.TryInherit도
+    /// 동일한 기준으로 최종 거부하지만, 선택 단계에서 먼저 걸러야 실행 버튼을 눌렀을 때 아무 안내 없이
+    /// 조용히 실패하는 것을 막을 수 있다.
+    ///
     /// [결과 미리보기 - 중요] 전승은 연마칸만 재료 것으로 넘어가고, 강화 레벨/티어 등 대상 자체의
     /// 정체성은 그대로 유지된다(ForgeManager.TryInherit 참고). 그래서 미리보기도 두 아이템의 서로 다른
     /// 부분을 조합해서 보여줘야 한다:
@@ -90,6 +95,14 @@ namespace HDY.Forge
             else if (targetStack == null)
             {
                 if (ReferenceEquals(stack, materialStack)) return; // 같은 스택 중복 선택 방지
+
+                // [수정] 재료와 ObjectType(벌목/채굴/채집 대상)이 다른 도구는 전승받을 대상으로 선택할 수 없다.
+                if (!IsSameObjectType(materialStack, stack))
+                {
+                    if (statusText != null) statusText.text = "재료와 같은 종류의 도구만 선택할 수 있습니다";
+                    return;
+                }
+
                 targetStack = stack;
             }
             else
@@ -100,6 +113,23 @@ namespace HDY.Forge
             }
 
             RefreshMiddlePanel();
+        }
+
+        /// <summary>
+        /// 두 도구의 ItemData.ObjectType(벌목/채굴/채집 대상)이 같은지 확인한다.
+        /// catalogManager가 없거나 ItemData 조회에 실패하면 안전하게 통과시키고, 최종 판정은
+        /// ForgeManager.TryInherit(같은 기준으로 재검증함)에 맡긴다.
+        /// </summary>
+        private bool IsSameObjectType(ItemStack a, ItemStack b)
+        {
+            if (catalogManager == null || a == null || b == null) return true;
+
+            var dataA = catalogManager.FindItemData(a.itemId);
+            var dataB = catalogManager.FindItemData(b.itemId);
+
+            if (dataA == null || dataB == null) return true;
+
+            return dataA.ObjectType == dataB.ObjectType;
         }
 
         private void ClearSelection()
