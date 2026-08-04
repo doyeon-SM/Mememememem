@@ -9,7 +9,10 @@ public class CameraZoomController : MonoBehaviour
     [SerializeField] private float minSize = 3f;        
     [SerializeField] private float maxSize = 8f;       
     [SerializeField] private float zoomSensitivity = 0.15f; 
-    [SerializeField] private float smoothTime = 0.1f;   
+    [SerializeField] private float smoothTime = 0.1f;
+
+    [Header("최대 줌 크기 증가량")]
+    [SerializeField] private float increaseAmount = 1f;
 
     private float targetOrthoSize;
     private float zoomVelocity;
@@ -29,6 +32,16 @@ public class CameraZoomController : MonoBehaviour
         if (targetCamera == null) return;
 
         HandleZoom();
+    }
+
+    private void OnEnable()
+    {
+        GridManager.GridExpanded += IncreaseMaxSize;
+    }
+
+    private void OnDisable()
+    {
+        GridManager.GridExpanded -= IncreaseMaxSize;
     }
 
     /// <summary>
@@ -53,5 +66,9 @@ public class CameraZoomController : MonoBehaviour
             ref zoomVelocity,
             smoothTime
         );
+    }
+    public void IncreaseMaxSize()
+    {
+        maxSize += increaseAmount;
     }
 }
