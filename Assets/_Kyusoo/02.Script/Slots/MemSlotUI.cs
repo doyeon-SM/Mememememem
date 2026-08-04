@@ -14,7 +14,6 @@ public class MemSlotUI : MonoBehaviour, IDropHandler, IPointerClickHandler
     [SerializeField] private Image stat;
     [SerializeField] private TextMeshProUGUI statText;
     [SerializeField] private Button slotButton;
-    [SerializeField] private Image activeIcon; 
 
     [Header("스탯 아이콘 매핑")]
     [SerializeField] private Sprite craftingStatIcon;
@@ -28,14 +27,6 @@ public class MemSlotUI : MonoBehaviour, IDropHandler, IPointerClickHandler
 
     private MemData currentPlacedMem = null;
     private CapturedMemEntry currentPlacedEntry = null;
-
-    private void Awake()
-    {
-        if (activeIcon != null)
-        {
-            activeIcon.gameObject.SetActive(false);
-        }
-    }
 
     public void InitializeSlot(int index)
     {
@@ -51,11 +42,6 @@ public class MemSlotUI : MonoBehaviour, IDropHandler, IPointerClickHandler
         {
             slotButton.onClick.RemoveAllListeners();
             slotButton.onClick.AddListener(OnClickSlot);
-        }
-
-        if (activeIcon != null)
-        {
-            activeIcon.gameObject.SetActive(false);
         }
     }
 
@@ -118,48 +104,29 @@ public class MemSlotUI : MonoBehaviour, IDropHandler, IPointerClickHandler
                 iconImage.sprite = null;
                 iconImage.color = Color.black;
             }
-
-            if (activeIcon != null)
-            {
-                activeIcon.gameObject.SetActive(false);
-            }
-
             ApplyStatDisplay(null, string.Empty);
         }
         else
         {
-            if (currentPlacedMem != null)
+            if (iconImage != null)
             {
-                if (iconImage != null)
+                if (currentPlacedMem != null)
                 {
                     Sprite sprite = (MemIconRenderer.Instance != null)
                             ? MemIconRenderer.Instance.GetIcon(currentPlacedMem.memId)
                             : null;
 
                     iconImage.sprite = sprite;
-                    iconImage.color = new Color(1f, 1f, 1f, 255f);
+                    iconImage.color = Color.white;
                     iconImage.gameObject.SetActive(sprite != null);
-                }
 
-                if (activeIcon != null)
-                {
-                    activeIcon.gameObject.SetActive(true);
+                    UpdateStatDisplay();
                 }
-
-                UpdateStatDisplay();
-            }
-            else
-            {
-                if (iconImage != null)
+                else
                 {
                     iconImage.sprite = null;
                     iconImage.color = Color.white;
                     ApplyStatDisplay(null, string.Empty);
-                }
-
-                if (activeIcon != null)
-                {
-                    activeIcon.gameObject.SetActive(false);
                 }
             }
         }
