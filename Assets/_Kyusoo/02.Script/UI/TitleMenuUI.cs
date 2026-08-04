@@ -12,7 +12,7 @@ public class TitleMenuUI : MonoBehaviour
     [SerializeField] private Button resetButton;        // 테스트 전용 [최초 실행 기록 리셋]
 
     [Header("기본 씬 설정")]
-    [SerializeField] private string defaultStartScene = "Main_World_2";
+    [SerializeField] private string defaultStartScene = "Main_World_3";
 
     private void Start()
     {
