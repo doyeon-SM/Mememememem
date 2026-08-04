@@ -6655,6 +6655,7 @@ MonoBehaviour:
   generatorPanel: {fileID: 0}
   transportPanel: {fileID: 0}
   campFirePanel: {fileID: 0}
+  kitchenPanel: {fileID: 0}
   foodWarehousePanel: {fileID: 7966042353924332551}
   exploreMapPanel: {fileID: 1425550375}
   UIPanel: {fileID: 1430563583}
@@ -6664,6 +6665,7 @@ MonoBehaviour:
   generatorPanelUI: {fileID: 0}
   transportPanelUI: {fileID: 0}
   campFirePanelUI: {fileID: 0}
+  kitchenPanelUI: {fileID: 0}
   closeButtonGroup: {fileID: 0}
   placeButtonGroup: {fileID: 527738556}
 --- !u!1 &470093740
@@ -11330,6 +11332,7 @@ MonoBehaviour:
   buildingName: {fileID: 915820902}
   buildingLevel: {fileID: 407238962}
   levelUp: {fileID: 109969722}
+  levelUpBtnText: {fileID: 0}
   memSlotImages:
   - {fileID: 2050517571}
   - {fileID: 2066315677}
@@ -11345,6 +11348,7 @@ MonoBehaviour:
   productionSpeed: {fileID: 798965650}
   progressBar: {fileID: 1029843020}
   durationText: {fileID: 2139056373}
+  statusText: {fileID: 0}
   craftingSlotPrefab: {fileID: 6478490869400420258, guid: 7572834d7a4bc0c44a78d0803e28daaa, type: 3}
   craftingSlotParent: {fileID: 0}
 --- !u!1 &1022871354
@@ -13721,6 +13725,7 @@ MonoBehaviour:
   buildingName: {fileID: 1820540763}
   buildingLevel: {fileID: 713069629}
   levelUpBtn: {fileID: 18049461}
+  levelUpBtnText: {fileID: 0}
   memSlots:
   - {fileID: 421359877}
   - {fileID: 56755548}
@@ -13734,6 +13739,7 @@ MonoBehaviour:
   - {fileID: 2127598505}
   - {fileID: 1715043773}
   collectAllBtn: {fileID: 1605635610}
+  overallStatusText: {fileID: 0}
 --- !u!114 &1238775722 stripped
 MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 8648756766725742774, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
@@ -14472,6 +14478,7 @@ MonoBehaviour:
   notifyInputManager: 1
   playerTag: Player
   playerLayerName: Player
+  placementModeUIRoot: {fileID: 0}
 --- !u!4 &1359819167
 Transform:
   m_ObjectHideFlags: 0
@@ -16891,6 +16898,7 @@ MonoBehaviour:
   bottomCraftingModeObject: {fileID: 2030071538}
   progressBar: {fileID: 697947138}
   durationText: {fileID: 330642502}
+  craftingStatusText: {fileID: 0}
   cancelBtn: {fileID: 2043488253}
   getBtn: {fileID: 573990341}
 --- !u!1 &1534348711
@@ -22235,6 +22243,10 @@ MonoBehaviour:
   gridMaterialPrefab: {fileID: 0}
   buildableColor: {r: 0, g: 0.5, b: 1, a: 0.4}
   unbuildableColor: {r: 1, g: 0, b: 0, a: 0.4}
+  occupiedMaterialPrefab: {fileID: 0}
+  occupiedBorderColor: {r: 0.95, g: 0.65, b: 0.2, a: 0.85}
+  occupiedBorderWidth: 3
+  activeBuildingWarningCanvasGroup: {fileID: 0}
 --- !u!1 &2111073404
 GameObject:
   m_ObjectHideFlags: 0
@@ -23256,7 +23268,7 @@ MonoBehaviour:
   storageSlotPrefab: {fileID: 8745380330164517144, guid: 5e15e651e1f45064c8a1ff6c72a7900e, type: 3}
   sortUI: {fileID: 0}
   upgradeButton: {fileID: 5141559261117478873}
-  warehouseUpgrade: {fileID: 5489548650194613591}
+  foodWarehouseUpgrade: {fileID: 0}
   quickSlotGrid: {fileID: 1315108353}
   quickSlotPrefab: {fileID: 8745380330164517144, guid: 0e5b76a59ceeeb44788c4f288fd866ca, type: 3}
   inventoryGrid: {fileID: 141839863}
@@ -24162,6 +24174,7 @@ MonoBehaviour:
     \uC5C6\uC74C"
   lockedMapStatusText: "[ \uC774\uB3D9 \uBD88\uAC00 ]\n\uC7A0\uAE34 \uB9F5"
   canTravelStatusText: "\uC774\uB3D9 \uAC00\uB2A5"
+  currentLocationStatusText: "\uD604\uC7AC \uC704\uCE58"
 --- !u!222 &2923606981456499536
 CanvasRenderer:
   m_ObjectHideFlags: 0

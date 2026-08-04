@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 2178253928380159341}
   - component: {fileID: 3791526114003067158}
   - component: {fileID: 5082117776368722736}
+  - component: {fileID: 7527966033821390167}
   m_Layer: 0
   m_Name: ForgeManager
   m_TagString: Untagged
@@ -91,3 +92,18 @@ MonoBehaviour:
   refinementConfig: {fileID: 11400000, guid: 5d3e2fa02fdb7fa409f07981ee9081e4, type: 2}
   materialInventorySource: {fileID: 0}
   overheatEpsilon: 0.01
+--- !u!114 &7527966033821390167
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2679181794698395931}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9ffbcfb4637f0814694590a54244e6b8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HDY.Forge.ForgeRefinementAutoAssigner
+  forgeManager: {fileID: 0}
+  playerInventory: {fileID: 0}
+  warehouseInventory: {fileID: 0}
