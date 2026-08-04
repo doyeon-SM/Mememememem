@@ -24,6 +24,8 @@ public class RecordManager : MonoBehaviour
 
     public static bool IsLoadingData { get; private set; } = false;
 
+    public static bool IsSceneUnloading { get; private set; } = false;
+
     private void Awake()
     {
         if (Instance == null)
@@ -53,6 +55,7 @@ public class RecordManager : MonoBehaviour
     private void OnSceneLoadedTrigger(Scene scene, LoadSceneMode mode)
     {
         IsLoadingData = true;
+        IsSceneUnloading = false;
 
         try
         {
@@ -154,8 +157,32 @@ public class RecordManager : MonoBehaviour
         return data;
     }
 
+    public void SaveAllData()
+    {
+        if (IsLoadingData || IsSceneUnloading) return;
+
+        List<IRecord> subRecords = FindObjectsByType<MonoBehaviour>(FindObjectsInactive.Include, FindObjectsSortMode.None)
+                                      .OfType<IRecord>()
+                                      .ToList();
+
+        foreach (var record in subRecords)
+        {
+            record.SaveData(saveFilePath);
+        }
+
+        Debug.Log("<color=lime>[RecordManager]</color> 💾 씬 전환 전 전체 데이터 통합 세이브 완료!");
+    }
+
     /// <summary>
-    /// 🌟 [신규 추가] 씬 이동 전에 완전한 구조의 신규 세이브 파일만 미리 디스크에 생성합니다.
+    /// 씬 언로드 시작 시 호출하여 오브젝트 파괴 이벤트에 의한 세이브 파일 오염을 차단
+    /// </summary>
+    public void SetSceneUnloading(bool unloading)
+    {
+        IsSceneUnloading = unloading;
+    }
+
+    /// <summary>
+    /// 씬 이동 전에 완전한 구조의 신규 세이브 파일만 미리 디스크에 생성합니다.
     /// </summary>
     public void PrepareNewGameFile(string defaultStartScene = "Main_World2")
     {

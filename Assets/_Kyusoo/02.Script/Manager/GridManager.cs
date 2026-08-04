@@ -1407,6 +1407,8 @@ public class GridManager : MonoBehaviour
         sessionAddedBlueprints.Clear();
 
         TriggerSatisfactionUpdate();
+
+        OnGridDataChanged?.Invoke();
     }
 
     public void CancelPlacement()
@@ -2014,5 +2016,43 @@ public class GridManager : MonoBehaviour
         }
 
         Debug.Log($"<color=lime>[GridManager]</color> 🛠️ 총 {successCount}/{blueprintIds.Length}개의 설계도를 PlayerInventory에 지급했습니다.");
+    }
+
+    public void SyncRestoredBuilding(GameObject buildingObj, BuildingData data, int gridX, int gridZ, float rotationY)
+    {
+        if (buildingObj == null || data == null) return;
+
+        int defaultSize = currentWidth > 0 ? currentWidth : 10;
+        if (tileGrid == null || occupiedCells == null || buildingObjectsGrid == null)
+        {
+            InitializeGrid(defaultSize, defaultSize);
+        }
+
+        int currentRotationIndex = Mathf.RoundToInt(rotationY / 90f) % 4;
+        bool isRotated = (currentRotationIndex == 1 || currentRotationIndex == 3);
+        int bWidth = isRotated ? data.height : data.width;
+        int bHeight = isRotated ? data.width : data.height;
+
+        int requiredWidth = Mathf.Max(currentWidth, gridX + bWidth);
+        int requiredHeight = Mathf.Max(currentHeight, gridZ + bHeight);
+        if (requiredWidth > currentWidth || requiredHeight > currentHeight)
+        {
+            ExpandGrid(requiredWidth, requiredHeight);
+        }
+
+        for (int x = gridX; x < gridX + bWidth; x++)
+        {
+            for (int z = gridZ; z < gridZ + bHeight; z++)
+            {
+                if (x >= 0 && x < currentWidth && z >= 0 && z < currentHeight)
+                {
+                    occupiedCells[x, z] = true;
+                    buildingObjectsGrid[x, z] = buildingObj;
+                    buildingDataGrid[x, z] = data;
+                }
+            }
+        }
+
+        UpdateTileOccupiedVisuals();
     }
 }

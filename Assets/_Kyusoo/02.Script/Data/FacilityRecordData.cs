@@ -96,7 +96,7 @@ public class FacilityRecordData : MonoBehaviour, IRecord
 
     private void OnFacilityDataChanged()
     {
-        if (RecordManager.IsLoadingData) return;
+        if (RecordManager.IsLoadingData || RecordManager.IsSceneUnloading) return;
 
         var gridManager = FindFirstObjectByType<GridManager>();
         if (gridManager != null)
@@ -121,10 +121,19 @@ public class FacilityRecordData : MonoBehaviour, IRecord
 
     public void SaveData(string saveFilePath)
     {
+        if (RecordManager.IsLoadingData || RecordManager.IsSceneUnloading) return;
+
         SaveData currentData = RecordManager.Instance.ReadRawSaveFileOnly();
         if (currentData == null) currentData = new SaveData();
 
         var activeBuildings = FindObjectsByType<BuildingRuntime>(FindObjectsSortMode.None);
+
+        var gridManager = FindFirstObjectByType<GridManager>();
+        if (gridManager == null && activeBuildings.Length == 0)
+        {
+            return;
+        }
+
         currentData.placedBuildings = new List<PlacedBuildingData>();
 
         HashSet<string> allDeployedMemIDs = new HashSet<string>();
@@ -305,30 +314,15 @@ public class FacilityRecordData : MonoBehaviour, IRecord
         var gridManager = FindFirstObjectByType<GridManager>();
         if (gridManager == null) return;
 
+        // 그리드 초기화
+        int targetGridSize = saveData.currentGridSize > 0 ? saveData.currentGridSize : 10;
+        gridManager.InitializeGrid(targetGridSize, targetGridSize);
+
         var bTemplateField = typeof(GridManager).GetField("buildings", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
-        var floorContainerField = typeof(GridManager).GetField("floorContainer", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
-        var occupiedField = typeof(GridManager).GetField("occupiedCells", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
-        var objGridField = typeof(GridManager).GetField("buildingObjectsGrid", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
-        var dataGridField = typeof(GridManager).GetField("buildingDataGrid", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
-
         List<BuildingData> buildingTemplates = bTemplateField?.GetValue(gridManager) as List<BuildingData>;
-        Transform floorContainer = floorContainerField?.GetValue(gridManager) as Transform;
-        bool[,] occupiedCells = occupiedField?.GetValue(gridManager) as bool[,];
-        GameObject[,] buildingObjectsGrid = objGridField?.GetValue(gridManager) as GameObject[,];
-        BuildingData[,] buildingDataGrid = dataGridField?.GetValue(gridManager) as BuildingData[,];
+        Transform floorContainer = gridManager.transform;
 
-        if (occupiedCells == null)
-        {
-            int s = saveData.currentGridSize;
-            occupiedCells = new bool[s, s];
-            buildingObjectsGrid = new GameObject[s, s];
-            buildingDataGrid = new BuildingData[s, s];
-            RecordManager.Instance.SetPrivateFieldSafely(gridManager, "currentWidth", s);
-            RecordManager.Instance.SetPrivateFieldSafely(gridManager, "currentHeight", s);
-        }
-
-        int w = occupiedCells.GetLength(0);
-        int h = occupiedCells.GetLength(1);
+        var memManager = FindFirstObjectByType<MemCaptureManager>();
 
         if (saveData.placedBuildings != null && buildingTemplates != null)
         {
@@ -342,7 +336,7 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                 int bWidth = isRotated ? matchData.height : matchData.width;
                 int bHeight = isRotated ? matchData.width : matchData.height;
 
-                Vector3 spawnPos = new Vector3(bSave.gridX + (bWidth / 2.0f), 0.5f, bSave.gridZ + (bHeight / 2.0f));
+                Vector3 spawnPos = new Vector3(bSave.gridX + (bWidth / 2.0f), 0.501f, bSave.gridZ + (bHeight / 2.0f));
                 GameObject spawnedObj = Instantiate(matchData.buildingPrefab, spawnPos, Quaternion.Euler(0f, bSave.rotationY, 0f), floorContainer);
 
                 if (spawnedObj.TryGetComponent<BuildingRuntime>(out BuildingRuntime br))
@@ -352,8 +346,8 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                 }
 
                 var entry = bSave.runtimeData ?? new FacilityData { Building_ID = $"{matchData.buildingName}_{bSave.gridX}_{bSave.gridZ}" };
-                var memManager = FindFirstObjectByType<MemCaptureManager>();
 
+                // 각 런타임 컴포넌트 데이터 복원
                 if (spawnedObj.TryGetComponent<ProductionFacilityRuntime>(out var facility))
                 {
                     facility.buildingData = matchData;
@@ -362,8 +356,6 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                     facility.currentProgressTime = entry.currentProgressTime;
                     facility.currentStorageCount = entry.currentStorageCount;
                     facility.craftingItem = entry.currentCraftingItemId;
-
-                    float savedProgressTime = entry.currentProgressTime;
 
                     if (facility.DeployedMems != null) facility.DeployedMems.Clear();
                     if (facility.DeployedMemEntries != null) facility.DeployedMemEntries.Clear();
@@ -386,8 +378,6 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                             }
                         }
                     }
-                    facility.currentProgressTime = savedProgressTime;
-                    facility.isProducing = entry.isActive;
                     facility.CheckProductionCondition();
                 }
                 else if (spawnedObj.TryGetComponent<ProductionCraftRuntime>(out var craft))
@@ -467,7 +457,7 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                 {
                     gen.buildingData = matchData;
                     gen.currentLevel = entry.currentLevel > 0 ? entry.currentLevel : 1;
-                    gen.UpdateMaxPowerStorage(); 
+                    gen.UpdateMaxPowerStorage();
 
                     if (gen.DeployedMems != null) gen.DeployedMems.Clear();
                     if (gen.DeployedMemEntries != null) gen.DeployedMemEntries.Clear();
@@ -589,28 +579,13 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                     }
                 }
 
-                for (int x = bSave.gridX; x < bSave.gridX + bWidth; x++)
-                {
-                    for (int z = bSave.gridZ; z < bSave.gridZ + bHeight; z++)
-                    {
-                        if (x >= 0 && x < w && z >= 0 && z < h)
-                        {
-                            occupiedCells[x, z] = true;
-                            buildingObjectsGrid[x, z] = spawnedObj;
-                            buildingDataGrid[x, z] = matchData;
-                        }
-                    }
-                }
+                gridManager.SyncRestoredBuilding(spawnedObj, matchData, bSave.gridX, bSave.gridZ, bSave.rotationY);
 
                 RecordManager.Instance.UpdateFacilityData($"{matchData.buildingName}_{bSave.gridX}_{bSave.gridZ}", entry);
             }
         }
 
-        RecordManager.Instance.SetPrivateFieldSafely(gridManager, "occupiedCells", occupiedCells);
-        RecordManager.Instance.SetPrivateFieldSafely(gridManager, "buildingObjectsGrid", buildingObjectsGrid);
-        RecordManager.Instance.SetPrivateFieldSafely(gridManager, "buildingDataGrid", buildingDataGrid);
         RecordManager.Instance.RefreshActivePanelMemSlotsRealtime();
-
-        Debug.Log("<color=cyan>[FacilityRecordData]</color> 🏗️ 배치 시설 복원 완료!");
+        Debug.Log("<color=cyan>[FacilityRecordData]</color> 🏗️ 배치 시설 복원 및 GridManager 완벽 동기화 완료!");
     }
 }
