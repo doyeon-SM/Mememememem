@@ -7,10 +7,18 @@ using MemSystem.Events;
 
 namespace KMS
 {
+    public enum PlayerDamageType
+    {
+        Generic,
+        MemAttack,
+        Fall,
+        Starvation
+    }
+
     public class PlayerStats : MonoBehaviour
     {
         [Header("Health")]
-        [SerializeField] private float maxHealth = 100f;
+        [SerializeField, Min(1f)] private float maxHealth = 100f;
         [SerializeField] private float startingHealth = 100f;
 
         [Header("Hunger")]
@@ -30,15 +38,19 @@ namespace KMS
         public event Action<float, float> HealthChanged;
         public event Action<float, float> HungerChanged;
         public event Action<float> Damaged;
+        public event Action<float, PlayerDamageType> DamageReceived;
         public event Action<float> Healed;
         public event Action Died;
         public event Action Revived;
+
+        private bool healthInitialized;
 
         private void Awake()
         {
             CurrentHealth = Mathf.Clamp(startingHealth, 0f, maxHealth);
             CurrentHunger = Mathf.Clamp(startingHunger, 0f, maxHunger);
             IsAlive = CurrentHealth > 0f;
+            healthInitialized = true;
 
             ResolveFoodEffects();
             foodEffects.InitializeAsNormal(CurrentHunger, false);
@@ -67,15 +79,21 @@ namespace KMS
 
         private void HandleMemAttack(Mem _, int damage)
         {
-            TakeDamage(damage);
+            TakeDamage(damage, PlayerDamageType.MemAttack);
         }
 
         public void TakeDamage(float amount)
+        {
+            TakeDamage(amount, PlayerDamageType.Generic);
+        }
+
+        public void TakeDamage(float amount, PlayerDamageType damageType)
         {
             if (!IsAlive || IsInvulnerable || amount <= 0f) return;
 
             CurrentHealth = Mathf.Max(0f, CurrentHealth - amount);
             Damaged?.Invoke(amount);
+            DamageReceived?.Invoke(amount, damageType);
             HealthChanged?.Invoke(CurrentHealth, maxHealth);
 
             if (CurrentHealth <= 0f)
@@ -98,6 +116,52 @@ namespace KMS
                 Healed?.Invoke(healedAmount);
                 HealthChanged?.Invoke(CurrentHealth, maxHealth);
             }
+        }
+
+        /// <summary>
+        /// Updates the runtime maximum health. When increasing the maximum, the
+        /// amount of missing health is preserved so a level-up is not a full heal.
+        /// </summary>
+        public void SetMaxHealth(float value, bool preserveMissingHealth = true)
+        {
+            value = Mathf.Max(1f, value);
+            if (Mathf.Approximately(maxHealth, value)) return;
+
+            float previousMaxHealth = maxHealth;
+            float previousHealth = CurrentHealth;
+            maxHealth = value;
+
+            // The territory-health controller can run before PlayerStats.Awake so
+            // save restoration sees the correct maximum health from the beginning.
+            if (!healthInitialized)
+            {
+                if (startingHealth >= previousMaxHealth - Mathf.Epsilon)
+                {
+                    startingHealth = maxHealth;
+                }
+                else
+                {
+                    startingHealth = Mathf.Clamp(startingHealth, 0f, maxHealth);
+                }
+
+                return;
+            }
+
+            if (!IsAlive)
+            {
+                CurrentHealth = 0f;
+            }
+            else if (preserveMissingHealth && maxHealth > previousMaxHealth)
+            {
+                float missingHealth = Mathf.Max(0f, previousMaxHealth - previousHealth);
+                CurrentHealth = Mathf.Clamp(maxHealth - missingHealth, 0f, maxHealth);
+            }
+            else
+            {
+                CurrentHealth = Mathf.Clamp(previousHealth, 0f, maxHealth);
+            }
+
+            HealthChanged?.Invoke(CurrentHealth, maxHealth);
         }
 
         public bool ConsumeHunger(float amount)
@@ -215,7 +279,9 @@ namespace KMS
             if (!IsAlive) return;
             if (CurrentHunger > 0f) return;
 
-            TakeDamage(starvationDamagePerSecond * Time.deltaTime);
+            TakeDamage(
+                starvationDamagePerSecond * Time.deltaTime,
+                PlayerDamageType.Starvation);
         }
 
         private void ResolveFoodEffects()

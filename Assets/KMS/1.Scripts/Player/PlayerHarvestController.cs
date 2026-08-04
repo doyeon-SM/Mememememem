@@ -3,6 +3,7 @@ using KGH.Data;
 using KMS.Audio;
 using KMS.Effects;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 using HdyItemCategory = HDY.Item.ItemCategory;
 using KmsItemStack = KMS.InventoryDuped.ItemStack;
@@ -32,9 +33,14 @@ namespace KMS.Harvesting
         [SerializeField] private float harvestDistance = 3f;
         [Tooltip("도구 타격 SphereCast의 반경입니다. 값이 클수록 조준 판정이 여유로워집니다.")]
         [SerializeField, Min(0.01f)] private float harvestRadius = 0.45f;
-        [SerializeField] private float harvestCooldown = 0.35f;
-        [SerializeField] private float toolUseCooldown = 0.5f;
         [SerializeField] private int fallbackToolDamage = 1;
+
+        [Header("Tool Timing")]
+        [FormerlySerializedAs("toolUseCooldown")]
+        [Tooltip("기본 도구 사용 간격입니다. 도구 애니메이션 한 사이클 길이로도 사용됩니다.")]
+        [SerializeField, Min(0.1f)] private float baseToolUseCooldown = 1f;
+        [Tooltip("효과 적용 후 허용할 최소 도구 사용 간격입니다.")]
+        [SerializeField, Min(0.05f)] private float minimumToolUseCooldown = 0.1f;
 
         [Header("Mem Melee")]
         [SerializeField] private string memMeleeItemId = "tool_shabby_club";
@@ -58,6 +64,9 @@ namespace KMS.Harvesting
         private bool isPrimaryActionHeld;
         private readonly RaycastHit[] harvestHits = new RaycastHit[MaxHarvestHits];
         private static readonly int SlashHash = Animator.StringToHash("Slash");
+
+        public float BaseToolUseCooldown => baseToolUseCooldown;
+        public float EffectiveToolUseCooldown => ResolveEffectiveToolUseCooldown();
 
         private void Reset()
         {
@@ -181,10 +190,11 @@ namespace KMS.Harvesting
             if (selectedItem == null || cameraTransform == null || cooldownTimer > 0f) return;
 
             bool isMemMeleeAttempt = selectedItem.Item_ID == memMeleeItemId;
+            float effectiveToolUseCooldown = ResolveEffectiveToolUseCooldown();
 
             if (toolAnimationController != null)
             {
-                if (!toolAnimationController.TryPlay(selectedItem)) return;
+                if (!toolAnimationController.TryPlay(selectedItem, effectiveToolUseCooldown)) return;
             }
             else if (animator != null)
             {
@@ -192,7 +202,7 @@ namespace KMS.Harvesting
                 animator.SetTrigger(SlashHash);
             }
 
-            cooldownTimer = Mathf.Max(harvestCooldown, toolUseCooldown);
+            cooldownTimer = effectiveToolUseCooldown;
 
             Ray ray = new Ray(cameraTransform.position, cameraTransform.forward);
             bool hasHit = TryGetClosestSphereCastHit(ray, out RaycastHit hit);
@@ -374,10 +384,25 @@ namespace KMS.Harvesting
         {
             harvestDistance = Mathf.Max(0f, harvestDistance);
             harvestRadius = Mathf.Max(0.01f, harvestRadius);
-            harvestCooldown = Mathf.Max(0f, harvestCooldown);
-            toolUseCooldown = Mathf.Max(0f, toolUseCooldown);
+            minimumToolUseCooldown = Mathf.Max(0.05f, minimumToolUseCooldown);
+            baseToolUseCooldown = Mathf.Max(minimumToolUseCooldown, baseToolUseCooldown);
             fallbackToolDamage = Mathf.Max(1, fallbackToolDamage);
         }
+
+        private float ResolveEffectiveToolUseCooldown()
+        {
+            float cooldownMultiplier = Mathf.Max(0f, ResolveToolCooldownMultiplier());
+            return Mathf.Max(
+                minimumToolUseCooldown,
+                baseToolUseCooldown * cooldownMultiplier);
+        }
+
+        private float ResolveToolCooldownMultiplier()
+        {
+            // Future KMS food, equipment, or status effects can contribute here.
+            return 1f;
+        }
+
         private static GameSfxId? GetHarvestImpactId(ObjectType objectType)
         {
             switch (objectType)

@@ -1,3 +1,4 @@
+using System;
 using KMS.Audio;
 using UnityEngine;
 
@@ -77,6 +78,8 @@ namespace KMS
         public float MaxStepHeight => maxStepHeight;
         public float CurrentStepVisualOffset => stepVisualOffset;
 
+        public event Action<float> Landed;
+
         private static readonly int SpeedHash = Animator.StringToHash("Speed");
         private static readonly int GroundedHash = Animator.StringToHash("Grounded");
         private static readonly int JumpHash = Animator.StringToHash("Jump");
@@ -84,6 +87,8 @@ namespace KMS
         private static readonly int MotionSpeedHash = Animator.StringToHash("MotionSpeed");
 
         private float verticalVelocity;
+        private float maximumDownwardSpeed;
+        private bool suppressNextLanding = true;
         private float rotationVelocity;
         private float coyoteTimer;
         private float jumpBufferTimer;
@@ -139,6 +144,8 @@ namespace KMS
             }
 
             ResetStepVisual();
+            ResetFallTracking(true);
+            IsGrounded = false;
         }
 
         private void OnValidate()
@@ -197,11 +204,19 @@ namespace KMS
             characterController.enabled = false;
             transform.position = position;
             characterController.enabled = wasEnabled;
+
+            ResetFallTracking(true);
+            IsGrounded = false;
         }
 
         public void SetVerticalVelocity(float velocity)
         {
             verticalVelocity = velocity;
+
+            if (velocity >= 0f)
+            {
+                maximumDownwardSpeed = 0f;
+            }
         }
 
         public void ApplyExternalForce(Vector3 force)
@@ -214,6 +229,11 @@ namespace KMS
             verticalVelocity = 0f;
             externalVelocity = Vector3.zero;
             CurrentSpeed = 0f;
+
+            if (!IsGrounded)
+            {
+                ResetFallTracking(true);
+            }
         }
 
         public void SetDead(bool dead)
@@ -227,6 +247,8 @@ namespace KMS
             coyoteTimer = 0f;
             jumpBufferTimer = 0f;
             ResetMovementForces();
+            ResetFallTracking(true);
+            IsGrounded = false;
         }
 
         private void TryEnterLadder()
@@ -241,6 +263,8 @@ namespace KMS
             IsSprinting = false;
             coyoteTimer = 0f;
             jumpBufferTimer = 0f;
+            ResetFallTracking(true);
+            IsGrounded = false;
 
             Vector3 ladderPoint = activeLadder.GetClosestPointOnPath(transform.position);
             //Vector3 facing = -activeLadder.Forward;
@@ -272,11 +296,27 @@ namespace KMS
         private void UpdateGroundedState()
         {
             Vector3 spherePosition = transform.position + Vector3.up * groundedOffset;
-            IsGrounded = Physics.CheckSphere(
+            bool wasGrounded = IsGrounded;
+            bool groundedNow = Physics.CheckSphere(
                 spherePosition,
                 groundedRadius,
                 groundLayers,
                 QueryTriggerInteraction.Ignore);
+
+            if (!wasGrounded && groundedNow)
+            {
+                float impactSpeed = Mathf.Max(maximumDownwardSpeed, Mathf.Max(0f, -verticalVelocity));
+                bool shouldNotify = !suppressNextLanding;
+
+                ResetFallTracking(false);
+
+                if (shouldNotify && impactSpeed > 0f)
+                {
+                    Landed?.Invoke(impactSpeed);
+                }
+            }
+
+            IsGrounded = groundedNow;
 
             if (IsGrounded && verticalVelocity < 0f)
             {
@@ -351,6 +391,11 @@ namespace KMS
             verticalVelocity += gravity * Time.deltaTime;
             externalVelocity = Vector3.Lerp(externalVelocity, Vector3.zero, externalForceDecay * Time.deltaTime);
 
+            if (!IsGrounded && verticalVelocity < 0f)
+            {
+                maximumDownwardSpeed = Mathf.Max(maximumDownwardSpeed, -verticalVelocity);
+            }
+
             Vector3 horizontalVelocity = hasMoveInput ? moveDirection * CurrentSpeed : Vector3.zero;
             Vector3 velocity = horizontalVelocity + externalVelocity + Vector3.up * verticalVelocity;
 
@@ -404,6 +449,12 @@ namespace KMS
             {
                 ExitLadder(activeLadder.GetBottomExitPoint());
             }
+        }
+
+        private void ResetFallTracking(bool suppressLanding)
+        {
+            maximumDownwardSpeed = 0f;
+            suppressNextLanding = suppressLanding;
         }
 
         private Vector3 ResolveMoveDirection(Vector2 moveInput)

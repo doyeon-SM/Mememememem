@@ -2282,6 +2282,7 @@ GameObject:
   - component: {fileID: 200104005170207881}
   - component: {fileID: 6654203113056198401}
   - component: {fileID: 137336691908915984}
+  - component: {fileID: 9180966949183072459}
   m_Layer: 3
   m_Name: 0705_Player_KMS
   m_TagString: Player
@@ -2386,6 +2387,7 @@ MonoBehaviour:
   maxHunger: 100
   startingHunger: 100
   starvationDamagePerSecond: 5
+  foodEffects: {fileID: 0}
 --- !u!114 &4405603357810947506
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2401,6 +2403,7 @@ MonoBehaviour:
   input: {fileID: 4979024867073124646}
   characterController: {fileID: 931719124133253683}
   stats: {fileID: 4096632536079421107}
+  foodEffects: {fileID: 0}
   cameraTransform: {fileID: 0}
   rotationTransform: {fileID: 8742587297840494150}
   animator: {fileID: 3642636977771523299}
@@ -2411,6 +2414,9 @@ MonoBehaviour:
   deceleration: 22
   rotationSmoothTime: 0.08
   rotateTowardsMovement: 1
+  maxStepHeight: 0.25
+  stepSmoothTime: 0.08
+  stepVisualRoot: {fileID: 0}
   jumpHeight: 1.2
   gravity: -20
   groundedStickForce: -2
@@ -2497,6 +2503,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::KMS.PlayerHUD
   stats: {fileID: 4096632536079421107}
+  foodEffects: {fileID: 0}
   playerInput: {fileID: 0}
   hudView: {fileID: 0}
   uiDocument: {fileID: 438533187111882974}
@@ -2538,6 +2545,9 @@ MonoBehaviour:
     slots: []
   selectedQuickSlotIndex: 0
   catalogManager: {fileID: 0}
+  startingInventorySlotCount: 10
+  slotsPerInventoryUpgrade: 5
+  unlockedInventorySlotCount: 0
 --- !u!114 &137336691908915984
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2561,6 +2571,21 @@ MonoBehaviour:
   respawnLocationMode: 0
   respawnHealthPercent: 1
   respawnInvulnerabilityDuration: 2
+--- !u!114 &9180966949183072459
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7918483858181545715}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 151a79b255d604b4c99a91dae32bf669, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::KMS.PlayerHitFeedbackController
+  stats: {fileID: 4096632536079421107}
+  movement: {fileID: 4405603357810947506}
+  animator: {fileID: 3642636977771523299}
 --- !u!1 &8029276847297385196
 GameObject:
   m_ObjectHideFlags: 0

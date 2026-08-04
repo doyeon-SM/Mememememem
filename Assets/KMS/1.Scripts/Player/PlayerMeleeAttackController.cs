@@ -24,6 +24,7 @@ namespace KMS.Combat
         [SerializeField] private string[] catalogMeleeItemIds =
         {
             "tool_shabby_club",
+            "tool_club",
             "tool_decent_club"
         };
         [SerializeField, Min(0.1f)] private float catalogWeaponAttackDistance = 3f;

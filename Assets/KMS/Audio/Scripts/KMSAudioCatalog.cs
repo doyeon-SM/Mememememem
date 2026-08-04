@@ -19,7 +19,8 @@ namespace KMS.Audio
         CaptureSuccess,
         CaptureFailure,
         ItemObtained,
-        QuickSlotSelected
+        QuickSlotSelected,
+        PlayerDamaged
     }
 
     [Serializable]
@@ -179,6 +180,14 @@ namespace KMS.Audio
                     cue.PitchMax = 1.08f;
                     cue.Cooldown = 0.06f;
                     cue.MaxVoices = 2;
+                    break;
+                case GameSfxId.PlayerDamaged:
+                    cue.Volume = 0.85f;
+                    cue.PitchMin = 0.96f;
+                    cue.PitchMax = 1.04f;
+                    cue.SpatialBlend = 0f;
+                    cue.Cooldown = 0.1f;
+                    cue.MaxVoices = 1;
                     break;
                 case GameSfxId.ItemObtained:
                 case GameSfxId.QuickSlotSelected:

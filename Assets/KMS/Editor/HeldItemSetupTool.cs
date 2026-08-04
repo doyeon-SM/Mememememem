@@ -17,7 +17,25 @@ namespace KMS.EditorTools
             new HeldItemDefinition(
                 "tool_shabby_axe",
                 "Held_ShabbyAxe",
-                "Assets/HDY/3.Assets/3DAsset/shabby_axe/tripo_convert_5e62ca64-ddfa-4b56-bbd1-8f49bf812b18.fbx",
+                "Assets/HDY/3.Assets/3DAsset/3DToolAsset/shabby_axe/tripo_convert_083c8462-ff45-47ed-9b44-5832fd025a99.fbx",
+                new Vector3(0f, 0.025f, 0f),
+                new Vector3(0f, 135f, -8f),
+                0.54f,
+                true,
+                0.22f),
+            new HeldItemDefinition(
+                "tool_axe",
+                "Held_Axe",
+                "Assets/HDY/3.Assets/3DAsset/3DToolAsset/axe/tripo_convert_54fe84f2-f7bb-4d37-bb03-79b605bde459.fbx",
+                new Vector3(0f, 0.025f, 0f),
+                new Vector3(0f, 135f, -8f),
+                0.54f,
+                true,
+                0.22f),
+            new HeldItemDefinition(
+                "tool_decent_axe",
+                "Held_DecentAxe",
+                "Assets/HDY/3.Assets/3DAsset/3DToolAsset/decent_axe/tripo_convert_af681362-80b9-489d-ad3e-c2987c89edd3.fbx",
                 new Vector3(0f, 0.025f, 0f),
                 new Vector3(0f, 135f, -8f),
                 0.54f,
@@ -26,7 +44,25 @@ namespace KMS.EditorTools
             new HeldItemDefinition(
                 "tool_shabby_club",
                 "Held_ShabbyClub",
-                "Assets/HDY/3.Assets/3DAsset/shabby_club/tripo_convert_61f8eac2-afe4-4828-99e0-59b09dc1e3b6.fbx",
+                "Assets/HDY/3.Assets/3DAsset/3DToolAsset/shabby_club/tripo_convert_d6cefd9e-f42d-46fa-85e0-6720db1e6c93.fbx",
+                new Vector3(0f, 0.025f, 0f),
+                new Vector3(0f, 145f, -5f),
+                0.44f,
+                true,
+                0.25f),
+            new HeldItemDefinition(
+                "tool_club",
+                "Held_Club",
+                "Assets/HDY/3.Assets/3DAsset/3DToolAsset/club/tripo_convert_8fe5a779-5058-4d23-92ac-1cc284977b10.fbx",
+                new Vector3(0f, 0.025f, 0f),
+                new Vector3(0f, 145f, -5f),
+                0.44f,
+                true,
+                0.25f),
+            new HeldItemDefinition(
+                "tool_decent_club",
+                "Held_DecentClub",
+                "Assets/HDY/3.Assets/3DAsset/3DToolAsset/decent_club/tripo_convert_97f45183-bfd8-4254-af43-0cc53ccb6ee9.fbx",
                 new Vector3(0f, 0.025f, 0f),
                 new Vector3(0f, 145f, -5f),
                 0.44f,
@@ -35,7 +71,25 @@ namespace KMS.EditorTools
             new HeldItemDefinition(
                 "tool_shabby_hoe",
                 "Held_ShabbyHoe",
-                "Assets/HDY/3.Assets/3DAsset/shabby_hoe/tripo_convert_6112994e-fd15-4945-bdbb-cb3eef050f7a.fbx",
+                "Assets/HDY/3.Assets/3DAsset/3DToolAsset/shabby_hoe/tripo_convert_b47b3872-a7cc-4234-96b2-29d3722d5e7b.fbx",
+                new Vector3(0f, 0.025f, 0f),
+                new Vector3(0f, 135f, -8f),
+                0.52f,
+                true,
+                0.22f),
+            new HeldItemDefinition(
+                "tool_hoe",
+                "Held_Hoe",
+                "Assets/HDY/3.Assets/3DAsset/3DToolAsset/hoe/tripo_convert_97fbf3eb-6687-4470-8317-f5f7e1f52343.fbx",
+                new Vector3(0f, 0.025f, 0f),
+                new Vector3(0f, 135f, -8f),
+                0.52f,
+                true,
+                0.22f),
+            new HeldItemDefinition(
+                "tool_decent_hoe",
+                "Held_DecentHoe",
+                "Assets/HDY/3.Assets/3DAsset/3DToolAsset/decent_hoe/tripo_convert_1ab85e81-bdfc-4c6d-bc64-30f28c21f6b9.fbx",
                 new Vector3(0f, 0.025f, 0f),
                 new Vector3(0f, 135f, -8f),
                 0.52f,
@@ -44,12 +98,31 @@ namespace KMS.EditorTools
             new HeldItemDefinition(
                 "tool_shabby_pickax",
                 "Held_ShabbyPickaxe",
-                "Assets/HDY/3.Assets/3DAsset/shabby_pickaxe/tripo_convert_49403417-b522-4c4e-8b66-e025003710fb.fbx",
+                "Assets/HDY/3.Assets/3DAsset/3DToolAsset/shabby_pickaxe/tripo_convert_e601b982-f23f-4a8c-814c-9db89d927e4a.fbx",
                 new Vector3(0f, 0.04f, 0f),
                 new Vector3(0f, 150f, -10f),
                 0.5f,
                 true,
                 0.22f),
+            new HeldItemDefinition(
+                "tool_pickax",
+                "Held_Pickaxe",
+                "Assets/HDY/3.Assets/3DAsset/3DToolAsset/pickaxe/tripo_convert_f7eb0f89-75f7-460c-af1b-0b0c254e34e5.fbx",
+                new Vector3(0f, 0.04f, 0f),
+                new Vector3(0f, 150f, -10f),
+                0.5f,
+                true,
+                0.22f),
+            new HeldItemDefinition(
+                "tool_decent_pickax",
+                "Held_DecentPickaxe",
+                "Assets/HDY/3.Assets/3DAsset/3DToolAsset/decent_pickaxe/tripo_convert_18e0e17b-eebf-4d4e-9021-517257291088.fbx",
+                new Vector3(0f, 0.04f, 0f),
+                new Vector3(0f, 150f, -10f),
+                0.5f,
+                true,
+                0.22f,
+                new Vector3(0.13f, 0.1f, 0.27f)),
             new HeldItemDefinition(
                 "tool_shabby_capsule",
                 "Held_ShabbyCapsule",
@@ -82,6 +155,8 @@ namespace KMS.EditorTools
                     itemId = definition.ItemId,
                     prefab = heldPrefab
                 });
+
+                AddCapsuleTierAlias(entries, definition.ItemId, heldPrefab);
             }
 
             HeldItemPrefabTable table = CreateOrUpdateTable(entries);
@@ -93,7 +168,30 @@ namespace KMS.EditorTools
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
-            Debug.Log("[HeldItemSetup] 장착용 프리팹 5개, 프리팹 테이블, 플레이어 연결을 갱신했습니다.");
+            Debug.Log(
+                $"[HeldItemSetup] 장착용 프리팹 {Definitions.Length}개, 프리팹 테이블, " +
+                "플레이어 연결을 갱신했습니다.");
+        }
+
+        private static void AddCapsuleTierAlias(
+            List<HeldItemPrefabTable.Entry> entries,
+            string shabbyItemId,
+            GameObject heldPrefab)
+        {
+            string[] aliases = shabbyItemId switch
+            {
+                "tool_shabby_capsule" => new[] { "tool_decent_capsule" },
+                _ => System.Array.Empty<string>()
+            };
+
+            foreach (string alias in aliases)
+            {
+                entries.Add(new HeldItemPrefabTable.Entry
+                {
+                    itemId = alias,
+                    prefab = heldPrefab
+                });
+            }
         }
 
         [MenuItem("KMS/Render Held Item Model Previews")]
@@ -217,9 +315,8 @@ namespace KMS.EditorTools
                 Vector3 localPosition = definition.LocalPosition;
                 if (definition.AutoAlignGrip)
                 {
-                    Vector3 gripPoint = CalculateHandleGripPoint(
-                        visual,
-                        definition.GripInset);
+                    Vector3 gripPoint = definition.GripPointOverride
+                        ?? CalculateHandleGripPoint(visual, definition.GripInset);
                     localPosition += -(
                         visual.transform.localRotation *
                         (gripPoint * definition.UniformScale));
@@ -277,6 +374,32 @@ namespace KMS.EditorTools
                 controllerObject.FindProperty("prefabTable").objectReferenceValue = table;
                 controllerObject.ApplyModifiedPropertiesWithoutUndo();
 
+                PlayerToolAnimationController toolAnimation =
+                    root.GetComponent<PlayerToolAnimationController>();
+                if (toolAnimation != null)
+                {
+                    var animationObject = new SerializedObject(toolAnimation);
+                    SetStringArray(
+                        animationObject.FindProperty("clubItemIds"),
+                        "tool_shabby_club",
+                        "tool_club",
+                        "tool_decent_club");
+                    animationObject.ApplyModifiedPropertiesWithoutUndo();
+                }
+
+                KMS.Combat.PlayerMeleeAttackController meleeAttack =
+                    root.GetComponent<KMS.Combat.PlayerMeleeAttackController>();
+                if (meleeAttack != null)
+                {
+                    var meleeObject = new SerializedObject(meleeAttack);
+                    SetStringArray(
+                        meleeObject.FindProperty("catalogMeleeItemIds"),
+                        "tool_shabby_club",
+                        "tool_club",
+                        "tool_decent_club");
+                    meleeObject.ApplyModifiedPropertiesWithoutUndo();
+                }
+
                 PlayerCapsuleThrowController capsuleThrow =
                     root.GetComponent<PlayerCapsuleThrowController>();
                 if (capsuleThrow != null)
@@ -301,6 +424,17 @@ namespace KMS.EditorTools
             finally
             {
                 PrefabUtility.UnloadPrefabContents(root);
+            }
+        }
+
+        private static void SetStringArray(SerializedProperty property, params string[] values)
+        {
+            if (property == null) return;
+
+            property.arraySize = values.Length;
+            for (int i = 0; i < values.Length; i++)
+            {
+                property.GetArrayElementAtIndex(i).stringValue = values[i];
             }
         }
 
@@ -410,10 +544,11 @@ namespace KMS.EditorTools
 
             if (vertices.Count == 0) return Vector3.zero;
 
-            Vector3 pointA = vertices[0];
-            pointA = FindFarthestVertex(vertices, pointA);
-            Vector3 pointB = FindFarthestVertex(vertices, pointA);
-            Vector3 axis = (pointB - pointA).normalized;
+            // A diagonal between two blade tips can be longer than the handle and
+            // made the previous heuristic place the hand on an axe/pickaxe head.
+            // The dominant covariance axis follows the long shaft much more
+            // reliably across the shabby, normal, and decent model variants.
+            Vector3 axis = CalculatePrincipalAxis(vertices);
 
             float minProjection = float.PositiveInfinity;
             float maxProjection = float.NegativeInfinity;
@@ -424,7 +559,7 @@ namespace KMS.EditorTools
                 maxProjection = Mathf.Max(maxProjection, projection);
             }
 
-            float endRegion = (maxProjection - minProjection) * 0.14f;
+            float endRegion = (maxProjection - minProjection) * 0.18f;
             Vector3 minCenter = AverageEndVertices(
                 vertices, axis, minProjection, minProjection + endRegion);
             Vector3 maxCenter = AverageEndVertices(
@@ -443,21 +578,47 @@ namespace KMS.EditorTools
                 Mathf.Clamp01(gripInset));
         }
 
-        private static Vector3 FindFarthestVertex(List<Vector3> vertices, Vector3 origin)
+        private static Vector3 CalculatePrincipalAxis(List<Vector3> vertices)
         {
-            Vector3 farthest = origin;
-            float greatestDistance = -1f;
+            Vector3 mean = Vector3.zero;
             for (int i = 0; i < vertices.Count; i++)
             {
-                float distance = (vertices[i] - origin).sqrMagnitude;
-                if (distance > greatestDistance)
-                {
-                    greatestDistance = distance;
-                    farthest = vertices[i];
-                }
+                mean += vertices[i];
+            }
+            mean /= vertices.Count;
+
+            float xx = 0f;
+            float xy = 0f;
+            float xz = 0f;
+            float yy = 0f;
+            float yz = 0f;
+            float zz = 0f;
+            for (int i = 0; i < vertices.Count; i++)
+            {
+                Vector3 delta = vertices[i] - mean;
+                xx += delta.x * delta.x;
+                xy += delta.x * delta.y;
+                xz += delta.x * delta.z;
+                yy += delta.y * delta.y;
+                yz += delta.y * delta.z;
+                zz += delta.z * delta.z;
             }
 
-            return farthest;
+            Vector3 axis = Vector3.forward;
+            if (xx >= yy && xx >= zz) axis = Vector3.right;
+            else if (yy >= zz) axis = Vector3.up;
+
+            for (int iteration = 0; iteration < 16; iteration++)
+            {
+                Vector3 next = new Vector3(
+                    xx * axis.x + xy * axis.y + xz * axis.z,
+                    xy * axis.x + yy * axis.y + yz * axis.z,
+                    xz * axis.x + yz * axis.y + zz * axis.z);
+                if (next.sqrMagnitude <= Mathf.Epsilon) break;
+                axis = next.normalized;
+            }
+
+            return axis.sqrMagnitude > Mathf.Epsilon ? axis.normalized : Vector3.forward;
         }
 
         private static Vector3 AverageEndVertices(
@@ -587,7 +748,8 @@ namespace KMS.EditorTools
                 Vector3 localEulerAngles,
                 float uniformScale,
                 bool autoAlignGrip,
-                float gripInset)
+                float gripInset,
+                Vector3? gripPointOverride = null)
             {
                 ItemId = itemId;
                 PrefabName = prefabName;
@@ -597,6 +759,7 @@ namespace KMS.EditorTools
                 UniformScale = uniformScale;
                 AutoAlignGrip = autoAlignGrip;
                 GripInset = gripInset;
+                GripPointOverride = gripPointOverride;
             }
 
             public string ItemId { get; }
@@ -607,6 +770,7 @@ namespace KMS.EditorTools
             public float UniformScale { get; }
             public bool AutoAlignGrip { get; }
             public float GripInset { get; }
+            public Vector3? GripPointOverride { get; }
         }
     }
 }

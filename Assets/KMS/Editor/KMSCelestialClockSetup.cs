@@ -47,6 +47,8 @@ namespace KMS.Editor
                 GameObject moon = viewData.FindProperty("moonIcon").objectReferenceValue as GameObject;
                 CanvasGroup gameTimeGroup =
                     viewData.FindProperty("gameTimeGroup").objectReferenceValue as CanvasGroup;
+                TMPro.TMP_Text realTimeText =
+                    viewData.FindProperty("realTimeText").objectReferenceValue as TMPro.TMP_Text;
                 RectTransform legacyFill =
                     viewData.FindProperty("phaseFill").objectReferenceValue as RectTransform;
                 RectTransform assignedOrbit =
@@ -70,7 +72,7 @@ namespace KMS.Editor
 
                 SetupViewport(viewport);
                 SetupOrbit(orbit, sun, moon);
-                SetupGameTimeGroup(gameTimeGroup);
+                SetupTimeLabels(realTimeText, gameTimeGroup);
 
                 viewData.Update();
                 viewData.FindProperty("phaseFill").objectReferenceValue = null;
@@ -166,13 +168,27 @@ namespace KMS.Editor
             icon.SetActive(true);
         }
 
-        private static void SetupGameTimeGroup(CanvasGroup group)
+        private static void SetupTimeLabels(TMPro.TMP_Text realTimeText, CanvasGroup group)
         {
+            if (realTimeText != null && realTimeText.transform is RectTransform realTimeRect)
+            {
+                // Keep the real-world time between the orbit and the hover-only
+                // game time so the two labels never share the same screen area.
+                realTimeRect.anchorMin = new Vector2(0f, 0.5f);
+                realTimeRect.anchorMax = new Vector2(0f, 0.5f);
+                realTimeRect.pivot = new Vector2(0f, 0.5f);
+                realTimeRect.anchoredPosition = new Vector2(92f, 0f);
+                realTimeRect.sizeDelta = new Vector2(150f, 50f);
+            }
+
             if (group == null || !(group.transform is RectTransform groupRect)) return;
 
-            // Preserve the existing hover reveal while leaving room for the larger orbit.
-            groupRect.anchoredPosition = new Vector2(92f, 0f);
-            groupRect.sizeDelta = new Vector2(58f, 50f);
+            // The game time occupies only the extra width revealed on hover.
+            groupRect.anchorMin = new Vector2(0f, 0.5f);
+            groupRect.anchorMax = new Vector2(0f, 0.5f);
+            groupRect.pivot = new Vector2(0f, 0.5f);
+            groupRect.anchoredPosition = new Vector2(245f, 0f);
+            groupRect.sizeDelta = new Vector2(105f, 50f);
         }
 
         private static void PlaceIcon(GameObject icon, float angleDegrees, float radius)

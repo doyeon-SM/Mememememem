@@ -11,7 +11,7 @@ namespace KMS.EditorTools
     {
         private const string ControllerPath =
             "Assets/KMS/4.Animation/Dodo/Controllers/KMS_DodoAnimator.controller";
-        private const float ToolActionDuration = 0.5f;
+        private const string ToolActionPlaybackRateParameter = "ToolActionPlaybackRate";
 
         private static readonly string[] PlayerPrefabPaths =
         {
@@ -64,6 +64,11 @@ namespace KMS.EditorTools
         {
             EnsureParameter(controller, "ToolAction", AnimatorControllerParameterType.Trigger);
             EnsureParameter(controller, "ToolMotionType", AnimatorControllerParameterType.Int);
+            EnsureParameter(
+                controller,
+                ToolActionPlaybackRateParameter,
+                AnimatorControllerParameterType.Float);
+            SetFloatParameterDefault(controller, ToolActionPlaybackRateParameter, 1f);
 
             AnimatorStateMachine stateMachine = controller.layers[0].stateMachine;
             AnimatorState locomotion = FindState(stateMachine, "Locomotion");
@@ -101,14 +106,23 @@ namespace KMS.EditorTools
                 if (toolClip != null)
                 {
                     toolState.motion = toolClip;
-                    toolState.speed = Mathf.Max(0.01f, toolClip.length / ToolActionDuration);
                 }
                 else if (created || toolState.motion == null)
                 {
                     // Club has no dedicated motion yet, so it keeps the existing Slash motion.
                     toolState.motion = slash.motion;
-                    toolState.speed = slash.speed;
                 }
+
+                AnimationClip stateClip = toolState.motion as AnimationClip;
+                if (stateClip == null)
+                {
+                    throw new InvalidOperationException(
+                        $"Tool state '{definition.StateName}' requires an AnimationClip motion.");
+                }
+
+                toolState.speed = Mathf.Max(0.01f, stateClip.length);
+                toolState.speedParameterActive = true;
+                toolState.speedParameter = ToolActionPlaybackRateParameter;
                 toolState.tag = "ToolAction";
                 ConfigureBehaviour(toolState, definition.MotionType);
                 ConfigureReturnTransition(toolState, locomotion);
@@ -148,8 +162,8 @@ namespace KMS.EditorTools
 
             AnimatorStateTransition returnTransition = state.AddTransition(locomotion);
             returnTransition.hasExitTime = true;
-            returnTransition.exitTime = 0.95f;
-            returnTransition.hasFixedDuration = true;
+            returnTransition.exitTime = 0.9f;
+            returnTransition.hasFixedDuration = false;
             returnTransition.duration = 0.1f;
         }
 
@@ -183,7 +197,7 @@ namespace KMS.EditorTools
                 "ToolMotionType");
         }
 
-        private static void EnsureParameter(
+        private static AnimatorControllerParameter EnsureParameter(
             AnimatorController controller,
             string parameterName,
             AnimatorControllerParameterType parameterType)
@@ -197,10 +211,35 @@ namespace KMS.EditorTools
                         $"Animator parameter '{parameterName}' has an unexpected type.");
                 }
 
+                return parameter;
+            }
+
+            var createdParameter = new AnimatorControllerParameter
+            {
+                name = parameterName,
+                type = parameterType
+            };
+            controller.AddParameter(createdParameter);
+            return createdParameter;
+        }
+
+        private static void SetFloatParameterDefault(
+            AnimatorController controller,
+            string parameterName,
+            float defaultValue)
+        {
+            AnimatorControllerParameter[] parameters = controller.parameters;
+            for (int i = 0; i < parameters.Length; i++)
+            {
+                if (parameters[i].name != parameterName) continue;
+
+                parameters[i].defaultFloat = defaultValue;
+                controller.parameters = parameters;
                 return;
             }
 
-            controller.AddParameter(parameterName, parameterType);
+            throw new InvalidOperationException(
+                $"Animator parameter '{parameterName}' was not found.");
         }
 
         private static AnimatorState FindState(AnimatorStateMachine stateMachine, string stateName)

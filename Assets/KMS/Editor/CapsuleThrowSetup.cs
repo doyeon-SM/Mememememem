@@ -241,7 +241,6 @@ namespace KMS.EditorTools
                     SerializedObject serializedHarvest = new SerializedObject(harvestController);
                     serializedHarvest.FindProperty("movement").objectReferenceValue = movement;
                     serializedHarvest.FindProperty("animator").objectReferenceValue = animator;
-                    serializedHarvest.FindProperty("toolUseCooldown").floatValue = TemporarySlashDuration;
                     serializedHarvest.ApplyModifiedPropertiesWithoutUndo();
                 }
 

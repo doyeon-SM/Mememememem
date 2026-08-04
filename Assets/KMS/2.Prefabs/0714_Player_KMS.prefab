@@ -2837,6 +2837,7 @@ GameObject:
   - component: {fileID: 7946585560164625280}
   - component: {fileID: 955597391837811025}
   - component: {fileID: 6972423425812077197}
+  - component: {fileID: 356651772804118980}
   m_Layer: 3
   m_Name: 0714_Player_KMS
   m_TagString: Player
@@ -2969,6 +2970,9 @@ MonoBehaviour:
   deceleration: 22
   rotationSmoothTime: 0.08
   rotateTowardsMovement: 1
+  maxStepHeight: 0.25
+  stepSmoothTime: 0.08
+  stepVisualRoot: {fileID: 0}
   jumpHeight: 1.2
   gravity: -20
   groundedStickForce: -2
@@ -3125,9 +3129,9 @@ MonoBehaviour:
     m_Bits: 1049847
   harvestDistance: 10
   harvestRadius: 0.45
-  harvestCooldown: 0.35
-  toolUseCooldown: 0.5
   fallbackToolDamage: 1
+  baseToolUseCooldown: 1
+  minimumToolUseCooldown: 0.1
   memMeleeItemId: tool_shabby_club
   memMeleeDistance: 5
   memMeleeHungerCost: 1
@@ -3294,6 +3298,8 @@ MonoBehaviour:
   highRateColor: {r: 0.12, g: 0.65, b: 0.25, a: 1}
   panelSize: {x: 230, y: 72}
   worldYOffset: 0.28
+  diagonalScreenOffset: {x: 155, y: 28}
+  sideSwitchDeadZone: 100
   followSmoothTime: 0.055
   screenMargin: 8
   sortingOrder: 1100
@@ -3368,6 +3374,7 @@ MonoBehaviour:
   animator: {fileID: 1914156871709254916}
   clubItemIds:
   - tool_shabby_club
+  - tool_club
   - tool_decent_club
   stateEntryTimeout: 0.75
 --- !u!114 &6972423425812077197
@@ -3385,6 +3392,21 @@ MonoBehaviour:
   stats: {fileID: 4191295553828768883}
   normalSatiety: 0
   effectSegments: []
+--- !u!114 &356651772804118980
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5320301024596143200}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 151a79b255d604b4c99a91dae32bf669, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::KMS.PlayerHitFeedbackController
+  stats: {fileID: 4191295553828768883}
+  movement: {fileID: 757377502652196312}
+  animator: {fileID: 1914156871709254916}
 --- !u!1 &5344451024060801274
 GameObject:
   m_ObjectHideFlags: 0

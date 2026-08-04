@@ -899,6 +899,7 @@ public sealed class SceneUIManager : MonoBehaviour
     /// placementModeUIRoot가 비어있는 씬(=배치 모드 UI가 없는 씬)에서는 항상 false를 반환해서 기존
     /// 동작(SetActive(false))을 그대로 유지한다.
     /// </summary>
+    /*
     private bool TryClosePlacementMode(GameObject target)
     {
         if (placementModeUIRoot == null || target != placementModeUIRoot)
@@ -914,6 +915,7 @@ public sealed class SceneUIManager : MonoBehaviour
         cachedGridManager?.ChangePlacementMode();
         return true;
     }
+    */
 
     private void CloseSingleManagedUI(GameObject target)
     {
