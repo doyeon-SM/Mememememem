@@ -8,6 +8,22 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 996657893713338071, guid: 7f2c981183581334486fbd55e2430c6e, type: 3}
+      propertyPath: m_Name
+      value: world_Tree_04
+      objectReference: {fileID: 0}
+    - target: {fileID: 3987270058776715966, guid: 7f2c981183581334486fbd55e2430c6e, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 0.6
+      objectReference: {fileID: 0}
+    - target: {fileID: 3987270058776715966, guid: 7f2c981183581334486fbd55e2430c6e, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 0.6
+      objectReference: {fileID: 0}
+    - target: {fileID: 3987270058776715966, guid: 7f2c981183581334486fbd55e2430c6e, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 0.6
+      objectReference: {fileID: 0}
     - target: {fileID: 3987270058776715966, guid: 7f2c981183581334486fbd55e2430c6e, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0
@@ -20,9 +36,9 @@ PrefabInstance:
       propertyPath: m_LocalPosition.z
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 996657893713338071, guid: 7f2c981183581334486fbd55e2430c6e, type: 3}
-      propertyPath: m_Name
-      value: world_Tree_04
+    - target: {fileID: 3987270058776715966, guid: 7f2c981183581334486fbd55e2430c6e, type: 3}
+      propertyPath: m_ConstrainProportionsScale
+      value: 1
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -32,14 +48,14 @@ PrefabInstance:
       insertIndex: -1
       addedObject: {fileID: 8100000000000000004}
   m_SourcePrefab: {fileID: 100100000, guid: 7f2c981183581334486fbd55e2430c6e, type: 3}
---- !u!1 &8100000000000000002 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 996657893713338071, guid: 7f2c981183581334486fbd55e2430c6e, type: 3}
-  m_PrefabInstance: {fileID: 8100000000000000001}
-  m_PrefabAsset: {fileID: 0}
---- !u!4 &8100000000000000003 stripped
+--- !u!4 &5133360218037936831 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 3987270058776715966, guid: 7f2c981183581334486fbd55e2430c6e, type: 3}
+  m_PrefabInstance: {fileID: 8100000000000000001}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &9060164961052221142 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 996657893713338071, guid: 7f2c981183581334486fbd55e2430c6e, type: 3}
   m_PrefabInstance: {fileID: 8100000000000000001}
   m_PrefabAsset: {fileID: 0}
 --- !u!114 &8100000000000000004
@@ -48,14 +64,14 @@ MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8100000000000000002}
+  m_GameObject: {fileID: 9060164961052221142}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 474a6e4947e4d7e48a9f5af0776e8b68, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::WorldObject
-  displayName: 나무
-  interactionPrompt: 채집
+  displayName: "\uB098\uBB34"
+  interactionPrompt: "\uCC44\uC9D1"
   harvestWithInteractInput: 0
   myType: 1
   dropItems:
@@ -66,7 +82,7 @@ MonoBehaviour:
   needGrade: 0
   resourceRenderers: []
   resourceColliders: []
-  dropSpawnPoint: {fileID: 8100000000000000003}
+  dropSpawnPoint: {fileID: 5133360218037936831}
   groundLayer:
     serializedVersion: 2
     m_Bits: 4294967295
@@ -90,4 +106,3 @@ MonoBehaviour:
   autoReturnToPoolSeconds: 10
   enableDebugAutoDrop: 0
   debugAutoDropInterval: 2
-

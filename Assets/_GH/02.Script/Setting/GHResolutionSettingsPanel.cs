@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using KMS.Audio;
 using TMPro;
@@ -122,6 +123,8 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
     private bool isRefreshingAudioUi;
     private bool hasCommittedSnapshot;
     private SettingsSnapshot committedSnapshot;
+    private CanvasGroup applyFadeCanvasGroup;
+    private Coroutine applyCloseFadeCoroutine;
 
     private void Awake()
     {
@@ -130,6 +133,8 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
 
     private void OnEnable()
     {
+        applyCloseFadeCoroutine = null;
+        ResetApplyFadeVisual();
         Initialize();
         LoadCommittedSettingsIntoUi();
         CaptureCommittedSnapshot();
@@ -138,6 +143,14 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
 
     private void OnDisable()
     {
+        if (applyCloseFadeCoroutine != null)
+        {
+            StopCoroutine(applyCloseFadeCoroutine);
+        }
+
+        applyCloseFadeCoroutine = null;
+        ResetApplyFadeVisual();
+
         if (!isInitialized || !hasCommittedSnapshot)
         {
             return;
@@ -202,6 +215,65 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
         PlayerPrefs.Save();
         CaptureCommittedSnapshot();
         RefreshApplyButtonState();
+        TryStartApplyCloseFade();
+    }
+
+    private void TryStartApplyCloseFade()
+    {
+        if (applyCloseFadeCoroutine != null
+            || SceneUIManager.Instance == null
+            || !SceneUIManager.Instance.TryGetSettingsSubPanelApplyFadeDuration(
+                out float fadeDuration))
+        {
+            return;
+        }
+
+        applyCloseFadeCoroutine = StartCoroutine(FadeAndCloseThisPanel(fadeDuration));
+    }
+
+    private IEnumerator FadeAndCloseThisPanel(float duration)
+    {
+        CanvasGroup canvasGroup = GetOrCreateApplyFadeCanvasGroup();
+        canvasGroup.interactable = false;
+        canvasGroup.blocksRaycasts = false;
+
+        float elapsed = 0f;
+        duration = Mathf.Max(0.01f, duration);
+        while (elapsed < duration && gameObject.activeInHierarchy)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            canvasGroup.alpha = 1f - Mathf.Clamp01(elapsed / duration);
+            yield return null;
+        }
+
+        applyCloseFadeCoroutine = null;
+        gameObject.SetActive(false);
+    }
+
+    private CanvasGroup GetOrCreateApplyFadeCanvasGroup()
+    {
+        if (applyFadeCanvasGroup == null)
+        {
+            applyFadeCanvasGroup = GetComponent<CanvasGroup>();
+            if (applyFadeCanvasGroup == null)
+            {
+                applyFadeCanvasGroup = gameObject.AddComponent<CanvasGroup>();
+            }
+        }
+
+        return applyFadeCanvasGroup;
+    }
+
+    private void ResetApplyFadeVisual()
+    {
+        if (applyFadeCanvasGroup == null)
+        {
+            return;
+        }
+
+        applyFadeCanvasGroup.alpha = 1f;
+        applyFadeCanvasGroup.interactable = true;
+        applyFadeCanvasGroup.blocksRaycasts = true;
     }
 
     /// <summary>기본 해상도, 전체 화면, 중간 품질, 최대 음량을 편집 값으로 불러옵니다.</summary>

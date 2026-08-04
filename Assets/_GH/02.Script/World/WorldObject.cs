@@ -47,6 +47,18 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
     [Min(0f)] [SerializeField] private float respawnTime = 30f;
     [SerializeField] private CommonClass needGrade = CommonClass.Rare;
 
+    [Header("Tree Depletion Motion")]
+    [Tooltip("나무가 쓰러질 때 타격 반대 방향으로 주는 순간 속도입니다.")]
+    [Min(0f)] [SerializeField] private float treeFallPushSpeed = 1.2f;
+    [Tooltip("나무가 쓰러지도록 회전축에 주는 순간 각속도입니다.")]
+    [Min(0f)] [SerializeField] private float treeFallAngularSpeed = 2.4f;
+    [Tooltip("쓰러지기 시작한 직후 기존 바닥 접촉을 착지로 오인하지 않는 시간입니다.")]
+    [Min(0f)] [SerializeField] private float treeFallLandingGraceSeconds = 0.25f;
+    [Tooltip("처음 자세에서 이 각도 이상 기울고 바닥과 접촉하면 쓰러진 것으로 판정합니다.")]
+    [Range(10f, 89f)] [SerializeField] private float treeFallLandedAngle = 55f;
+    [Tooltip("충돌 판정을 받지 못한 나무도 이 시간이 지나면 제거하고 아이템을 생성합니다.")]
+    [Min(0.5f)] [SerializeField] private float treeFallTimeoutSeconds = 5f;
+
     [Header("Depletion Visual And Collision")]
     [Tooltip("비워 두면 이 오브젝트와 자식의 모든 Renderer를 자동으로 사용합니다.")]
     [SerializeField] private Renderer[] resourceRenderers;
@@ -135,15 +147,54 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
         return true;
     }
 
+    /// <summary>씬 매니저가 활성화된 뒤 타입별 고정 규칙을 현재 상태에 반영합니다.</summary>
+    internal void ApplyTypeSpecificRules()
+    {
+        if (myType != ObjectType.Bush)
+        {
+            return;
+        }
+
+        maxObjectHp = 1;
+        if (!IsDepleted)
+        {
+            currentObjectHp = 1;
+        }
+
+        NotifyStateChanged();
+    }
+
     private bool IsDead => IsDepleted;
     private float debugTime;
     private float respawnAtTime = float.PositiveInfinity;
     private bool[] rendererInitialStates;
     private bool[] colliderInitialStates;
+    private bool isTreeFalling;
+    private float treeFallCanLandAtTime;
+    private float treeFallTimeoutAtTime;
+    private Vector3 treeFallInitialUp;
+    private Vector3 initialLocalPosition;
+    private Quaternion initialLocalRotation;
+    private ItemData pendingTreeDropTool;
+    private Rigidbody treeRigidbody;
+    private bool addedTreeRigidbody;
+    private bool treeRigidbodyStateCached;
+    private bool treeRigidbodyInitialKinematic;
+    private bool treeRigidbodyInitialUseGravity;
+    private RigidbodyConstraints treeRigidbodyInitialConstraints;
+    private CollisionDetectionMode treeRigidbodyInitialCollisionDetection;
+
     private void Awake()
     {
         maxObjectHp = Mathf.Max(1, maxObjectHp);
+        if (UsesTypeSpecificDepletion() && myType == ObjectType.Bush)
+        {
+            maxObjectHp = 1;
+        }
+
         currentObjectHp = maxObjectHp;
+        initialLocalPosition = transform.localPosition;
+        initialLocalRotation = transform.localRotation;
         CacheResourceComponents();
         SetResourceAvailable(true);
         PrewarmDropPools();
@@ -182,6 +233,11 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
         {
             Respawn();
         }
+
+        if (isTreeFalling && Time.time >= treeFallTimeoutAtTime)
+        {
+            CompleteTreeFall();
+        }
     }
 
     /// <summary>
@@ -217,6 +273,18 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
     /// <returns>이번 상호작용이 유효하게 적용되었으면 참입니다.</returns>
     public bool ObjectInteract(PlayerInventory inventory, ItemData data)
     {
+        return ObjectInteract(inventory, data, transform.position, transform.position - transform.forward);
+    }
+
+    /// <summary>
+    /// 도구로 채집 피해를 적용하고, 타격 위치와 공격자 위치를 타입별 파괴 연출에 전달합니다.
+    /// </summary>
+    public bool ObjectInteract(
+        PlayerInventory inventory,
+        ItemData data,
+        Vector3 hitPoint,
+        Vector3 attackerPosition)
+    {
         // 호출자가 미리 조회한 ItemData와 UI가 따로 조회한 ItemData가 엇갈리지 않도록
         // 실제 상호작용 시점의 선택 퀵슬롯을 이 오브젝트에서 다시 한 번만 해석한다.
         ItemData activeTool = inventory != null ? ResolveSelectedTool(inventory) : data;
@@ -236,6 +304,13 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
             this);
         if (currentObjectHp <= 0)
         {
+            if (UsesTypeSpecificDepletion() && myType == ObjectType.Tree)
+            {
+                BeginTreeFall(activeTool, hitPoint, attackerPosition);
+                NotifyStateChanged();
+                return true;
+            }
+
             // 자원 콜라이더 위를 바닥으로 잘못 인식하지 않도록 먼저 자원을 숨긴 뒤 드롭 위치를 계산합니다.
             BeginRespawnCooldown();
             Physics.SyncTransforms();
@@ -452,6 +527,167 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
         }
     }
 
+    private bool UsesTypeSpecificDepletion()
+    {
+        return GH.World.GHWorldObjectDamageRecoveryManager
+            .IsTypeSpecificDepletionEnabledFor(this);
+    }
+
+    private void BeginTreeFall(ItemData tool, Vector3 hitPoint, Vector3 attackerPosition)
+    {
+        currentObjectHp = 0;
+        respawnAtTime = float.PositiveInfinity;
+        isTreeFalling = true;
+        pendingTreeDropTool = tool;
+        treeFallInitialUp = transform.up;
+        treeFallCanLandAtTime = Time.time + Mathf.Max(0f, treeFallLandingGraceSeconds);
+        treeFallTimeoutAtTime = Time.time + Mathf.Max(0.5f, treeFallTimeoutSeconds);
+
+        Vector3 fallDirection = transform.position - attackerPosition;
+        fallDirection = Vector3.ProjectOnPlane(fallDirection, treeFallInitialUp);
+        if (fallDirection.sqrMagnitude < 0.0001f)
+        {
+            fallDirection = transform.position - hitPoint;
+            fallDirection = Vector3.ProjectOnPlane(fallDirection, treeFallInitialUp);
+        }
+
+        if (fallDirection.sqrMagnitude < 0.0001f)
+        {
+            fallDirection = transform.forward;
+        }
+
+        fallDirection.Normalize();
+        Rigidbody body = PrepareTreeRigidbody();
+        body.AddForce(fallDirection * Mathf.Max(0f, treeFallPushSpeed), ForceMode.VelocityChange);
+
+        Vector3 fallAxis = Vector3.Cross(treeFallInitialUp, fallDirection).normalized;
+        body.AddTorque(
+            fallAxis * Mathf.Max(0f, treeFallAngularSpeed),
+            ForceMode.VelocityChange);
+    }
+
+    private Rigidbody PrepareTreeRigidbody()
+    {
+        treeRigidbody = GetComponent<Rigidbody>();
+        if (treeRigidbody == null)
+        {
+            treeRigidbody = gameObject.AddComponent<Rigidbody>();
+            addedTreeRigidbody = true;
+        }
+        else if (!treeRigidbodyStateCached)
+        {
+            treeRigidbodyInitialKinematic = treeRigidbody.isKinematic;
+            treeRigidbodyInitialUseGravity = treeRigidbody.useGravity;
+            treeRigidbodyInitialConstraints = treeRigidbody.constraints;
+            treeRigidbodyInitialCollisionDetection = treeRigidbody.collisionDetectionMode;
+            treeRigidbodyStateCached = true;
+        }
+
+        treeRigidbody.isKinematic = false;
+        treeRigidbody.useGravity = true;
+        treeRigidbody.constraints = RigidbodyConstraints.None;
+        treeRigidbody.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+        treeRigidbody.linearVelocity = Vector3.zero;
+        treeRigidbody.angularVelocity = Vector3.zero;
+        treeRigidbody.WakeUp();
+        return treeRigidbody;
+    }
+
+    private void OnCollisionStay(Collision collision)
+    {
+        if (!isTreeFalling
+            || collision == null
+            || Time.time < treeFallCanLandAtTime
+            || !IsLayerInMask(collision.gameObject.layer, groundLayer))
+        {
+            return;
+        }
+
+        float tiltAngle = Vector3.Angle(treeFallInitialUp, transform.up);
+        if (tiltAngle >= treeFallLandedAngle && HasGroundLikeContact(collision))
+        {
+            CompleteTreeFall();
+        }
+    }
+
+    private bool HasGroundLikeContact(Collision collision)
+    {
+        for (int i = 0; i < collision.contactCount; i++)
+        {
+            ContactPoint contact = collision.GetContact(i);
+            if (Vector3.Dot(contact.normal, treeFallInitialUp) >= 0.45f)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsLayerInMask(int layer, LayerMask mask)
+    {
+        return (mask.value & (1 << layer)) != 0;
+    }
+
+    private void CompleteTreeFall()
+    {
+        if (!isTreeFalling)
+        {
+            return;
+        }
+
+        isTreeFalling = false;
+        StopTreePhysics();
+        BeginRespawnCooldown();
+        Physics.SyncTransforms();
+        ItemDrops(pendingTreeDropTool);
+        pendingTreeDropTool = null;
+        NotifyStateChanged();
+    }
+
+    private void StopTreePhysics()
+    {
+        if (treeRigidbody == null)
+        {
+            return;
+        }
+
+        treeRigidbody.linearVelocity = Vector3.zero;
+        treeRigidbody.angularVelocity = Vector3.zero;
+        treeRigidbody.isKinematic = true;
+        treeRigidbody.useGravity = false;
+    }
+
+    private void RestoreTreeTransformAndPhysics()
+    {
+        transform.localPosition = initialLocalPosition;
+        transform.localRotation = initialLocalRotation;
+
+        if (treeRigidbody == null)
+        {
+            return;
+        }
+
+        treeRigidbody.linearVelocity = Vector3.zero;
+        treeRigidbody.angularVelocity = Vector3.zero;
+
+        if (addedTreeRigidbody)
+        {
+            Destroy(treeRigidbody);
+            treeRigidbody = null;
+            addedTreeRigidbody = false;
+            return;
+        }
+
+        if (treeRigidbodyStateCached)
+        {
+            treeRigidbody.isKinematic = treeRigidbodyInitialKinematic;
+            treeRigidbody.useGravity = treeRigidbodyInitialUseGravity;
+            treeRigidbody.constraints = treeRigidbodyInitialConstraints;
+            treeRigidbody.collisionDetectionMode = treeRigidbodyInitialCollisionDetection;
+        }
+    }
+
     // 청크 비활성화 중 Update가 멈췄더라도 절대 리스폰 시각으로 경과 여부를 복구한다.
     private void RefreshRespawnState()
     {
@@ -474,6 +710,10 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
     {
         currentObjectHp = maxObjectHp;
         respawnAtTime = float.PositiveInfinity;
+        isTreeFalling = false;
+        pendingTreeDropTool = null;
+        RestoreTreeTransformAndPhysics();
+        Physics.SyncTransforms();
         SetResourceAvailable(true);
         NotifyStateChanged();
     }

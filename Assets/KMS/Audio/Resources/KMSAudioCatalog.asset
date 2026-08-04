@@ -149,6 +149,16 @@ MonoBehaviour:
     Cooldown: 0.1
     MaxVoices: 1
     Output: {fileID: 0}
+  - Id: 14
+    Clips:
+    - {fileID: 8300000, guid: ed4d4e2e4bc2f444a80a2b72a495a85e, type: 3}
+    Volume: 1
+    PitchMin: 0.96
+    PitchMax: 1.04
+    SpatialBlend: 1
+    Cooldown: 0
+    MaxVoices: 4
+    Output: {fileID: 0}
   sceneMusic:
   - SceneName: Territory
     Clip: {fileID: 0}
@@ -163,6 +173,12 @@ MonoBehaviour:
     Loop: 1
     Output: {fileID: 0}
   - SceneName: Main_World_2
+    Clip: {fileID: 0}
+    Volume: 0.65
+    FadeSeconds: 1.25
+    Loop: 1
+    Output: {fileID: 0}
+  - SceneName: Main_World_3
     Clip: {fileID: 0}
     Volume: 0.65
     FadeSeconds: 1.25

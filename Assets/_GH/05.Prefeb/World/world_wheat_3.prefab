@@ -24,55 +24,86 @@ PrefabInstance:
       propertyPath: m_Name
       value: world_wheat_3
       objectReference: {fileID: 0}
+    - target: {fileID: 8324877079824060832, guid: e869ade681ae9f84baf5525ac82ce116, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: 8324877079824060832, guid: e869ade681ae9f84baf5525ac82ce116, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: 8324877079824060832, guid: e869ade681ae9f84baf5525ac82ce116, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 1
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents:
-    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: e869ade681ae9f84baf5525ac82ce116, type: 3}
+    - targetCorrespondingSourceObject: {fileID: 8704392877603818266, guid: e869ade681ae9f84baf5525ac82ce116, type: 3}
       insertIndex: -1
-      addedObject: {fileID: 8100000000000000004}
+      addedObject: {fileID: -6892946073759289652}
+    - targetCorrespondingSourceObject: {fileID: 8704392877603818266, guid: e869ade681ae9f84baf5525ac82ce116, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 5410844876449531764}
   m_SourcePrefab: {fileID: 100100000, guid: e869ade681ae9f84baf5525ac82ce116, type: 3}
---- !u!1 &8100000000000000002 stripped
+--- !u!1 &622847094208465691 stripped
 GameObject:
-  m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: e869ade681ae9f84baf5525ac82ce116, type: 3}
+  m_CorrespondingSourceObject: {fileID: 8704392877603818266, guid: e869ade681ae9f84baf5525ac82ce116, type: 3}
   m_PrefabInstance: {fileID: 8100000000000000001}
   m_PrefabAsset: {fileID: 0}
---- !u!4 &8100000000000000003 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: e869ade681ae9f84baf5525ac82ce116, type: 3}
-  m_PrefabInstance: {fileID: 8100000000000000001}
+--- !u!65 &-6892946073759289652
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
---- !u!114 &8100000000000000004
+  m_GameObject: {fileID: 622847094208465691}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 0.49804693, y: 0.4589846, z: 0.9980471}
+  m_Center: {x: 0, y: 0, z: 0.49902356}
+--- !u!114 &5410844876449531764
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8100000000000000002}
+  m_GameObject: {fileID: 622847094208465691}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 474a6e4947e4d7e48a9f5af0776e8b68, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::WorldObject
-  displayName: 밀
-  interactionPrompt: 채집
+  displayName: "\uBC00"
+  interactionPrompt: "\uCC44\uC9D1"
   harvestWithInteractInput: 0
   myType: 3
   dropItems:
-  - itemId: item_wheat
+  - itemId: 
   maxObjectHp: 1
   currentObjectHp: 0
   respawnTime: 30
   needGrade: 0
   resourceRenderers: []
   resourceColliders: []
-  dropSpawnPoint: {fileID: 8100000000000000003}
+  dropSpawnPoint: {fileID: 0}
   groundLayer:
     serializedVersion: 2
     m_Bits: 4294967295
   dropSpawnHeight: 0.02
   dropAreaOffset: {x: 0, y: 0, z: 0}
-  dropAreaSize: {x: 6, y: 6}
+  dropAreaSize: {x: 4, y: 4}
   dropPositionAttempts: 12
   dropClearanceRadius: 0.25
   dropClearanceHeight: 0.9
@@ -90,4 +121,3 @@ MonoBehaviour:
   autoReturnToPoolSeconds: 10
   enableDebugAutoDrop: 0
   debugAutoDropInterval: 2
-

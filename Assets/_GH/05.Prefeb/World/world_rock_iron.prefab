@@ -24,38 +24,73 @@ PrefabInstance:
       propertyPath: m_Name
       value: world_rock_iron
       objectReference: {fileID: 0}
+    - target: {fileID: 7027216011561743417, guid: e70eee0aabddc0a49aeb1b9528b59fa2, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 7027216011561743417, guid: e70eee0aabddc0a49aeb1b9528b59fa2, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 7027216011561743417, guid: e70eee0aabddc0a49aeb1b9528b59fa2, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 7027216011561743417, guid: e70eee0aabddc0a49aeb1b9528b59fa2, type: 3}
+      propertyPath: m_ConstrainProportionsScale
+      value: 1
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents:
-    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: e70eee0aabddc0a49aeb1b9528b59fa2, type: 3}
+    - targetCorrespondingSourceObject: {fileID: 7696228552326475395, guid: e70eee0aabddc0a49aeb1b9528b59fa2, type: 3}
       insertIndex: -1
-      addedObject: {fileID: 8100000000000000004}
+      addedObject: {fileID: -8912359962383115855}
+    - targetCorrespondingSourceObject: {fileID: 7696228552326475395, guid: e70eee0aabddc0a49aeb1b9528b59fa2, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 2694279539013817327}
   m_SourcePrefab: {fileID: 100100000, guid: e70eee0aabddc0a49aeb1b9528b59fa2, type: 3}
---- !u!1 &8100000000000000002 stripped
+--- !u!1 &1920367435564281474 stripped
 GameObject:
-  m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: e70eee0aabddc0a49aeb1b9528b59fa2, type: 3}
+  m_CorrespondingSourceObject: {fileID: 7696228552326475395, guid: e70eee0aabddc0a49aeb1b9528b59fa2, type: 3}
   m_PrefabInstance: {fileID: 8100000000000000001}
   m_PrefabAsset: {fileID: 0}
---- !u!4 &8100000000000000003 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: e70eee0aabddc0a49aeb1b9528b59fa2, type: 3}
-  m_PrefabInstance: {fileID: 8100000000000000001}
+--- !u!65 &-8912359962383115855
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
---- !u!114 &8100000000000000004
+  m_GameObject: {fileID: 1920367435564281474}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 0.96289074, y: 0.99804723, z: 0.77929705}
+  m_Center: {x: 0, y: -5.5372373e-15, z: 0.38964853}
+--- !u!114 &2694279539013817327
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8100000000000000002}
+  m_GameObject: {fileID: 1920367435564281474}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 474a6e4947e4d7e48a9f5af0776e8b68, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::WorldObject
-  displayName: 철광석
-  interactionPrompt: 채집
+  displayName: "\uCCA0\uAD11\uC11D"
+  interactionPrompt: "\uCC44\uC9D1"
   harvestWithInteractInput: 0
   myType: 2
   dropItems:
@@ -66,13 +101,13 @@ MonoBehaviour:
   needGrade: 0
   resourceRenderers: []
   resourceColliders: []
-  dropSpawnPoint: {fileID: 8100000000000000003}
+  dropSpawnPoint: {fileID: 0}
   groundLayer:
     serializedVersion: 2
     m_Bits: 4294967295
   dropSpawnHeight: 0.02
   dropAreaOffset: {x: 0, y: 0, z: 0}
-  dropAreaSize: {x: 6, y: 6}
+  dropAreaSize: {x: 5, y: 5}
   dropPositionAttempts: 12
   dropClearanceRadius: 0.25
   dropClearanceHeight: 0.9
@@ -90,4 +125,3 @@ MonoBehaviour:
   autoReturnToPoolSeconds: 10
   enableDebugAutoDrop: 0
   debugAutoDropInterval: 2
-
