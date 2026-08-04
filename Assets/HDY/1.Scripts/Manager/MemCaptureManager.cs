@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using MemSystem.Data;
 using MemSystem.Events;
+using HDY.Mem;
 using PikachuMem = MemSystem.Core.Mem;
 
 namespace HDY.Capture
@@ -25,6 +26,20 @@ namespace HDY.Capture
         /// <summary>이 멤이 활성화(예: 영지에 배치되어 근무 중) 상태인지 여부. 기본값 false.</summary>
         public bool IsActive;
 
+        /// <summary>
+        /// [HDY 요청 - 영지 배고픔 시스템] 현재 배고픔. 포획 시 해당 멤의 MaxHunger로 가득 채워 초기화되며,
+        /// 시설에서 근무 중일 때 분당 MemData.consumption만큼 줄어들고, 0이 되면 밥통에서 급식을 시도한다
+        /// (TotalHungerManager/ConsumeFoodSystem 참고).
+        /// </summary>
+        public int CurrentHunger;
+
+        /// <summary>
+        /// [HDY 요청 - 영지 배고픔 시스템] 밥통에 먹일 음식이 부족해 이 멤이 배치된 시설(또는 슬롯)이
+        /// 배고픔으로 인해 정지된 상태인지 여부. 다음 급식에 성공하면 false로 돌아가며 그 시설/슬롯만
+        /// 재가동된다(다른 멤/시설에는 영향 없음).
+        /// </summary>
+        public bool IsStarving;
+
         /// <summary>이 항목이 빈 칸(멤 없음)인지 여부.</summary>
         public bool IsEmpty => KeyId == EmptyKeyId;
 
@@ -36,7 +51,9 @@ namespace HDY.Capture
                 KeyId = EmptyKeyId,
                 MemId = null,
                 ExplorationStat = 0,
-                IsActive = false
+                IsActive = false,
+                CurrentHunger = 0,
+                IsStarving = false
             };
         }
     }
@@ -226,6 +243,18 @@ namespace HDY.Capture
             return true;
         }
 
+        /// <summary>
+        /// [HDY 요청 - 영지 배고픔 시스템] memId로 MemData를 찾아 MaxHunger를 반환한다. 카탈로그에서
+        /// 찾지 못하면 0(안전값)을 반환한다.
+        /// </summary>
+        private int ResolveMaxHunger(string memId)
+        {
+            if (string.IsNullOrEmpty(memId) || MemCatalogManager.Instance == null) return 0;
+
+            var memData = MemCatalogManager.Instance.FindMemData(memId);
+            return memData != null ? memData.maxHunger : 0;
+        }
+
         private void HandleMemCaptured(PikachuMem mem, MemSnapshot snapshot)
         {
             int emptyIndex = FindFirstEmptyIndex();
@@ -237,15 +266,20 @@ namespace HDY.Capture
                 return;
             }
 
+            // [HDY 요청 - 영지 배고픔 시스템] 포획 즉시 배고픔을 MaxHunger로 가득 채워서 시작한다.
+            int initialHunger = ResolveMaxHunger(snapshot.memId);
+
             capturedMems[emptyIndex] = new CapturedMemEntry
             {
                 KeyId = Guid.NewGuid().ToString(),
                 MemId = snapshot.memId,
                 ExplorationStat = snapshot.explorationStat,
-                IsActive = false
+                IsActive = false,
+                CurrentHunger = initialHunger,
+                IsStarving = false
             };
 
-            Debug.Log($"[MemCaptureManager] 포획 데이터 저장: index={emptyIndex} / MemId={snapshot.memId} / Exploration={snapshot.explorationStat}");
+            Debug.Log($"[MemCaptureManager] 포획 데이터 저장: index={emptyIndex} / MemId={snapshot.memId} / Exploration={snapshot.explorationStat} / CurrentHunger={initialHunger}");
 
             OnCapturedMemsChanged?.Invoke();
         }
@@ -355,7 +389,9 @@ namespace HDY.Capture
                 KeyId = Guid.NewGuid().ToString(),
                 MemId = "Mem_Rare_01",
                 ExplorationStat = UnityEngine.Random.Range(20, 101),
-                IsActive = false
+                IsActive = false,
+                CurrentHunger = ResolveMaxHunger("Mem_Rare_01"),
+                IsStarving = false
             };
 
             Debug.Log($"<color=cyan>[Test] 테스트 멤 주입 성공!</color> Index: {emptyIndex} | MemId: {capturedMems[emptyIndex].MemId} | 스탯: {capturedMems[emptyIndex].ExplorationStat}");
@@ -381,7 +417,9 @@ namespace HDY.Capture
                 KeyId = Guid.NewGuid().ToString(),
                 MemId = "Mem_Epic_01",
                 ExplorationStat = UnityEngine.Random.Range(20, 101),
-                IsActive = false
+                IsActive = false,
+                CurrentHunger = ResolveMaxHunger("Mem_Epic_01"),
+                IsStarving = false
             };
 
             Debug.Log($"<color=cyan>[Test] 테스트 멤 주입 성공!</color> Index: {emptyIndex} | MemId: {capturedMems[emptyIndex].MemId} | 스탯: {capturedMems[emptyIndex].ExplorationStat}");
@@ -407,7 +445,9 @@ namespace HDY.Capture
                 KeyId = Guid.NewGuid().ToString(),
                 MemId = "Mem_Unique_01",
                 ExplorationStat = UnityEngine.Random.Range(20, 101),
-                IsActive = false
+                IsActive = false,
+                CurrentHunger = ResolveMaxHunger("Mem_Unique_01"),
+                IsStarving = false
             };
 
             Debug.Log($"<color=cyan>[Test] 테스트 멤 주입 성공!</color> Index: {emptyIndex} | MemId: {capturedMems[emptyIndex].MemId} | 스탯: {capturedMems[emptyIndex].ExplorationStat}");
