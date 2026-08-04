@@ -339,80 +339,50 @@ namespace HDY.Capture
 
         /// <summary>
         /// 해당 코드는 테스트함수며, 혹시나 커밋실수를 하여 저장될경우 꼭 제거부탁드립니다.
+        /// 지정된 전체 테스트 멤 목록을 창고에 일괄 주입합니다.
         /// </summary>
-        [ContextMenu("Function: Add Test Mem Rare")]
-        public void AddTestRareMemForDebug()
+        [ContextMenu("Function: Add All Test Mems")]
+        public void AddAllTestMemsForDebug()
         {
-            int emptyIndex = FindFirstEmptyIndex();
-            if (emptyIndex < 0)
+            string[] testMemIds = new string[]
             {
-                Debug.LogWarning("[MemCaptureManager Test] 창고가 가득 차서 테스트 멤을 추가할 수 없습니다!");
-                return;
-            }
-
-            capturedMems[emptyIndex] = new CapturedMemEntry
-            {
-                KeyId = Guid.NewGuid().ToString(),
-                MemId = "Mem_Rare_01",
-                ExplorationStat = UnityEngine.Random.Range(20, 101),
-                IsActive = false
+            "Mem_Rare_01", "Mem_Rare_01_A", "Mem_Rare_01_N",
+            "Mem_Rare_02", "Mem_Rare_02_A", "Mem_Rare_02_N",
+            "Mem_Rare_03", "Mem_Rare_03_A", "Mem_Rare_03_N",
+            "Mem_Rare_04", "Mem_Rare_04_A", "Mem_Rare_04_N",
+            "Mem_Rare_05", "Mem_Rare_05_A", "Mem_Rare_05_N",
+            "Mem_Rare_06", "Mem_Rare_06_A", "Mem_Rare_06_N",
+            "Mem_Epic_01", "Mem_Epic_01_A", "Mem_Epic_01_N",
+            "Mem_Epic_02", "Mem_Epic_02_A", "Mem_Epic_02_N",
+            "Mem_Epic_03", "Mem_Epic_04"
             };
 
-            Debug.Log($"<color=cyan>[Test] 테스트 멤 주입 성공!</color> Index: {emptyIndex} | MemId: {capturedMems[emptyIndex].MemId} | 스탯: {capturedMems[emptyIndex].ExplorationStat}");
+            int addedCount = 0;
 
-            OnCapturedMemsChanged?.Invoke();
-        }
-
-        /// <summary>
-        /// 해당 코드는 테스트함수며, 혹시나 커밋실수를 하여 저장될경우 꼭 제거부탁드립니다.
-        /// </summary>
-        [ContextMenu("Function: Add Test Mem Epic")]
-        public void AddTestEpicMemForDebug()
-        {
-            int emptyIndex = FindFirstEmptyIndex();
-            if (emptyIndex < 0)
+            foreach (string memId in testMemIds)
             {
-                Debug.LogWarning("[MemCaptureManager Test] 창고가 가득 차서 테스트 멤을 추가할 수 없습니다!");
-                return;
+                int emptyIndex = FindFirstEmptyIndex();
+                if (emptyIndex < 0)
+                {
+                    Debug.LogWarning($"[MemCaptureManager Test] 창고가 가득 차서 더 이상 테스트 멤을 추가할 수 없습니다! (추가 완료: {addedCount}/{testMemIds.Length})");
+                    break;
+                }
+
+                capturedMems[emptyIndex] = new CapturedMemEntry
+                {
+                    KeyId = Guid.NewGuid().ToString(),
+                    MemId = memId,
+                    ExplorationStat = UnityEngine.Random.Range(20, 101),
+                    IsActive = false
+                };
+
+                Debug.Log($"<color=cyan>[Test] 테스트 멤 주입 성공!</color> Index: {emptyIndex} | MemId: {memId} | 스탯: {capturedMems[emptyIndex].ExplorationStat}");
+                addedCount++;
             }
 
-            capturedMems[emptyIndex] = new CapturedMemEntry
+            if (addedCount > 0)
             {
-                KeyId = Guid.NewGuid().ToString(),
-                MemId = "Mem_Epic_01",
-                ExplorationStat = UnityEngine.Random.Range(20, 101),
-                IsActive = false
-            };
-
-            Debug.Log($"<color=cyan>[Test] 테스트 멤 주입 성공!</color> Index: {emptyIndex} | MemId: {capturedMems[emptyIndex].MemId} | 스탯: {capturedMems[emptyIndex].ExplorationStat}");
-
-            OnCapturedMemsChanged?.Invoke();
-        }
-
-        /// <summary>
-        /// 해당 코드는 테스트함수며, 혹시나 커밋실수를 하여 저장될경우 꼭 제거부탁드립니다.
-        /// </summary>
-        [ContextMenu("Function: Add Test Mem Unique")]
-        public void AddTestUniqueMemForDebug()
-        {
-            int emptyIndex = FindFirstEmptyIndex();
-            if (emptyIndex < 0)
-            {
-                Debug.LogWarning("[MemCaptureManager Test] 창고가 가득 차서 테스트 멤을 추가할 수 없습니다!");
-                return;
+                OnCapturedMemsChanged?.Invoke();
             }
-
-            capturedMems[emptyIndex] = new CapturedMemEntry
-            {
-                KeyId = Guid.NewGuid().ToString(),
-                MemId = "Mem_Unique_01",
-                ExplorationStat = UnityEngine.Random.Range(20, 101),
-                IsActive = false
-            };
-
-            Debug.Log($"<color=cyan>[Test] 테스트 멤 주입 성공!</color> Index: {emptyIndex} | MemId: {capturedMems[emptyIndex].MemId} | 스탯: {capturedMems[emptyIndex].ExplorationStat}");
-
-            OnCapturedMemsChanged?.Invoke();
         }
     }
-}
