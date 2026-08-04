@@ -141,7 +141,7 @@ namespace KMS.Audio
 
             EnsureSceneMusic("Territory");
             EnsureSceneMusic("Main_World");
-            EnsureSceneMusic("Main_World_2");
+            EnsureSceneMusic("Main_World_3");
             RebuildLookup();
         }
 
