@@ -304,6 +304,9 @@ public class RecordManager : MonoBehaviour
             var inventoryRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "PlayerInventoryRecord");
             inventoryRecord?.ApplyData(saveData, sceneType);
 
+            var warehouseRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "WarehouseRecordData");
+            warehouseRecord?.ApplyData(saveData, sceneType);
+
             var playerStatsRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "PlayerStatsRecordData");
             playerStatsRecord?.ApplyData(saveData, sceneType);
 

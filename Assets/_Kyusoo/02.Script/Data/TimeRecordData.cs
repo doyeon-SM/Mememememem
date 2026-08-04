@@ -42,7 +42,7 @@ public class TimeRecordData : MonoBehaviour, IRecord
 
     private void TrySaveTimeData()
     {
-        if (RecordManager.Instance != null && !RecordManager.IsLoadingData)
+        if (RecordManager.Instance != null && !RecordManager.IsLoadingData && !RecordManager.IsSceneUnloading)
         {
             SaveData(RecordManager.Instance.SaveFilePath);
         }
@@ -53,14 +53,16 @@ public class TimeRecordData : MonoBehaviour, IRecord
         saveData.timeData = new GameTimeSaveData
         {
             elapsedTime = 0f,
-            lastSaveRealTimeKst = DateTime.UtcNow.AddHours(9).ToString("o")
+            lastSaveRealTimeKst = DateTime.UtcNow.ToString("o")
         };
         saveData.lastSaveTime = DateTime.UtcNow.ToString("o");
     }
 
     public void SaveData(string saveFilePath)
     {
+        if (RecordManager.IsLoadingData || RecordManager.IsSceneUnloading) return;
         RefreshManagerReference();
+
         SaveData currentData = RecordManager.Instance.ReadRawSaveFileOnly();
         if (currentData == null) currentData = new SaveData();
 
@@ -69,23 +71,13 @@ public class TimeRecordData : MonoBehaviour, IRecord
             currentData.timeData.elapsedTime = liveTimeManager.ElapsedTime;
         }
 
-        string activeSceneName = SceneManager.GetActiveScene().name.ToLower();
-        if (activeSceneName.Contains("territory"))
-        {
-            if (liveTimeManager != null)
-            {
-                currentData.timeData.lastSaveRealTimeKst = liveTimeManager.CurrentRealTimeKst.ToString("o");
-            }
-            else
-            {
-                currentData.timeData.lastSaveRealTimeKst = DateTime.UtcNow.AddHours(9).ToString("o");
-            }
-        }
+        // 🌟 [수정] 오프라인 계산용 시각을 표준 ISO 8601 UTC로 작성
+        string utcNowIso = DateTime.UtcNow.ToString("o");
+        currentData.timeData.lastSaveRealTimeKst = utcNowIso;
+        currentData.lastSaveTime = utcNowIso;
 
-        // 🌟 종료/일시정지 전용 타임스탬프 갱신
-        currentData.lastSaveTime = DateTime.UtcNow.ToString("o");
         File.WriteAllText(saveFilePath, JsonUtility.ToJson(currentData, true));
-        Debug.Log("<color=lime>[TimeRecordData]</color> ⏰ 게임 종료/일시정지 시점 시각 및 진행 시간 세이브 성공!");
+        Debug.Log("<color=lime>[TimeRecordData]</color> ⏰ 시간 데이터 세이브 성공!");
     }
 
     public void ApplyData(SaveData saveData, SceneType sceneType)
@@ -104,7 +96,7 @@ public class TimeRecordData : MonoBehaviour, IRecord
 
             MethodInfo syncMethod = typeof(GameTimeManager).GetMethod("SyncInitialState", BindingFlags.NonPublic | BindingFlags.Instance);
             syncMethod?.Invoke(liveTimeManager, null);
-            Debug.Log($"<color=cyan>[TimeRecordData]</color> ⏰ 플레이 시간 데이터 복구 완료: {targetElapsedTime:F1}초");
+            Debug.Log($"<color=cyan>[TimeRecordData]</color> ⏰ 경과 시간 복구: {targetElapsedTime:F1}초");
         }
     }
 }

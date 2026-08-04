@@ -13,7 +13,6 @@ public class TerritoryRecordData : MonoBehaviour, IRecord
     private RecipeUnlockManager liveRecipeManager;
     private TerritoryExpansionManager liveExpansionManager;
     private ShopStockManager liveShopStockManager;
-
     private bool isApplyingData = false;
     private bool isBlueprintGivenCache = false;
 
@@ -30,31 +29,26 @@ public class TerritoryRecordData : MonoBehaviour, IRecord
     private void RefreshManagersReference()
     {
         UnsubscribeManagers();
-
         liveTerritoryData = FindFirstObjectByType<TerritoryData>();
 
-        // 1. 레시피 해금 이벤트 (골드/경험치 소모)
         liveRecipeManager = FindFirstObjectByType<RecipeUnlockManager>();
         if (liveRecipeManager != null)
         {
             liveRecipeManager.OnRecipeUnlocksChanged += OnTerritoryDataChangedHandler;
         }
 
-        // 2. 영토 확장 이벤트 (골드/재료 소모)
         liveExpansionManager = FindFirstObjectByType<TerritoryExpansionManager>();
         if (liveExpansionManager != null)
         {
             liveExpansionManager.OnExpansionChanged += OnTerritoryDataChangedHandler;
         }
 
-        // 3. 상점 거래 이벤트 (구매/판매 골드 수급 및 지출 감지)
         liveShopStockManager = ShopStockManager.Resolve(null);
         if (liveShopStockManager != null)
         {
             liveShopStockManager.OnStockChanged += OnShopStockChangedHandler;
         }
 
-        // 4. 그리드 건물 배치/철거 이벤트 (만족도 변경 감지)
         GridManager.OnGridDataChanged += OnTerritoryDataChangedHandler;
     }
 
@@ -72,9 +66,7 @@ public class TerritoryRecordData : MonoBehaviour, IRecord
         {
             liveShopStockManager.OnStockChanged -= OnShopStockChangedHandler;
         }
-
         GridManager.OnGridDataChanged -= OnTerritoryDataChangedHandler;
-
         liveTerritoryData = null;
         liveRecipeManager = null;
         liveExpansionManager = null;
@@ -85,7 +77,7 @@ public class TerritoryRecordData : MonoBehaviour, IRecord
 
     private void OnTerritoryDataChangedHandler()
     {
-        if (RecordManager.Instance != null && !isApplyingData && !RecordManager.IsLoadingData)
+        if (RecordManager.Instance != null && !isApplyingData && !RecordManager.IsLoadingData && !RecordManager.IsSceneUnloading)
         {
             SaveData(RecordManager.Instance.SaveFilePath);
         }
@@ -99,16 +91,14 @@ public class TerritoryRecordData : MonoBehaviour, IRecord
         saveData.gold = 0;
         saveData.satisfaction = 0;
         saveData.isBlueprintGiven = false;
-
         saveData.currentGridSize = 10;
         saveData.expansionExpandedStates = new List<bool>();
         saveData.recipeUnlockedStates = new List<bool>();
-
-        saveData.foodWarehouseStorageData = new ContainerData { width = 1, height = 0 };
     }
 
     public void SaveData(string saveFilePath)
     {
+        if (RecordManager.IsLoadingData || RecordManager.IsSceneUnloading) return;
         if (liveTerritoryData == null) RefreshManagersReference();
 
         SaveData currentData = RecordManager.Instance.ReadRawSaveFileOnly();
@@ -116,7 +106,6 @@ public class TerritoryRecordData : MonoBehaviour, IRecord
 
         currentData.isBlueprintGiven = isBlueprintGivenCache;
 
-        // 배치된 모든 시설의 총 만족도를 계산해 TerritoryData private 필드에 주입
         var gridManager = FindFirstObjectByType<GridManager>();
         if (gridManager != null && liveTerritoryData != null)
         {
@@ -124,7 +113,7 @@ public class TerritoryRecordData : MonoBehaviour, IRecord
             RecordManager.Instance.SetPrivateFieldSafely(liveTerritoryData, "satisfaction", calculatedSatisfaction);
         }
 
-        // 1. 영지 기초 정보 (골드, 만족도 반영)
+        // 1. 영지 스탯 데이터
         if (liveTerritoryData != null)
         {
             currentData.territoryLevel = liveTerritoryData.Level;
@@ -132,16 +121,10 @@ public class TerritoryRecordData : MonoBehaviour, IRecord
             currentData.requiredExp = liveTerritoryData.RequiredExp;
             currentData.gold = liveTerritoryData.Gold;
             currentData.satisfaction = liveTerritoryData.Satisfaction;
-
-            currentData.foodWarehouseStorageData = new ContainerData { width = 1, height = liveTerritoryData.FoodStorage.Count };
-            currentData.foodWarehouseStorageData.slots.Clear();
-            foreach (var food in liveTerritoryData.FoodStorage)
-            {
-                currentData.foodWarehouseStorageData.slots.Add(new ItemStackData { itemId = food.Item_ID, amount = food.Quantity });
-            }
+            // 🌟 [수정] ConsumeFoodRecordData가 사용하는 foodWarehouseStorageData 덮어쓰기 구문 완전히 제거!
         }
 
-        // 2. 레시피 도감 정보
+        // 2. 레시피 해금
         if (liveRecipeManager != null)
         {
             currentData.recipeUnlockedStates.Clear();
@@ -151,7 +134,7 @@ public class TerritoryRecordData : MonoBehaviour, IRecord
             }
         }
 
-        // 3. 영토 확장 정보
+        // 3. 영지 확장
         if (liveExpansionManager != null)
         {
             FieldInfo sizeField = typeof(TerritoryExpansionManager).GetField("currentGridSize", BindingFlags.NonPublic | BindingFlags.Instance);
@@ -159,7 +142,6 @@ public class TerritoryRecordData : MonoBehaviour, IRecord
             {
                 currentData.currentGridSize = (int)sizeField.GetValue(liveExpansionManager);
             }
-
             currentData.expansionExpandedStates.Clear();
             foreach (var step in liveExpansionManager.ExpansionSteps)
             {
@@ -174,13 +156,11 @@ public class TerritoryRecordData : MonoBehaviour, IRecord
     public void ApplyData(SaveData saveData, SceneType sceneType)
     {
         isBlueprintGivenCache = saveData.isBlueprintGiven;
-
         RefreshManagersReference();
         isApplyingData = true;
 
         try
         {
-            // 🌟 1. 재정(골드, 레벨, 경험치, 만족도) 및 밥통 복구 - 탐험 씬/영지 씬 상관없이 무조건 동기화!
             if (liveTerritoryData != null)
             {
                 RecordManager.Instance.SetPrivateFieldSafely(liveTerritoryData, "level", saveData.territoryLevel);
@@ -198,21 +178,6 @@ public class TerritoryRecordData : MonoBehaviour, IRecord
                     }
                 }
 
-                FieldInfo foodField = typeof(TerritoryData).GetField("foodStorage", BindingFlags.NonPublic | BindingFlags.Instance);
-                if (foodField != null && saveData.foodWarehouseStorageData != null)
-                {
-                    List<FoodStorageEntry> internalFoodList = foodField.GetValue(liveTerritoryData) as List<FoodStorageEntry>;
-                    if (internalFoodList != null)
-                    {
-                        internalFoodList.Clear();
-                        foreach (var slot in saveData.foodWarehouseStorageData.slots)
-                        {
-                            if (!string.IsNullOrEmpty(slot.itemId) && slot.amount > 0)
-                                internalFoodList.Add(new FoodStorageEntry { Item_ID = slot.itemId, Quantity = slot.amount });
-                        }
-                    }
-                }
-
                 FieldInfo levelEventField = typeof(TerritoryData).GetField("OnLevelChanged", BindingFlags.NonPublic | BindingFlags.Instance);
                 if (levelEventField != null)
                 {
@@ -221,13 +186,8 @@ public class TerritoryRecordData : MonoBehaviour, IRecord
                 }
             }
 
-            // 탐험 씬(Exploration)일 경우, 영지 씬 전용 요소(레시피 UI/그리드 생성)만 스킵
-            if (sceneType == SceneType.Exploration)
-            {
-                return;
-            }
+            if (sceneType == SceneType.Exploration) return;
 
-            // 2. 레시피 도감 복구
             if (liveRecipeManager != null && saveData.recipeUnlockedStates != null)
             {
                 FieldInfo managerRecipeField = typeof(RecipeUnlockManager).GetField("recipeUnlocks", BindingFlags.NonPublic | BindingFlags.Instance);
@@ -243,20 +203,11 @@ public class TerritoryRecordData : MonoBehaviour, IRecord
                         }
                     }
                 }
-
-                FieldInfo eventField = typeof(RecipeUnlockManager).GetField("OnRecipeUnlocksChanged", BindingFlags.NonPublic | BindingFlags.Instance);
-                if (eventField != null)
-                {
-                    MulticastDelegate ev = eventField.GetValue(liveRecipeManager) as MulticastDelegate;
-                    ev?.DynamicInvoke();
-                }
             }
 
-            // 3. 영토 및 물리 타일 스케일 복구
             if (liveExpansionManager != null)
             {
                 RecordManager.Instance.SetPrivateFieldSafely(liveExpansionManager, "currentGridSize", saveData.currentGridSize);
-
                 FieldInfo expStepsField = typeof(TerritoryExpansionManager).GetField("expansionSteps", BindingFlags.NonPublic | BindingFlags.Instance);
                 if (expStepsField != null && saveData.expansionExpandedStates != null)
                 {
@@ -270,48 +221,22 @@ public class TerritoryRecordData : MonoBehaviour, IRecord
                         }
                     }
                 }
-
                 GridManager actualGrid = FindFirstObjectByType<GridManager>();
                 actualGrid?.InitializeGrid(saveData.currentGridSize, saveData.currentGridSize);
-
-                FieldInfo expEventField = typeof(TerritoryExpansionManager).GetField("OnExpansionChanged", BindingFlags.NonPublic | BindingFlags.Instance);
-                if (expEventField != null)
-                {
-                    MulticastDelegate ev = expEventField.GetValue(liveExpansionManager) as MulticastDelegate;
-                    ev?.DynamicInvoke();
-                }
             }
 
-            // 4. 청사진 최초 지급 동기화
             if (!isBlueprintGivenCache)
             {
-                if (saveData.playerInventoryData != null && saveData.playerInventoryData.slots != null)
-                {
-                    var emptySlot = saveData.playerInventoryData.slots.Find(s => string.IsNullOrEmpty(s.itemId));
-                    if (emptySlot != null)
-                    {
-                        emptySlot.itemId = "blueprint_production_stand";
-                        emptySlot.amount = 1;
-                    }
-                    else
-                    {
-                        saveData.playerInventoryData.slots.Add(new ItemStackData { itemId = "blueprint_production_stand", amount = 1 });
-                    }
-                }
-
                 KMS.InventoryDuped.PlayerInventory playerInv = FindFirstObjectByType<KMS.InventoryDuped.PlayerInventory>();
                 if (playerInv != null)
                 {
                     playerInv.AddItem("blueprint_production_stand", 1);
                 }
-
                 isBlueprintGivenCache = true;
                 saveData.isBlueprintGiven = true;
-
                 string path = RecordManager.Instance.SaveFilePath;
                 SaveData rawDiskData = RecordManager.Instance.ReadRawSaveFileOnly();
                 if (rawDiskData == null) rawDiskData = saveData;
-
                 rawDiskData.isBlueprintGiven = true;
                 File.WriteAllText(path, JsonUtility.ToJson(rawDiskData, true));
             }
@@ -320,6 +245,5 @@ public class TerritoryRecordData : MonoBehaviour, IRecord
         {
             isApplyingData = false;
         }
-
     }
 }
