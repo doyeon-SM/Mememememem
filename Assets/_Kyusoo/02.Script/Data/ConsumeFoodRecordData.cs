@@ -27,7 +27,7 @@ public class ConsumeFoodRecordData : MonoBehaviour, IRecord
 
     public void InitDefaultData(ref SaveData saveData)
     {
-        saveData.foodWarehouseStorageData = new ContainerData { width = 10, height = 1 };
+        saveData.foodWarehouseStorageData = new ContainerData { width = 5, height = 1 };
         saveData.foodWarehouseStorageData.slots = new List<ItemStackData>();
         for (int i = 0; i < 5; i++)
         {

@@ -228,12 +228,12 @@ public class TerritoryRecordData : MonoBehaviour, IRecord
             if (!isBlueprintGivenCache)
             {
                 KMS.InventoryDuped.PlayerInventory playerInv = FindFirstObjectByType<KMS.InventoryDuped.PlayerInventory>();
-                if (playerInv != null)
-                {
-                    playerInv.AddItem("blueprint_production_stand", 1);
-                }
-                isBlueprintGivenCache = true;
-                saveData.isBlueprintGiven = true;
+                //if (playerInv != null)
+                //{
+                //    playerInv.AddItem("blueprint_production_stand", 1);
+                //}
+                //isBlueprintGivenCache = true;
+                //saveData.isBlueprintGiven = true;
                 string path = RecordManager.Instance.SaveFilePath;
                 SaveData rawDiskData = RecordManager.Instance.ReadRawSaveFileOnly();
                 if (rawDiskData == null) rawDiskData = saveData;

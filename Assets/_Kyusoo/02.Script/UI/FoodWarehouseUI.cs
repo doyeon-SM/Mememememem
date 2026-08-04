@@ -356,7 +356,8 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner, IInventorySlo
         var storageContainer = FoodStorageContainer;
         if (storageSlotPrefab == null || storageContentParent == null || storageContainer == null) return;
 
-        storageContainer.width = 10;
+        storageContainer.width = storageContainer.slots != null ? storageContainer.slots.Length : 5;
+        storageContainer.height = 1;
 
         if (storageContainer.slots == null || storageContainer.slots.Length == 0)
         {

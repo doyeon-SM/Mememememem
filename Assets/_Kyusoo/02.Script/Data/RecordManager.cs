@@ -133,7 +133,7 @@ public class RecordManager : MonoBehaviour
         }
 
         // 4. 음식 창고 기본 구조 (10x1 = 5 슬롯)
-        data.foodWarehouseStorageData = new ContainerData { width = 10, height = 1, slots = new List<ItemStackData>() };
+        data.foodWarehouseStorageData = new ContainerData { width = 5, height = 1, slots = new List<ItemStackData>() };
         for (int i = 0; i < 5; i++)
         {
             data.foodWarehouseStorageData.slots.Add(new ItemStackData { itemId = "", amount = 0 });

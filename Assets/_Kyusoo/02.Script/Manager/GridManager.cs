@@ -124,7 +124,6 @@ public class GridManager : MonoBehaviour
         if (buildRecordManager == null) buildRecordManager = FindFirstObjectByType<BuildRecordManager>();
         InitGridMaterials();
 
-        // 🌟 경고 팝업 초기화
         if (activeBuildingWarningCanvasGroup != null)
         {
             activeBuildingWarningCanvasGroup.alpha = 0f;
