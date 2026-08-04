@@ -1543,6 +1543,7 @@ GameObject:
   - component: {fileID: 7457846233448879733}
   - component: {fileID: 4812345678901234567}
   - component: {fileID: 818306641664187117}
+  - component: {fileID: 5265500392400582732}
   m_Layer: 3
   m_Name: 0712_Player_KMS
   m_TagString: Player
@@ -1648,6 +1649,7 @@ MonoBehaviour:
   maxHunger: 100
   startingHunger: 100
   starvationDamagePerSecond: 5
+  foodEffects: {fileID: 0}
 --- !u!114 &867425413303697342
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1663,6 +1665,7 @@ MonoBehaviour:
   input: {fileID: 6377128861510376546}
   characterController: {fileID: 2974772061640984962}
   stats: {fileID: 1467707130239164394}
+  foodEffects: {fileID: 0}
   cameraTransform: {fileID: 0}
   rotationTransform: {fileID: 9164389120648769982}
   animator: {fileID: 8078898450063223440}
@@ -1673,6 +1676,9 @@ MonoBehaviour:
   deceleration: 22
   rotationSmoothTime: 0.08
   rotateTowardsMovement: 1
+  maxStepHeight: 0.25
+  stepSmoothTime: 0.08
+  stepVisualRoot: {fileID: 0}
   jumpHeight: 1.2
   gravity: -20
   groundedStickForce: -2
@@ -1759,6 +1765,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::KMS.PlayerHUD
   stats: {fileID: 1467707130239164394}
+  foodEffects: {fileID: 0}
   playerInput: {fileID: 0}
   hudView: {fileID: 0}
   uiDocument: {fileID: 6477896841844138712}
@@ -1800,6 +1807,9 @@ MonoBehaviour:
     slots: []
   selectedQuickSlotIndex: 0
   catalogManager: {fileID: 0}
+  startingInventorySlotCount: 10
+  slotsPerInventoryUpgrade: 5
+  unlockedInventorySlotCount: 0
 --- !u!114 &7899961270882748707
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1818,20 +1828,25 @@ MonoBehaviour:
   playerStats: {fileID: 0}
   cameraTransform: {fileID: 0}
   animator: {fileID: 8078898450063223440}
+  toolAnimationController: {fileID: 0}
   catalogManager: {fileID: 0}
   harvestLayer:
     serializedVersion: 2
     m_Bits: 1049847
   harvestDistance: 10
-  harvestCooldown: 0.35
-  toolUseCooldown: 0.5
+  harvestRadius: 0.45
   fallbackToolDamage: 1
+  baseToolUseCooldown: 0.5
+  minimumToolUseCooldown: 0.1
   memMeleeItemId: tool_shabby_club
   memMeleeDistance: 5
   memMeleeHungerCost: 1
+  memHitDustPool: {fileID: 0}
   drawDebugRay: 1
+  drawSphereCastGizmo: 1
   debugMissColor: {r: 1, g: 0, b: 0, a: 1}
   debugHitColor: {r: 0, g: 1, b: 0, a: 1}
+  sphereCastGizmoColor: {r: 1, g: 0.72, b: 0.1, a: 0.85}
   logHitTarget: 1
 --- !u!114 &5797813752608326662
 MonoBehaviour:
@@ -1869,7 +1884,7 @@ MonoBehaviour:
   hud: {fileID: 6857268053199938286}
   cameraController: {fileID: 3105963435254581775}
   trajectoryPreview: {fileID: 7457846233448879733}
-  heldItemSprite: {fileID: 0}
+  heldItemModel: {fileID: 0}
   animator: {fileID: 8078898450063223440}
   throwOrigin: {fileID: 5759527692786710262}
   capsulePrefab: {fileID: 5207469710425988775, guid: c1ad0ec31bfa9a54e8519048ed2fe0fa, type: 3}
@@ -1950,6 +1965,21 @@ MonoBehaviour:
   respawnLocationMode: 0
   respawnHealthPercent: 1
   respawnInvulnerabilityDuration: 2
+--- !u!114 &5265500392400582732
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2157912231843724579}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 151a79b255d604b4c99a91dae32bf669, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::KMS.PlayerHitFeedbackController
+  stats: {fileID: 1467707130239164394}
+  movement: {fileID: 867425413303697342}
+  animator: {fileID: 8078898450063223440}
 --- !u!1 &2173737633472856558
 GameObject:
   m_ObjectHideFlags: 0

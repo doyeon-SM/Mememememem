@@ -76,7 +76,7 @@ namespace KMS
             if (damage <= 0f) return;
 
             float previousHealth = stats.CurrentHealth;
-            stats.TakeDamage(damage);
+            stats.TakeDamage(damage, PlayerDamageType.Fall);
             float appliedDamage = previousHealth - stats.CurrentHealth;
 
             if (appliedDamage > 0f)

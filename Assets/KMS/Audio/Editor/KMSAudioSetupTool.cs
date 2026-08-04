@@ -58,6 +58,13 @@ namespace KMS.Audio.Editor
                     clips = FindAudioClips($"{SfxRoot}/{GameSfxId.FootstepWalk}");
                 }
 
+                // 플레이어 전용 피격음이 준비되기 전까지 멤 타격음을 함께 사용한다.
+                // PlayerDamaged 폴더에 전용 클립을 넣으면 이 fallback은 자동으로 사용되지 않는다.
+                if (id == GameSfxId.PlayerDamaged && clips.Length == 0)
+                {
+                    clips = FindAudioClips($"{SfxRoot}/{GameSfxId.ClubHitMem}");
+                }
+
                 catalog.SetCueClips(id, clips);
             }
 

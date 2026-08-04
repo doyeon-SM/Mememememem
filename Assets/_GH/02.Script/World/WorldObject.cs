@@ -1,4 +1,5 @@
 ﻿using HDY;
+using HDY.Forge;
 using HDY.Item;
 using KGH.Data;
 using KMS.Harvesting;
@@ -22,6 +23,9 @@ public enum WorldObjectInteractionState
 /// </summary>
 public class WorldObject : MonoBehaviour, KMS.IInteractable
 {
+    private const string DamageIncreaseOptionType = "DamageIncrease";
+    private const string GatherIncreaseOptionType = "GatherIncrease";
+
     [Header("Setting")]
     [Tooltip("UI에 표시할 이름입니다. 비워 두면 GameObject 이름을 사용합니다.")]
     [SerializeField] private string displayName;
@@ -201,8 +205,13 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
             return false;
         }
 
-        currentObjectHp = Mathf.Max(0, currentObjectHp - activeTool.Value);
-        Debug.Log($"감지 성공 : 현재 체력 {currentObjectHp}");
+        int refinementDamage = GetWholeRefinementBonus(activeTool, DamageIncreaseOptionType);
+        int finalDamage = Mathf.Max(1, activeTool.Value + refinementDamage);
+        currentObjectHp = Mathf.Max(0, currentObjectHp - finalDamage);
+        Debug.Log(
+            $"감지 성공 : 기본/강화 피해 {activeTool.Value}, 연마 피해 +{refinementDamage}, " +
+            $"최종 피해 {finalDamage}, 현재 체력 {currentObjectHp}",
+            this);
         if (currentObjectHp <= 0)
         {
             // 자원 콜라이더 위를 바닥으로 잘못 인식하지 않도록 먼저 자원을 숨긴 뒤 드롭 위치를 계산합니다.
@@ -293,6 +302,7 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
     {
         if (dropItems == null || dropItems.Length == 0) return;
 
+        int gatherBonus = GetWholeRefinementBonus(tool, GatherIncreaseOptionType);
         Dictionary<string, int> amountsByItemId = new Dictionary<string, int>();
         for (int dropIndex = 0; dropIndex < dropItems.Length; dropIndex++)
         {
@@ -304,9 +314,10 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
             }
 
             // 드롭 항목마다 도구의 개수 확률을 독립적으로 추첨한다.
-            int dropCount = ToolDropManager.Instance != null
+            int baseDropCount = ToolDropManager.Instance != null
                 ? ToolDropManager.Instance.RollDropCount(tool)
                 : 1;
+            int dropCount = baseDropCount + gatherBonus;
 
             if (dropCount <= 0)
             {
@@ -316,6 +327,11 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
             string normalizedItemId = dropItemId.Trim();
             amountsByItemId.TryGetValue(normalizedItemId, out int currentAmount);
             amountsByItemId[normalizedItemId] = currentAmount + dropCount;
+
+            Debug.Log(
+                $"[{name}] 드롭 계산: {normalizedItemId}, 기본 {baseDropCount}, " +
+                $"연마 채집량 +{gatherBonus}, 최종 {dropCount}",
+                this);
         }
 
         WorldItemDropLaunchSettings launchSettings = CreateDropLaunchSettings();
@@ -361,6 +377,40 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
             spinSpeed = Mathf.Max(0f, itemSpinSpeed),
             startJitterRadius = Mathf.Max(0f, itemStartJitterRadius)
         };
+    }
+
+    /// <summary>
+    /// 강화/연마 도구의 합성 ID로 인스턴스를 찾아 같은 옵션의 수치를 합산합니다.
+    /// 일반 도구이거나 레지스트리 데이터가 없으면 기존 동작을 유지하도록 0을 반환합니다.
+    /// 현재 피해와 드롭이 정수 단위이므로 소수 옵션 값은 가장 가까운 정수로 반올림합니다.
+    /// </summary>
+    private static int GetWholeRefinementBonus(ItemData tool, string optionType)
+    {
+        if (tool == null
+            || string.IsNullOrEmpty(optionType)
+            || !ForgeInstanceRegistry.TryParseCompositeId(tool.Item_ID, out _, out string instanceId))
+        {
+            return 0;
+        }
+
+        ForgeInstanceRegistry registry = ForgeInstanceRegistry.Instance;
+        ForgeInstanceData instance = registry != null ? registry.GetInstance(instanceId) : null;
+        if (instance?.RefinementSlots == null)
+        {
+            return 0;
+        }
+
+        float total = 0f;
+        foreach (ForgeRefinementSlotData slot in instance.RefinementSlots)
+        {
+            if (slot != null
+                && string.Equals(slot.OptionType, optionType, System.StringComparison.Ordinal))
+            {
+                total += slot.Value;
+            }
+        }
+
+        return Mathf.Max(0, Mathf.RoundToInt(total));
     }
 
     private void PrewarmDropPools()

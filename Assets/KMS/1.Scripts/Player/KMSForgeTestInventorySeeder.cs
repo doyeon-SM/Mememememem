@@ -1,4 +1,5 @@
 using System.Collections;
+using HDY;
 using HDY.Forge;
 using KMS.InventoryDuped;
 using UnityEngine;
@@ -10,6 +11,8 @@ namespace KMS.Testing
     {
         [SerializeField] private string baseItemId = "tool_shabby_axe";
         [SerializeField, Range(1, 10)] private int enhanceLevel = 5;
+        [SerializeField, Min(0f)] private float damageIncrease = 2f;
+        [SerializeField, Min(0f)] private float gatherIncrease = 2f;
 
         private IEnumerator Start()
         {
@@ -42,6 +45,19 @@ namespace KMS.Testing
 
             ForgeInstanceData instance = registry.CreateInstance(baseItemId, ForgeToolType.Axe, 1);
             instance.EnhanceLevel = enhanceLevel;
+            instance.RefinementSlots = new[]
+            {
+                new ForgeRefinementSlotData(
+                    CommonClass.Rare,
+                    "DamageIncrease",
+                    "데미지",
+                    damageIncrease),
+                new ForgeRefinementSlotData(
+                    CommonClass.Rare,
+                    "GatherIncrease",
+                    "채집량",
+                    gatherIncrease)
+            };
             string compositeId = instance.BuildCompositeId();
 
             int remaining = inventory.AddItem(compositeId, 1);
@@ -53,7 +69,10 @@ namespace KMS.Testing
             }
 
             ForgeManager.Instance?.NotifyForgeDataChanged();
-            Debug.Log($"[KMSForgeTestInventorySeeder] 테스트 아이템 지급: {baseItemId} +{enhanceLevel}", this);
+            Debug.Log(
+                $"[KMSForgeTestInventorySeeder] 테스트 아이템 지급: {baseItemId} +{enhanceLevel}, " +
+                $"DamageIncrease +{damageIncrease:0.#}, GatherIncrease +{gatherIncrease:0.#}",
+                this);
         }
 
         private bool ContainsMatchingAxe(InventoryContainer container, ForgeInstanceRegistry registry)
@@ -71,13 +90,32 @@ namespace KMS.Testing
                 ForgeInstanceData instance = registry.GetInstance(instanceId);
                 if (instance != null
                     && instance.BaseItemId == baseItemId
-                    && instance.EnhanceLevel == enhanceLevel)
+                    && instance.EnhanceLevel == enhanceLevel
+                    && HasExpectedRefinement(instance))
                 {
                     return true;
                 }
             }
 
             return false;
+        }
+
+        private bool HasExpectedRefinement(ForgeInstanceData instance)
+        {
+            if (instance?.RefinementSlots == null) return false;
+
+            float actualDamageIncrease = 0f;
+            float actualGatherIncrease = 0f;
+            foreach (ForgeRefinementSlotData slot in instance.RefinementSlots)
+            {
+                if (slot == null) continue;
+
+                if (slot.OptionType == "DamageIncrease") actualDamageIncrease += slot.Value;
+                if (slot.OptionType == "GatherIncrease") actualGatherIncrease += slot.Value;
+            }
+
+            return Mathf.Approximately(actualDamageIncrease, damageIncrease)
+                && Mathf.Approximately(actualGatherIncrease, gatherIncrease);
         }
     }
 }

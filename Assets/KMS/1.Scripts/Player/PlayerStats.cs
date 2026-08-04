@@ -7,6 +7,14 @@ using MemSystem.Events;
 
 namespace KMS
 {
+    public enum PlayerDamageType
+    {
+        Generic,
+        MemAttack,
+        Fall,
+        Starvation
+    }
+
     public class PlayerStats : MonoBehaviour
     {
         [Header("Health")]
@@ -30,6 +38,7 @@ namespace KMS
         public event Action<float, float> HealthChanged;
         public event Action<float, float> HungerChanged;
         public event Action<float> Damaged;
+        public event Action<float, PlayerDamageType> DamageReceived;
         public event Action<float> Healed;
         public event Action Died;
         public event Action Revived;
@@ -70,15 +79,21 @@ namespace KMS
 
         private void HandleMemAttack(Mem _, int damage)
         {
-            TakeDamage(damage);
+            TakeDamage(damage, PlayerDamageType.MemAttack);
         }
 
         public void TakeDamage(float amount)
+        {
+            TakeDamage(amount, PlayerDamageType.Generic);
+        }
+
+        public void TakeDamage(float amount, PlayerDamageType damageType)
         {
             if (!IsAlive || IsInvulnerable || amount <= 0f) return;
 
             CurrentHealth = Mathf.Max(0f, CurrentHealth - amount);
             Damaged?.Invoke(amount);
+            DamageReceived?.Invoke(amount, damageType);
             HealthChanged?.Invoke(CurrentHealth, maxHealth);
 
             if (CurrentHealth <= 0f)
@@ -264,7 +279,9 @@ namespace KMS
             if (!IsAlive) return;
             if (CurrentHunger > 0f) return;
 
-            TakeDamage(starvationDamagePerSecond * Time.deltaTime);
+            TakeDamage(
+                starvationDamagePerSecond * Time.deltaTime,
+                PlayerDamageType.Starvation);
         }
 
         private void ResolveFoodEffects()

@@ -15,6 +15,7 @@ namespace KMS
         [SerializeField] private string[] clubItemIds =
         {
             "tool_shabby_club",
+            "tool_club",
             "tool_decent_club"
         };
 
@@ -92,6 +93,13 @@ namespace KMS
                 return ToolMotionType.None;
             }
 
+            // Club tiers use different catalog ObjectType values for harvesting,
+            // but they must all keep the club grip and swing animation.
+            if (IsClub(itemData.Item_ID))
+            {
+                return ToolMotionType.Club;
+            }
+
             switch (itemData.ObjectType)
             {
                 case ObjectType.Tree:
@@ -102,7 +110,7 @@ namespace KMS
                     return ToolMotionType.Pickaxe;
                 case ObjectType.None:
                 default:
-                    return IsClub(itemData.Item_ID) ? ToolMotionType.Club : ToolMotionType.None;
+                    return ToolMotionType.None;
             }
         }
 
