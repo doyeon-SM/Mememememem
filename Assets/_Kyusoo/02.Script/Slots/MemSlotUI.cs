@@ -65,6 +65,11 @@ public class MemSlotUI : MonoBehaviour, IDropHandler, IPointerClickHandler
         {
             ExecuteSlotReleaseProcess();
         }
+
+        if (eventData.button == PointerEventData.InputButton.Right)
+        {
+            ExecuteSlotReleaseProcess();
+        }
     }
 
     private void ExecuteSlotReleaseProcess()

@@ -386,3 +386,4 @@ namespace HDY.Capture
             }
         }
     }
+}
