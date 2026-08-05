@@ -24,6 +24,10 @@ namespace HDY.Forge
     /// [잠금] lockToggle이 켜진 칸은 이번 연마 시도에서 보호되어 바뀌지 않는다. 잠금 상태는 저장되지 않고
     /// 이 패널 세션 안에서만 유지되며, 도구를 다시 선택하거나(HandleToolSelected) 패널이 비활성화되면
     /// (OnDisable, 즉 탭 전환 시) 자동으로 초기화된다.
+    ///
+    /// [HDY 요청 - 슬롯 버튼 등급색] 각 슬롯의 lockColorTarget(잠금 토글 배경 이미지)에 검정/흰색 대신
+    /// 그 슬롯의 연마 등급색(ItemTooltipUI.GetRefinementGradeColor와 동일한 색 - 툴팁과 항상 일치)을
+    /// 입힌다. 잠긴 상태일 때는 그 등급색에 검은색을 섞은 어두운 버전을 써서 "잠김"을 시각적으로 구분한다.
     /// </summary>
     public class ForgeUI_RefinementPanel : MonoBehaviour
     {
@@ -35,7 +39,7 @@ namespace HDY.Forge
             public TMP_Text infoText;
             public Toggle lockToggle;
 
-            [Tooltip("잠금 토글 색상을 반영할 대상 (비워두면 색상 변경 없음 - 보통 토글의 배경 Image나 라벨 Text)")]
+            [Tooltip("등급색/잠금색을 반영할 대상 (비워두면 색상 변경 없음 - 보통 토글의 배경 Image)")]
             public Graphic lockColorTarget;
         }
 
@@ -49,9 +53,8 @@ namespace HDY.Forge
         [Header("연마칸 표시 (최대 5칸, 배열 인덱스 = 슬롯 인덱스)")]
         [SerializeField] private SlotRowUI[] slotRows = new SlotRowUI[5];
 
-        [Header("잠금 토글 색상")]
-        [SerializeField] private Color lockedColor = Color.black;
-        [SerializeField] private Color unlockedColor = Color.white;
+        [Header("잠금 시 등급색에 섞을 검정 비율 (0 = 등급색 그대로, 1 = 완전히 검정)")]
+        [SerializeField, Range(0f, 1f)] private float lockedDarkenAmount = 0.5f;
 
         [Header("비용 / 실행")]
         [SerializeField] private Image stoneIconImage;
@@ -72,6 +75,14 @@ namespace HDY.Forge
 
         private ItemStack selectedStack;
         private readonly bool[] lockedSlots = new bool[5];
+
+        // [HDY 요청 - 슬롯 버튼 등급색] 슬롯별 현재 등급을 캐싱해둔다. 잠금 토글을 누르는 시점에는
+        // ForgeRefinementSlotData를 다시 조회하지 않고도(BindSlotRows에서 이미 채워둔 값으로) 곧바로
+        // ApplyLockColor에서 등급색을 계산할 수 있도록 하기 위함이다.
+        private readonly CommonClass[] slotGrades = new CommonClass[5];
+
+        // ItemTooltipUI와 완전히 동일한 등급색을 쓰기 위한 참조. ForgeUI가 SetTooltipUI로 넘겨준다.
+        private ItemTooltipUI tooltipUI;
 
         private void Awake()
         {
@@ -108,6 +119,7 @@ namespace HDY.Forge
         /// <summary>ForgeUI가 모든 슬롯에 동일한 툴팁 UI 인스턴스를 동기화할 때 호출한다.</summary>
         public void SetTooltipUI(ItemTooltipUI tooltipUI)
         {
+            this.tooltipUI = tooltipUI;
             selectedSlotDisplay?.SetTooltipUI(tooltipUI);
         }
 
@@ -153,13 +165,18 @@ namespace HDY.Forge
             RefreshCostPreview();
         }
 
+        /// <summary>
+        /// [HDY 요청 - 슬롯 버튼 등급색] 해당 슬롯의 등급색(ItemTooltipUI와 동일한 색)을 lockColorTarget에
+        /// 입힌다. 잠긴 상태면 그 등급색에 검은색을 lockedDarkenAmount만큼 섞은 어두운 버전을 사용한다.
+        /// </summary>
         private void ApplyLockColor(int index, bool isLocked)
         {
             if (index < 0 || index >= slotRows.Length) return;
             var target = slotRows[index]?.lockColorTarget;
             if (target == null) return;
 
-            target.color = isLocked ? lockedColor : unlockedColor;
+            Color gradeColor = tooltipUI != null ? tooltipUI.GetRefinementGradeColor(slotGrades[index]) : Color.white;
+            target.color = isLocked ? Color.Lerp(gradeColor, Color.black, lockedDarkenAmount) : gradeColor;
         }
 
         private void RefreshSelection()
@@ -218,6 +235,8 @@ namespace HDY.Forge
                     row.lockToggle.SetIsOnWithoutNotify(lockedSlots[i]);
                 }
 
+                // [HDY 요청 - 슬롯 버튼 등급색] ApplyLockColor가 등급색을 계산할 수 있도록 먼저 캐싱해둔다.
+                slotGrades[i] = slotData.Grade;
                 ApplyLockColor(i, lockedSlots[i]);
             }
         }

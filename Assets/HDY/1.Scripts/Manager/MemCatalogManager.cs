@@ -18,6 +18,9 @@ namespace HDY.Mem
     /// ScriptableObject.CreateInstance&lt;MemData&gt;()로 런타임 인스턴스를 만들어 채운다.
     /// (ItemCatalogManager가 이미 쓰던 것과 동일한 패턴이며, MemData.cs 자체는 Pikachu 소유라 건드리지 않는다.)
     /// 외형(모델 프리팹)은 시트에 담을 수 없어 MemAppearanceTable로 따로 분리해 관리한다.
+    ///
+    /// [HDY 요청 - 영지 배고픔 시스템] MemCatalog.csv의 MaxHunger 바로 뒤에 Consumption(분당 배고픔
+    /// 소비량) 컬럼이 추가되어, 그 뒤 컬럼들의 인덱스가 전부 1칸씩 밀렸다.
     /// </summary>
     public class MemCatalogManager : MonoBehaviour
     {
@@ -71,7 +74,7 @@ namespace HDY.Mem
                 if (string.IsNullOrWhiteSpace(line)) continue;
 
                 var cols = line.Split(',');
-                if (cols.Length < 21)
+                if (cols.Length < 22)
                 {
                     Debug.LogWarning($"[MemCatalogManager] 멤 시트 {i + 1}번째 줄 컬럼 수가 부족합니다: {line}");
                     continue;
@@ -94,7 +97,7 @@ namespace HDY.Mem
 
         /// <summary>
         /// 시트 한 줄(컬럼 배열)을 런타임 MemData로 변환한다.
-        /// 컬럼 순서: Mem_ID, MemName, Tier, Personality, MaxHp, MaxHunger,
+        /// 컬럼 순서: Mem_ID, MemName, Tier, Personality, MaxHp, MaxHunger, Consumption,
         /// Crafting, Logging, Mining, Transport, Farming, ExplorationStat,
         /// AttackDamage, AttackRange, AttackCooldown, DetectionRange, FleeHpThreshold,
         /// AllowedZoneIds, CanSpawnDay, CanSpawnNight, SpawnWeight.
@@ -109,29 +112,30 @@ namespace HDY.Mem
             data.personality = ParseEnum<MemPersonality>(cols[3]);
             data.maxHp = ParseInt(cols[4]);
             data.maxHunger = ParseInt(cols[5]);
+            data.consumption = ParseInt(cols[6]);
 
             data.productionStats = new ProductionStats
             {
-                crafting = ParseInt(cols[6]),
-                logging = ParseInt(cols[7]),
-                mining = ParseInt(cols[8]),
-                transport = ParseInt(cols[9]),
-                farming = ParseInt(cols[10]),
+                crafting = ParseInt(cols[7]),
+                logging = ParseInt(cols[8]),
+                mining = ParseInt(cols[9]),
+                transport = ParseInt(cols[10]),
+                farming = ParseInt(cols[11]),
             };
 
-            data.explorationStat = ParseInt(cols[11]);
-            data.attackDamage = ParseInt(cols[12]);
-            data.attackRange = ParseFloat(cols[13]);
-            data.attackCooldown = ParseFloat(cols[14]);
-            data.detectionRange = ParseFloat(cols[15]);
-            data.fleeHpThreshold = ParseFloat(cols[16]);
+            data.explorationStat = ParseInt(cols[12]);
+            data.attackDamage = ParseInt(cols[13]);
+            data.attackRange = ParseFloat(cols[14]);
+            data.attackCooldown = ParseFloat(cols[15]);
+            data.detectionRange = ParseFloat(cols[16]);
+            data.fleeHpThreshold = ParseFloat(cols[17]);
 
             data.spawnCondition = new SpawnCondition
             {
-                allowedZoneIds = ParseZoneIds(cols[17]),
-                canSpawnDay = ParseBool(cols[18]),
-                canSpawnNight = ParseBool(cols[19]),
-                spawnWeight = ParseFloat(cols[20]),
+                allowedZoneIds = ParseZoneIds(cols[18]),
+                canSpawnDay = ParseBool(cols[19]),
+                canSpawnNight = ParseBool(cols[20]),
+                spawnWeight = ParseFloat(cols[21]),
             };
 
             data.modelPrefab = appearanceTable != null ? appearanceTable.GetAppearance(data.memId) : null;

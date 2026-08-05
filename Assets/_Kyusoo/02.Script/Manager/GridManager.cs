@@ -116,6 +116,7 @@ public class GridManager : MonoBehaviour
 
     public static event Action<bool, List<BuildingData>> OnPlacementModeChanged;
     public static event Action OnGridDataChanged;
+    public static event Action GridExpanded;
 
     private int count = 10;
 
@@ -315,6 +316,8 @@ public class GridManager : MonoBehaviour
 
         UpdateInnerSurfacePlane();
         UpdateGlobalGridOverlay();
+
+        GridExpanded?.Invoke();
     }
 
     private bool IsOuterTile(int x, int z, int width, int height) => x == 0 || x == width - 1 || z == 0 || z == height - 1;

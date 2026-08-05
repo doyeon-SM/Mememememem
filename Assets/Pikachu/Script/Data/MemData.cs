@@ -67,6 +67,10 @@ namespace MemSystem.Data
         [Tooltip("최대 허기 — MemTierTable에서 등급별 고정값으로 덮어쓸 수 있습니다.")]
         public int maxHunger = 10;
 
+        [Tooltip("[HDY 요청 - 영지 배고픔 시스템] 분당 허기 소비량. 시설에 배치되어 근무 중일 때 1분마다 " +
+                 "이 값만큼 현재 배고픔이 줄어듭니다. 0이 되면 밥통에서 MaxHunger까지 급식을 시도합니다.")]
+        public int consumption = 1;
+
         [Tooltip("생산 스탯 (5종: 제작/벌목/채광/이동/생산). 시설 배치 시 최소 1단계 이상 필요.")]
         public ProductionStats productionStats;
 

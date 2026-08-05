@@ -1,4 +1,4 @@
-﻿using HDY.Capture;
+using HDY.Capture;
 using HDY.Inventory;
 using HDY.Item;
 using HDY.Mem;
@@ -253,6 +253,14 @@ public class RanchFacilityRuntime : MonoBehaviour
                 continue;
             }
 
+            // [HDY 요청 - 영지 배고픔 시스템] 이 슬롯의 멤이 개별적으로 배고픔 정지 상태면(먹이를 못 먹은 상태)
+            // 전역 조건과 무관하게 이 슬롯만은 가동하지 않는다.
+            if (slot.deployedMemEntry != null && slot.deployedMemEntry.IsStarving)
+            {
+                slot.isProducing = false;
+                continue;
+            }
+
             float targetBaseTime = baseProductionTime;
             if (TryGetRanchProduceData(slot.deployedMem, out string pItemId, out float customBaseTime))
             {
@@ -276,6 +284,33 @@ public class RanchFacilityRuntime : MonoBehaviour
             );
             slot.isProducing = !isStarving;
         }
+        UpdateOverallProducingState();
+    }
+
+    /// <summary>
+    /// [HDY 요청 - 영지 배고픔 시스템] 특정 멤(슬롯) 하나만 배고픔으로 인해 정지시키거나 재개시킨다.
+    /// 다른 슬롯의 가동 상태에는 전혀 영향을 주지 않는다(목장은 슬롯마다 별개의 멤이 근무하므로,
+    /// 밥통에 음식이 없어 한 멤을 못 먹였다고 해서 다른 슬롯까지 멈출 필요는 없다).
+    /// TotalHungerManager가 개별 급식 결과(성공/실패)에 따라 매분 이 메서드를 호출한다.
+    /// </summary>
+    public void SetSlotStarvationState(CapturedMemEntry entry, bool isStarving)
+    {
+        if (entry == null) return;
+
+        RanchSlotRuntime targetSlot = slots.Find(s => s.deployedMemEntry != null && s.deployedMemEntry.KeyId == entry.KeyId);
+        if (targetSlot == null) return;
+
+        if (isStarving)
+        {
+            targetSlot.isProducing = false;
+        }
+        else if (targetSlot.isUnlocked && targetSlot.deployedMem != null
+                 && !string.IsNullOrEmpty(targetSlot.craftingItemId)
+                 && targetSlot.currentStorageCount < RanchSlotRuntime.maxStorage)
+        {
+            targetSlot.isProducing = true;
+        }
+
         UpdateOverallProducingState();
     }
 
@@ -337,7 +372,7 @@ public class RanchFacilityRuntime : MonoBehaviour
         );
         targetSlot.currentProgressTime = 0f;
 
-        if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
+        if (!targetEntry.IsStarving && (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation))
         {
             targetSlot.isProducing = true;
         }
@@ -408,7 +443,8 @@ public class RanchFacilityRuntime : MonoBehaviour
                 slot.currentStorageCount = remaining;
                 if (slot.currentStorageCount < RanchSlotRuntime.maxStorage && slot.deployedMem != null)
                 {
-                    if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
+                    bool memStarving = slot.deployedMemEntry != null && slot.deployedMemEntry.IsStarving;
+                    if (!memStarving && (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation))
                     {
                         slot.isProducing = true;
                     }

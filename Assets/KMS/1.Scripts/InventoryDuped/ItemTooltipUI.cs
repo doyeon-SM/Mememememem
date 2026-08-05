@@ -191,8 +191,9 @@ namespace KMS.InventoryDuped
         /// 슬롯 하나당 태그 하나("표시명+수치")로 보여준다(여러 칸이면 세로로 여러 줄 쌓임).
         /// ForgeInstanceRegistry를 직접 조회만 하는 순수 읽기라 부수효과가 없다.
         /// </summary>
-        /// <summary>연마칸 등급(Grade)에 대응하는 태그 배경색을 반환한다.</summary>
-        private Color GetRefinementGradeColor(CommonClass grade)
+        /// <summary>연마칸 등급(Grade)에 대응하는 태그 배경색을 반환한다.
+        /// [HDY 요청] ForgeUI_RefinementPanel이 연마 슬롯 버튼 색을 툴팁과 동일하게 맞추기 위해 외부에서도 호출한다.</summary>
+        public Color GetRefinementGradeColor(CommonClass grade)
         {
             switch (grade)
             {
