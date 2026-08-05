@@ -160,7 +160,12 @@ public class RecordManager : MonoBehaviour
     public void SaveAllData()
     {
         if (IsLoadingData || IsSceneUnloading) return;
-
+        string currentScene = SceneManager.GetActiveScene().name.ToLower();
+        if (currentScene.Contains("title"))
+        {
+            Debug.LogWarning("<color=yellow>[RecordManager]</color> ⚠️ 타이틀 씬에서는 세이브 파일 덮어쓰기를 방지합니다.");
+            return;
+        }
         List<IRecord> subRecords = FindObjectsByType<MonoBehaviour>(FindObjectsInactive.Include, FindObjectsSortMode.None)
                                       .OfType<IRecord>()
                                       .ToList();
@@ -338,7 +343,7 @@ public class RecordManager : MonoBehaviour
 
             //ResynchronizeLoadedSceneState(subRecords, saveData);
 
-            //Debug.Log($"<color=lime>[RecordManager]</color> {sceneType} 환경 맞춤 데이터 완벽 복구 및 정산 완료!");
+            Debug.Log($"<color=lime>[RecordManager]</color> {sceneType} 환경 맞춤 데이터 완벽 복구 및 정산 완료!");
         }
         catch (Exception e)
         {
