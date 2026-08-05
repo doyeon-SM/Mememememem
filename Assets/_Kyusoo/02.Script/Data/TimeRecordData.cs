@@ -53,7 +53,7 @@ public class TimeRecordData : MonoBehaviour, IRecord
         string kstNow = DateTime.UtcNow.AddHours(9).ToString("yyyy-MM-dd HH:mm:ss");
         saveData.timeData = new GameTimeSaveData
         {
-            elapsedTime = 0f,
+            elapsedTime = 300f,
             lastSaveRealTimeKst = kstNow
         };
         saveData.lastSaveTime = kstNow;
