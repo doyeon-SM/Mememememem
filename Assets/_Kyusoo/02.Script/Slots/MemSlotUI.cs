@@ -121,7 +121,7 @@ public class MemSlotUI : MonoBehaviour, IDropHandler, IPointerClickHandler
             if (iconImage != null)
             {
                 iconImage.sprite = null;
-                iconImage.color = Color.black;
+                iconImage.color = new Color(0f, 0f, 0f, 100f);
             }
 
             if (activeIcon != null)
@@ -158,7 +158,8 @@ public class MemSlotUI : MonoBehaviour, IDropHandler, IPointerClickHandler
                 if (iconImage != null)
                 {
                     iconImage.sprite = null;
-                    iconImage.color = Color.white;
+                    iconImage.color = new Color(0f, 0f, 0f, 100f);
+                    stat.color = new Color(1f, 1f, 1f, 100f);
                     ApplyStatDisplay(null, string.Empty);
                 }
 

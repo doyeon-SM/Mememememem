@@ -38,8 +38,8 @@ public class GridManager : MonoBehaviour
     [Header("내부 상단 Plane 설정")]
     [SerializeField] private GameObject innerSurfacePlane;
     [SerializeField] private float planeInsetMargin = 1.2f;
-    [SerializeField] private float innerPlaneY = 0.501f;
-    [SerializeField] private float gridOverlayY = 0.502f;
+    [SerializeField] private float innerPlaneY = 0.301f;
+    [SerializeField] private float gridOverlayY = 0.302f;
 
     [Header("시설 데이터 정보: SO, 프리뷰")]
     [SerializeField] private List<BuildingData> buildings = new List<BuildingData>();
@@ -55,10 +55,16 @@ public class GridManager : MonoBehaviour
     [SerializeField] private Color occupiedBorderColor = new Color(0.95f, 0.65f, 0.2f, 0.85f);
     [SerializeField][Range(1, 16)] private int occupiedBorderWidth = 3;
 
-    // 🌟 [추가] 가동 중인 시설 이동 시도 시 출력할 경고 팝업 UI (CanvasGroup 부착 필요)
     [Header("가동 중 시설 이동 차단 알림 UI")]
     [SerializeField] private CanvasGroup activeBuildingWarningCanvasGroup;
     private Sequence warningPopupSequence;
+
+    [Header("울타리 생성 관련 설정")]
+    [SerializeField] private GameObject fenceXPrefab;   // X축 따라 배치되는 울타리 (상/하 테두리)
+    [SerializeField] private GameObject fenceZPrefab;   // Z축 따라 배치되는 울타리 (좌/우 테두리)
+    [SerializeField] private GameObject mixFencePrefab;  // 모퉁이(코너) 배치용 울타리
+    [SerializeField] private Transform fenceContainer;   // 생성될 울타리들의 부모 Transform
+    private List<GameObject> activeFenceObjects = new List<GameObject>(); // 생성된 울타리 오브젝트 추적용 리스트
 
     private BuildingData selectedBuildingData;
     private GameObject currentPreviewInstance;
@@ -262,6 +268,8 @@ public class GridManager : MonoBehaviour
 
         UpdateInnerSurfacePlane();
         UpdateGlobalGridOverlay();
+
+        RebuildAllFences(currentWidth, currentHeight);
     }
 
     public void ExpandGrid(int newWidth, int newHeight)
@@ -317,6 +325,8 @@ public class GridManager : MonoBehaviour
         UpdateInnerSurfacePlane();
         UpdateGlobalGridOverlay();
 
+        RebuildAllFences(currentWidth, currentHeight);
+
         GridExpanded?.Invoke();
     }
 
@@ -342,8 +352,168 @@ public class GridManager : MonoBehaviour
             boxCol.center = new Vector3(0f, 0.5f, 0f);
             boxCol.size = Vector3.one;
         }
+        SpawnFence(x, z, width, height);
 
         return newTile;
+    }
+
+    /// <summary>
+    /// 기존 생성되었던 울타리들을 전부 파괴하고, 현재 그리드 외곽 테두리 및 4개 모퉁이에 울타리를 새로 재배치합니다.
+    /// </summary>
+    public void RebuildAllFences(int width, int height)
+    {
+        ClearAllFences();
+
+        for (int x = 0; x < width; x++)
+        {
+            for (int z = 0; z < height; z++)
+            {
+                // 외곽 테두리 타일 좌표인 경우에만 울타리 생성 검사 수행
+                if (x == 0 || x == width - 1 || z == 0 || z == height - 1)
+                {
+                    SpawnFence(x, z, width, height);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// 현재 활성화되어 있는 모든 울타리 게임 오브젝트를 파괴하고 리스트를 비웁니다.
+    /// </summary>
+    private void ClearAllFences()
+    {
+
+        for (int i = activeFenceObjects.Count - 1; i >= 0; i--)
+        {
+            if (activeFenceObjects[i] != null)
+            {
+                Destroy(activeFenceObjects[i]);
+            }
+        }
+        activeFenceObjects.Clear();
+    }
+
+    /// <summary>
+    /// 타일 좌표(x, z) 및 그리드 크기(width, height)를 기반으로 외곽 울타리 및 모퉁이를 배치합니다.
+    /// </summary>
+    private void SpawnFence(int x, int z, int width, int height)
+    {
+        Transform parentTransform = fenceContainer != null ? fenceContainer : floorContainer;
+
+        int maxX = width;
+        int maxZ = height;
+
+        // =============================================================
+        // 1. 모퉁이(Mix_Fence) 생성 (각 모퉁이 기준 위치 + Offset & 지정 Rotation)
+        // =============================================================
+
+        // [하단 모퉁이 / 좌측하단] (0, 0)
+        // Position: BasePos(0, 0, 0) + Offset(-0.45, 0, 0.3) / Rotation: (0, 0, 0)
+        if (x == 0 && z == 0 && mixFencePrefab != null)
+        {
+            Vector3 basePos = new Vector3(0f, 0f, 0f);
+            Vector3 offset = new Vector3(-0.45f, 0f, 0.3f);
+            Quaternion rotation = Quaternion.Euler(0f, 0f, 0f);
+
+            GameObject cornerObj = Instantiate(mixFencePrefab, basePos + offset, rotation, parentTransform);
+            cornerObj.name = "Mix_Fence_(BottomLeft)";
+            activeFenceObjects.Add(cornerObj);
+        }
+
+        // [하단기준 좌측 모퉁이 / 상단좌측] (0, maxZ)
+        // Position: BasePos(0, 0, maxZ) + Offset(0.3, 0, 0.45) / Rotation: (0, 90, 0)
+        if (x == 0 && z == height - 1 && mixFencePrefab != null)
+        {
+            Vector3 basePos = new Vector3(0f, 0f, maxZ);
+            Vector3 offset = new Vector3(0.3f, 0f, 0.45f);
+            Quaternion rotation = Quaternion.Euler(0f, 90f, 0f);
+
+            GameObject cornerObj = Instantiate(mixFencePrefab, basePos + offset, rotation, parentTransform);
+            cornerObj.name = "Mix_Fence_(TopLeft)";
+            activeFenceObjects.Add(cornerObj);
+        }
+
+        // [상단 모퉁이 / 상단우측] (maxX, maxZ)
+        // Position: BasePos(maxX, 0, maxZ) + Offset(0.45, 0, -0.3) / Rotation: (0, 180, 0)
+        if (x == width - 1 && z == height - 1 && mixFencePrefab != null)
+        {
+            Vector3 basePos = new Vector3(maxX, 0f, maxZ);
+            Vector3 offset = new Vector3(0.45f, 0f, -0.3f);
+            Quaternion rotation = Quaternion.Euler(0f, 180f, 0f);
+
+            GameObject cornerObj = Instantiate(mixFencePrefab, basePos + offset, rotation, parentTransform);
+            cornerObj.name = "Mix_Fence_(TopRight)";
+            activeFenceObjects.Add(cornerObj);
+        }
+
+        // [하단기준 우측 모퉁이 / 하단우측] (maxX, 0)
+        // Position: BasePos(maxX, 0, 0) + Offset(-0.3, 0, -0.45) / Rotation: (0, 270, 0)
+        if (x == width - 1 && z == 0 && mixFencePrefab != null)
+        {
+            Vector3 basePos = new Vector3(maxX, 0f, 0f);
+            Vector3 offset = new Vector3(-0.3f, 0f, -0.45f);
+            Quaternion rotation = Quaternion.Euler(0f, 270f, 0f);
+
+            GameObject cornerObj = Instantiate(mixFencePrefab, basePos + offset, rotation, parentTransform);
+            cornerObj.name = "Mix_Fence_(BottomRight)";
+            activeFenceObjects.Add(cornerObj);
+        }
+
+        // =============================================================
+        // 2. 직선 테두리(Fence_X, Fence_Z) 생성
+        // =============================================================
+
+        // [하단 테두리] z == 0 
+        // Position: BasePos(x + 0.5, 0, 0) + Offset(0, 0, -0.5) / Rotation: (-90, 0, 0)
+        if (z == 0 && fenceXPrefab != null)
+        {
+            Vector3 basePos = new Vector3(x + 0.5f, 0f, 0f);
+            Vector3 offset = new Vector3(0f, 0f, -0.5f);
+            Quaternion rotation = Quaternion.Euler(-90f, 0f, 0f);
+
+            GameObject edgeObj = Instantiate(fenceXPrefab, basePos + offset, rotation, parentTransform);
+            edgeObj.name = $"Fence_X_Bottom_({x},0)";
+            activeFenceObjects.Add(edgeObj);
+        }
+
+        // [상단 테두리] z == height - 1 
+        // Position: BasePos(x + 0.5, 0, maxZ) + Offset(0, 0, 0.5) / Rotation: (-90, 0, 0)
+        if (z == height - 1 && fenceXPrefab != null)
+        {
+            Vector3 basePos = new Vector3(x + 0.5f, 0f, maxZ);
+            Vector3 offset = new Vector3(0f, 0f, 0.5f);
+            Quaternion rotation = Quaternion.Euler(-90f, 0f, 0f);
+
+            GameObject edgeObj = Instantiate(fenceXPrefab, basePos + offset, rotation, parentTransform);
+            edgeObj.name = $"Fence_X_Top_({x},{maxZ})";
+            activeFenceObjects.Add(edgeObj);
+        }
+
+        // [좌측 테두리 (하단기준 좌측)] x == 0 
+        // Position: BasePos(0, 0, z + 0.5) + Offset(-0.5, 0, 0) / Rotation: (-90, 90, 0)
+        if (x == 0 && fenceZPrefab != null)
+        {
+            Vector3 basePos = new Vector3(0f, 0f, z + 0.5f);
+            Vector3 offset = new Vector3(-0.5f, 0f, 0f);
+            Quaternion rotation = Quaternion.Euler(-90f, 90f, 0f);
+
+            GameObject edgeObj = Instantiate(fenceZPrefab, basePos + offset, rotation, parentTransform);
+            edgeObj.name = $"Fence_Z_Left_(0,{z})";
+            activeFenceObjects.Add(edgeObj);
+        }
+
+        // [우측 테두리 (상단기준 우측)] x == width - 1 
+        // Position: BasePos(maxX, 0, z + 0.5) + Offset(0.5, 0, 0) / Rotation: (-90, 90, 0)
+        if (x == width - 1 && fenceZPrefab != null)
+        {
+            Vector3 basePos = new Vector3(maxX, 0f, z + 0.5f);
+            Vector3 offset = new Vector3(0.5f, 0f, 0f);
+            Quaternion rotation = Quaternion.Euler(-90f, 90f, 0f);
+
+            GameObject edgeObj = Instantiate(fenceZPrefab, basePos + offset, rotation, parentTransform);
+            edgeObj.name = $"Fence_Z_Right_({maxX},{z})";
+            activeFenceObjects.Add(edgeObj);
+        }
     }
 
     private void UpdateInnerSurfacePlane()
