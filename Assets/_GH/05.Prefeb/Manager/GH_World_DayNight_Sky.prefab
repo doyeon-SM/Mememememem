@@ -10,6 +10,7 @@ GameObject:
   m_Component:
   - component: {fileID: 8435116066358048211}
   - component: {fileID: 8435116066358048212}
+  - component: {fileID: 8435116066358048214}
   - component: {fileID: 8435116066358048213}
   m_Layer: 0
   m_Name: GH_World_DayNight_Sky
@@ -52,6 +53,66 @@ MonoBehaviour:
   daySkyboxSource: {fileID: 2100000, guid: e6f9aa0aa1104ed5a5598d73ea8931fd, type: 2}
   nightSkyboxSource: {fileID: 2100000, guid: a28c9ed45eae4e679ddad2c574742b74, type: 2}
   blendSkyboxShader: {fileID: 4800000, guid: da6001c9804641f09a384dda70d69e39, type: 3}
+  nightBlendOverDay:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.05375
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.06625
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.49375
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.50625
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
   useCompactSkyboxTransition: 1
   sunriseTransitionCenter: 0.06
   sunriseTransitionDuration: 0.045
@@ -62,6 +123,10 @@ MonoBehaviour:
   nightSkyboxExposure: 0.62
   daySkyboxTint: {r: 1, g: 1, b: 1, a: 1}
   nightSkyboxTint: {r: 1, g: 0.92, b: 0.84, a: 1}
+  daySkyboxScale: 0.5
+  nightSkyboxScale: 0.48
+  daySkyboxVerticalOffset: 20
+  nightSkyboxVerticalOffset: 24
   skyboxRotationOffset: 0
   skyboxRotationDegreesPerGameDay: 45
   mainDirectionalLight: {fileID: 0}
@@ -69,7 +134,115 @@ MonoBehaviour:
   rotateDirectionalLightWithTime: 1
   sunPitchAtDayStart: -10
   sunYaw: -30
+  directionalLightIntensityOverDay:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0.12
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.08
+      value: 0.82
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.25
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.42
+      value: 0.82
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.49
+      value: 0.22
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.55
+      value: 0.08
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.9
+      value: 0.08
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 0.12
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
   maximumDirectionalLightIntensity: 1
+  directionalLightColorOverDay:
+    serializedVersion: 2
+    key0: {r: 0.72, g: 0.74, b: 0.78, a: 1}
+    key1: {r: 1, g: 0.97, b: 0.92, a: 1}
+    key2: {r: 1, g: 1, b: 1, a: 0}
+    key3: {r: 1, g: 0.97, b: 0.92, a: 0}
+    key4: {r: 0.95, g: 0.78, b: 0.62, a: 0}
+    key5: {r: 0.74, g: 0.75, b: 0.78, a: 0}
+    key6: {r: 0.68, g: 0.7, b: 0.74, a: 0}
+    key7: {r: 0.72, g: 0.74, b: 0.78, a: 0}
+    ctime0: 0
+    ctime1: 5243
+    ctime2: 16384
+    ctime3: 27525
+    ctime4: 32768
+    ctime5: 36700
+    ctime6: 53739
+    ctime7: 65535
+    atime0: 0
+    atime1: 65535
+    atime2: 0
+    atime3: 0
+    atime4: 0
+    atime5: 0
+    atime6: 0
+    atime7: 0
+    m_Mode: 0
+    m_ColorSpace: -1
+    m_NumColorKeys: 8
+    m_NumAlphaKeys: 2
   useContinuousLightingFlow: 1
   continuousDayLightRatio: 1
   continuousNightLightRatio: 0.8
@@ -98,6 +271,39 @@ MonoBehaviour:
   currentNormalizedTime: 0
   currentNightBlend: 0
   currentLightingNightBlend: 0
+--- !u!114 &8435116066358048214
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8435116066358048210}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4f99ae3d4ad94fa1b69e6250e8cc3084, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::GH.World.GHWorldDayNightFogController
+  skyController: {fileID: 8435116066358048212}
+  previewInSceneView: 0
+  dayNearFogColor: {r: 0.105, g: 0.342, b: 0.584, a: 1}
+  dayMidFogColor: {r: 0.227, g: 0.497, b: 0.723, a: 1}
+  dayFarFogColor: {r: 0.539, g: 0.716, b: 0.839, a: 1}
+  dayFogStartDistance: 65
+  dayFogEndDistance: 520
+  dayFogMaxOpacity: 0.88
+  dayFogDistancePower: 0.78
+  nightNearFogColor: {r: 0.0056, g: 0.0103, b: 0.0319, a: 1}
+  nightMidFogColor: {r: 0.0137, g: 0.0273, b: 0.0823, a: 1}
+  nightFarFogColor: {r: 0.0343, g: 0.0666, b: 0.159, a: 1}
+  nightFogStartDistance: 50
+  nightFogEndDistance: 400
+  nightFogMaxOpacity: 0.92
+  nightFogDistancePower: 0.72
+  middleColorPoint: 0.52
+  horizonWidthDegrees: 4.5
+  horizonVerticalOffsetDegrees: 0
+  dayHorizonIntensity: 0.58
+  nightHorizonIntensity: 0.66
 --- !u!114 &8435116066358048213
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -108,12 +314,14 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: d3c4d5dc95094473b8773a34b6bce0e4, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GH.World.GHWorldObjectDamageRecoveryManager
+  enableTypeSpecificDepletion: 0
+  disableImpactFlash: 0
   recoveryDelaySeconds: 10
   crackOverlayShader: {fileID: 4800000, guid: e43c78003b184eacbc28f49e4d83c38a, type: 3}
-  crackColor: {r: 0.07, g: 0.045, b: 0.025, a: 0.9}
-  crackHighlightColor: {r: 1, g: 0.58, b: 0.16, a: 0.72}
+  crackColor: {r: 0.07, g: 0.045, b: 0.025, a: 1}
+  crackHighlightColor: {r: 0, g: 0, b: 0, a: 1}
   crackHighlightWidth: 2
   crackHighlightStrength: 0.72
   impactFlashColor: {r: 1, g: 0.72, b: 0.34, a: 0.42}
@@ -122,4 +330,3 @@ MonoBehaviour:
   crackTiling: 1.15
   crackGrowthExponent: 1.45
   overlayScale: 1.002
-  discoveryIntervalSeconds: 1

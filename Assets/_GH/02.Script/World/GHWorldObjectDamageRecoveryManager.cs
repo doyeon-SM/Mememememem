@@ -16,6 +16,16 @@ namespace GH.World
     {
         private const string CrackShaderName = "GH/World/Crack Overlay";
 
+        private static readonly HashSet<GHWorldObjectDamageRecoveryManager> ActiveManagers =
+            new HashSet<GHWorldObjectDamageRecoveryManager>();
+
+        [Header("Scene World Object Rules")]
+        [Tooltip("이 매니저와 같은 씬의 WorldObject가 타입별 파괴 방식을 사용합니다. 나무는 쓰러진 뒤 드롭하고, 부쉬는 체력이 1로 고정됩니다.")]
+        [SerializeField] private bool enableTypeSpecificDepletion;
+
+        [Tooltip("이 매니저와 같은 씬의 WorldObject 피격 충격광만 제거합니다. 균열과 체력 복구는 유지됩니다.")]
+        [SerializeField] private bool disableImpactFlash;
+
         [Header("Damage Recovery")]
         [Tooltip(
             "월드 오브젝트가 마지막 피해를 받은 뒤 최대 체력으로 돌아가기까지 기다리는 시간입니다. " +
@@ -81,6 +91,7 @@ namespace GH.World
 
         private void OnEnable()
         {
+            ActiveManagers.Add(this);
             CreateRuntimeResources();
             WorldObject.InstanceEnabled -= HandleWorldObjectEnabled;
             WorldObject.InstanceEnabled += HandleWorldObjectEnabled;
@@ -92,6 +103,7 @@ namespace GH.World
 
         private void OnDisable()
         {
+            ActiveManagers.Remove(this);
             WorldObject.InstanceEnabled -= HandleWorldObjectEnabled;
             for (int i = adapters.Count - 1; i >= 0; i--)
             {
@@ -112,13 +124,23 @@ namespace GH.World
 
         private void ConfigureWorldObject(WorldObject worldObject)
         {
-            CreateRuntimeResources();
-            if (runtimeCrackMaterial == null)
+            if (worldObject == null)
             {
                 return;
             }
 
-            if (worldObject == null)
+            if (worldObject.gameObject.scene != gameObject.scene)
+            {
+                return;
+            }
+
+            if (enableTypeSpecificDepletion)
+            {
+                worldObject.ApplyTypeSpecificRules();
+            }
+
+            CreateRuntimeResources();
+            if (runtimeCrackMaterial == null)
             {
                 return;
             }
@@ -130,8 +152,12 @@ namespace GH.World
                 adapter = worldObject.gameObject.AddComponent<GHWorldObjectDamageRecovery>();
             }
 
+            bool useCrackVisual = !enableTypeSpecificDepletion
+                || worldObject.RequiredToolType == KGH.Data.ObjectType.Stone;
+
             adapter.Configure(
                 runtimeCrackMaterial,
+                useCrackVisual,
                 recoveryDelaySeconds,
                 crackColor,
                 crackHighlightColor,
@@ -139,7 +165,7 @@ namespace GH.World
                 crackHighlightStrength,
                 impactFlashColor,
                 impactFlashDuration,
-                impactFlashIntensity,
+                disableImpactFlash ? 0f : impactFlashIntensity,
                 crackTiling,
                 crackGrowthExponent,
                 overlayScale);
@@ -148,6 +174,34 @@ namespace GH.World
             {
                 adapters.Add(adapter);
             }
+        }
+
+        /// <summary>해당 WorldObject가 속한 씬에서 타입별 파괴 규칙을 켰는지 확인합니다.</summary>
+        public static bool IsTypeSpecificDepletionEnabledFor(WorldObject worldObject)
+        {
+            if (worldObject == null)
+            {
+                return false;
+            }
+
+            foreach (GHWorldObjectDamageRecoveryManager manager in ActiveManagers)
+            {
+                if (manager != null
+                    && manager.isActiveAndEnabled
+                    && manager.enableTypeSpecificDepletion
+                    && manager.gameObject.scene == worldObject.gameObject.scene)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetActiveManagers()
+        {
+            ActiveManagers.Clear();
         }
 
         private void CreateRuntimeResources()
@@ -370,6 +424,7 @@ namespace GH.World
         private readonly List<Renderer> sourceRenderers = new();
         private WorldObject worldObject;
         private Material crackMaterial;
+        private bool crackVisualEnabled = true;
         private MaterialPropertyBlock propertyBlock;
         private float recoveryDelaySeconds;
         private Color crackColor;
@@ -437,6 +492,7 @@ namespace GH.World
 
         internal void Configure(
             Material material,
+            bool enableCrackVisual,
             float recoveryDelay,
             Color color,
             Color highlightColor,
@@ -450,6 +506,7 @@ namespace GH.World
             float scale)
         {
             crackMaterial = material;
+            crackVisualEnabled = enableCrackVisual;
             recoveryDelaySeconds = Mathf.Max(0.1f, recoveryDelay);
             crackColor = color;
             crackHighlightColor = highlightColor;
@@ -665,7 +722,9 @@ namespace GH.World
                 propertyBlock = new MaterialPropertyBlock();
             }
 
-            float damageRatio = worldObject == null || worldObject.MaxHp <= 0
+            float damageRatio = !crackVisualEnabled
+                || worldObject == null
+                || worldObject.MaxHp <= 0
                 ? 0f
                 : 1f - Mathf.Clamp01((float)worldObject.CurrentHp / worldObject.MaxHp);
             float severity = Mathf.Pow(damageRatio, crackGrowthExponent);

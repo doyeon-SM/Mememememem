@@ -20,7 +20,8 @@ namespace KMS.Audio
         CaptureFailure,
         ItemObtained,
         QuickSlotSelected,
-        PlayerDamaged
+        PlayerDamaged,
+        WaySound
     }
 
     [Serializable]

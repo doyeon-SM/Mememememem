@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using KMS.Audio;
 using TMPro;
@@ -122,6 +123,8 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
     private bool isRefreshingAudioUi;
     private bool hasCommittedSnapshot;
     private SettingsSnapshot committedSnapshot;
+    private CanvasGroup applyFadeCanvasGroup;
+    private Coroutine applyCloseFadeCoroutine;
 
     private void Awake()
     {
@@ -130,6 +133,8 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
 
     private void OnEnable()
     {
+        applyCloseFadeCoroutine = null;
+        ResetApplyFadeVisual();
         Initialize();
         LoadCommittedSettingsIntoUi();
         CaptureCommittedSnapshot();
@@ -138,6 +143,14 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
 
     private void OnDisable()
     {
+        if (applyCloseFadeCoroutine != null)
+        {
+            StopCoroutine(applyCloseFadeCoroutine);
+        }
+
+        applyCloseFadeCoroutine = null;
+        ResetApplyFadeVisual();
+
         if (!isInitialized || !hasCommittedSnapshot)
         {
             return;
@@ -202,6 +215,65 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
         PlayerPrefs.Save();
         CaptureCommittedSnapshot();
         RefreshApplyButtonState();
+        TryStartApplyCloseFade();
+    }
+
+    private void TryStartApplyCloseFade()
+    {
+        if (applyCloseFadeCoroutine != null
+            || SceneUIManager.Instance == null
+            || !SceneUIManager.Instance.TryGetSettingsSubPanelApplyFadeDuration(
+                out float fadeDuration))
+        {
+            return;
+        }
+
+        applyCloseFadeCoroutine = StartCoroutine(FadeAndCloseThisPanel(fadeDuration));
+    }
+
+    private IEnumerator FadeAndCloseThisPanel(float duration)
+    {
+        CanvasGroup canvasGroup = GetOrCreateApplyFadeCanvasGroup();
+        canvasGroup.interactable = false;
+        canvasGroup.blocksRaycasts = false;
+
+        float elapsed = 0f;
+        duration = Mathf.Max(0.01f, duration);
+        while (elapsed < duration && gameObject.activeInHierarchy)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            canvasGroup.alpha = 1f - Mathf.Clamp01(elapsed / duration);
+            yield return null;
+        }
+
+        applyCloseFadeCoroutine = null;
+        gameObject.SetActive(false);
+    }
+
+    private CanvasGroup GetOrCreateApplyFadeCanvasGroup()
+    {
+        if (applyFadeCanvasGroup == null)
+        {
+            applyFadeCanvasGroup = GetComponent<CanvasGroup>();
+            if (applyFadeCanvasGroup == null)
+            {
+                applyFadeCanvasGroup = gameObject.AddComponent<CanvasGroup>();
+            }
+        }
+
+        return applyFadeCanvasGroup;
+    }
+
+    private void ResetApplyFadeVisual()
+    {
+        if (applyFadeCanvasGroup == null)
+        {
+            return;
+        }
+
+        applyFadeCanvasGroup.alpha = 1f;
+        applyFadeCanvasGroup.interactable = true;
+        applyFadeCanvasGroup.blocksRaycasts = true;
     }
 
     /// <summary>기본 해상도, 전체 화면, 중간 품질, 최대 음량을 편집 값으로 불러옵니다.</summary>
@@ -277,8 +349,7 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
             && sfxVolumeSlider != null
             && masterVolumeInput != null
             && musicVolumeInput != null
-            && sfxVolumeInput != null
-            && terrainQualityDropdown != null)
+            && sfxVolumeInput != null)
         {
             return;
         }
@@ -453,30 +524,12 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
             return;
         }
 
-        RectTransform applyRect = applyButton.transform as RectTransform;
-        if (applyRect != null)
-        {
-            applyRect.sizeDelta = new Vector2(280f, 62f);
-            applyRect.anchoredPosition = new Vector2(155f, -322f);
-        }
-
         if (resetDefaultsButton == null)
         {
             Transform existingReset = runtimeUiRoot.Find("Reset Defaults");
             resetDefaultsButton = existingReset != null
                 ? existingReset.GetComponent<Button>()
                 : null;
-        }
-
-        if (resetDefaultsButton == null)
-        {
-            resetDefaultsButton = CreateButton(
-                "Reset Defaults",
-                runtimeUiRoot,
-                "기본값 복원",
-                new Vector2(280f, 62f),
-                new Vector2(-155f, -322f),
-                buttonColor);
         }
 
         Transform guideTransform = runtimeUiRoot.Find("Guide");
@@ -868,12 +921,15 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
         nextButton.onClick.RemoveListener(NextResolution);
         screenModeButton.onClick.RemoveListener(ToggleScreenMode);
         applyButton.onClick.RemoveListener(ApplySettings);
-        resetDefaultsButton.onClick.RemoveListener(RestoreDefaults);
         previousButton.onClick.AddListener(PreviousResolution);
         nextButton.onClick.AddListener(NextResolution);
         screenModeButton.onClick.AddListener(ToggleScreenMode);
         applyButton.onClick.AddListener(ApplySettings);
-        resetDefaultsButton.onClick.AddListener(RestoreDefaults);
+        if (resetDefaultsButton != null)
+        {
+            resetDefaultsButton.onClick.RemoveListener(RestoreDefaults);
+            resetDefaultsButton.onClick.AddListener(RestoreDefaults);
+        }
 
         masterVolumeSlider.onValueChanged.AddListener(HandleMasterVolumeChanged);
         musicVolumeSlider.onValueChanged.AddListener(HandleMusicVolumeChanged);
@@ -882,7 +938,11 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
         masterVolumeInput.onEndEdit.AddListener(HandleMasterVolumeInput);
         musicVolumeInput.onEndEdit.AddListener(HandleMusicVolumeInput);
         sfxVolumeInput.onEndEdit.AddListener(HandleSfxVolumeInput);
-        terrainQualityDropdown.onValueChanged.AddListener(HandleTerrainQualityChanged);
+        if (terrainQualityDropdown != null)
+        {
+            terrainQualityDropdown.onValueChanged.AddListener(
+                HandleTerrainQualityChanged);
+        }
     }
 
     private void LoadTerrainQualitySelection()

@@ -232,7 +232,7 @@ GameObject:
   - component: {fileID: 1898490875746390039}
   - component: {fileID: 6496239289125111931}
   m_Layer: 5
-  m_Name: Text (TMP)
+  m_Name: Txt_Title
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -667,7 +667,7 @@ MonoBehaviour:
   waypointNameText: {fileID: 4225451625897850225}
   waypointIcon: {fileID: 1466772182789581095}
   fillBackground: {fileID: 573082620908189185}
-  travelButton: {fileID: 8481200345559100202}
+  travelButton: {fileID: 0}
   lockedBackgroundAlpha: 200
   previewUnavailableNameColor: {r: 1, g: 0.25, b: 0.25, a: 1}
 --- !u!1 &4536158671675433094
@@ -738,9 +738,9 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 5083448365011217708}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 814.1, y: 53}
+  m_AnchorMin: {x: 1, y: 0.5}
+  m_AnchorMax: {x: 1, y: 0.5}
+  m_AnchoredPosition: {x: 104.099976, y: 53}
   m_SizeDelta: {x: 203.56, y: 625.5}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &2507805570750143
@@ -846,7 +846,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 89e149e4fbbb5784aa4667ac9fd39605, type: 3}
+  m_Sprite: {fileID: 429731346, guid: dbeb9e049f06da241a45878510a4f7bc, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -948,12 +948,12 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 22.3
+  m_fontSize: 24
   m_fontSizeBase: 36
   m_fontWeight: 400
   m_enableAutoSizing: 1
   m_fontSizeMin: 18
-  m_fontSizeMax: 32
+  m_fontSizeMax: 24
   m_fontStyle: 0
   m_HorizontalAlignment: 1
   m_VerticalAlignment: 512
@@ -987,7 +987,7 @@ MonoBehaviour:
   m_VertexBufferAutoSizeReduction: 0
   m_useMaxVisibleDescender: 1
   m_pageToDisplay: 1
-  m_margin: {x: 0, y: 0, z: -38.066223, w: 0}
+  m_margin: {x: 0, y: 0, z: -495.22064, w: 0}
   m_isUsingLegacyAnimationComponent: 0
   m_isVolumetricText: 0
   m_hasFontAssetChanged: 0
@@ -1387,6 +1387,7 @@ MonoBehaviour:
     \uC5C6\uC74C"
   lockedMapStatusText: "[ \uC774\uB3D9 \uBD88\uAC00 ]\n\uC7A0\uAE34 \uB9F5"
   canTravelStatusText: "\uC774\uB3D9 \uAC00\uB2A5"
+  currentLocationStatusText: "\uD604\uC7AC \uC704\uCE58"
 --- !u!1 &9052217535015401832
 GameObject:
   m_ObjectHideFlags: 0
@@ -1398,7 +1399,7 @@ GameObject:
   - component: {fileID: 199654991743985033}
   - component: {fileID: 4497606241825564496}
   - component: {fileID: 573082620908189185}
-  - component: {fileID: 8481200345559100202}
+  - component: {fileID: 3213833569917213006}
   m_Layer: 5
   m_Name: Fill_Bg
   m_TagString: Untagged
@@ -1463,7 +1464,7 @@ MonoBehaviour:
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
   m_PixelsPerUnitMultiplier: 6.84
---- !u!114 &8481200345559100202
+--- !u!114 &3213833569917213006
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -1482,13 +1483,13 @@ MonoBehaviour:
     m_SelectOnDown: {fileID: 0}
     m_SelectOnLeft: {fileID: 0}
     m_SelectOnRight: {fileID: 0}
-  m_Transition: 0
+  m_Transition: 1
   m_Colors:
     m_NormalColor: {r: 1, g: 1, b: 1, a: 1}
-    m_HighlightedColor: {r: 1, g: 1, b: 1, a: 1}
-    m_PressedColor: {r: 1, g: 1, b: 1, a: 1}
-    m_SelectedColor: {r: 1, g: 1, b: 1, a: 1}
-    m_DisabledColor: {r: 1, g: 1, b: 1, a: 1}
+    m_HighlightedColor: {r: 0.9607843, g: 0.9607843, b: 0.9607843, a: 1}
+    m_PressedColor: {r: 0.78431374, g: 0.78431374, b: 0.78431374, a: 1}
+    m_SelectedColor: {r: 0.9607843, g: 0.9607843, b: 0.9607843, a: 1}
+    m_DisabledColor: {r: 0.78431374, g: 0.78431374, b: 0.78431374, a: 0.5019608}
     m_ColorMultiplier: 1
     m_FadeDuration: 0.1
   m_SpriteState:
@@ -1502,7 +1503,7 @@ MonoBehaviour:
     m_PressedTrigger: Pressed
     m_SelectedTrigger: Selected
     m_DisabledTrigger: Disabled
-  m_Interactable: 0
+  m_Interactable: 1
   m_TargetGraphic: {fileID: 573082620908189185}
   m_OnClick:
     m_PersistentCalls:

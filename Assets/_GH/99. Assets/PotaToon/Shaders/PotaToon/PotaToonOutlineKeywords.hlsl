@@ -1,0 +1,17 @@
+﻿#ifndef POTA_TOON_OUTLINE_KEYWORDS_INCLUDED
+#define POTA_TOON_OUTLINE_KEYWORDS_INCLUDED
+
+#pragma target 4.5
+#pragma multi_compile_fragment _ _POTA_TOON_OIT
+#pragma multi_compile _ _ADDITIONAL_LIGHTS
+#if UNITY_VERSION >= 60030000
+#pragma multi_compile _ _CLUSTER_LIGHT_LOOP
+#define USE_FORWARD_PLUS USE_CLUSTER_LIGHT_LOOP
+#define FORWARD_PLUS_SUBTRACTIVE_LIGHT_CHECK CLUSTER_LIGHT_LOOP_SUBTRACTIVE_LIGHT_CHECK
+#else
+#pragma multi_compile _ _FORWARD_PLUS
+#endif
+#pragma multi_compile _ _LIGHT_LAYERS
+#pragma shader_feature_local_fragment _ALPHATEST_ON
+
+#endif

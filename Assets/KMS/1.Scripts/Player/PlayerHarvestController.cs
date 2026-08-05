@@ -329,7 +329,11 @@ namespace KMS.Harvesting
             if (hitObj.collider == null) return false;
             WorldObject harvestable = hitObj.collider.GetComponentInParent<WorldObject>();
             if (harvestable == null) return false;
-            bool applied = harvestable.ObjectInteract(inventory, selectedItem);
+            bool applied = harvestable.ObjectInteract(
+                inventory,
+                selectedItem,
+                hitObj.point,
+                transform.position);
             if (applied)
             {
                 GameSfxId? impactId = GetHarvestImpactId(harvestable.RequiredToolType);
