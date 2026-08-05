@@ -349,9 +349,17 @@ MonoBehaviour:
   attackClip: {fileID: 8300000, guid: 1fb3080f9500b8247b75745b283e2222, type: 3}
   attackVolume: 0.2
   attackHitDelay: 0.4
+  footstepClip: {fileID: 8300000, guid: 58f25d6ec0a18884e9b39cf20aebbe82, type: 3}
+  footstepStride: 0.6
+  footstepVolume: 0.3
+  footstepPitchRange: {x: 0.92, y: 1.08}
+  footstepMinDistance: 2
+  footstepMaxDistance: 10
+  globalFootstepGap: 0.06
   cryIntervalRange: {x: 5, y: 12}
   cryChance: 0.6
-  globalCryGap: 0.45
+  globalCryCooldownRange: {x: 3, y: 7}
+  blockOverlappingCry: 1
   volume: 0.4
   pitchRange: {x: 0.9, y: 1.15}
   minDistance: 3
