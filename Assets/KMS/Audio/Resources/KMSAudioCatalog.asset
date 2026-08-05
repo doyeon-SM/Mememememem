@@ -25,7 +25,7 @@ MonoBehaviour:
     Output: {fileID: 0}
   - Id: 1
     Clips:
-    - {fileID: 8300000, guid: eb5a263e361d1064f80035aedbc43094, type: 3}
+    - {fileID: 8300000, guid: 90c664beeaad15240b37825466984f94, type: 3}
     Volume: 1
     PitchMin: 0.96
     PitchMax: 1.04
@@ -34,8 +34,9 @@ MonoBehaviour:
     MaxVoices: 4
     Output: {fileID: 0}
   - Id: 2
-    Clips: []
-    Volume: 1
+    Clips:
+    - {fileID: 8300000, guid: 2903b7c78e75c0648b5f04510bcedca8, type: 3}
+    Volume: 0.5
     PitchMin: 0.96
     PitchMax: 1.04
     SpatialBlend: 1
@@ -161,25 +162,31 @@ MonoBehaviour:
     Output: {fileID: 0}
   sceneMusic:
   - SceneName: Territory
-    Clip: {fileID: 0}
+    Clip: {fileID: 8300000, guid: 6956c8f07890d3c459d66568fdd960a0, type: 3}
     Volume: 0.65
     FadeSeconds: 1.25
     Loop: 1
     Output: {fileID: 0}
   - SceneName: Main_World
-    Clip: {fileID: 0}
+    Clip: {fileID: 8300000, guid: 46ffdade3caf6fb45b449df922a35b8a, type: 3}
     Volume: 0.65
     FadeSeconds: 1.25
     Loop: 1
     Output: {fileID: 0}
   - SceneName: Main_World_2
-    Clip: {fileID: 0}
+    Clip: {fileID: 8300000, guid: 46ffdade3caf6fb45b449df922a35b8a, type: 3}
     Volume: 0.65
     FadeSeconds: 1.25
     Loop: 1
     Output: {fileID: 0}
   - SceneName: Main_World_3
     Clip: {fileID: 0}
+    Volume: 0.65
+    FadeSeconds: 1.25
+    Loop: 1
+    Output: {fileID: 0}
+  - SceneName: Main_World_2_GH
+    Clip: {fileID: 8300000, guid: 46ffdade3caf6fb45b449df922a35b8a, type: 3}
     Volume: 0.65
     FadeSeconds: 1.25
     Loop: 1

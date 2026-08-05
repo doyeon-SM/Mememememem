@@ -29,6 +29,12 @@ namespace GH.World
         private static readonly int ExposureId = Shader.PropertyToID("_Exposure");
         private static readonly int RotationId = Shader.PropertyToID("_Rotation");
         private static readonly int TintId = Shader.PropertyToID("_Tint");
+        private static readonly int DaySkyScaleId = Shader.PropertyToID("_DaySkyScale");
+        private static readonly int NightSkyScaleId = Shader.PropertyToID("_NightSkyScale");
+        private static readonly int DayVerticalOffsetId =
+            Shader.PropertyToID("_DayVerticalOffset");
+        private static readonly int NightVerticalOffsetId =
+            Shader.PropertyToID("_NightVerticalOffset");
         private static readonly int SourceCubemapId = Shader.PropertyToID("_Tex");
         private static readonly int SourceMainTextureId = Shader.PropertyToID("_MainTex");
 
@@ -127,6 +133,23 @@ namespace GH.World
             "밤 스카이박스와 밤 환경광에 곱해지는 색상입니다. 기본값은 푸른색을 약간 줄이는 따뜻한 중성 보정입니다. " +
             "밤 오브젝트가 너무 파랗다면 파란색보다 빨강·초록 비율을 조금 높이세요.")]
         [SerializeField] private Color nightSkyboxTint = new Color(1f, 0.92f, 0.84f, 1f);
+
+        [Header("Skybox Framing")]
+        [Tooltip("Visual size of the baked day sky. Values below 1 make clouds appear smaller.")]
+        [Range(0.4f, 1.25f)]
+        [SerializeField] private float daySkyboxScale = 0.5f;
+
+        [Tooltip("Visual size of the baked night sky. Values below 1 make clouds appear smaller.")]
+        [Range(0.4f, 1.25f)]
+        [SerializeField] private float nightSkyboxScale = 0.48f;
+
+        [Tooltip("Moves the baked day sky upward in degrees when the value is positive.")]
+        [Range(-25f, 25f)]
+        [SerializeField] private float daySkyboxVerticalOffset = 20f;
+
+        [Tooltip("Moves the baked night sky upward in degrees when the value is positive.")]
+        [Range(-25f, 25f)]
+        [SerializeField] private float nightSkyboxVerticalOffset = 24f;
 
         [Tooltip(
             "스카이박스의 시작 회전각입니다. 선택한 Cubemap에서 달, 구름, 밝은 부분이 보이는 방향을 " +
@@ -322,6 +345,8 @@ namespace GH.World
         [Tooltip(
             "현재 맵 조명과 환경광에 적용 중인 밤 비율입니다. 스카이박스보다 긴 시간에 걸쳐 변화하도록 별도로 계산됩니다.")]
         [SerializeField, Range(0f, 1f)] private float currentLightingNightBlend;
+
+        public float CurrentNightBlend => currentNightBlend;
 
         private Material runtimeSkybox;
         private Material originalSkybox;
@@ -604,6 +629,18 @@ namespace GH.World
                 runtimeSkybox.SetFloat(BlendId, currentNightBlend);
                 runtimeSkybox.SetFloat(ExposureId, exposure);
                 runtimeSkybox.SetFloat(RotationId, rotation);
+                runtimeSkybox.SetFloat(
+                    DaySkyScaleId,
+                    Mathf.Clamp(daySkyboxScale, 0.4f, 1.25f));
+                runtimeSkybox.SetFloat(
+                    NightSkyScaleId,
+                    Mathf.Clamp(nightSkyboxScale, 0.4f, 1.25f));
+                runtimeSkybox.SetFloat(
+                    DayVerticalOffsetId,
+                    Mathf.Clamp(daySkyboxVerticalOffset, -25f, 25f));
+                runtimeSkybox.SetFloat(
+                    NightVerticalOffsetId,
+                    Mathf.Clamp(nightSkyboxVerticalOffset, -25f, 25f));
                 runtimeSkybox.SetColor(
                     TintId,
                     Color.Lerp(daySkyboxTint, nightSkyboxTint, currentNightBlend));
@@ -913,6 +950,10 @@ namespace GH.World
             daySkyboxExposure = Mathf.Max(0f, daySkyboxExposure);
             nightSkyboxExposure = Mathf.Max(0f, nightSkyboxExposure);
             skyboxBlendResponseSeconds = Mathf.Max(0.05f, skyboxBlendResponseSeconds);
+            daySkyboxScale = Mathf.Clamp(daySkyboxScale, 0.4f, 1.25f);
+            nightSkyboxScale = Mathf.Clamp(nightSkyboxScale, 0.4f, 1.25f);
+            daySkyboxVerticalOffset = Mathf.Clamp(daySkyboxVerticalOffset, -25f, 25f);
+            nightSkyboxVerticalOffset = Mathf.Clamp(nightSkyboxVerticalOffset, -25f, 25f);
             maximumDirectionalLightIntensity = Mathf.Max(0f, maximumDirectionalLightIntensity);
             continuousDayLightRatio = Mathf.Clamp01(continuousDayLightRatio);
             continuousNightLightRatio = Mathf.Clamp01(continuousNightLightRatio);

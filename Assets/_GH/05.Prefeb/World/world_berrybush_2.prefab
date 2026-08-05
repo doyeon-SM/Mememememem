@@ -14,11 +14,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5978461124778932279, guid: 6f41bca37fe3e9843b2f1530216a20d6, type: 3}
       propertyPath: m_LocalScale.x
-      value: 0.8
+      value: 1.2
       objectReference: {fileID: 0}
     - target: {fileID: 5978461124778932279, guid: 6f41bca37fe3e9843b2f1530216a20d6, type: 3}
       propertyPath: m_LocalScale.z
-      value: 0.8
+      value: 1.2
       objectReference: {fileID: 0}
     - target: {fileID: 5978461124778932279, guid: 6f41bca37fe3e9843b2f1530216a20d6, type: 3}
       propertyPath: m_LocalPosition.x
@@ -73,6 +73,11 @@ MonoBehaviour:
   currentObjectHp: 0
   respawnTime: 30
   needGrade: 0
+  treeFallPushSpeed: 1.2
+  treeFallAngularSpeed: 2.4
+  treeFallLandingGraceSeconds: 0.25
+  treeFallLandedAngle: 55
+  treeFallTimeoutSeconds: 5
   resourceRenderers: []
   resourceColliders: []
   dropSpawnPoint: {fileID: 2494776087159257142}
