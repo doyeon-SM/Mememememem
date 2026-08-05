@@ -142,7 +142,7 @@ public class RecordManager : MonoBehaviour
         // 5. 시간 및 플레이어 스탯 기본값
         data.timeData = new GameTimeSaveData
         {
-            elapsedTime = 0f,
+            elapsedTime = 300f,
             lastSaveRealTimeKst = DateTime.UtcNow.ToString("o")
         };
 
