@@ -336,9 +336,9 @@ public class RecordManager : MonoBehaviour
                 StartCoroutine(SpawnWarehouseWanderersWithDelayRoutine());
             }
 
-            ResynchronizeLoadedSceneState(subRecords, saveData);
+            //ResynchronizeLoadedSceneState(subRecords, saveData);
 
-            Debug.Log($"<color=lime>[RecordManager]</color> {sceneType} 환경 맞춤 데이터 완벽 복구 및 정산 완료!");
+            //Debug.Log($"<color=lime>[RecordManager]</color> {sceneType} 환경 맞춤 데이터 완벽 복구 및 정산 완료!");
         }
         catch (Exception e)
         {
