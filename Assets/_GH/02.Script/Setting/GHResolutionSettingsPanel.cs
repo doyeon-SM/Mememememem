@@ -121,6 +121,7 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
     private bool selectedFullScreen;
     private bool isInitialized;
     private bool isRefreshingAudioUi;
+    private bool isApplicationQuitting;
     private bool hasCommittedSnapshot;
     private SettingsSnapshot committedSnapshot;
     private CanvasGroup applyFadeCanvasGroup;
@@ -151,12 +152,32 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
         applyCloseFadeCoroutine = null;
         ResetApplyFadeVisual();
 
-        if (!isInitialized || !hasCommittedSnapshot)
+        if (isApplicationQuitting
+            || KMSAudioService.IsApplicationQuitting
+            || !isInitialized
+            || !hasCommittedSnapshot)
         {
             return;
         }
 
         RestoreCommittedSnapshot();
+    }
+
+    private void OnApplicationQuit()
+    {
+        isApplicationQuitting = true;
+
+        if (!isInitialized || !hasCommittedSnapshot)
+        {
+            return;
+        }
+
+        // Slider previews update the KMS preference values immediately. Restore only
+        // the saved values on quit without applying them back to live audio sources.
+        PlayerPrefs.SetFloat(MasterVolumePreferenceKey, committedSnapshot.masterVolume);
+        PlayerPrefs.SetFloat(MusicVolumePreferenceKey, committedSnapshot.musicVolume);
+        PlayerPrefs.SetFloat(SfxVolumePreferenceKey, committedSnapshot.sfxVolume);
+        PlayerPrefs.Save();
     }
 
     public void PreviousResolution()

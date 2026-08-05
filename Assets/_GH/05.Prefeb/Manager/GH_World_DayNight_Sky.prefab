@@ -47,8 +47,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GH.World.GHWorldDayNightSkyController
   gameTimeManager: {fileID: 0}
-  useDebugTimeOverride: 0
-  debugNormalizedTime: 0
+  useDebugTimeOverride: 1
+  debugNormalizedTime: 1
   normalizedTimeOffset: 0
   daySkyboxSource: {fileID: 2100000, guid: e6f9aa0aa1104ed5a5598d73ea8931fd, type: 2}
   nightSkyboxSource: {fileID: 2100000, guid: a28c9ed45eae4e679ddad2c574742b74, type: 2}
@@ -120,15 +120,15 @@ MonoBehaviour:
   sunsetTransitionDuration: 0.045
   skyboxBlendResponseSeconds: 1.25
   daySkyboxExposure: 1
-  nightSkyboxExposure: 0.62
+  nightSkyboxExposure: 0.75
   daySkyboxTint: {r: 1, g: 1, b: 1, a: 1}
   nightSkyboxTint: {r: 1, g: 0.92, b: 0.84, a: 1}
-  daySkyboxScale: 0.5
-  nightSkyboxScale: 0.48
-  daySkyboxVerticalOffset: 20
-  nightSkyboxVerticalOffset: 24
+  daySkyboxScale: 1
+  nightSkyboxScale: 1
+  daySkyboxVerticalOffset: -25
+  nightSkyboxVerticalOffset: -25
   skyboxRotationOffset: 0
-  skyboxRotationDegreesPerGameDay: 45
+  skyboxRotationDegreesPerGameDay: 180
   mainDirectionalLight: {fileID: 0}
   controlDirectionalLight: 1
   rotateDirectionalLightWithTime: 1
@@ -258,7 +258,7 @@ MonoBehaviour:
   dayAmbientIntensity: 1
   nightAmbientIntensity: 1.85
   dayReflectionIntensity: 1
-  nightReflectionIntensity: 0.5
+  nightReflectionIntensity: 1
   transitionAmbientIntensity: 1.1
   transitionReflectionIntensity: 0.65
   minimumTransitionDirectionalLightRatio: 0.12
@@ -269,8 +269,8 @@ MonoBehaviour:
   environmentRefreshInterval: 8
   transitionEnvironmentRefreshInterval: 0.5
   currentNormalizedTime: 0
-  currentNightBlend: 0
-  currentLightingNightBlend: 0
+  currentNightBlend: 1
+  currentLightingNightBlend: 1
 --- !u!114 &8435116066358048214
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -281,13 +281,13 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 4f99ae3d4ad94fa1b69e6250e8cc3084, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GH.World.GHWorldDayNightFogController
   skyController: {fileID: 8435116066358048212}
   previewInSceneView: 0
   dayNearFogColor: {r: 0.105, g: 0.342, b: 0.584, a: 1}
   dayMidFogColor: {r: 0.227, g: 0.497, b: 0.723, a: 1}
-  dayFarFogColor: {r: 0.539, g: 0.716, b: 0.839, a: 1}
+  dayFarFogColor: {r: 0, g: 0.18431373, b: 0.3882353, a: 1}
   dayFogStartDistance: 65
   dayFogEndDistance: 520
   dayFogMaxOpacity: 0.88
@@ -302,8 +302,8 @@ MonoBehaviour:
   middleColorPoint: 0.52
   horizonWidthDegrees: 4.5
   horizonVerticalOffsetDegrees: 0
-  dayHorizonIntensity: 0.58
-  nightHorizonIntensity: 0.66
+  dayHorizonIntensity: 1
+  nightHorizonIntensity: 1
 --- !u!114 &8435116066358048213
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -316,8 +316,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d3c4d5dc95094473b8773a34b6bce0e4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GH.World.GHWorldObjectDamageRecoveryManager
-  enableTypeSpecificDepletion: 0
-  disableImpactFlash: 0
+  enableTypeSpecificDepletion: 1
+  disableImpactFlash: 1
   recoveryDelaySeconds: 10
   crackOverlayShader: {fileID: 4800000, guid: e43c78003b184eacbc28f49e4d83c38a, type: 3}
   crackColor: {r: 0.07, g: 0.045, b: 0.025, a: 1}
