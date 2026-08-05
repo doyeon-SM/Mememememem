@@ -15,7 +15,7 @@ blueprint_kitchen,주방 설계도,1,10,BluePrint,Default,None,Unique,,3x2,
 blueprint_transport_facility,운반시설 설계도,1,10,BluePrint,Default,None,Unique,,1x2,
 tool_decent_capsule,쓸만한 캡슐,1,10,Capsule,Use,None,Epic,,,
 tool_shabby_capsule,허름한 캡슐,1,10,Capsule,Use,None,Rare,,,
-item_sandwich,샌드위치,1,50,Food,Eat,None,Epic,Satiety:30;Speed:60,,
+item_sandwich,샌드위치,1,50,Food,Eat,None,Epic,Satiety:30;Speed:50,,
 item_baguette,바게트,1,50,Food,Eat,None,Rare,Satiety:20,,
 item_berry,달콤한 열매,1,50,Food,Eat,None,Rare,Satiety:10,,
 item_berry_juice,달콤한 열매 주스,1,50,Food,Eat,None,Rare,Satiety:20,,
@@ -53,18 +53,18 @@ item_abrasive_stone,연마석,1,100,Material,Default,None,Unique,,,
 item_intermediate_blueprint,중급 토대,1,100,Material,Default,None,Unique,,,
 item_temperedstone_dawn,여명의 강화석,1,100,Material,Default,None,Unique,,,
 tool_decent_axe,쓸만한 도끼,1,1,Tool,Use,Tree,Epic,,,
-tool_decent_club,쓸만한 몽둥이,1,1,Tool,Use,None,Epic,,,10
+tool_decent_club,쓸만한 몽둥이,1,1,Tool,Use,None,Epic,,,50
 tool_decent_hoe,쓸만한 괭이,1,1,Tool,Use,Bush,Epic,,,
 tool_decent_pickax,쓸만한 곡괭이,1,1,Tool,Use,Stone,Epic,,,
 tool_axe,도끼,1,1,Tool,Use,Tree,Rare,,,
-tool_club,몽둥이,1,1,Tool,Use,None,Rare,,,10
+tool_club,몽둥이,1,1,Tool,Use,None,Rare,,,30
 tool_hoe,괭이,1,1,Tool,Use,Bush,Rare,,,
 tool_pickax,곡괭이,1,1,Tool,Use,Stone,Rare,,,
 tool_shabby_axe,허름한 도끼,1,1,Tool,Use,Tree,Rare,,,
-tool_shabby_club,허름한 몽둥이,1,1,Tool,Use,None,Rare,,,10
+tool_shabby_club,허름한 몽둥이,1,1,Tool,Use,None,Rare,,,30
 tool_shabby_hoe,허름한 괭이,1,1,Tool,Use,Bush,Rare,,,
 tool_shabby_pickax,허름한 곡괭이,1,1,Tool,Use,Stone,Rare,,,
 cook_recipebook,요리책,1,100,Material,Default,None,Mythic,,,
-item_salad,샐러드,1,50,Food,Eat,None,Rare,Satiety:20;Fulling:60,,
-item_tomato_preserve,토마토 절임,1,50,Food,Eat,None,Rare,Satiety:15,,
-item_cabbage_salad,양배추 샐러드,1,50,Food,Eat,None,Rare,Satiety:15,,
+item_salad,샐러드,1,50,Food,Eat,None,Rare,Satiety:20;Fulling:50,,
+item_tomato_preserve,토마토 절임,1,50,Food,Eat,None,Rare,Satiety:15;Speed:20,,
+item_cabbage_salad,양배추 샐러드,1,50,Food,Eat,None,Rare,Satiety:15;Fulling:20,,

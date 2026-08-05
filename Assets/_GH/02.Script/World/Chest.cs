@@ -142,9 +142,8 @@ public class Chest : MonoBehaviour, KMS.IInteractable
                 continue;
             }
 
-            int minDrop = Mathf.Max(0, item.minDrop);
-            int maxDrop = Mathf.Max(minDrop, item.maxDrop);
-            int count = UnityEngine.Random.Range(minDrop, maxDrop + 1);
+            // [HDY 요청] Min~Max 랜덤 드랍 대신 고정 개수(dropCount)를 그대로 사용하도록 변경.
+            int count = Mathf.Max(0, item.dropCount);
 
             if (count <= 0)
             {
