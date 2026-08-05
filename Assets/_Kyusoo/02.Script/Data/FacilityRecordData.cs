@@ -320,7 +320,7 @@ public class FacilityRecordData : MonoBehaviour, IRecord
 
         var bTemplateField = typeof(GridManager).GetField("buildings", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
         List<BuildingData> buildingTemplates = bTemplateField?.GetValue(gridManager) as List<BuildingData>;
-        Transform floorContainer = gridManager.transform;
+        Transform floorContainer = gridManager.FloorContainer != null ? gridManager.FloorContainer : gridManager.transform;
 
         var memManager = FindFirstObjectByType<MemCaptureManager>();
 
@@ -336,7 +336,7 @@ public class FacilityRecordData : MonoBehaviour, IRecord
                 int bWidth = isRotated ? matchData.height : matchData.width;
                 int bHeight = isRotated ? matchData.width : matchData.height;
 
-                Vector3 spawnPos = new Vector3(bSave.gridX + (bWidth / 2.0f), 0.501f, bSave.gridZ + (bHeight / 2.0f));
+                Vector3 spawnPos = new Vector3(bSave.gridX + (bWidth / 2.0f), 0.301f, bSave.gridZ + (bHeight / 2.0f));
                 GameObject spawnedObj = Instantiate(matchData.buildingPrefab, spawnPos, Quaternion.Euler(0f, bSave.rotationY, 0f), floorContainer);
 
                 if (spawnedObj.TryGetComponent<BuildingRuntime>(out BuildingRuntime br))

@@ -119,6 +119,7 @@ public class GridManager : MonoBehaviour
     public int MouseGridX { get; private set; }
     public int MouseGridZ { get; private set; }
     public bool IsMouseOnGrid { get; private set; }
+    public Transform FloorContainer => floorContainer;
 
     public static event Action<bool, List<BuildingData>> OnPlacementModeChanged;
     public static event Action OnGridDataChanged;
@@ -412,7 +413,7 @@ public class GridManager : MonoBehaviour
         if (x == 0 && z == 0 && mixFencePrefab != null)
         {
             Vector3 basePos = new Vector3(0f, 0f, 0f);
-            Vector3 offset = new Vector3(-0.45f, 0f, 0.3f);
+            Vector3 offset = new Vector3(-0.45f, 0.3f, 0.3f);
             Quaternion rotation = Quaternion.Euler(0f, 0f, 0f);
 
             GameObject cornerObj = Instantiate(mixFencePrefab, basePos + offset, rotation, parentTransform);
@@ -425,7 +426,7 @@ public class GridManager : MonoBehaviour
         if (x == 0 && z == height - 1 && mixFencePrefab != null)
         {
             Vector3 basePos = new Vector3(0f, 0f, maxZ);
-            Vector3 offset = new Vector3(0.3f, 0f, 0.45f);
+            Vector3 offset = new Vector3(0.3f, 0.3f, 0.45f);
             Quaternion rotation = Quaternion.Euler(0f, 90f, 0f);
 
             GameObject cornerObj = Instantiate(mixFencePrefab, basePos + offset, rotation, parentTransform);
@@ -438,7 +439,7 @@ public class GridManager : MonoBehaviour
         if (x == width - 1 && z == height - 1 && mixFencePrefab != null)
         {
             Vector3 basePos = new Vector3(maxX, 0f, maxZ);
-            Vector3 offset = new Vector3(0.45f, 0f, -0.3f);
+            Vector3 offset = new Vector3(0.45f, 0.3f, -0.3f);
             Quaternion rotation = Quaternion.Euler(0f, 180f, 0f);
 
             GameObject cornerObj = Instantiate(mixFencePrefab, basePos + offset, rotation, parentTransform);
@@ -451,7 +452,7 @@ public class GridManager : MonoBehaviour
         if (x == width - 1 && z == 0 && mixFencePrefab != null)
         {
             Vector3 basePos = new Vector3(maxX, 0f, 0f);
-            Vector3 offset = new Vector3(-0.3f, 0f, -0.45f);
+            Vector3 offset = new Vector3(-0.3f, 0.3f, -0.45f);
             Quaternion rotation = Quaternion.Euler(0f, 270f, 0f);
 
             GameObject cornerObj = Instantiate(mixFencePrefab, basePos + offset, rotation, parentTransform);
@@ -467,7 +468,7 @@ public class GridManager : MonoBehaviour
         // Position: BasePos(x + 0.5, 0, 0) + Offset(0, 0, -0.5) / Rotation: (-90, 0, 0)
         if (z == 0 && fenceXPrefab != null)
         {
-            Vector3 basePos = new Vector3(x + 0.5f, 0f, 0f);
+            Vector3 basePos = new Vector3(x + 0.5f, 0.3f, 0f);
             Vector3 offset = new Vector3(0f, 0f, -0.5f);
             Quaternion rotation = Quaternion.Euler(-90f, 0f, 0f);
 
@@ -480,7 +481,7 @@ public class GridManager : MonoBehaviour
         // Position: BasePos(x + 0.5, 0, maxZ) + Offset(0, 0, 0.5) / Rotation: (-90, 0, 0)
         if (z == height - 1 && fenceXPrefab != null)
         {
-            Vector3 basePos = new Vector3(x + 0.5f, 0f, maxZ);
+            Vector3 basePos = new Vector3(x + 0.5f, 0.3f, maxZ);
             Vector3 offset = new Vector3(0f, 0f, 0.5f);
             Quaternion rotation = Quaternion.Euler(-90f, 0f, 0f);
 
@@ -493,7 +494,7 @@ public class GridManager : MonoBehaviour
         // Position: BasePos(0, 0, z + 0.5) + Offset(-0.5, 0, 0) / Rotation: (-90, 90, 0)
         if (x == 0 && fenceZPrefab != null)
         {
-            Vector3 basePos = new Vector3(0f, 0f, z + 0.5f);
+            Vector3 basePos = new Vector3(0f, 0.3f, z + 0.5f);
             Vector3 offset = new Vector3(-0.5f, 0f, 0f);
             Quaternion rotation = Quaternion.Euler(-90f, 90f, 0f);
 
@@ -506,7 +507,7 @@ public class GridManager : MonoBehaviour
         // Position: BasePos(maxX, 0, z + 0.5) + Offset(0.5, 0, 0) / Rotation: (-90, 90, 0)
         if (x == width - 1 && fenceZPrefab != null)
         {
-            Vector3 basePos = new Vector3(maxX, 0f, z + 0.5f);
+            Vector3 basePos = new Vector3(maxX, 0.3f, z + 0.5f);
             Vector3 offset = new Vector3(0.5f, 0f, 0f);
             Quaternion rotation = Quaternion.Euler(-90f, 90f, 0f);
 
