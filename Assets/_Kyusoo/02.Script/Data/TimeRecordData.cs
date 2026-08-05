@@ -50,12 +50,13 @@ public class TimeRecordData : MonoBehaviour, IRecord
 
     public void InitDefaultData(ref SaveData saveData)
     {
+        string kstNow = DateTime.UtcNow.AddHours(9).ToString("yyyy-MM-dd HH:mm:ss");
         saveData.timeData = new GameTimeSaveData
         {
             elapsedTime = 0f,
-            lastSaveRealTimeKst = DateTime.UtcNow.ToString("o")
+            lastSaveRealTimeKst = kstNow
         };
-        saveData.lastSaveTime = DateTime.UtcNow.ToString("o");
+        saveData.lastSaveTime = kstNow;
     }
 
     public void SaveData(string saveFilePath)
@@ -71,13 +72,24 @@ public class TimeRecordData : MonoBehaviour, IRecord
             currentData.timeData.elapsedTime = liveTimeManager.ElapsedTime;
         }
 
-        // 🌟 [수정] 오프라인 계산용 시각을 표준 ISO 8601 UTC로 작성
-        string utcNowIso = DateTime.UtcNow.ToString("o");
-        currentData.timeData.lastSaveRealTimeKst = utcNowIso;
-        currentData.lastSaveTime = utcNowIso;
+        string activeSceneName = SceneManager.GetActiveScene().name.ToLower();
+
+        // 🌟 [핵심 방어] 타이틀 씬이거나 인게임 씬(Territory/Main_World)이 아닌 경우 저장 시각(lastSaveRealTimeKst)을 갱신하지 않고 이전 값 유지!
+        if (!activeSceneName.Contains("title"))
+        {
+            string kstNow = DateTime.UtcNow.AddHours(9).ToString("yyyy-MM-dd HH:mm:ss");
+            if (currentData.timeData == null) currentData.timeData = new GameTimeSaveData();
+
+            currentData.timeData.lastSaveRealTimeKst = kstNow;
+            currentData.lastSaveTime = kstNow;
+            Debug.Log($"<color=lime>[TimeRecordData]</color> ⏰ KST 인게임 저장 시각 최신화: {kstNow}");
+        }
+        else
+        {
+            Debug.Log("<color=yellow>[TimeRecordData]</color> ⚠️ 타이틀 씬 저장 요청 감지: lastSaveRealTimeKst 보존됨");
+        }
 
         File.WriteAllText(saveFilePath, JsonUtility.ToJson(currentData, true));
-        Debug.Log("<color=lime>[TimeRecordData]</color> ⏰ 시간 데이터 세이브 성공!");
     }
 
     public void ApplyData(SaveData saveData, SceneType sceneType)

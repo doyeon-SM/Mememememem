@@ -12,41 +12,44 @@ using UnityEngine;
 public class OfflineRewardRecordData : MonoBehaviour, IRecord
 {
     public void InitDefaultData(ref SaveData saveData) { }
-
     public void SaveData(string saveFilePath) { }
+    public void ApplyData(SaveData saveData, SceneType sceneType) { }
 
-    public void ApplyData(SaveData saveData, SceneType sceneType)
+    /// <summary>
+    /// 🌟 FacilityRecordData에서 건물/멤 복원이 완전히 종료된 후 호출됩니다.
+    /// </summary>
+    public void ProcessOfflineReward(SaveData saveData)
     {
-        if (sceneType == SceneType.Exploration) return;
+        if (saveData == null) return;
 
         string lastTimeStr = saveData.timeData != null ? saveData.timeData.lastSaveRealTimeKst : null;
         if (string.IsNullOrEmpty(lastTimeStr)) lastTimeStr = saveData.lastSaveTime;
         if (string.IsNullOrEmpty(lastTimeStr)) return;
 
-        DateTime lastSaveUtc;
+        // 1. 저장되어 있던 과거 KST 시각과 현재 KST 시각 비교
+        DateTime currentKst = DateTime.UtcNow.AddHours(9);
+        DateTime lastSaveKst;
 
-        // 🌟 [수정] DateTimeStyles.RoundtripKind 단독 사용 (AdjustToUniversal과 중복 사용 시 예외 발생 방지)
-        if (!DateTime.TryParse(lastTimeStr, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out lastSaveUtc))
+        if (!DateTime.TryParseExact(lastTimeStr, "yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture, DateTimeStyles.None, out lastSaveKst))
         {
-            if (!DateTime.TryParseExact(lastTimeStr, "yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out lastSaveUtc))
+            if (!DateTime.TryParse(lastTimeStr, out lastSaveKst))
             {
-                if (!DateTime.TryParse(lastTimeStr, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out lastSaveUtc))
-                {
-                    Debug.LogWarning($"[OfflineRewardRecordData] ⚠️ 시각 파싱 실패: {lastTimeStr}");
-                    return;
-                }
+                Debug.LogWarning($"[OfflineRewardRecordData] 저장 시각 파싱 실패: {lastTimeStr}");
+                return;
             }
         }
 
-        lastSaveUtc = lastSaveUtc.ToUniversalTime();
-        TimeSpan offlineDuration = DateTime.UtcNow - lastSaveUtc;
-        float offlineSeconds = (float)offlineDuration.TotalSeconds;
+        double offlineSeconds = (currentKst - lastSaveKst).TotalSeconds;
 
-        if (offlineSeconds <= 5f) return; // 5초 미만 오프라인 스킵
+        if (offlineSeconds <= 5.0)
+        {
+            Debug.Log($"[OfflineRewardRecordData] KST 차이가 짧아 정산을 스킵합니다. ({offlineSeconds:F1}초 차이)");
+            return;
+        }
 
-        Debug.Log($"<color=yellow>[OfflineRewardRecordData]</color> ⏳ 오프라인 경과 시간 감지: {offlineSeconds:F1}초");
+        Debug.Log($"<color=yellow>[OfflineRewardRecordData]</color> ⏰ 정상 감지된 KST 오프라인 경과 시간: {offlineSeconds:F1}초");
 
-        // 1. 오프라인 허기율 계산
+        // 2. 허기량 대비 가동 가능 시간 산출
         if (TotalHungerManager.Instance != null)
         {
             TotalHungerManager.Instance.RecalculateTotalHunger();
@@ -55,44 +58,77 @@ public class OfflineRewardRecordData : MonoBehaviour, IRecord
         int totalHungerPerMin = TotalHungerManager.Instance != null ? TotalHungerManager.Instance.TotalHungerPerMinute : 0;
         float totalHungerPerSec = totalHungerPerMin / 60f;
 
-        float effectiveWorkSeconds = offlineSeconds;
+        float effectiveWorkSeconds = (float)offlineSeconds;
         bool isStarved = false;
 
         if (ConsumeFoodSystem.Instance != null && totalHungerPerSec > 0f)
         {
             int currentSatiety = ConsumeFoodSystem.Instance.CurrentSatiety;
-            float satietyRunoutSeconds = currentSatiety / totalHungerPerSec;
+            float maxWorkSecondsByFood = currentSatiety / totalHungerPerSec;
 
-            if (satietyRunoutSeconds < offlineSeconds)
+            // Min(실제 경과 시간, 포만감 보유량 대비 가동 가능 시간)
+            if (maxWorkSecondsByFood < offlineSeconds)
             {
-                effectiveWorkSeconds = satietyRunoutSeconds;
+                effectiveWorkSeconds = maxWorkSecondsByFood;
                 isStarved = true;
+
                 ConsumeFoodSystem.Instance.ConsumeSatietyFromWarehouse(currentSatiety);
                 ConsumeFoodSystem.Instance.ForceSyncManualState(0, ConsumeFoodSystem.Instance.MaxSatiety, true);
-                Debug.LogWarning("<color=red>[OfflineRewardRecordData]</color> ⚠️ 오프라인 도중 식량이 고갈되어 작업이 정지되었습니다.");
+                Debug.LogWarning("<color=red>[OfflineRewardRecordData]</color> ⚠️ 포만감이 한계에 도달하여 일부 시간만 가동된 후 작업이 중단되었습니다.");
             }
             else
             {
-                int consumedSatiety = Mathf.FloorToInt(totalHungerPerSec * offlineSeconds);
+                int consumedSatiety = Mathf.FloorToInt(totalHungerPerSec * effectiveWorkSeconds);
                 ConsumeFoodSystem.Instance.ConsumeSatietyFromWarehouse(consumedSatiety);
             }
         }
 
+        // 3. 실제 가동시간만큼 모든 시설에 생산량 대입
         if (effectiveWorkSeconds > 0f)
         {
-            // 2. 7종 시설 오프라인 생산 시뮬레이션
             SimulateAllFacilitiesProgress(effectiveWorkSeconds, isStarved);
         }
 
+        // UI 및 버블 리프레시
         var warehouseUI = FindFirstObjectByType<FoodWarehouseUI>();
         if (warehouseUI != null) warehouseUI.RefreshAllPanelsAndSlots();
 
-        Debug.Log($"<color=lime>[OfflineRewardRecordData]</color> 🎁 유효 오프라인 작업 ({effectiveWorkSeconds:F1}초) 보상 정산 완료!");
+        if (FacilityCollectManager.Instance != null)
+        {
+            FacilityCollectManager.Instance.RefreshAllFacilitiesStatus();
+        }
+
+        // 4. 🌟 오프라인 보상 대입이 모두 끝난 '지금' 비로소 저장 시각을 현재 KST 시각으로 갱신하여 파일 저장!
+        SaveUpdatedRecordAfterReward();
+
+        Debug.Log($"<color=lime>[OfflineRewardRecordData]</color> 🎁 오프라인 보상 정산 완! (가동: {effectiveWorkSeconds:F1}초) & TerritoryRecord.json 최신화 완료!");
+    }
+
+    private void SaveUpdatedRecordAfterReward()
+    {
+        // 정산이 끝났으므로 저장 시각을 현재 KST 시각으로 변경
+        SaveData currentData = RecordManager.Instance.ReadRawSaveFileOnly();
+        if (currentData != null)
+        {
+            string kstNow = DateTime.UtcNow.AddHours(9).ToString("yyyy-MM-dd HH:mm:ss");
+            if (currentData.timeData == null) currentData.timeData = new GameTimeSaveData();
+
+            currentData.timeData.lastSaveRealTimeKst = kstNow;
+            currentData.lastSaveTime = kstNow;
+
+            System.IO.File.WriteAllText(RecordManager.Instance.SaveFilePath, JsonUtility.ToJson(currentData, true));
+        }
+
+        var facilityRecord = FindFirstObjectByType<FacilityRecordData>();
+        if (facilityRecord != null && RecordManager.Instance != null)
+        {
+            facilityRecord.SaveData(RecordManager.Instance.SaveFilePath);
+        }
     }
 
     private void SimulateAllFacilitiesProgress(float workSeconds, bool isStarved)
     {
-        // 1) 일반 생산 시설 (호박석 채석장 포함)
+        // 1) 일반 생산 시설
         var prodFacilities = FindObjectsByType<ProductionFacilityRuntime>(FindObjectsSortMode.None);
         foreach (var prod in prodFacilities)
         {
@@ -105,6 +141,7 @@ public class OfflineRewardRecordData : MonoBehaviour, IRecord
             int units = Mathf.FloorToInt(totalProgress / unitTime);
 
             prod.currentStorageCount = Mathf.Min(prod.maxStorageCount, prod.currentStorageCount + units);
+
             if (prod.currentStorageCount >= prod.maxStorageCount || isStarved)
             {
                 prod.isProducing = false;
@@ -145,7 +182,7 @@ public class OfflineRewardRecordData : MonoBehaviour, IRecord
             }
         }
 
-        // 3) 모닥불 시설
+        // 3) 모닥불
         var campFires = FindObjectsByType<CampFireRuntime>(FindObjectsSortMode.None);
         foreach (var cf in campFires)
         {
@@ -174,7 +211,7 @@ public class OfflineRewardRecordData : MonoBehaviour, IRecord
             }
         }
 
-        // 4) 주방 시설
+        // 4) 주방
         var kitchens = FindObjectsByType<KitchenRuntime>(FindObjectsSortMode.None);
         foreach (var k in kitchens)
         {
@@ -203,7 +240,7 @@ public class OfflineRewardRecordData : MonoBehaviour, IRecord
             }
         }
 
-        // 5) 발전기 시설
+        // 5) 발전기
         var generators = FindObjectsByType<GeneratorRuntime>(FindObjectsSortMode.None);
         foreach (var gen in generators)
         {
@@ -228,7 +265,7 @@ public class OfflineRewardRecordData : MonoBehaviour, IRecord
             }
         }
 
-        // 6) 목장 시설
+        // 6) 목장
         var ranches = FindObjectsByType<RanchFacilityRuntime>(FindObjectsSortMode.None);
         foreach (var ranch in ranches)
         {
