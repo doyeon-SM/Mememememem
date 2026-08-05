@@ -37,7 +37,6 @@ namespace KMS
         private ThrowState state;
         private float holdTime;
         private bool capsuleReleased;
-        private bool previousMovementEnabled = true;
         private Vector3 lockedThrowTarget;
         private bool hasLockedThrowTarget;
 
@@ -317,14 +316,12 @@ namespace KMS
 
         private void LockMovement()
         {
-            if (movement == null) return;
-            previousMovementEnabled = movement.IsMovementEnabled;
-            movement.IsMovementEnabled = false;
+            if (movement != null) movement.SetMovementBlocked(this, true);
         }
 
         private void RestoreMovement()
         {
-            if (movement != null) movement.IsMovementEnabled = previousMovementEnabled;
+            if (movement != null) movement.SetMovementBlocked(this, false);
         }
 
         private void CancelThrow(bool blendToLocomotion)

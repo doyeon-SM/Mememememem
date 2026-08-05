@@ -6,10 +6,12 @@ namespace KMS
     public class PlayerAnimationEvents : MonoBehaviour
     {
         private PlayerCapsuleThrowController capsuleThrowController;
+        private KMS.Harvesting.PlayerHarvestController harvestController;
 
         private void Awake()
         {
             capsuleThrowController = GetComponentInParent<PlayerCapsuleThrowController>();
+            harvestController = GetComponentInParent<KMS.Harvesting.PlayerHarvestController>();
         }
 
         public void OnCapsuleRelease()
@@ -30,6 +32,18 @@ namespace KMS
             }
 
             capsuleThrowController?.FinishThrowFromAnimationEvent();
+        }
+
+        public void OnToolImpact(AnimationEvent animationEvent)
+        {
+            if (!ShouldProcess(animationEvent)) return;
+
+            if (harvestController == null)
+            {
+                harvestController = GetComponentInParent<KMS.Harvesting.PlayerHarvestController>();
+            }
+
+            harvestController?.ResolvePendingToolImpact();
         }
 
         public void OnFootstepWalk(AnimationEvent animationEvent)

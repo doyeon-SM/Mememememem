@@ -19,7 +19,7 @@ namespace KMS
         public Vector2 Look { get; private set; }
         public bool IsSprinting { get; private set; }
         public bool IsAiming { get; private set; }
-        public bool IsCursorReleased { get; private set; }
+        public bool IsCursorReleased => cursorReleasedByLegacySystem || cursorReleasedByDeath;
 
         public event Action<Vector2> MoveChanged;
         public event Action<Vector2> LookChanged;
@@ -41,7 +41,7 @@ namespace KMS
         public event Action<int> QuickSlotPressed;
         public event Action<int> QuickSlotScrolled;
 
-        public bool IsGameplayInputBlocked => isGameplayInputBlocked;
+        public bool IsGameplayInputBlocked => gameplayInputBlockedByLegacySystem || gameplayInputBlockedByDeath;
 
         private const float QuickSlotScrollStepValue = 1f;
 
@@ -52,11 +52,14 @@ namespace KMS
         private InputAction mouseLookAction;
         private InputAction gamepadLookAction;
         private InputAction sprintAction;
-        private bool isGameplayInputBlocked;
+        private bool gameplayInputBlockedByLegacySystem;
+        private bool gameplayInputBlockedByDeath;
+        private bool cursorReleasedByLegacySystem;
+        private bool cursorReleasedByDeath;
         private float quickSlotScrollAmount;
 
         private bool CanProcessGameplayInput =>
-            isActiveAndEnabled && !isGameplayInputBlocked && !IsCursorReleased;
+            isActiveAndEnabled && !IsGameplayInputBlocked && !IsCursorReleased;
 
         private void Awake()
         {
@@ -90,7 +93,7 @@ namespace KMS
             gameplayActions?.Disable();
             globalActions?.Disable();
             ClearGameplayState();
-            IsCursorReleased = false;
+            cursorReleasedByLegacySystem = false;
         }
 
         private void OnDestroy()
@@ -123,28 +126,40 @@ namespace KMS
 
         public void SetGameplayInputBlocked(bool isBlocked)
         {
-            if (isGameplayInputBlocked == isBlocked) return;
+            if (gameplayInputBlockedByLegacySystem == isBlocked) return;
 
-            isGameplayInputBlocked = isBlocked;
-            RefreshGameplayActionMap();
-
-            if (isGameplayInputBlocked)
-            {
-                ClearGameplayState();
-            }
+            gameplayInputBlockedByLegacySystem = isBlocked;
+            RefreshEffectiveInputState();
         }
 
         public void SetCursorReleased(bool isReleased)
         {
-            if (IsCursorReleased == isReleased) return;
+            if (cursorReleasedByLegacySystem == isReleased) return;
 
-            IsCursorReleased = isReleased;
-            RefreshGameplayActionMap();
+            cursorReleasedByLegacySystem = isReleased;
+            RefreshEffectiveInputState();
+        }
 
-            if (IsCursorReleased)
-            {
-                ClearGameplayState();
-            }
+        /// <summary>
+        /// Adds or removes the death-owned gameplay block without changing any UI-owned block.
+        /// </summary>
+        public void SetDeathInputBlocked(bool isBlocked)
+        {
+            if (gameplayInputBlockedByDeath == isBlocked) return;
+
+            gameplayInputBlockedByDeath = isBlocked;
+            RefreshEffectiveInputState();
+        }
+
+        /// <summary>
+        /// Adds or removes the death-owned cursor request without changing any UI-owned request.
+        /// </summary>
+        public void SetDeathCursorReleased(bool isReleased)
+        {
+            if (cursorReleasedByDeath == isReleased) return;
+
+            cursorReleasedByDeath = isReleased;
+            RefreshEffectiveInputState();
         }
 
         private void BindActions()
@@ -213,13 +228,22 @@ namespace KMS
         {
             if (gameplayActions == null || !isActiveAndEnabled) return;
 
-            if (isGameplayInputBlocked || IsCursorReleased)
+            if (IsGameplayInputBlocked || IsCursorReleased)
             {
                 gameplayActions.Disable();
             }
             else
             {
                 gameplayActions.Enable();
+            }
+        }
+
+        private void RefreshEffectiveInputState()
+        {
+            RefreshGameplayActionMap();
+            if (IsGameplayInputBlocked || IsCursorReleased)
+            {
+                ClearGameplayState();
             }
         }
 
@@ -307,28 +331,31 @@ namespace KMS
 
         private void HandleToggleCursorPerformed(InputAction.CallbackContext _)
         {
-            if (isGameplayInputBlocked) return;
+            if (IsGameplayInputBlocked) return;
             SetCursorReleased(!IsCursorReleased);
         }
 
         private void HandleMenuPerformed(InputAction.CallbackContext _)
         {
-            if (isGameplayInputBlocked || IsCursorReleased) return;
+            if (IsGameplayInputBlocked || IsCursorReleased) return;
             MenuPressed?.Invoke();
         }
 
         private void HandleInventoryPerformed(InputAction.CallbackContext _)
         {
+            if (gameplayInputBlockedByDeath) return;
             InventoryPressed?.Invoke();
         }
 
         private void HandleCollectionPerformed(InputAction.CallbackContext _)
         {
+            if (gameplayInputBlockedByDeath) return;
             CollectionPressed?.Invoke();
         }
 
         private void HandleMapPerformed(InputAction.CallbackContext _)
         {
+            if (gameplayInputBlockedByDeath) return;
             MapPressed?.Invoke();
         }
 

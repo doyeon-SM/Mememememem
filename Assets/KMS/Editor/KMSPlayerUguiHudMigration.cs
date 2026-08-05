@@ -9,7 +9,6 @@ using UIDocument = UnityEngine.UIElements.UIDocument;
 public static class KMSPlayerUguiHudMigration
 {
     private const string CanvasPrefabPath = "Assets/KMS/2.Prefabs/PlayerCanvas_Root.prefab";
-    private const string LegacyPlayerPrefabPath = "Assets/KMS/2.Prefabs/0714_Player_KMS.prefab";
     private const string UguiPlayerPrefabPath = "Assets/KMS/2.Prefabs/0720_Player_KMS.prefab";
     private const string KoreanFontAssetPath = "Assets/4.Font/JalnanGothic SDF.asset";
     private const string HudRootName = "HUDLayer";
@@ -18,11 +17,11 @@ public static class KMSPlayerUguiHudMigration
     public static void ApplyCurrentPlayerUguiHud()
     {
         BuildHudCanvas();
-        CreateAndConfigurePlayerVariants();
+        ConfigureCurrentPlayer();
         ValidateMigration();
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
-        Debug.Log("[KMSPlayerUguiHudMigration] 0714 restored to Toolkit HUD and 0720 configured for uGUI HUD.");
+        Debug.Log("[KMSPlayerUguiHudMigration] 0720 player configured for uGUI HUD.");
     }
 
     public static void ApplyCurrentPlayerUguiHudFromCommandLine()
@@ -30,11 +29,10 @@ public static class KMSPlayerUguiHudMigration
         ApplyCurrentPlayerUguiHud();
     }
 
-    [MenuItem("KMS/Validate/0714 and 0720 Player HUDs")]
+    [MenuItem("KMS/Validate/0720 Player HUD")]
     public static void ValidateMigration()
     {
         GameObject canvasRoot = PrefabUtility.LoadPrefabContents(CanvasPrefabPath);
-        GameObject legacyPlayerRoot = PrefabUtility.LoadPrefabContents(LegacyPlayerPrefabPath);
         GameObject uguiPlayerRoot = PrefabUtility.LoadPrefabContents(UguiPlayerPrefabPath);
 
         try
@@ -64,17 +62,15 @@ public static class KMSPlayerUguiHudMigration
             Require(quickSlot.GetComponentsInChildren<InventorySlotUI>(true).Length == 10,
                 "The current Canvas no longer contains 10 quick slots.");
 
-            ValidatePlayerVariant(legacyPlayerRoot, "0714_Player_KMS", true);
             ValidatePlayerVariant(uguiPlayerRoot, "0720_Player_KMS", false);
         }
         finally
         {
             PrefabUtility.UnloadPrefabContents(canvasRoot);
-            PrefabUtility.UnloadPrefabContents(legacyPlayerRoot);
             PrefabUtility.UnloadPrefabContents(uguiPlayerRoot);
         }
 
-        Debug.Log("[KMSPlayerUguiHudMigration] Validation passed: Fill sizing, throw text, slots, and 0714/0720 HUD modes are intact.");
+        Debug.Log("[KMSPlayerUguiHudMigration] Validation passed: Fill sizing, throw text, slots, and 0720 HUD mode are intact.");
     }
 
     private static void BuildHudCanvas()
@@ -123,6 +119,7 @@ public static class KMSPlayerUguiHudMigration
             SetReference(serializedView, "defeatMessageText", defeatMessageText);
             SetReference(serializedView, "respawnButton", respawnButton);
             serializedView.ApplyModifiedPropertiesWithoutUndo();
+            KMSItemObtainedToastPrefabSetup.BuildInto(view);
 
             PrefabUtility.SaveAsPrefabAsset(root, CanvasPrefabPath);
         }
@@ -132,17 +129,8 @@ public static class KMSPlayerUguiHudMigration
         }
     }
 
-    private static void CreateAndConfigurePlayerVariants()
+    private static void ConfigureCurrentPlayer()
     {
-        ConfigurePlayerVariant(LegacyPlayerPrefabPath, "0714_Player_KMS", true);
-
-        if (AssetDatabase.LoadAssetAtPath<GameObject>(UguiPlayerPrefabPath) == null)
-        {
-            Require(AssetDatabase.CopyAsset(LegacyPlayerPrefabPath, UguiPlayerPrefabPath),
-                "Failed to copy 0714 player prefab to 0720 player prefab.");
-            AssetDatabase.ImportAsset(UguiPlayerPrefabPath, ImportAssetOptions.ForceUpdate);
-        }
-
         ConfigurePlayerVariant(UguiPlayerPrefabPath, "0720_Player_KMS", false);
     }
 

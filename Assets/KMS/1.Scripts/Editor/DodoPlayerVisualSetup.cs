@@ -5,12 +5,13 @@ using UnityEngine;
 
 public static class DodoPlayerVisualSetup
 {
-    private const string PlayerPrefabPath = "Assets/KMS/2.Prefabs/0708_Player_KMS.prefab";
+    private const string PlayerPrefabPath = "Assets/KMS/2.Prefabs/0720_Player_KMS.prefab";
     private const string DodoModelPath = "Assets/KMS/4.Animation/Dodo/Models/Dodo_T-Pose.fbx";
     private const string DodoControllerPath = "Assets/KMS/4.Animation/Dodo/Controllers/KMS_DodoAnimator.controller";
     private const string DodoMaterialPath = "Assets/KMS/4.Animation/Dodo/Materials/M_Dodo.mat";
     private const string VisualRootName = "PlayerVisual_Dodo";
     private const string LegacyVisualName = "Armature_Core";
+    private const float PlayerBodyScale = 1.5f;
 
     [MenuItem("KMS/Setup Dodo Player Visual")]
     public static void Setup()
@@ -53,7 +54,7 @@ public static class DodoPlayerVisualSetup
         visualRoot.transform.SetParent(root, false);
         visualRoot.transform.localPosition = Vector3.zero;
         visualRoot.transform.localRotation = Quaternion.identity;
-        visualRoot.transform.localScale = Vector3.one;
+        visualRoot.transform.localScale = Vector3.one * PlayerBodyScale;
 
         GameObject dodoModel = AssetDatabase.LoadAssetAtPath<GameObject>(DodoModelPath);
         RuntimeAnimatorController controller = AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(DodoControllerPath);
@@ -102,7 +103,7 @@ public static class DodoPlayerVisualSetup
         PlayerMovement movement = prefabRoot.GetComponent<PlayerMovement>();
         if (movement == null)
         {
-            throw new System.InvalidOperationException("0708_Player_KMS is missing PlayerMovement.");
+            throw new System.InvalidOperationException("0720_Player_KMS is missing PlayerMovement.");
         }
 
         SerializedObject serializedMovement = new SerializedObject(movement);

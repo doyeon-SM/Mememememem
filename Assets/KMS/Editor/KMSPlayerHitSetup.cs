@@ -17,10 +17,6 @@ namespace KMS.EditorTools
             "Assets/100.Base/Shooter/Art/Animations/Armature_Shoot_HitReaction.fbx";
         private static readonly string[] PlayerPrefabPaths =
         {
-            "Assets/KMS/2.Prefabs/0705_Player_KMS.prefab",
-            "Assets/KMS/2.Prefabs/0708_Player_KMS.prefab",
-            "Assets/KMS/2.Prefabs/0712_Player_KMS.prefab",
-            "Assets/KMS/2.Prefabs/0714_Player_KMS.prefab",
             "Assets/KMS/2.Prefabs/0720_Player_KMS.prefab"
         };
 

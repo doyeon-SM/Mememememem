@@ -1,3 +1,4 @@
+using System;
 using HDY.Item;
 using KGH.Data;
 using UnityEngine;
@@ -24,6 +25,8 @@ namespace KMS
 
         public bool IsToolActionPlaying => actionRequested || actionStateActive;
         public ToolMotionType CurrentMotionType { get; private set; }
+        public event Action ToolActionStarted;
+        public event Action ToolActionEnded;
 
         private static readonly int LocomotionStateHash = Animator.StringToHash("Locomotion");
         private static readonly int ToolActionHash = Animator.StringToHash("ToolAction");
@@ -78,6 +81,7 @@ namespace KMS
             CurrentMotionType = motionType;
             actionRequested = true;
             requestTime = Time.unscaledTime;
+            ToolActionStarted?.Invoke();
 
             animator.ResetTrigger(ToolActionHash);
             animator.SetFloat(ToolActionPlaybackRateHash, 1f / actionDuration);
@@ -128,10 +132,12 @@ namespace KMS
             actionRequested = false;
             actionStateActive = false;
             CurrentMotionType = ToolMotionType.None;
+            ToolActionEnded?.Invoke();
         }
 
         public void CancelToolAction()
         {
+            bool hadAction = IsToolActionPlaying;
             if (animator != null)
             {
                 animator.ResetTrigger(ToolActionHash);
@@ -140,10 +146,12 @@ namespace KMS
             actionRequested = false;
             actionStateActive = false;
             CurrentMotionType = ToolMotionType.None;
+            if (hadAction) ToolActionEnded?.Invoke();
         }
 
         private void CancelPendingAction()
         {
+            bool hadAction = actionRequested;
             if (animator != null)
             {
                 animator.ResetTrigger(ToolActionHash);
@@ -151,6 +159,7 @@ namespace KMS
 
             actionRequested = false;
             CurrentMotionType = ToolMotionType.None;
+            if (hadAction) ToolActionEnded?.Invoke();
         }
 
         private bool IsClub(string itemId)
