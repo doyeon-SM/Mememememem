@@ -30,6 +30,12 @@ namespace KMS.Persistence
                 return;
             }
 
+            if (!stats.IsAlive)
+            {
+                Debug.LogWarning("[PlayerScenePortal] Scene travel is blocked while the player is dead.", inventory);
+                return;
+            }
+
             if (string.IsNullOrWhiteSpace(targetSceneName) || !Application.CanStreamedLevelBeLoaded(targetSceneName))
             {
                 Debug.LogError($"[PlayerScenePortal] 빌드 설정에서 대상 씬을 찾을 수 없습니다: '{targetSceneName}'", this);

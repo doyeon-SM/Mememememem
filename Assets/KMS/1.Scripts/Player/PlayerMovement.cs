@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using KMS.Audio;
 using UnityEngine;
 
@@ -66,7 +67,15 @@ namespace KMS
         [SerializeField] private float ladderSnapSpeed = 12f;
         [SerializeField] private float ladderInputThreshold = 0.1f;
 
-        public bool IsMovementEnabled { get; set; } = true;
+        public bool IsMovementEnabled
+        {
+            get => legacyMovementEnabled && movementBlockOwners.Count == 0;
+            set
+            {
+                legacyMovementEnabled = value;
+                if (!value) StopControlledMovement();
+            }
+        }
         public Animator Animator => animator;
         public bool IsGrounded { get; private set; }
         public bool IsSprinting { get; private set; }
@@ -100,6 +109,8 @@ namespace KMS
         private float stepVisualOffset;
         private float stepVisualOffsetVelocity;
         private bool isStepVisualInitialized;
+        private bool legacyMovementEnabled = true;
+        private readonly HashSet<object> movementBlockOwners = new HashSet<object>();
 
         private void Reset()
         {
@@ -236,6 +247,35 @@ namespace KMS
             }
         }
 
+        /// <summary>
+        /// Adds or removes a movement block owned by the caller. Movement stays blocked
+        /// until every owner has released its own block.
+        /// </summary>
+        public void SetMovementBlocked(object owner, bool blocked)
+        {
+            if (owner == null)
+            {
+                Debug.LogWarning("[PlayerMovement] A movement block owner cannot be null.", this);
+                return;
+            }
+
+            if (blocked)
+            {
+                if (movementBlockOwners.Add(owner)) StopControlledMovement();
+            }
+            else
+            {
+                movementBlockOwners.Remove(owner);
+            }
+        }
+
+        private void StopControlledMovement()
+        {
+            CurrentSpeed = 0f;
+            IsSprinting = false;
+            jumpBufferTimer = 0f;
+        }
+
         public void SetDead(bool dead)
         {
             isDead = dead;
@@ -290,6 +330,7 @@ namespace KMS
 
         private void QueueJump()
         {
+            if (!IsMovementEnabled) return;
             jumpBufferTimer = jumpBufferTime;
         }
 

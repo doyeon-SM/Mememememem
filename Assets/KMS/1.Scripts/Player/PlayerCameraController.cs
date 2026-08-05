@@ -79,7 +79,7 @@ namespace KMS
         {
             UpdateAimZoom();
 
-            if (input != null && !input.IsGameplayInputBlocked)
+            if (input != null)
             {
                 bool shouldLockCursor = !input.IsCursorReleased;
                 CursorLockMode expectedLockMode = shouldLockCursor

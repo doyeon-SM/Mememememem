@@ -181,7 +181,7 @@ public class ConsumeFoodSystem : MonoBehaviour
         }
     }
 
-    private int CalculateTotalStorageSatiety(out List<int> validFoodIndices)
+    public int CalculateTotalStorageSatiety(out List<int> validFoodIndices)
     {
         validFoodIndices = new List<int>();
         int sumSatiety = 0;
@@ -268,13 +268,33 @@ public class ConsumeFoodSystem : MonoBehaviour
     {
         int remainingSatiety = satietyToConsume;
 
+
+        if (foodStorageContainer == null || foodStorageContainer.slots == null) return;
+
+        ItemCatalogManager catalog = null;
+        if (foodWarehouseUI != null && foodWarehouseUI.CatalogManager != null)
+        {
+            catalog = foodWarehouseUI.CatalogManager;
+        }
+        else
+        {
+            catalog = FindFirstObjectByType<ItemCatalogManager>();
+        }
+
         foreach (var slot in foodStorageContainer.slots)
         {
-            if (slot == null || slot.IsEmpty) continue;
+            if (slot == null || slot.IsEmpty || string.IsNullOrEmpty(slot.itemId)) continue;
 
-            var itemData = foodWarehouseUI.CatalogManager.FindItemData(slot.itemId);
+            ItemData itemData = catalog != null ? catalog.FindItemData(slot.itemId) : null;
+
+            if (itemData == null && RecordManager.Instance != null)
+            {
+                itemData = RecordManager.Instance.FindItemDataInProject(slot.itemId);
+            }
+
+            if (itemData == null) continue;
+
             int itemSatiety = GetSatietyValue(itemData);
-
             if (itemSatiety <= 0) continue;
 
             while (slot.amount > 0 && remainingSatiety >= itemSatiety)
@@ -293,7 +313,7 @@ public class ConsumeFoodSystem : MonoBehaviour
 
     private int GetSatietyValue(ItemData data)
     {
-        if (data == null || data.EatEffects == null) return 0;
+        if (data == null || data.EatEffects == null || data.EatEffects.Count == 0) return 0;
         foreach (var effect in data.EatEffects)
         {
             if (effect.Effect == EffectType.Satiety) return (int)effect.Value;

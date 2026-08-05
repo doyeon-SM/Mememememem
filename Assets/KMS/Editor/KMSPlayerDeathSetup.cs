@@ -14,10 +14,6 @@ namespace KMS.EditorTools
 
         private static readonly string[] PlayerPrefabPaths =
         {
-            "Assets/KMS/2.Prefabs/0705_Player_KMS.prefab",
-            "Assets/KMS/2.Prefabs/0708_Player_KMS.prefab",
-            "Assets/KMS/2.Prefabs/0712_Player_KMS.prefab",
-            "Assets/KMS/2.Prefabs/0714_Player_KMS.prefab",
             "Assets/KMS/2.Prefabs/0720_Player_KMS.prefab"
         };
 

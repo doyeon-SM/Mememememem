@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.UI;
 using UnityEngine.InputSystem; 
 
 public class CameraZoomController : MonoBehaviour
@@ -14,6 +15,9 @@ public class CameraZoomController : MonoBehaviour
     [Header("최대 줌 크기 증가량")]
     [SerializeField] private float increaseAmount = 1f;
 
+    [Header("UI 연동 설정")]
+    [SerializeField] private Slider zoomSlider;
+
     private float targetOrthoSize;
     private float zoomVelocity;
 
@@ -25,6 +29,8 @@ public class CameraZoomController : MonoBehaviour
         {
             targetOrthoSize = targetCamera.orthographicSize;
         }
+
+        InitSlider();
     }
 
     void LateUpdate()
@@ -32,6 +38,8 @@ public class CameraZoomController : MonoBehaviour
         if (targetCamera == null) return;
 
         HandleZoom();
+
+        UpdateSliderUI();
     }
 
     private void OnEnable()
@@ -44,6 +52,19 @@ public class CameraZoomController : MonoBehaviour
         GridManager.GridExpanded -= IncreaseMaxSize;
     }
 
+    private void InitSlider()
+    {
+        if (zoomSlider == null) return;
+
+        zoomSlider.minValue = 0f;
+        zoomSlider.maxValue = 1f;
+
+        UpdateSliderUI();
+
+        zoomSlider.onValueChanged.AddListener(OnSliderValueChanged);
+    }
+
+    
     /// <summary>
     /// 마우스 휠 입력을 기반으로 부드럽게 줌인/줌아웃 처리
     /// </summary>
@@ -70,5 +91,22 @@ public class CameraZoomController : MonoBehaviour
     public void IncreaseMaxSize()
     {
         maxSize += increaseAmount;
+        targetOrthoSize = Mathf.Clamp(targetOrthoSize, minSize, maxSize);
+    }
+
+    private void OnSliderValueChanged(float value)
+    {
+        // 슬라이더 1(오른쪽) -> minSize (줌인)
+        // 슬라이더 0(왼쪽)   -> maxSize (줌아웃)
+        targetOrthoSize = Mathf.Lerp(maxSize, minSize, value);
+    }
+
+    private void UpdateSliderUI()
+    {
+        if (zoomSlider == null || targetCamera == null) return;
+
+        float normalizedZoom = Mathf.InverseLerp(maxSize, minSize, targetCamera.orthographicSize);
+
+        zoomSlider.SetValueWithoutNotify(normalizedZoom);
     }
 }

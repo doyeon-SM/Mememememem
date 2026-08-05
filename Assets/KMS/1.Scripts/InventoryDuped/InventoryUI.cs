@@ -70,7 +70,6 @@ namespace KMS.InventoryDuped
         private SlotGroup heldOriginGroup;
         private int heldOriginIndex = -1;
         private bool isInventoryOpen;
-        private bool previousMovementEnabled = true;
         private bool previousGameplayInputBlocked;
 
         private void Reset()
@@ -390,7 +389,6 @@ namespace KMS.InventoryDuped
 
             if (open)
             {
-                previousMovementEnabled = playerMovement == null || playerMovement.IsMovementEnabled;
                 previousGameplayInputBlocked = playerInput != null && playerInput.IsGameplayInputBlocked;
             }
 
@@ -404,7 +402,7 @@ namespace KMS.InventoryDuped
                 playerInput.SetCursorReleased(open);
                 playerInput.SetGameplayInputBlocked(open ? true : previousGameplayInputBlocked);
             }
-            if (playerMovement != null) playerMovement.IsMovementEnabled = open ? false : previousMovementEnabled;
+            if (playerMovement != null) playerMovement.SetMovementBlocked(this, open);
 
             if (cameraController != null)
             {

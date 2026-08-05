@@ -86,14 +86,14 @@ namespace KMS.EditorTools
                 Require(visualRoot != null, "PlayerVisual_Dodo is missing from 0720_Player_KMS.");
 
                 SerializedObject serializedMovement = new SerializedObject(movement);
-                serializedMovement.FindProperty("maxStepHeight").floatValue = 0.25f;
+                serializedMovement.FindProperty("maxStepHeight").floatValue = 0.375f;
                 serializedMovement.FindProperty("stepSmoothTime").floatValue = 0.08f;
                 serializedMovement.FindProperty("stepVisualRoot").objectReferenceValue = visualRoot;
                 serializedMovement.ApplyModifiedPropertiesWithoutUndo();
 
                 CharacterController controller = prefabRoot.GetComponent<CharacterController>();
                 Require(controller != null, "CharacterController is missing from 0720_Player_KMS.");
-                controller.stepOffset = 0.25f;
+                controller.stepOffset = 0.375f;
 
                 PrefabUtility.SaveAsPrefabAsset(prefabRoot, PlayerPrefabPath);
             }

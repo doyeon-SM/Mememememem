@@ -1395,7 +1395,7 @@ Transform:
   m_GameObject: {fileID: 2422528344376809406}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 1.375, z: 0}
+  m_LocalPosition: {x: 0, y: 2.0625, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1781,7 +1781,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 1.5, y: 1.5, z: 1.5}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 6766025604880973469}
@@ -2839,6 +2839,7 @@ GameObject:
   - component: {fileID: 6812409213719045063}
   - component: {fileID: 6812409213719045064}
   - component: {fileID: 1369161375733360660}
+  - component: {fileID: 5635534456920349353}
   m_Layer: 3
   m_Name: 0720_Player_KMS
   m_TagString: Player
@@ -2882,13 +2883,13 @@ CharacterController:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Height: 1.8
-  m_Radius: 0.28
+  m_Height: 2.7
+  m_Radius: 0.42
   m_SlopeLimit: 45
-  m_StepOffset: 0.25
-  m_SkinWidth: 0.02
+  m_StepOffset: 0.375
+  m_SkinWidth: 0.03
   m_MinMoveDistance: 0
-  m_Center: {x: 0, y: 0.93, z: 0}
+  m_Center: {x: 0, y: 1.395, z: 0}
 --- !u!114 &2704758107374107572
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2971,7 +2972,7 @@ MonoBehaviour:
   deceleration: 22
   rotationSmoothTime: 0.08
   rotateTowardsMovement: 1
-  maxStepHeight: 0.25
+  maxStepHeight: 0.375
   stepSmoothTime: 0.08
   stepVisualRoot: {fileID: 7095467059112644028}
   jumpHeight: 1.2
@@ -3063,6 +3064,7 @@ MonoBehaviour:
   foodEffects: {fileID: 7938680308663795052}
   playerInput: {fileID: 0}
   hudView: {fileID: 0}
+  inventory: {fileID: 0}
   uiDocument: {fileID: 2704758107374107572}
   healthBarName: player-health-bar
   hungerBarName: player-hunger-bar
@@ -3080,6 +3082,9 @@ MonoBehaviour:
   gameTimeManager: {fileID: 0}
   statusRefreshInterval: 0.25
   notificationDuration: 2.5
+  itemObtainedToastDuration: 2.5
+  itemObtainedToastFadeDuration: 0.3
+  maxVisibleItemObtainedToasts: 4
 --- !u!114 &9124669202358280069
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3250,7 +3255,6 @@ MonoBehaviour:
   uiDocument: {fileID: 2704758107374107572}
   collectionButtonName: collection-button
   memDexPrefab: {fileID: 6947569884078246553, guid: 73388961ba2024149adf73e0f355ad57, type: 3}
-  runtimeServicesPrefab: {fileID: 6103025047468129001, guid: 64a2de168be14be98e597b9162ca50f3, type: 3}
   modalSortingOrder: 200
   playerInput: {fileID: 0}
   playerMovement: {fileID: 0}
@@ -3323,6 +3327,10 @@ MonoBehaviour:
   hud: {fileID: 4255726674415822916}
   cameraController: {fileID: 540356905414934518}
   capsuleThrowController: {fileID: 5163941127334908272}
+  consumableController: {fileID: 0}
+  harvestController: {fileID: 0}
+  toolAnimationController: {fileID: 0}
+  memDexLauncher: {fileID: 0}
   animator: {fileID: 1991091852164775653}
   respawnLocationMode: 0
   respawnHealthPercent: 1
@@ -3344,6 +3352,9 @@ MonoBehaviour:
   animator: {fileID: 1914156871709254916}
   handAnchor: {fileID: 0}
   prefabTable: {fileID: 11400000, guid: 2df0fe05f944de94394c1b2705430ece, type: 2}
+  heldCapsuleScaleCompensation: 0.6666667
+  longToolCarryDirection: {x: 0.12, y: 0.22, z: 1}
+  clubCarryDirection: {x: 0.16, y: 0.08, z: 1}
 --- !u!114 &1375091862226142176
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3425,6 +3436,33 @@ MonoBehaviour:
   stats: {fileID: 4191295553828768883}
   movement: {fileID: 757377502652196312}
   animator: {fileID: 1914156871709254916}
+--- !u!114 &5635534456920349353
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5320301024596143200}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6224eb38d5205884e8f9f33aee7a0a29, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::KMS.PlayerHeldItemCarryController
+  inventory: {fileID: 9124669202358280069}
+  movement: {fileID: 757377502652196312}
+  animator: {fileID: 1914156871709254916}
+  toolAnimationController: {fileID: 1375091862226142176}
+  heldItemModelController: {fileID: 8140761256497828183}
+  carryLayerName: HeldItemCarry
+  longToolIdleWeight: 0.8
+  longToolWalkWeight: 0.9
+  longToolRunWeight: 1
+  clubIdleWeight: 0.58
+  clubWalkWeight: 0.75
+  clubRunWeight: 0.9
+  movingSpeedThreshold: 0.1
+  blendInSpeed: 8
+  blendOutSpeed: 14
 --- !u!1 &5344451024060801274
 GameObject:
   m_ObjectHideFlags: 0
