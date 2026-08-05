@@ -72,11 +72,19 @@ MonoBehaviour:
   unlockCursorWhileOpen: 1
   alwaysVisibleCursorSceneNames:
   - Territory
+  - Title
   player: {fileID: 0}
   autoFindPlayer: 1
   playerTag: Player
   playerLayerName: Player
   dontDestroyOnLoad: 1
+  fadeOutDuration: 0.2
+  fadeInDuration: 0.2
+  travelFadeColor: {r: 0, g: 0, b: 0, a: 1}
+  arrivalParticlePrefab: {fileID: 0}
+  arrivalParticleMaterial: {fileID: 0}
+  fallbackArrivalParticleCount: 18
+  fallbackArrivalParticleColor: {r: 0.35, g: 0.86, b: 1, a: 1}
   logWayPointState: 1
   logUnlockStackTrace: 1
 --- !u!114 &5809573651412473617
