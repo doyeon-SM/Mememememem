@@ -24,8 +24,11 @@ namespace KGH.Data
         // Resources.FindObjectsOfTypeAll<ItemData>() 조회가 꼬일 수 있다. ID 문자열만 들고
         // 있다가 ItemCatalogManager.FindItemData(itemId)로 조회하는 방식으로 통일했다.
         public string itemId;
-        public int minDrop;
-        public int maxDrop;
+
+        // [HDY 요청] 드랍 개수를 Min~Max 랜덤 범위 대신 고정값 하나로 변경.
+        // 기존 minDrop/maxDrop 필드는 제거했다. 프리팹(GH_Chest_Prefeb)에 이미 설정돼
+        // 있던 값은 필드명이 바뀌면서 초기화되므로, 팀 확인 후 Inspector에서 직접 재입력.
+        public int dropCount;
     }
 
     [Serializable]
