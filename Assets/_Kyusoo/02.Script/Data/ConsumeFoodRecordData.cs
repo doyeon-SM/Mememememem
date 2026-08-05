@@ -63,10 +63,8 @@ public class ConsumeFoodRecordData : MonoBehaviour, IRecord
 
         var container = ConsumeFoodSystem.Instance.FoodStorageContainer;
 
-        // 1. 음식 창고 인벤토리 컨테이너 복원
         RecordManager.Instance.UnpackContainerData(saveData.foodWarehouseStorageData, container);
 
-        // 2. UI 슬롯 확장 수치 복원 및 리프레시
         int totalSlots = container.slots != null ? container.slots.Length : 5;
         var foodUI = FindFirstObjectByType<FoodWarehouseUI>();
         if (foodUI != null)
@@ -76,13 +74,14 @@ public class ConsumeFoodRecordData : MonoBehaviour, IRecord
             foodUI.RefreshAllPanelsAndSlots();
         }
 
-        // 3. 포만감 시스템 수치 동기화
+        int actualCalculatedSatiety = ConsumeFoodSystem.Instance.CalculateTotalStorageSatiety(out _);
+
         ConsumeFoodSystem.Instance.ForceSyncManualState(
-            saveData.currentSatiety,
-            saveData.maxSatiety,
+            actualCalculatedSatiety,
+            Mathf.Max(saveData.maxSatiety, actualCalculatedSatiety),
             saveData.isWorkStoppedDueToStarvation
         );
 
-        Debug.Log($"<color=cyan>[ConsumeFoodRecordData]</color> 🍚 음식 데이터 복구 완료 (총 슬롯: {totalSlots}, 현재 포만감: {saveData.currentSatiety})");
+        Debug.Log($"<color=cyan>[ConsumeFoodRecordData]</color> 🍚 음식 복구 완료 (슬롯 수: {totalSlots}, 실측 포만감: {actualCalculatedSatiety})");
     }
 }
