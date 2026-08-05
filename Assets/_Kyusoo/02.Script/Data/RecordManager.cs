@@ -289,17 +289,8 @@ public class RecordManager : MonoBehaviour
             var territoryRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "TerritoryRecordData");
             territoryRecord?.ApplyData(saveData, sceneType);
 
-            var waypointRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "WaypointRecordData");
-            waypointRecord?.ApplyData(saveData, sceneType);
-
-            var chestRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "ChestRecordData");
-            chestRecord?.ApplyData(saveData, sceneType);
-
             var memRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "MemRecordData");
             memRecord?.ApplyData(saveData, sceneType);
-
-            var forgeRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "ForgeRecordData");
-            forgeRecord?.ApplyData(saveData, sceneType);
 
             var inventoryRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "PlayerInventoryRecord");
             inventoryRecord?.ApplyData(saveData, sceneType);
@@ -307,14 +298,11 @@ public class RecordManager : MonoBehaviour
             var warehouseRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "WarehouseRecordData");
             warehouseRecord?.ApplyData(saveData, sceneType);
 
-            var playerStatsRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "PlayerStatsRecordData");
-            playerStatsRecord?.ApplyData(saveData, sceneType);
+            var foodRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "ConsumeFoodRecordData");
+            foodRecord?.ApplyData(saveData, sceneType);
 
             var facilityRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "FacilityRecordData");
             facilityRecord?.ApplyData(saveData, sceneType);
-
-            var foodRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "ConsumeFoodRecordData");
-            foodRecord?.ApplyData(saveData, sceneType);
 
             var timeRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "TimeRecordData");
             timeRecord?.ApplyData(saveData, sceneType);
@@ -322,21 +310,25 @@ public class RecordManager : MonoBehaviour
             var cookRecipeRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "CookRecipeRecordData");
             cookRecipeRecord?.ApplyData(saveData, sceneType);
 
+            var waypointRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "WaypointRecordData");
+            waypointRecord?.ApplyData(saveData, sceneType);
+
+            var chestRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "ChestRecordData");
+            chestRecord?.ApplyData(saveData, sceneType);
+
+            var forgeRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "ForgeRecordData");
+            forgeRecord?.ApplyData(saveData, sceneType);
+
+            var playerStatsRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "PlayerStatsRecordData");
+            playerStatsRecord?.ApplyData(saveData, sceneType);
+
             var playerPosRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "PlayerPosRecordData");
             playerPosRecord?.ApplyData(saveData, sceneType);
 
-            var offlineRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "OfflineRewardRecordData");
-            offlineRecord?.ApplyData(saveData, sceneType);
-
-            foreach (var record in subRecords)
+            var offlineRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "OfflineRewardRecordData") as OfflineRewardRecordData;
+            if (offlineRecord != null)
             {
-                if (record == sceneRecord || record == territoryRecord || record == waypointRecord || record == chestRecord ||
-                    record == memRecord || record == forgeRecord || record == inventoryRecord || record == playerStatsRecord ||
-                    record == facilityRecord || record == foodRecord || record == timeRecord || record == cookRecipeRecord ||
-                    record == playerPosRecord || record == offlineRecord)
-                    continue;
-
-                record.ApplyData(saveData, sceneType);
+                offlineRecord.ProcessOfflineReward(saveData);
             }
 
             if (sceneType == SceneType.Territory)
@@ -346,7 +338,7 @@ public class RecordManager : MonoBehaviour
 
             ResynchronizeLoadedSceneState(subRecords, saveData);
 
-            Debug.Log($"<color=lime>[RecordManager]</color> {sceneType} 환경 맞춤 데이터 복구 및 재구성 완료!");
+            Debug.Log($"<color=lime>[RecordManager]</color> {sceneType} 환경 맞춤 데이터 완벽 복구 및 정산 완료!");
         }
         catch (Exception e)
         {
