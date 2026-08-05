@@ -18,7 +18,7 @@ namespace KMS.EditorTools
         private const string RealThrowFinishPath = RealThrowFolder + "/ThrowFinish.anim";
         private const string ClipFolder = "Assets/KMS/4.Animation/Dodo/Clips/ThrowTemp";
         private const string ControllerPath = "Assets/KMS/4.Animation/Dodo/Controllers/KMS_DodoAnimator.controller";
-        private const string PlayerPrefabPath = "Assets/KMS/2.Prefabs/0712_Player_KMS.prefab";
+        private const string PlayerPrefabPath = "Assets/KMS/2.Prefabs/0720_Player_KMS.prefab";
         private const string CapsulePrefabPath = "Assets/HDY/2.Prefabs/ItemPrefab/TestCapsule.prefab";
         private const float TemporarySlashDuration = 0.5f;
 
@@ -72,7 +72,7 @@ namespace KMS.EditorTools
             ConfigurePlayerPrefab();
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
-            Debug.Log("[CapsuleThrowSetup] 투척 클립, Animator, 0712_Player_KMS 연결 완료");
+            Debug.Log("[CapsuleThrowSetup] 투척 클립, Animator, 0720_Player_KMS 연결 완료");
         }
 
         private static AnimationClip CreateOrUpdateClip(

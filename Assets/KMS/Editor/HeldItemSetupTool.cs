@@ -136,7 +136,6 @@ namespace KMS.EditorTools
 
         private static readonly string[] PlayerPrefabPaths =
         {
-            "Assets/KMS/2.Prefabs/0714_Player_KMS.prefab",
             "Assets/KMS/2.Prefabs/0720_Player_KMS.prefab"
         };
 
@@ -372,6 +371,11 @@ namespace KMS.EditorTools
                         ? movement.Animator
                         : root.GetComponentInChildren<Animator>(true);
                 controllerObject.FindProperty("prefabTable").objectReferenceValue = table;
+                controllerObject.FindProperty("heldCapsuleScaleCompensation").floatValue = 2f / 3f;
+                controllerObject.FindProperty("longToolCarryDirection").vector3Value =
+                    new Vector3(0.12f, 0.22f, 1f);
+                controllerObject.FindProperty("clubCarryDirection").vector3Value =
+                    new Vector3(0.16f, 0.08f, 1f);
                 controllerObject.ApplyModifiedPropertiesWithoutUndo();
 
                 PlayerToolAnimationController toolAnimation =

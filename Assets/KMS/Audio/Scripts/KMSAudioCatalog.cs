@@ -20,7 +20,10 @@ namespace KMS.Audio
         CaptureFailure,
         ItemObtained,
         QuickSlotSelected,
-        PlayerDamaged
+        PlayerDamaged,
+        UIClick,
+        UIPanelOpen,
+        UIPanelClose
     }
 
     [Serializable]
@@ -194,6 +197,19 @@ namespace KMS.Audio
                     cue.SpatialBlend = 0f;
                     cue.Volume = 0.8f;
                     cue.Cooldown = 0.04f;
+                    cue.MaxVoices = 2;
+                    break;
+                case GameSfxId.UIClick:
+                    cue.SpatialBlend = 0f;
+                    cue.Volume = 0.7f;
+                    cue.Cooldown = 0.03f;
+                    cue.MaxVoices = 2;
+                    break;
+                case GameSfxId.UIPanelOpen:
+                case GameSfxId.UIPanelClose:
+                    cue.SpatialBlend = 0f;
+                    cue.Volume = 0.8f;
+                    cue.Cooldown = 0.05f;
                     cue.MaxVoices = 2;
                     break;
                 case GameSfxId.ToolSwing:

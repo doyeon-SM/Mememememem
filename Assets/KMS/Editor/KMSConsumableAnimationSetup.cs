@@ -20,7 +20,6 @@ namespace KMS.EditorTools
 
         private static readonly string[] PlayerPrefabPaths =
         {
-            "Assets/KMS/2.Prefabs/0714_Player_KMS.prefab",
             "Assets/KMS/2.Prefabs/0720_Player_KMS.prefab"
         };
 
@@ -49,13 +48,20 @@ namespace KMS.EditorTools
         {
             EnsureParameter(controller, "Eat", AnimatorControllerParameterType.Trigger);
 
-            AnimatorStateMachine stateMachine = controller.layers[0].stateMachine;
-            AnimatorState locomotion = FindState(stateMachine, "Locomotion");
+            AnimatorStateMachine baseStateMachine = controller.layers[0].stateMachine;
+            AnimatorState locomotion = FindState(baseStateMachine, "Locomotion");
             if (locomotion == null)
             {
                 throw new InvalidOperationException(
                     "KMS_DodoAnimator requires a Locomotion state.");
             }
+
+            AnimatorControllerLayer actionLayer =
+                KMSUpperBodyActionLayerSetup.Configure(controller);
+            AnimatorStateMachine actionStateMachine = actionLayer.stateMachine;
+            AnimatorState actionNone = KMSUpperBodyActionLayerSetup.FindState(
+                actionStateMachine,
+                KMSUpperBodyActionLayerSetup.NoneStateName);
 
             AnimationClip eatClip =
                 AssetDatabase.LoadAssetAtPath<AnimationClip>(EatClipPath);
@@ -68,19 +74,24 @@ namespace KMS.EditorTools
             AnimationClip deprecatedTemporaryClip =
                 AssetDatabase.LoadAssetAtPath<AnimationClip>(DeprecatedTemporaryEatClipPath);
 
-            AnimatorState eatState = FindState(stateMachine, EatStateName);
+            AnimatorState legacyEatState = FindState(baseStateMachine, EatStateName);
+            AnimatorState eatState = FindState(actionStateMachine, EatStateName);
             bool created = eatState == null;
             if (eatState == null)
             {
-                eatState = stateMachine.AddState(EatStateName);
+                eatState = actionStateMachine.AddState(EatStateName);
             }
 
-            SetStatePosition(stateMachine, eatState, new Vector3(930f, 360f, 0f));
+            SetStatePosition(actionStateMachine, eatState, new Vector3(930f, 360f, 0f));
             if (created
                 || eatState.motion == null
                 || eatState.motion == deprecatedTemporaryClip)
             {
-                eatState.motion = eatClip;
+                eatState.motion = legacyEatState != null
+                    && legacyEatState.motion != null
+                    && legacyEatState.motion != deprecatedTemporaryClip
+                        ? legacyEatState.motion
+                        : eatClip;
             }
 
             eatState.speed = EatPlaybackSpeed;
@@ -88,8 +99,11 @@ namespace KMS.EditorTools
                 Mathf.Clamp01(EatActionDurationSeconds * EatPlaybackSpeed / eatClip.length);
             eatState.tag = "ConsumableAction";
             ConfigureBehaviour(eatState, completionNormalizedTime);
-            ConfigureReturnTransition(eatState, locomotion, completionNormalizedTime);
-            ConfigureEntryTransition(locomotion, eatState);
+            ConfigureReturnTransition(eatState, actionNone, completionNormalizedTime);
+            ConfigureEntryTransition(actionNone, eatState);
+            KMSUpperBodyActionLayerSetup.RemoveLegacyState(
+                baseStateMachine,
+                EatStateName);
             EditorUtility.SetDirty(controller);
         }
 

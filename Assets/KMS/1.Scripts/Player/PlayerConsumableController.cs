@@ -130,6 +130,8 @@ namespace KMS
             actionStateActive = false;
             requestTime = Time.unscaledTime;
 
+            movement?.SetMovementBlocked(this, true);
+
             animator.ResetTrigger(EatHash);
             animator.SetTrigger(EatHash);
         }
@@ -216,6 +218,7 @@ namespace KMS
 
         private void ClearPendingState()
         {
+            movement?.SetMovementBlocked(this, false);
             actionRequested = false;
             actionStateActive = false;
             consumeCommitted = false;

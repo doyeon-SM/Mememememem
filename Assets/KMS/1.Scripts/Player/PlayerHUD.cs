@@ -1,6 +1,9 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
+using HDY.Item;
 using HDY.Territory;
+using KMS.InventoryDuped;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using ToolkitButton = UnityEngine.UIElements.Button;
@@ -31,6 +34,7 @@ namespace KMS
         [SerializeField] private KMSFoodEffectController foodEffects;
         [SerializeField] private PlayerInput playerInput;
         [SerializeField] private KMSPlayerHudView hudView;
+        [SerializeField] private PlayerInventory inventory;
 
         [Header("Legacy UI Toolkit (0714)")]
         [SerializeField] private UIDocument uiDocument;
@@ -55,6 +59,14 @@ namespace KMS
         [Header("Notifications")]
         [SerializeField] private float notificationDuration = 2.5f;
 
+        [Header("Item Obtained Toasts")]
+        [Tooltip("각 아이템 획득 메시지가 완전히 보이는 시간(초)입니다.")]
+        [SerializeField, Min(0f)] private float itemObtainedToastDuration = 2.5f;
+        [Tooltip("메시지가 나타나고 사라질 때 사용하는 페이드 시간(초)입니다.")]
+        [SerializeField, Min(0f)] private float itemObtainedToastFadeDuration = 0.3f;
+        [Tooltip("우하단에 동시에 쌓일 수 있는 아이템 획득 메시지의 최대 개수입니다.")]
+        [SerializeField, Min(1)] private int maxVisibleItemObtainedToasts = 4;
+
         private KMSPlayerHudView boundHudView;
         private ToolkitProgressBar toolkitHealthBar;
         private ToolkitProgressBar toolkitHungerBar;
@@ -68,6 +80,7 @@ namespace KMS
         private ToolkitButton toolkitMapButton;
         private ToolkitLabel toolkitRealTimeLabel;
         private ToolkitLabel toolkitGoldLabel;
+        private VisualElement toolkitItemObtainedContainer;
 
         private KMS.InventoryDuped.InventoryUI inventoryUi;
         private WayPointUIToggle mapUiToggle;
@@ -78,6 +91,13 @@ namespace KMS
         private string lastDisplayedTime;
         private int lastDisplayedGold = int.MinValue;
         private bool hasDisplayedGold;
+        private readonly List<ToolkitItemObtainedToast> toolkitItemObtainedToasts = new List<ToolkitItemObtainedToast>();
+
+        private sealed class ToolkitItemObtainedToast
+        {
+            public VisualElement root;
+            public Coroutine lifetimeRoutine;
+        }
 
         public bool UsesToolkitHud => uiDocument != null && uiDocument.enabled;
         public event Action RespawnRequested;
@@ -87,6 +107,7 @@ namespace KMS
             stats = GetComponent<PlayerStats>();
             foodEffects = GetComponent<KMSFoodEffectController>();
             playerInput = GetComponent<PlayerInput>();
+            inventory = GetComponent<PlayerInventory>();
             uiDocument = GetComponent<UIDocument>();
         }
 
@@ -96,6 +117,7 @@ namespace KMS
             if (foodEffects == null)
                 foodEffects = stats != null ? stats.FoodEffects : GetComponent<KMSFoodEffectController>();
             if (playerInput == null) playerInput = GetComponent<PlayerInput>();
+            if (inventory == null) inventory = GetComponent<PlayerInventory>();
             if (uiDocument == null) uiDocument = GetComponent<UIDocument>();
             if (inventoryUi == null) inventoryUi = FindFirstObjectByType<KMS.InventoryDuped.InventoryUI>();
             ResolveHudView();
@@ -116,6 +138,7 @@ namespace KMS
             if (foodEffects != null) foodEffects.Changed += HandleFoodEffectsChanged;
 
             if (playerInput != null) playerInput.MapPressed += HandleMapPressed;
+            if (inventory != null) inventory.OnItemObtained += HandleItemObtained;
 
             BindPresentation();
             if (hasStarted)
@@ -146,6 +169,7 @@ namespace KMS
 
             UnbindPresentation();
             if (playerInput != null) playerInput.MapPressed -= HandleMapPressed;
+            if (inventory != null) inventory.OnItemObtained -= HandleItemObtained;
             RestoreLegacyMapToggleInput();
 
             if (stats != null)
@@ -272,6 +296,7 @@ namespace KMS
             toolkitMapButton = UnityEngine.UIElements.UQueryExtensions.Q<ToolkitButton>(root, mapButtonName);
             toolkitRealTimeLabel = UnityEngine.UIElements.UQueryExtensions.Q<ToolkitLabel>(root, realTimeLabelName);
             toolkitGoldLabel = UnityEngine.UIElements.UQueryExtensions.Q<ToolkitLabel>(root, goldLabelName);
+            EnsureToolkitItemObtainedContainer(root);
 
             // Temporarily disabled while testing non-runtime-bound HUD buttons.
             // if (toolkitInventoryButton != null) toolkitInventoryButton.clicked += HandleInventoryButtonClicked;
@@ -283,6 +308,7 @@ namespace KMS
 
         private void UnbindToolkitElements()
         {
+            ClearToolkitItemObtainedToasts();
             if (toolkitInventoryButton != null) toolkitInventoryButton.clicked -= HandleInventoryButtonClicked;
             if (toolkitMapButton != null) toolkitMapButton.clicked -= HandleMapButtonClicked;
             if (toolkitRespawnButton != null) toolkitRespawnButton.clicked -= HandleRespawnButtonClicked;
@@ -298,6 +324,166 @@ namespace KMS
             toolkitMapButton = null;
             toolkitRealTimeLabel = null;
             toolkitGoldLabel = null;
+            if (toolkitItemObtainedContainer != null && toolkitItemObtainedContainer.parent != null)
+                toolkitItemObtainedContainer.parent.Remove(toolkitItemObtainedContainer);
+            toolkitItemObtainedContainer = null;
+        }
+
+        private void HandleItemObtained(ItemData item, int amount)
+        {
+            if (item == null || amount <= 0) return;
+
+            if (UsesToolkitHud)
+            {
+                if (toolkitItemObtainedContainer == null) BindToolkitElements();
+                ShowToolkitItemObtained(item, amount);
+                return;
+            }
+
+            ResolveHudView();
+            hudView?.ShowItemObtained(
+                item,
+                amount,
+                itemObtainedToastDuration,
+                itemObtainedToastFadeDuration,
+                maxVisibleItemObtainedToasts);
+        }
+
+        private void EnsureToolkitItemObtainedContainer(VisualElement root)
+        {
+            if (toolkitItemObtainedContainer != null || root == null) return;
+
+            toolkitItemObtainedContainer = new VisualElement { name = "kms-item-obtained-container" };
+            toolkitItemObtainedContainer.pickingMode = UnityEngine.UIElements.PickingMode.Ignore;
+            toolkitItemObtainedContainer.style.position = UnityEngine.UIElements.Position.Absolute;
+            toolkitItemObtainedContainer.style.right = 20f;
+            toolkitItemObtainedContainer.style.bottom = 142f;
+            toolkitItemObtainedContainer.style.width = 340f;
+            toolkitItemObtainedContainer.style.maxHeight = 280f;
+            toolkitItemObtainedContainer.style.flexDirection = UnityEngine.UIElements.FlexDirection.Column;
+            toolkitItemObtainedContainer.style.justifyContent = UnityEngine.UIElements.Justify.FlexEnd;
+            root.Add(toolkitItemObtainedContainer);
+        }
+
+        private void ShowToolkitItemObtained(ItemData item, int amount)
+        {
+            if (toolkitItemObtainedContainer == null) return;
+
+            toolkitItemObtainedToasts.RemoveAll(toast => toast == null || toast.root == null || toast.root.parent == null);
+            string itemId = string.IsNullOrEmpty(item.Item_ID) ? item.GetInstanceID().ToString() : item.Item_ID;
+            while (toolkitItemObtainedToasts.Count >= Mathf.Max(1, maxVisibleItemObtainedToasts))
+            {
+                RemoveToolkitItemObtainedToast(toolkitItemObtainedToasts[0]);
+            }
+
+            VisualElement row = new VisualElement { name = $"item-obtained-{itemId}" };
+            row.pickingMode = UnityEngine.UIElements.PickingMode.Ignore;
+            row.style.height = 64f;
+            row.style.minHeight = 60f;
+            row.style.marginTop = 4f;
+            row.style.paddingLeft = 10f;
+            row.style.paddingRight = 12f;
+            row.style.paddingTop = 8f;
+            row.style.paddingBottom = 8f;
+            row.style.flexDirection = UnityEngine.UIElements.FlexDirection.Row;
+            row.style.alignItems = UnityEngine.UIElements.Align.Center;
+            row.style.backgroundColor = new Color(22f / 255f, 22f / 255f, 24f / 255f, 235f / 255f);
+            row.style.borderTopLeftRadius = 8f;
+            row.style.borderTopRightRadius = 8f;
+            row.style.borderBottomLeftRadius = 8f;
+            row.style.borderBottomRightRadius = 8f;
+            row.style.opacity = 0f;
+
+            VisualElement icon = new VisualElement { name = "icon" };
+            icon.pickingMode = UnityEngine.UIElements.PickingMode.Ignore;
+            icon.style.width = 44f;
+            icon.style.height = 44f;
+            icon.style.minWidth = 44f;
+            icon.style.marginRight = 10f;
+            icon.style.backgroundColor = item.ItemIcon != null
+                ? Color.clear
+                : new Color(60f / 255f, 60f / 255f, 64f / 255f, 1f);
+            if (item.ItemIcon != null)
+            {
+                icon.style.backgroundImage = new UnityEngine.UIElements.StyleBackground(item.ItemIcon);
+                icon.style.unityBackgroundScaleMode = ScaleMode.ScaleToFit;
+            }
+            else
+            {
+                ToolkitLabel placeholder = new ToolkitLabel("?");
+                placeholder.pickingMode = UnityEngine.UIElements.PickingMode.Ignore;
+                placeholder.style.unityTextAlign = TextAnchor.MiddleCenter;
+                placeholder.style.fontSize = 20f;
+                placeholder.style.color = Color.white;
+                placeholder.style.flexGrow = 1f;
+                icon.Add(placeholder);
+            }
+
+            ToolkitLabel nameLabel = new ToolkitLabel(!string.IsNullOrEmpty(item.ItemName) ? item.ItemName : item.Item_ID);
+            nameLabel.pickingMode = UnityEngine.UIElements.PickingMode.Ignore;
+            nameLabel.style.flexGrow = 1f;
+            nameLabel.style.fontSize = 18f;
+            nameLabel.style.color = new Color(240f / 255f, 240f / 255f, 240f / 255f, 1f);
+            nameLabel.style.unityTextAlign = TextAnchor.MiddleLeft;
+
+            ToolkitLabel amountLabel = new ToolkitLabel($"X{amount}");
+            amountLabel.pickingMode = UnityEngine.UIElements.PickingMode.Ignore;
+            amountLabel.style.width = 54f;
+            amountLabel.style.fontSize = 18f;
+            amountLabel.style.color = new Color(1f, 222f / 255f, 120f / 255f, 1f);
+            amountLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
+            amountLabel.style.unityTextAlign = TextAnchor.MiddleRight;
+
+            row.Add(icon);
+            row.Add(nameLabel);
+            row.Add(amountLabel);
+            toolkitItemObtainedContainer.Add(row);
+
+            ToolkitItemObtainedToast toast = new ToolkitItemObtainedToast { root = row };
+            toolkitItemObtainedToasts.Add(toast);
+            toast.lifetimeRoutine = StartCoroutine(RunToolkitItemObtainedLifetime(toast));
+        }
+
+        private IEnumerator RunToolkitItemObtainedLifetime(ToolkitItemObtainedToast toast)
+        {
+            float elapsed = 0f;
+            float fadeInDuration = Mathf.Min(0.16f, Mathf.Max(0f, itemObtainedToastFadeDuration));
+            toast.root.style.opacity = fadeInDuration > 0f ? 0f : 1f;
+            while (elapsed < fadeInDuration && toast.root != null && toast.root.parent != null)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                toast.root.style.opacity = Mathf.Clamp01(elapsed / fadeInDuration);
+                yield return null;
+            }
+
+            yield return new WaitForSecondsRealtime(Mathf.Max(0f, itemObtainedToastDuration));
+            if (toast.root == null || toast.root.parent == null) yield break;
+
+            elapsed = 0f;
+            float fadeOutDuration = Mathf.Max(0f, itemObtainedToastFadeDuration);
+            while (elapsed < fadeOutDuration && toast.root.parent != null)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                toast.root.style.opacity = 1f - Mathf.Clamp01(elapsed / fadeOutDuration);
+                yield return null;
+            }
+            RemoveToolkitItemObtainedToast(toast, false);
+        }
+
+        private void RemoveToolkitItemObtainedToast(ToolkitItemObtainedToast toast, bool stopRoutine = true)
+        {
+            if (toast == null) return;
+            if (stopRoutine && toast.lifetimeRoutine != null) StopCoroutine(toast.lifetimeRoutine);
+            toolkitItemObtainedToasts.Remove(toast);
+            if (toast.root != null && toast.root.parent != null) toast.root.parent.Remove(toast.root);
+        }
+
+        private void ClearToolkitItemObtainedToasts()
+        {
+            for (int i = toolkitItemObtainedToasts.Count - 1; i >= 0; i--)
+            {
+                RemoveToolkitItemObtainedToast(toolkitItemObtainedToasts[i]);
+            }
         }
 
         private void HandleInventoryButtonClicked()
@@ -527,7 +713,12 @@ namespace KMS
         {
             if (UsesToolkitHud)
             {
-                if (toolkitMessageOverlay != null) toolkitMessageOverlay.style.display = DisplayStyle.Flex;
+                if (toolkitMessageOverlay != null)
+                {
+                    toolkitMessageOverlay.style.display = DisplayStyle.Flex;
+                    toolkitMessageOverlay.BringToFront();
+                }
+                toolkitRespawnButton?.SetEnabled(true);
                 if (toolkitMessageLabel != null) toolkitMessageLabel.text = "사망했습니다";
             }
             else
@@ -541,6 +732,7 @@ namespace KMS
         {
             if (UsesToolkitHud)
             {
+                toolkitRespawnButton?.SetEnabled(false);
                 if (toolkitMessageOverlay != null) toolkitMessageOverlay.style.display = DisplayStyle.None;
                 if (toolkitMessageLabel != null) toolkitMessageLabel.text = string.Empty;
             }
