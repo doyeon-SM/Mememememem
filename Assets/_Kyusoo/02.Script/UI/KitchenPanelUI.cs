@@ -8,6 +8,7 @@ using KMS.InventoryDuped;
 using MemSystem.Data;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -450,28 +451,37 @@ public class KitchenPanelUI : MonoBehaviour
 
         if (targetFacility == null || targetFacility.cookingFacilityData == null)
         {
-            Debug.LogWarning("[주방] CookingFacilityData가 연결되어 있지 않습니다.");
+            Debug.LogWarning("[요리 시설] CookingFacilityData가 가리키는 데이터 자산이 비어있습니다.");
             return;
         }
 
-        List<string> recipeIds = targetFacility.cookingFacilityData.RecipeIds;
+        List<string> facilityRecipeIds = targetFacility.cookingFacilityData.RecipeIds;
+        if (facilityRecipeIds == null || facilityRecipeIds.Count == 0) return;
 
-        if (recipeIds != null && recipeIds.Count > 0)
+        CookRecipeUnlockManager unlockManager = CookRecipeUnlockManager.Resolve(null);
+        if (unlockManager == null) unlockManager = FindFirstObjectByType<CookRecipeUnlockManager>();
+
+        foreach (string recipeId in facilityRecipeIds)
         {
-            foreach (string recipeId in recipeIds)
+            if (string.IsNullOrEmpty(recipeId)) continue;
+
+            bool isUnlocked = false;
+            if (unlockManager != null && unlockManager.UnlockedRecipeIds != null)
             {
-                if (string.IsNullOrEmpty(recipeId)) continue;
+                isUnlocked = unlockManager.UnlockedRecipeIds.Contains(recipeId);
+            }
 
-                ItemData matchedItemData = FindItemDataInCatalog(recipeId);
+            if (!isUnlocked) continue;
 
-                if (matchedItemData != null && recipeSlotPrefab != null)
+            ItemData matchedItemData = FindItemDataInCatalog(recipeId);
+
+            if (matchedItemData != null && recipeSlotPrefab != null)
+            {
+                GameObject slotInstance = Instantiate(recipeSlotPrefab, recipeGridParent);
+
+                if (slotInstance.TryGetComponent<RecipeSlotUI>(out RecipeSlotUI recipeSlot))
                 {
-                    GameObject slotInstance = Instantiate(recipeSlotPrefab, recipeGridParent);
-
-                    if (slotInstance.TryGetComponent<RecipeSlotUI>(out RecipeSlotUI recipeSlot))
-                    {
-                        recipeSlot.SetupSlot(matchedItemData, () => OnSelectFoodRecipe(matchedItemData));
-                    }
+                    recipeSlot.SetupSlot(matchedItemData, () => OnSelectFoodRecipe(matchedItemData));
                 }
             }
         }
