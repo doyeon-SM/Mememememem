@@ -69,6 +69,7 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
     private const string ChunkActiveRangePreferenceKey = "GH.Graphics.ChunkActiveRange";
     private const int DefaultResolutionWidth = 1920;
     private const int DefaultResolutionHeight = 1080;
+    private const float DefaultApplyCloseFadeDuration = 0.35f;
 
     private static readonly Vector2Int[] SupportedResolutionPresets =
     {
@@ -246,12 +247,18 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
 
     private void TryStartApplyCloseFade()
     {
-        if (applyCloseFadeCoroutine != null
-            || SceneUIManager.Instance == null
-            || !SceneUIManager.Instance.TryGetSettingsSubPanelApplyFadeDuration(
-                out float fadeDuration))
+        if (applyCloseFadeCoroutine != null)
         {
             return;
+        }
+
+        // 이 패널의 적용 후 닫기는 씬별 SceneUIManager 체크값에 의존하지 않는다.
+        // 매니저가 있으면 설정된 시간만 가져오고, 없어도 기본 시간으로 동작한다.
+        float fadeDuration = DefaultApplyCloseFadeDuration;
+        if (SceneUIManager.Instance != null)
+        {
+            SceneUIManager.Instance.TryGetSettingsSubPanelApplyFadeDuration(
+                out fadeDuration);
         }
 
         applyCloseFadeCoroutine = StartCoroutine(FadeAndCloseThisPanel(fadeDuration));

@@ -61,9 +61,6 @@ public sealed class SceneUIManager : MonoBehaviour
     [SerializeField] private string playerLayerName = PlayerReferenceResolver.DefaultPlayerLayerName;
 
     [Header("Settings Apply Fade")]
-    [Tooltip("적용 버튼으로 설정을 확정하면 현재 열린 환경설정 하위 창만 페이드 아웃한 뒤 닫습니다. 상위 Setting Panel은 유지됩니다.")]
-    [SerializeField] private bool fadeSettingsOnApply;
-
     [Tooltip("적용 후 환경설정 하위 창이 완전히 닫힐 때까지의 시간입니다. 일시정지 중에도 동작합니다.")]
     [Range(0.05f, 2f)]
     [SerializeField] private float settingsApplyFadeDuration = 0.35f;
@@ -275,7 +272,7 @@ public sealed class SceneUIManager : MonoBehaviour
     public bool TryGetSettingsSubPanelApplyFadeDuration(out float duration)
     {
         duration = Mathf.Max(0.01f, settingsApplyFadeDuration);
-        return fadeSettingsOnApply && IsSettingsOpen;
+        return IsSettingsOpen;
     }
 
     /// <summary>

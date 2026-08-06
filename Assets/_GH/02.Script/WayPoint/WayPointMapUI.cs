@@ -94,6 +94,7 @@ public class WayPointMapUI : MonoBehaviour
 
     private readonly Dictionary<string, WayPointMapIconUI> iconsById = new Dictionary<string, WayPointMapIconUI>();
     private readonly Dictionary<WayPointMapDefinition, Button> mapButtonsByDefinition = new Dictionary<WayPointMapDefinition, Button>();
+    private readonly Dictionary<Button, GameObject> mapButtonRootsByButton = new Dictionary<Button, GameObject>();
     private WayPointMapDefinition currentMap;
     private WayPointMapOpenMode currentOpenMode = WayPointMapOpenMode.PreviewOnly;
     private WayPointRunTime currentTooltipState;
@@ -691,6 +692,11 @@ public class WayPointMapUI : MonoBehaviour
             }
 
             GameObject buttonRoot = GetMapButtonRoot(button);
+            if (buttonRoot == null)
+            {
+                continue;
+            }
+
             buttonRoot.SetActive(true);
             buttonRoot.transform.SetSiblingIndex(siblingIndex++);
             RefreshMapButton(button, mapDefinition);
@@ -700,7 +706,11 @@ public class WayPointMapUI : MonoBehaviour
         {
             if (pair.Value != null && !visibleMaps.Contains(pair.Key))
             {
-                GetMapButtonRoot(pair.Value).SetActive(false);
+                GameObject buttonRoot = GetMapButtonRoot(pair.Value);
+                if (buttonRoot != null)
+                {
+                    buttonRoot.SetActive(false);
+                }
             }
         }
     }
@@ -740,12 +750,14 @@ public class WayPointMapUI : MonoBehaviour
     private Button CreateMapButtonObject(string buttonId)
     {
         Button button;
+        GameObject buttonRoot = null;
 
         if (stageButtonPrefab != null)
         {
             WayPointMapButtonView instanceView =
                 Instantiate(stageButtonPrefab, mapButtonParent);
             button = instanceView != null ? instanceView.Button : null;
+            buttonRoot = instanceView != null ? instanceView.gameObject : null;
         }
         else if (mapButtonPrefab != null)
         {
@@ -758,11 +770,13 @@ public class WayPointMapUI : MonoBehaviour
                 WayPointMapButtonView instanceView =
                     instanceObject.GetComponent<WayPointMapButtonView>();
                 button = instanceView != null ? instanceView.Button : null;
+                buttonRoot = instanceObject;
             }
             else
             {
                 // 기존 루트 Button 프리팹도 계속 지원한다.
                 button = Instantiate(mapButtonPrefab, mapButtonParent);
+                buttonRoot = button != null ? button.gameObject : null;
             }
         }
         else
@@ -794,6 +808,7 @@ public class WayPointMapUI : MonoBehaviour
             text.raycastTarget = false;
 
             button = buttonObject.GetComponent<Button>();
+            buttonRoot = buttonObject;
         }
 
         if (button == null)
@@ -805,20 +820,37 @@ public class WayPointMapUI : MonoBehaviour
             return null;
         }
 
-        GetMapButtonRoot(button).name = $"MapButton_{buttonId}";
+        if (buttonRoot == null)
+        {
+            WayPointMapButtonView instanceView =
+                button.GetComponentInParent<WayPointMapButtonView>(true);
+            buttonRoot = instanceView != null ? instanceView.gameObject : button.gameObject;
+        }
+
+        mapButtonRootsByButton[button] = buttonRoot;
+        buttonRoot.name = $"MapButton_{buttonId}";
         button.onClick.RemoveAllListeners();
         return button;
     }
 
-    private static GameObject GetMapButtonRoot(Button button)
+    private GameObject GetMapButtonRoot(Button button)
     {
         if (button == null)
         {
             return null;
         }
 
-        WayPointMapButtonView view = button.GetComponentInParent<WayPointMapButtonView>();
-        return view != null ? view.gameObject : button.gameObject;
+        if (mapButtonRootsByButton.TryGetValue(button, out GameObject registeredRoot)
+            && registeredRoot != null)
+        {
+            return registeredRoot;
+        }
+
+        WayPointMapButtonView view =
+            button.GetComponentInParent<WayPointMapButtonView>(true);
+        GameObject resolvedRoot = view != null ? view.gameObject : button.gameObject;
+        mapButtonRootsByButton[button] = resolvedRoot;
+        return resolvedRoot;
     }
 
     // 맵 해금 상태와 현재 선택 상태에 맞춰 버튼 표시를 갱신한다.
