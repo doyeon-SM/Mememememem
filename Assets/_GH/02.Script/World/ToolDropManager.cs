@@ -1,4 +1,3 @@
-using HDY.Item;
 using UnityEngine;
 
 [DisallowMultipleComponent]
@@ -33,12 +32,12 @@ public class ToolDropManager : MonoBehaviour
     }
 
     /// <summary>지정 도구의 확률 규칙을 한 번 추첨해 드롭 개수를 반환합니다.</summary>
-    /// <param name="tool">직접 참조로 규칙을 찾을 ItemData 도구입니다.</param>
+    /// <param name="toolItemId">규칙을 찾을 도구의 Item Id입니다.</param>
     /// <returns>최소 1개 이상의 드롭 개수입니다.</returns>
-    public int RollDropCount(ItemData tool)
+    public int RollDropCount(string toolItemId)
     {
         return dropTable != null
-            ? dropTable.RollDropCount(tool)
+            ? dropTable.RollDropCount(toolItemId)
             : 1;
     }
 }

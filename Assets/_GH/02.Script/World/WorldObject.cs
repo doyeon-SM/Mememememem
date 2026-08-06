@@ -58,6 +58,8 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
     [Range(10f, 89f)] [SerializeField] private float treeFallLandedAngle = 55f;
     [Tooltip("충돌 판정을 받지 못한 나무도 이 시간이 지나면 제거하고 아이템을 생성합니다.")]
     [Min(0.5f)] [SerializeField] private float treeFallTimeoutSeconds = 5f;
+    [Tooltip("나무가 쓰러지는 동안만 플레이어와의 충돌을 무시합니다. 바닥 충돌과 착지 판정은 유지됩니다.")]
+    [SerializeField] private bool ignorePlayerCollisionWhileTreeFalling = true;
 
     [Header("Depletion Visual And Collision")]
     [Tooltip("비워 두면 이 오브젝트와 자식의 모든 Renderer를 자동으로 사용합니다.")]
@@ -183,6 +185,20 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
     private bool treeRigidbodyInitialUseGravity;
     private RigidbodyConstraints treeRigidbodyInitialConstraints;
     private CollisionDetectionMode treeRigidbodyInitialCollisionDetection;
+    private readonly List<TreePlayerCollisionPair> ignoredTreePlayerCollisionPairs =
+        new List<TreePlayerCollisionPair>();
+
+    private readonly struct TreePlayerCollisionPair
+    {
+        public TreePlayerCollisionPair(Collider treeCollider, Collider playerCollider)
+        {
+            TreeCollider = treeCollider;
+            PlayerCollider = playerCollider;
+        }
+
+        public Collider TreeCollider { get; }
+        public Collider PlayerCollider { get; }
+    }
 
     private void Awake()
     {
@@ -412,7 +428,7 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
 
             // 드롭 항목마다 도구의 개수 확률을 독립적으로 추첨한다.
             int baseDropCount = ToolDropManager.Instance != null
-                ? ToolDropManager.Instance.RollDropCount(tool)
+                ? ToolDropManager.Instance.RollDropCount(tool != null ? tool.Item_ID : string.Empty)
                 : 1;
             int dropCount = baseDropCount + gatherBonus;
 
@@ -543,6 +559,8 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
         treeFallCanLandAtTime = Time.time + Mathf.Max(0f, treeFallLandingGraceSeconds);
         treeFallTimeoutAtTime = Time.time + Mathf.Max(0.5f, treeFallTimeoutSeconds);
 
+        IgnoreTreePlayerCollisions();
+
         Vector3 fallDirection = transform.position - attackerPosition;
         fallDirection = Vector3.ProjectOnPlane(fallDirection, treeFallInitialUp);
         if (fallDirection.sqrMagnitude < 0.0001f)
@@ -593,6 +611,67 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
         return treeRigidbody;
     }
 
+    /// <summary>
+    /// 나무와 플레이어 사이의 충돌만 무시합니다.
+    /// 나무-바닥 충돌은 남겨 자연스러운 낙하와 착지 판정을 유지합니다.
+    /// </summary>
+    private void IgnoreTreePlayerCollisions()
+    {
+        RestoreTreePlayerCollisions();
+
+        if (!ignorePlayerCollisionWhileTreeFalling
+            || resourceColliders == null
+            || resourceColliders.Length == 0)
+        {
+            return;
+        }
+
+        GameObject playerObject = PlayerReferenceResolver.FindPlayerObject();
+        if (playerObject == null)
+        {
+            return;
+        }
+
+        Collider[] playerColliders = playerObject.GetComponentsInChildren<Collider>(true);
+        for (int treeIndex = 0; treeIndex < resourceColliders.Length; treeIndex++)
+        {
+            Collider treeCollider = resourceColliders[treeIndex];
+            if (treeCollider == null)
+            {
+                continue;
+            }
+
+            for (int playerIndex = 0; playerIndex < playerColliders.Length; playerIndex++)
+            {
+                Collider playerCollider = playerColliders[playerIndex];
+                if (playerCollider == null
+                    || playerCollider == treeCollider
+                    || Physics.GetIgnoreCollision(treeCollider, playerCollider))
+                {
+                    continue;
+                }
+
+                Physics.IgnoreCollision(treeCollider, playerCollider, true);
+                ignoredTreePlayerCollisionPairs.Add(
+                    new TreePlayerCollisionPair(treeCollider, playerCollider));
+            }
+        }
+    }
+
+    private void RestoreTreePlayerCollisions()
+    {
+        for (int i = ignoredTreePlayerCollisionPairs.Count - 1; i >= 0; i--)
+        {
+            TreePlayerCollisionPair pair = ignoredTreePlayerCollisionPairs[i];
+            if (pair.TreeCollider != null && pair.PlayerCollider != null)
+            {
+                Physics.IgnoreCollision(pair.TreeCollider, pair.PlayerCollider, false);
+            }
+        }
+
+        ignoredTreePlayerCollisionPairs.Clear();
+    }
+
     private void OnCollisionStay(Collision collision)
     {
         if (!isTreeFalling
@@ -639,6 +718,7 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
         isTreeFalling = false;
         StopTreePhysics();
         BeginRespawnCooldown();
+        RestoreTreePlayerCollisions();
         Physics.SyncTransforms();
         ItemDrops(pendingTreeDropTool);
         pendingTreeDropTool = null;
@@ -713,6 +793,7 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
         isTreeFalling = false;
         pendingTreeDropTool = null;
         RestoreTreeTransformAndPhysics();
+        RestoreTreePlayerCollisions();
         Physics.SyncTransforms();
         SetResourceAvailable(true);
         NotifyStateChanged();
