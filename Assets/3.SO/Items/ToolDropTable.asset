@@ -14,4 +14,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ToolDropTable
   rules:
   - tool: {fileID: 0}
-    chances: []
+    chances:
+    - dropCount: 0
+      weight: 0
