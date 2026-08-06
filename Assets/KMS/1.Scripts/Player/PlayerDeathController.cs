@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using KMS.InventoryDuped;
+using KMS.Harvesting;
 using UnityEngine;
 
 namespace KMS
@@ -15,7 +16,7 @@ namespace KMS
     {
         private enum RespawnLocationMode
         {
-            DeathPosition
+            NearestActiveWayPoint
             // TODO: 기획 확정 후 Checkpoint, SceneSpawnPoint 등의 정책을 추가한다.
         }
 
@@ -27,10 +28,14 @@ namespace KMS
         [SerializeField] private PlayerHUD hud;
         [SerializeField] private PlayerCameraController cameraController;
         [SerializeField] private PlayerCapsuleThrowController capsuleThrowController;
+        [SerializeField] private PlayerConsumableController consumableController;
+        [SerializeField] private PlayerHarvestController harvestController;
+        [SerializeField] private PlayerToolAnimationController toolAnimationController;
+        [SerializeField] private KMSMemDexLauncher memDexLauncher;
         [SerializeField] private Animator animator;
 
         [Header("Respawn")]
-        [SerializeField] private RespawnLocationMode respawnLocationMode = RespawnLocationMode.DeathPosition;
+        [SerializeField] private RespawnLocationMode respawnLocationMode = RespawnLocationMode.NearestActiveWayPoint;
         [SerializeField, Range(0.01f, 1f)] private float respawnHealthPercent = 1f;
         [SerializeField, Min(0f)] private float respawnInvulnerabilityDuration = 2f;
 
@@ -41,9 +46,7 @@ namespace KMS
         private static readonly int ReviveHash = Animator.StringToHash("Revive");
 
         private Vector3 deathPosition;
-        private bool previousMovementEnabled = true;
-        private bool previousGameplayInputBlocked;
-        private bool previousCursorReleased;
+        private Vector3 respawnPosition;
         private Coroutine invulnerabilityCoroutine;
 
         private void Reset()
@@ -91,6 +94,10 @@ namespace KMS
             if (hud == null) hud = GetComponent<PlayerHUD>();
             if (cameraController == null) cameraController = GetComponent<PlayerCameraController>();
             if (capsuleThrowController == null) capsuleThrowController = GetComponent<PlayerCapsuleThrowController>();
+            if (consumableController == null) consumableController = GetComponent<PlayerConsumableController>();
+            if (harvestController == null) harvestController = GetComponent<PlayerHarvestController>();
+            if (toolAnimationController == null) toolAnimationController = GetComponent<PlayerToolAnimationController>();
+            if (memDexLauncher == null) memDexLauncher = GetComponent<KMSMemDexLauncher>();
             if (movement != null && movement.Animator != null) animator = movement.Animator;
             else if (animator == null) animator = GetComponentInChildren<Animator>();
         }
@@ -100,6 +107,12 @@ namespace KMS
             if (IsDead) return;
             IsDead = true;
             deathPosition = transform.position;
+            respawnPosition = ResolveNearestActiveWayPointPosition(deathPosition);
+
+            // Closing the map clears both its input request and the source-stone
+            // authorization used by territory travel before death takes ownership.
+            WayPointManager.Instance?.CloseMap();
+            memDexLauncher?.Close();
 
             // 커서에 들고 있던 아이템을 먼저 인벤토리로 반환해야 사망 손실 판정에서 빠지지 않는다.
             InventoryUI inventoryUi = FindFirstObjectByType<InventoryUI>(FindObjectsInactive.Include);
@@ -107,21 +120,20 @@ namespace KMS
 
             // 투척 예약을 취소하고 아이템을 돌려놓은 뒤 전체 손실을 적용한다.
             capsuleThrowController?.CancelActiveThrow();
-
-            previousMovementEnabled = movement == null || movement.IsMovementEnabled;
-            previousGameplayInputBlocked = input != null && input.IsGameplayInputBlocked;
-            previousCursorReleased = input != null && input.IsCursorReleased;
+            consumableController?.CancelPendingConsume();
+            harvestController?.CancelActiveToolUse();
+            toolAnimationController?.CancelToolAction();
 
             if (movement != null)
             {
-                movement.IsMovementEnabled = false;
+                movement.SetMovementBlocked(this, true);
                 movement.SetDead(true);
             }
 
             if (input != null)
             {
-                input.SetGameplayInputBlocked(true);
-                input.SetCursorReleased(true);
+                input.SetDeathInputBlocked(true);
+                input.SetDeathCursorReleased(true);
             }
 
             if (cameraController != null)
@@ -150,7 +162,7 @@ namespace KMS
                 movement.SetPosition(respawnPosition);
                 movement.SetDead(false);
                 movement.ResetMovementForces();
-                movement.IsMovementEnabled = previousMovementEnabled;
+                movement.SetMovementBlocked(this, false);
             }
             else
             {
@@ -168,13 +180,8 @@ namespace KMS
 
             if (input != null)
             {
-                input.SetCursorReleased(previousCursorReleased);
-                input.SetGameplayInputBlocked(previousGameplayInputBlocked);
-            }
-
-            if (cameraController != null)
-            {
-                cameraController.SetCursorLocked(!previousCursorReleased);
+                input.SetDeathCursorReleased(false);
+                input.SetDeathInputBlocked(false);
             }
 
             if (invulnerabilityCoroutine != null) StopCoroutine(invulnerabilityCoroutine);
@@ -186,10 +193,44 @@ namespace KMS
         {
             switch (respawnLocationMode)
             {
-                case RespawnLocationMode.DeathPosition:
+                case RespawnLocationMode.NearestActiveWayPoint:
+                    return respawnPosition;
                 default:
                     return deathPosition;
             }
+        }
+
+        private Vector3 ResolveNearestActiveWayPointPosition(Vector3 origin)
+        {
+            WayPointManager manager = WayPointManager.Instance;
+            if (manager == null) return deathPosition;
+
+            bool found = false;
+            float nearestSqrDistance = float.PositiveInfinity;
+            Vector3 nearestPosition = deathPosition;
+
+            foreach (WayPointRunTime state in manager.GetAllStates())
+            {
+                if (state == null || !state.IsActive || state.Stone == null) continue;
+                if (state.Stone.gameObject.scene != gameObject.scene) continue;
+
+                Vector3 candidate = state.Stone.SpawnPosition;
+                float sqrDistance = (candidate - origin).sqrMagnitude;
+                if (found && sqrDistance >= nearestSqrDistance) continue;
+
+                found = true;
+                nearestSqrDistance = sqrDistance;
+                nearestPosition = candidate;
+            }
+
+            if (!found)
+            {
+                Debug.LogWarning(
+                    "[PlayerDeath] No active waypoint stone exists in the current scene. Falling back to the death position.",
+                    this);
+            }
+
+            return nearestPosition;
         }
 
         private IEnumerator ApplyRespawnInvulnerability()

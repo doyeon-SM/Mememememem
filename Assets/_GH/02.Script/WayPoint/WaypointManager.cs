@@ -916,6 +916,7 @@ public class WayPointManager : MonoBehaviour
         if (state.Stone != null)
         {
             state.Stone.SetUnlockedState(true);
+            state.Stone.ShowUnlockedAreaNotification();
         }
 
         OnWayPointUnlocked?.Invoke(state);

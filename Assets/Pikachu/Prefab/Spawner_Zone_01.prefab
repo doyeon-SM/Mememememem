@@ -92,12 +92,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::MemSystem.Spawn.MemSpawner
   memPool: {fileID: 7738170531454432910}
   memFactory: {fileID: 7427474801450705305}
-  spawnTable:
-  - {fileID: 11400000, guid: 2e401caa7986662408594d1503a7093b, type: 2}
-  - {fileID: 11400000, guid: f3708d1d5bb98824d8257819d180453e, type: 2}
-  - {fileID: 11400000, guid: 741e99256bc828c479bb66d796e34408, type: 2}
-  - {fileID: 11400000, guid: 1a432b6734744a94e8137d1e00a759c2, type: 2}
-  - {fileID: 11400000, guid: f49cecebbf5c99c4da6e49d2094d5243, type: 2}
+  spawnTableIds: []
   waypoints:
   - {fileID: 0}
   detectAreaSize: {x: 400, y: 400}
@@ -106,7 +101,7 @@ MonoBehaviour:
   spawnAreaOffset: {x: 0, y: 0}
   spawnRadius: 200
   areaMigrated: 1
-  maxActiveCount: 20
+  maxActiveCount: 12
   minStayTime: 10
   maxStayTime: 30
   spawnBatchSize: 3

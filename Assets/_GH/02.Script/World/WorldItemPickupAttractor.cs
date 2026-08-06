@@ -1,4 +1,5 @@
 using KMS.InventoryDuped;
+using System.Collections.Generic;
 using UnityEngine;
 
 [DisallowMultipleComponent]
@@ -25,16 +26,17 @@ public sealed class WorldItemPickupAttractor : MonoBehaviour
     private WorldItem worldItem;
     private WorldItemDropMotion dropMotion;
     private PlayerInventory targetInventory;
-    private Collider[] colliders;
-    private bool[] colliderStates;
-    private Renderer[] visualRenderers;
-    private Color[] rendererBaseColors;
-    private ParticleSystem[] particleSystems;
-    private Color[] particleBaseColors;
-    private float[] particleEmissionRates;
-    private Light[] visualLights;
-    private float[] lightBaseIntensities;
-    private float[] lightBaseRanges;
+    private readonly List<Collider> colliders = new List<Collider>(4);
+    private readonly List<bool> colliderStates = new List<bool>(4);
+    private readonly List<Renderer> visualRenderers = new List<Renderer>(8);
+    private readonly List<Color> rendererBaseColors = new List<Color>(8);
+    private readonly List<ParticleSystem> particleSystems = new List<ParticleSystem>(4);
+    private readonly List<Color> particleBaseColors = new List<Color>(4);
+    private readonly List<float> particleEmissionRates = new List<float>(4);
+    private readonly List<Light> visualLights = new List<Light>(2);
+    private readonly List<float> lightBaseIntensities = new List<float>(2);
+    private readonly List<float> lightBaseRanges = new List<float>(2);
+    private readonly MaterialPropertyBlock propertyBlock = new MaterialPropertyBlock();
     private Vector3 pickupStartPosition;
     private Vector3 pickupStartScale;
     private float pickupStartDistance;
@@ -77,6 +79,8 @@ public sealed class WorldItemPickupAttractor : MonoBehaviour
         pickupStartScale = transform.localScale;
         RestoreVisuals();
         RestoreColliders();
+        CacheColliders();
+        CacheVisuals();
     }
 
     private void Update()
@@ -137,7 +141,7 @@ public sealed class WorldItemPickupAttractor : MonoBehaviour
         isAttracting = true;
 
         CacheColliders();
-        for (int i = 0; i < colliders.Length; i++)
+        for (int i = 0; i < colliders.Count; i++)
         {
             if (colliders[i] != null)
             {
@@ -152,6 +156,11 @@ public sealed class WorldItemPickupAttractor : MonoBehaviour
 
     private void UpdateAttraction()
     {
+        if (worldItem != null && worldItem.IsCollectionPending)
+        {
+            return;
+        }
+
         if (targetInventory == null || worldItem == null || !worldItem.CanBePickedUp)
         {
             CancelAttraction(true);
@@ -187,7 +196,22 @@ public sealed class WorldItemPickupAttractor : MonoBehaviour
         PlayerInventory inventory = targetInventory;
         transform.position = GetTargetPosition(inventory);
         SetVisualStrength(0f);
+        if (WorldItemPickupBatcher.Queue(worldItem, this, inventory))
+        {
+            return;
+        }
+
         bool fullyCollected = worldItem.TryCollect(inventory);
+        if (fullyCollected || !gameObject.activeInHierarchy)
+        {
+            return;
+        }
+
+        ResolveQueuedPickup(false);
+    }
+
+    internal void ResolveQueuedPickup(bool fullyCollected)
+    {
         if (fullyCollected || !gameObject.activeInHierarchy)
         {
             return;
@@ -218,18 +242,23 @@ public sealed class WorldItemPickupAttractor : MonoBehaviour
 
     private void CacheColliders()
     {
-        colliders = GetComponentsInChildren<Collider>(true);
-        colliderStates = new bool[colliders.Length];
+        colliders.Clear();
+        GetComponentsInChildren(true, colliders);
+        colliderStates.Clear();
+        for (int i = 0; i < colliders.Count; i++)
+        {
+            colliderStates.Add(colliders[i] != null && colliders[i].enabled);
+        }
     }
 
     private void RestoreColliders()
     {
-        if (colliders == null || colliderStates == null)
+        if (colliderStates.Count != colliders.Count)
         {
             return;
         }
 
-        for (int i = 0; i < colliders.Length; i++)
+        for (int i = 0; i < colliders.Count; i++)
         {
             if (colliders[i] != null)
             {
@@ -240,37 +269,42 @@ public sealed class WorldItemPickupAttractor : MonoBehaviour
 
     private void CacheVisuals()
     {
-        visualRenderers = GetComponentsInChildren<Renderer>(true);
-        rendererBaseColors = new Color[visualRenderers.Length];
-        for (int i = 0; i < visualRenderers.Length; i++)
+        visualRenderers.Clear();
+        GetComponentsInChildren(true, visualRenderers);
+        rendererBaseColors.Clear();
+        for (int i = 0; i < visualRenderers.Count; i++)
         {
-            rendererBaseColors[i] = GetRendererColor(visualRenderers[i]);
+            rendererBaseColors.Add(GetRendererColor(visualRenderers[i]));
         }
 
-        particleSystems = GetComponentsInChildren<ParticleSystem>(true);
-        particleBaseColors = new Color[particleSystems.Length];
-        particleEmissionRates = new float[particleSystems.Length];
-        for (int i = 0; i < particleSystems.Length; i++)
+        particleSystems.Clear();
+        GetComponentsInChildren(true, particleSystems);
+        particleBaseColors.Clear();
+        particleEmissionRates.Clear();
+        for (int i = 0; i < particleSystems.Count; i++)
         {
             ParticleSystem.MainModule main = particleSystems[i].main;
             ParticleSystem.EmissionModule emission = particleSystems[i].emission;
-            particleBaseColors[i] = main.startColor.color;
-            particleEmissionRates[i] = emission.rateOverTimeMultiplier;
+            particleBaseColors.Add(main.startColor.color);
+            particleEmissionRates.Add(emission.rateOverTimeMultiplier);
         }
 
-        visualLights = GetComponentsInChildren<Light>(true);
-        lightBaseIntensities = new float[visualLights.Length];
-        lightBaseRanges = new float[visualLights.Length];
-        for (int i = 0; i < visualLights.Length; i++)
+        visualLights.Clear();
+        GetComponentsInChildren(true, visualLights);
+        lightBaseIntensities.Clear();
+        lightBaseRanges.Clear();
+        for (int i = 0; i < visualLights.Count; i++)
         {
             Light visualLight = visualLights[i];
             if (visualLight == null)
             {
+                lightBaseIntensities.Add(0f);
+                lightBaseRanges.Add(0f);
                 continue;
             }
 
-            lightBaseIntensities[i] = visualLight.intensity;
-            lightBaseRanges[i] = visualLight.range;
+            lightBaseIntensities.Add(visualLight.intensity);
+            lightBaseRanges.Add(visualLight.range);
         }
     }
 
@@ -279,9 +313,9 @@ public sealed class WorldItemPickupAttractor : MonoBehaviour
         strength = Mathf.Clamp01(strength);
         transform.localScale = pickupStartScale * Mathf.Lerp(endVisualScale, 1f, strength);
 
-        if (visualRenderers != null)
+        if (visualRenderers.Count > 0)
         {
-            for (int i = 0; i < visualRenderers.Length; i++)
+            for (int i = 0; i < visualRenderers.Count; i++)
             {
                 Renderer renderer = visualRenderers[i];
                 if (renderer == null)
@@ -295,21 +329,21 @@ public sealed class WorldItemPickupAttractor : MonoBehaviour
                     baseColor.g * strength,
                     baseColor.b * strength,
                     baseColor.a * strength);
-                MaterialPropertyBlock block = new MaterialPropertyBlock();
-                renderer.GetPropertyBlock(block);
-                block.SetColor("_BaseColor", fadedColor);
-                block.SetColor("_Color", fadedColor);
-                renderer.SetPropertyBlock(block);
+                propertyBlock.Clear();
+                renderer.GetPropertyBlock(propertyBlock);
+                propertyBlock.SetColor("_BaseColor", fadedColor);
+                propertyBlock.SetColor("_Color", fadedColor);
+                renderer.SetPropertyBlock(propertyBlock);
             }
         }
 
-        if (particleSystems == null)
+        if (particleSystems.Count == 0)
         {
             FadeLights(strength);
             return;
         }
 
-        for (int i = 0; i < particleSystems.Length; i++)
+        for (int i = 0; i < particleSystems.Count; i++)
         {
             ParticleSystem particles = particleSystems[i];
             if (particles == null)
@@ -330,13 +364,14 @@ public sealed class WorldItemPickupAttractor : MonoBehaviour
 
     private void FadeLights(float strength)
     {
-        if (visualLights == null || lightBaseIntensities == null || lightBaseRanges == null)
+        if (lightBaseIntensities.Count != visualLights.Count
+            || lightBaseRanges.Count != visualLights.Count)
         {
             return;
         }
 
         float lightStrength = strength * strength;
-        for (int i = 0; i < visualLights.Length; i++)
+        for (int i = 0; i < visualLights.Count; i++)
         {
             Light visualLight = visualLights[i];
             if (visualLight == null)
@@ -353,9 +388,9 @@ public sealed class WorldItemPickupAttractor : MonoBehaviour
     {
         transform.localScale = pickupStartScale == Vector3.zero ? Vector3.one : pickupStartScale;
 
-        if (visualRenderers != null)
+        if (visualRenderers.Count > 0)
         {
-            for (int i = 0; i < visualRenderers.Length; i++)
+            for (int i = 0; i < visualRenderers.Count; i++)
             {
                 if (visualRenderers[i] != null)
                 {
@@ -364,9 +399,10 @@ public sealed class WorldItemPickupAttractor : MonoBehaviour
             }
         }
 
-        if (particleSystems != null)
+        if (particleBaseColors.Count == particleSystems.Count
+            && particleEmissionRates.Count == particleSystems.Count)
         {
-            for (int i = 0; i < particleSystems.Length; i++)
+            for (int i = 0; i < particleSystems.Count; i++)
             {
                 ParticleSystem particles = particleSystems[i];
                 if (particles == null)
@@ -382,9 +418,10 @@ public sealed class WorldItemPickupAttractor : MonoBehaviour
             }
         }
 
-        if (visualLights != null && lightBaseIntensities != null && lightBaseRanges != null)
+        if (lightBaseIntensities.Count == visualLights.Count
+            && lightBaseRanges.Count == visualLights.Count)
         {
-            for (int i = 0; i < visualLights.Length; i++)
+            for (int i = 0; i < visualLights.Count; i++)
             {
                 Light visualLight = visualLights[i];
                 if (visualLight == null)

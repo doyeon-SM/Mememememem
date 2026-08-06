@@ -8,6 +8,10 @@ Shader "GH/Skybox/Cubemap Blend"
         _Tint ("Tint", Color) = (1, 1, 1, 1)
         _Exposure ("Exposure", Range(0, 8)) = 1
         _Rotation ("Rotation", Range(0, 360)) = 0
+        _DaySkyScale ("Day Sky Scale", Range(0.4, 1.25)) = 0.5
+        _NightSkyScale ("Night Sky Scale", Range(0.4, 1.25)) = 0.48
+        _DayVerticalOffset ("Day Vertical Offset", Range(-25, 25)) = 20
+        _NightVerticalOffset ("Night Vertical Offset", Range(-25, 25)) = 24
     }
 
     SubShader
@@ -35,6 +39,10 @@ Shader "GH/Skybox/Cubemap Blend"
             half4 _Tint;
             half _Exposure;
             float _Rotation;
+            float _DaySkyScale;
+            float _NightSkyScale;
+            float _DayVerticalOffset;
+            float _NightVerticalOffset;
 
             struct Attributes
             {
@@ -60,6 +68,33 @@ Shader "GH/Skybox/Cubemap Blend"
                     sine * direction.x + cosine * direction.z);
             }
 
+            float3 RemapSkyDirection(
+                float3 direction,
+                float visualScale,
+                float verticalOffsetDegrees)
+            {
+                direction = normalize(direction);
+
+                float horizontalLength = max(length(direction.xz), 0.0001);
+                float2 horizontalDirection = direction.xz / horizontalLength;
+                float pitch = atan2(direction.y, horizontalLength);
+
+                // Smaller visualScale makes baked features appear smaller.
+                // A positive vertical offset moves the sky image upward.
+                float samplePitch = pitch / max(visualScale, 0.01)
+                    - verticalOffsetDegrees * UNITY_PI / 180.0;
+                samplePitch = clamp(
+                    samplePitch,
+                    -UNITY_PI * 0.499,
+                    UNITY_PI * 0.499);
+
+                float pitchCosine = cos(samplePitch);
+                return float3(
+                    horizontalDirection.x * pitchCosine,
+                    sin(samplePitch),
+                    horizontalDirection.y * pitchCosine);
+            }
+
             Varyings Vert(Attributes input)
             {
                 Varyings output;
@@ -70,8 +105,16 @@ Shader "GH/Skybox/Cubemap Blend"
 
             half4 Frag(Varyings input) : SV_Target
             {
-                half3 dayColor = texCUBE(_DayTex, input.direction).rgb;
-                half3 nightColor = texCUBE(_NightTex, input.direction).rgb;
+                float3 dayDirection = RemapSkyDirection(
+                    input.direction,
+                    _DaySkyScale,
+                    _DayVerticalOffset);
+                float3 nightDirection = RemapSkyDirection(
+                    input.direction,
+                    _NightSkyScale,
+                    _NightVerticalOffset);
+                half3 dayColor = texCUBE(_DayTex, dayDirection).rgb;
+                half3 nightColor = texCUBE(_NightTex, nightDirection).rgb;
                 half3 blendedColor = lerp(dayColor, nightColor, saturate(_Blend));
                 return half4(blendedColor * _Tint.rgb * _Exposure, 1.0h);
             }

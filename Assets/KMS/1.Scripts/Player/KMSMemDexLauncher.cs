@@ -1,4 +1,3 @@
-using HDY.Mem;
 using HDY.UI;
 using KMS.InventoryDuped;
 using UnityEngine;
@@ -25,7 +24,6 @@ namespace KMS
 
         [Header("Mem Dex")]
         [SerializeField] private GameObject memDexPrefab;
-        [SerializeField] private GameObject runtimeServicesPrefab;
         [SerializeField] private int modalSortingOrder = 200;
 
         [Header("Player Modal State")]
@@ -44,7 +42,6 @@ namespace KMS
         private bool isOpen;
         private bool openedThroughHdyUiManager;
 
-        private bool previousMovementEnabled;
         private bool previousGameplayInputBlocked;
         private bool previousCursorReleased;
         private CursorLockMode previousCursorLockMode;
@@ -60,7 +57,6 @@ namespace KMS
         private void Awake()
         {
             ResolveReferences();
-            EnsureRuntimeServices();
         }
 
         private void OnEnable()
@@ -100,9 +96,10 @@ namespace KMS
         public void Open()
         {
             if (isOpen || memDexPrefab == null) return;
+            PlayerStats stats = GetComponent<PlayerStats>();
+            if (stats != null && !stats.IsAlive) return;
 
             ResolveReferences();
-            EnsureRuntimeServices();
 
             // 인벤토리가 먼저 커서/이동 상태를 원래대로 돌려놓은 다음 도감 상태를 저장한다.
             inventoryUi?.Close();
@@ -224,27 +221,6 @@ namespace KMS
         private void HandleCollectionPressed()
         {
             SceneUIManager.TryToggleManagedUI("MemDex");
-        }
-
-        private void EnsureRuntimeServices()
-        {
-            if (MemCatalogManager.Instance == null && runtimeServicesPrefab != null)
-            {
-                Instantiate(runtimeServicesPrefab);
-            }
-
-            if (MemCatalogManager.Instance == null)
-            {
-                Debug.LogWarning("[KMSMemDexLauncher] MemCatalogManager가 없어 도감 목록을 채울 수 없습니다.", this);
-                return;
-            }
-
-            if (MemIconRenderer.Instance == null)
-            {
-                var rendererObject = new GameObject("KMS Mem Icon Renderer");
-                rendererObject.transform.SetParent(MemCatalogManager.Instance.transform, false);
-                rendererObject.AddComponent<MemIconRenderer>();
-            }
         }
 
         private bool OpenStandalone()
@@ -376,7 +352,6 @@ namespace KMS
 
         private void CapturePlayerState()
         {
-            previousMovementEnabled = playerMovement == null || playerMovement.IsMovementEnabled;
             previousGameplayInputBlocked = playerInput != null && playerInput.IsGameplayInputBlocked;
             previousCursorReleased = playerInput != null && playerInput.IsCursorReleased;
             previousCursorLockMode = GameCursor.lockState;
@@ -391,7 +366,7 @@ namespace KMS
                 playerInput.SetGameplayInputBlocked(true);
             }
 
-            if (playerMovement != null) playerMovement.IsMovementEnabled = false;
+            if (playerMovement != null) playerMovement.SetMovementBlocked(this, true);
 
             if (cameraController != null) cameraController.SetCursorLocked(false);
             else
@@ -411,7 +386,7 @@ namespace KMS
                 playerInput.SetGameplayInputBlocked(previousGameplayInputBlocked);
             }
 
-            if (playerMovement != null) playerMovement.IsMovementEnabled = previousMovementEnabled;
+            if (playerMovement != null) playerMovement.SetMovementBlocked(this, false);
 
             if (cameraController != null)
             {

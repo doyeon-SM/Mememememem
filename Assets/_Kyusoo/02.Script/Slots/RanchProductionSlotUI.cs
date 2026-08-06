@@ -36,7 +36,7 @@ public class RanchProductionSlotUI : MonoBehaviour
         }
 
         // 해금된 슬롯: 배경 색상 흰색 원복
-        if (backgroundImage != null) backgroundImage.color = Color.white;
+        if (backgroundImage != null) backgroundImage.color = new Color(0f, 0f, 0f, 0f);
 
         // 2. 멤 미배치 / 생산 아이템 없음 처리
         if (slotData.deployedMem == null || string.IsNullOrEmpty(slotData.craftingItemId))

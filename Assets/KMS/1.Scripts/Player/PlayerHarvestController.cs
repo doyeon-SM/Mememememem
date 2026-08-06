@@ -62,6 +62,8 @@ namespace KMS.Harvesting
 
         private float cooldownTimer;
         private bool isPrimaryActionHeld;
+        private ItemData pendingToolItem;
+        private bool hasPendingToolImpact;
         private readonly RaycastHit[] harvestHits = new RaycastHit[MaxHarvestHits];
         private static readonly int SlashHash = Animator.StringToHash("Slash");
 
@@ -107,6 +109,11 @@ namespace KMS.Harvesting
                 input.PrimaryActionPressed += HandlePrimaryActionPressed;
                 input.PrimaryActionReleased += HandlePrimaryActionReleased;
             }
+
+            if (toolAnimationController != null)
+            {
+                toolAnimationController.ToolActionEnded += HandleToolActionEnded;
+            }
         }
 
         private void OnDisable()
@@ -117,7 +124,13 @@ namespace KMS.Harvesting
                 input.PrimaryActionReleased -= HandlePrimaryActionReleased;
             }
 
+            if (toolAnimationController != null)
+            {
+                toolAnimationController.ToolActionEnded -= HandleToolActionEnded;
+            }
+
             isPrimaryActionHeld = false;
+            ClearPendingToolImpact();
         }
 
         private void Update()
@@ -189,7 +202,6 @@ namespace KMS.Harvesting
         {
             if (selectedItem == null || cameraTransform == null || cooldownTimer > 0f) return;
 
-            bool isMemMeleeAttempt = selectedItem.Item_ID == memMeleeItemId;
             float effectiveToolUseCooldown = ResolveEffectiveToolUseCooldown();
 
             if (toolAnimationController != null)
@@ -202,7 +214,25 @@ namespace KMS.Harvesting
                 animator.SetTrigger(SlashHash);
             }
 
+            pendingToolItem = selectedItem;
+            hasPendingToolImpact = true;
             cooldownTimer = effectiveToolUseCooldown;
+        }
+
+        public void ResolvePendingToolImpact()
+        {
+            if (!hasPendingToolImpact || pendingToolItem == null) return;
+
+            if (playerStats != null && !playerStats.IsAlive)
+            {
+                ClearPendingToolImpact();
+                return;
+            }
+
+            // Consume first so duplicate Animation Events can never apply damage twice.
+            ItemData selectedItem = pendingToolItem;
+            ClearPendingToolImpact();
+            bool isMemMeleeAttempt = selectedItem.Item_ID == memMeleeItemId;
 
             Ray ray = new Ray(cameraTransform.position, cameraTransform.forward);
             bool hasHit = TryGetClosestSphereCastHit(ray, out RaycastHit hit);
@@ -277,6 +307,26 @@ namespace KMS.Harvesting
             }
         }
 
+        public void CancelActiveToolUse()
+        {
+            isPrimaryActionHeld = false;
+            ClearPendingToolImpact();
+            toolAnimationController?.CancelToolAction();
+        }
+
+        private void HandleToolActionEnded()
+        {
+            // If the state exited before its impact event (hit reaction, death, disable, etc.),
+            // the queued action is cancelled without applying late damage or audio.
+            ClearPendingToolImpact();
+        }
+
+        private void ClearPendingToolImpact()
+        {
+            pendingToolItem = null;
+            hasPendingToolImpact = false;
+        }
+
         /// <summary>
         /// 카메라 정면으로 SphereCast를 수행하고 플레이어 자신의 콜라이더를 제외한 가장 가까운 충돌을 반환합니다.
         /// 가장 가까운 외부 장애물도 결과에 포함되므로 기존 Raycast와 동일하게 벽 너머 대상을 타격하지 않습니다.
@@ -329,13 +379,21 @@ namespace KMS.Harvesting
             if (hitObj.collider == null) return false;
             WorldObject harvestable = hitObj.collider.GetComponentInParent<WorldObject>();
             if (harvestable == null) return false;
-            bool applied = harvestable.ObjectInteract(inventory, selectedItem);
+            bool applied = harvestable.ObjectInteract(
+                inventory,
+                selectedItem,
+                hitObj.point,
+                transform.position);
             if (applied)
             {
                 GameSfxId? impactId = GetHarvestImpactId(harvestable.RequiredToolType);
                 if (impactId.HasValue)
                 {
                     KMSAudioService.PlayAt(impactId.Value, hitObj.point);
+                }
+                else
+                {
+                    KMSAudioService.PlayAt(GameSfxId.ToolSwing, transform.position);
                 }
             }
             else

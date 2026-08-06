@@ -20,7 +20,7 @@ namespace KMS.EditorTools
             "Assets/KMS/4.Materials/Effects/M_MemHitDust.mat";
 
         private const string PlayerPrefabPath =
-            "Assets/KMS/2.Prefabs/0714_Player_KMS.prefab";
+            "Assets/KMS/2.Prefabs/0720_Player_KMS.prefab";
 
         [MenuItem("KMS/Setup/Mem Hit Dust")]
         public static void Run()

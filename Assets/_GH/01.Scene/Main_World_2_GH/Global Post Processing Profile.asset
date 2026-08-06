@@ -1,0 +1,284 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &-4977399901431796154
+MonoBehaviour:
+  m_ObjectHideFlags: 3
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 83c617c9d81c85f4ca9f3e96792d3ab9, type: 3}
+  m_Name: PotaToon
+  m_EditorClassIdentifier: PotaToon.Runtime::PotaToon.PotaToon
+  active: 1
+  mode:
+    m_OverrideState: 0
+    m_Value: 0
+  transparentShadow:
+    m_OverrideState: 0
+    m_Value: 0
+  charShadowDirOffsetMode:
+    m_OverrideState: 0
+    m_Value: 0
+  charShadowDirOffset:
+    m_OverrideState: 0
+    m_Value: {x: 0, y: 0, z: 0}
+  followLayerMask:
+    m_OverrideState: 0
+    m_Value:
+      serializedVersion: 2
+      m_Bits: 0
+  maxToonBrightness:
+    m_OverrideState: 0
+    m_Value: 10
+  bias:
+    m_OverrideState: 0
+    m_Value: 1
+  normalBias:
+    m_OverrideState: 0
+    m_Value: 0.1
+  quality:
+    m_OverrideState: 0
+    m_Value: 2
+  textureScale:
+    m_OverrideState: 0
+    m_Value: 8
+  transparentTextureScale:
+    m_OverrideState: 0
+    m_Value: 8
+  shadowCullingDistance:
+    m_OverrideState: 0
+    m_Value: 1.5
+  oit:
+    m_OverrideState: 0
+    m_Value: 0
+  oitMode:
+    m_OverrideState: 0
+    m_Value: 0
+  charPostProcessing:
+    m_OverrideState: 0
+    m_Value: 0
+  charScreenOutline:
+    m_OverrideState: 0
+    m_Value: 0
+  charScreenOutlineExcludeInnerLines:
+    m_OverrideState: 0
+    m_Value: 0
+  charScreenOutlineColor:
+    m_OverrideState: 0
+    m_Value: {r: 0, g: 0, b: 0, a: 1}
+  charScreenOutlineThickness:
+    m_OverrideState: 0
+    m_Value: 1
+  charScreenOutlineEdgeStrength:
+    m_OverrideState: 0
+    m_Value: 1
+  charPostExposure:
+    m_OverrideState: 0
+    m_Value: 1
+  charGammaAdjust:
+    m_OverrideState: 0
+    m_Value: 0
+  charToneMapping:
+    m_OverrideState: 0
+    m_Value: 0
+  charContrast:
+    m_OverrideState: 0
+    m_Value: 0
+  charColorFilter:
+    m_OverrideState: 0
+    m_Value: {r: 1, g: 1, b: 1, a: 1}
+  charHueShift:
+    m_OverrideState: 0
+    m_Value: 0
+  charSaturation:
+    m_OverrideState: 0
+    m_Value: 0
+  whiteBalanceTemperature:
+    m_OverrideState: 0
+    m_Value: 0
+  whiteBalanceTint:
+    m_OverrideState: 0
+    m_Value: 0
+  screenRimWidth:
+    m_OverrideState: 0
+    m_Value: 0
+  screenRimColor:
+    m_OverrideState: 0
+    m_Value: {r: 1, g: 1, b: 1, a: 1}
+  envPostProcessing:
+    m_OverrideState: 0
+    m_Value: 0
+  envToneMapping:
+    m_OverrideState: 0
+    m_Value: 0
+  envPostExposure:
+    m_OverrideState: 0
+    m_Value: 1
+  envContrast:
+    m_OverrideState: 0
+    m_Value: 0
+  envColorFilter:
+    m_OverrideState: 0
+    m_Value: {r: 1, g: 1, b: 1, a: 1}
+  envHueShift:
+    m_OverrideState: 0
+    m_Value: 0
+  envSaturation:
+    m_OverrideState: 0
+    m_Value: 0
+  envWhiteBalanceTemperature:
+    m_OverrideState: 0
+    m_Value: 0
+  envWhiteBalanceTint:
+    m_OverrideState: 0
+    m_Value: 0
+  charToeStrength:
+    m_OverrideState: 0
+    m_Value: 0
+  charToeLength:
+    m_OverrideState: 0
+    m_Value: 0.5
+  charShoulderStrength:
+    m_OverrideState: 0
+    m_Value: 0
+  charShoulderLength:
+    m_OverrideState: 0
+    m_Value: 0.5
+  charShoulderAngle:
+    m_OverrideState: 0
+    m_Value: 0
+  charGamma:
+    m_OverrideState: 0
+    m_Value: 1
+  envToeStrength:
+    m_OverrideState: 0
+    m_Value: 0
+  envToeLength:
+    m_OverrideState: 0
+    m_Value: 0.5
+  envShoulderStrength:
+    m_OverrideState: 0
+    m_Value: 0
+  envShoulderLength:
+    m_OverrideState: 0
+    m_Value: 0.5
+  envShoulderAngle:
+    m_OverrideState: 0
+    m_Value: 0
+  envGamma:
+    m_OverrideState: 0
+    m_Value: 1
+  charBloom:
+    m_OverrideState: 0
+    m_Value: 0
+  threshold:
+    m_OverrideState: 0
+    m_Value: 0.9
+  intensity:
+    m_OverrideState: 0
+    m_Value: 0
+  scatter:
+    m_OverrideState: 0
+    m_Value: 0.7
+  clamp:
+    m_OverrideState: 0
+    m_Value: 65472
+  tint:
+    m_OverrideState: 0
+    m_Value: {r: 1, g: 1, b: 1, a: 1}
+  highQualityFiltering:
+    m_OverrideState: 0
+    m_Value: 0
+  downscale:
+    m_OverrideState: 0
+    m_Value: 0
+  maxIterations:
+    m_OverrideState: 0
+    m_Value: 6
+  dirtTexture:
+    m_OverrideState: 0
+    m_Value: {fileID: 0}
+    dimension: 1
+  dirtIntensity:
+    m_OverrideState: 0
+    m_Value: 0
+  envBloom:
+    m_OverrideState: 0
+    m_Value: 0
+  envBloomThreshold:
+    m_OverrideState: 0
+    m_Value: 0.9
+  envBloomIntensity:
+    m_OverrideState: 0
+    m_Value: 0
+  envBloomScatter:
+    m_OverrideState: 0
+    m_Value: 0.7
+  envBloomClamp:
+    m_OverrideState: 0
+    m_Value: 65472
+  envBloomTint:
+    m_OverrideState: 0
+    m_Value: {r: 1, g: 1, b: 1, a: 1}
+  envBloomHighQualityFiltering:
+    m_OverrideState: 0
+    m_Value: 0
+  envBloomDownscale:
+    m_OverrideState: 0
+    m_Value: 0
+  envBloomMaxIterations:
+    m_OverrideState: 0
+    m_Value: 6
+  envBloomDirtTexture:
+    m_OverrideState: 0
+    m_Value: {fileID: 0}
+    dimension: 1
+  envBloomDirtIntensity:
+    m_OverrideState: 0
+    m_Value: 0
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d7fd9488000d3734a9e00ee676215985, type: 3}
+  m_Name: Global Post Processing Profile
+  m_EditorClassIdentifier: Unity.RenderPipelines.Core.Runtime::UnityEngine.Rendering.VolumeProfile
+  components:
+  - {fileID: 8368117603600426661}
+  - {fileID: -4977399901431796154}
+--- !u!114 &8368117603600426661
+MonoBehaviour:
+  m_ObjectHideFlags: 3
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 899c54efeace73346a0a16faa3afe726, type: 3}
+  m_Name: Vignette
+  m_EditorClassIdentifier: Unity.RenderPipelines.Universal.Runtime::UnityEngine.Rendering.Universal.Vignette
+  active: 1
+  color:
+    m_OverrideState: 1
+    m_Value: {r: 0.38679248, g: 0.38679248, b: 0.38679248, a: 1}
+  center:
+    m_OverrideState: 1
+    m_Value: {x: 0.5, y: 0.5}
+  intensity:
+    m_OverrideState: 1
+    m_Value: 0.2
+  smoothness:
+    m_OverrideState: 1
+    m_Value: 0.65
+  rounded:
+    m_OverrideState: 1
+    m_Value: 0

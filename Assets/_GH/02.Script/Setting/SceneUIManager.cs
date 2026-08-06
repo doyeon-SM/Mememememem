@@ -60,6 +60,14 @@ public sealed class SceneUIManager : MonoBehaviour
     [Tooltip("KMS 플레이어를 찾을 때 사용할 레이어입니다.")]
     [SerializeField] private string playerLayerName = PlayerReferenceResolver.DefaultPlayerLayerName;
 
+    [Header("Settings Apply Fade")]
+    [Tooltip("적용 버튼으로 설정을 확정하면 현재 열린 환경설정 하위 창만 페이드 아웃한 뒤 닫습니다. 상위 Setting Panel은 유지됩니다.")]
+    [SerializeField] private bool fadeSettingsOnApply;
+
+    [Tooltip("적용 후 환경설정 하위 창이 완전히 닫힐 때까지의 시간입니다. 일시정지 중에도 동작합니다.")]
+    [Range(0.05f, 2f)]
+    [SerializeField] private float settingsApplyFadeDuration = 0.35f;
+
     [Header("배치 모드 연동 (HDY 요청)")]
     [Tooltip("여기 등록한 오브젝트를 닫을 때는 SetActive(false) 대신 GridManager.ChangePlacementMode()를 호출해서, " +
         "GridManager 내부의 isPlacementMode 상태와 실제 활성 여부가 어긋나지 않도록 합니다(P_Placement 연결용). " +
@@ -261,6 +269,13 @@ public sealed class SceneUIManager : MonoBehaviour
         }
 
         RestoreSettingsState();
+    }
+
+    /// <summary>현재 씬에서 환경설정 하위 창의 적용 페이드를 사용할지와 시간을 반환합니다.</summary>
+    public bool TryGetSettingsSubPanelApplyFadeDuration(out float duration)
+    {
+        duration = Mathf.Max(0.01f, settingsApplyFadeDuration);
+        return fadeSettingsOnApply && IsSettingsOpen;
     }
 
     /// <summary>

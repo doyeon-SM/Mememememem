@@ -1,5 +1,6 @@
 using HDY.Item;
 using KMS.InventoryDuped;
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -56,6 +57,7 @@ public class WorldItem : MonoBehaviour
     private Vector3 visualBaseLocalPosition;
     private float nextVisualResolveTime;
     private WorldItemPickupAttractor pickupAttractor;
+    private bool isCollectionPending;
 
     /// <summary>현재 월드 아이템에 설정된 카탈로그 ID입니다.</summary>
     public string ItemId => itemId;
@@ -65,7 +67,10 @@ public class WorldItem : MonoBehaviour
 
     public bool CanBePickedUp => isActiveAndEnabled
                                  && !string.IsNullOrEmpty(itemId)
-                                 && amount > 0;
+                                 && amount > 0
+                                 && !isCollectionPending;
+
+    public bool IsCollectionPending => isCollectionPending;
 
     /// <summary>
     /// 공용 풀에서 꺼낸 오브젝트에 아이템 ID와 수량을 주입합니다.
@@ -95,6 +100,7 @@ public class WorldItem : MonoBehaviour
     {
         // 풀에서 다시 사용될 때 프리팹에 설정한 원래 수량으로 복구합니다.
         amount = initialAmount;
+        isCollectionPending = false;
         animationTime = Random.Range(0f, Mathf.PI * 2f);
         RefreshVisual();
         EnsurePickupAttractor();
@@ -322,6 +328,42 @@ public class WorldItem : MonoBehaviour
         return true;
     }
 
+    internal bool TryQueueCollection()
+    {
+        if (!CanBePickedUp)
+        {
+            return false;
+        }
+
+        isCollectionPending = true;
+        return true;
+    }
+
+    internal bool ResolveQueuedCollection(int collectedAmount)
+    {
+        int appliedAmount = Mathf.Clamp(collectedAmount, 0, amount);
+        amount -= appliedAmount;
+        isCollectionPending = false;
+
+        if (amount > 0)
+        {
+            return false;
+        }
+
+        PooledWorldDrop pooledDrop = GetComponent<PooledWorldDrop>();
+        if (pooledDrop == null || !pooledDrop.ReturnToPool())
+        {
+            Destroy(gameObject);
+        }
+
+        return true;
+    }
+
+    internal void CancelQueuedCollection()
+    {
+        isCollectionPending = false;
+    }
+
     private void EnsurePickupAttractor()
     {
         if (pickupAttractor == null)
@@ -359,4 +401,152 @@ public class WorldItem : MonoBehaviour
         RefreshVisual();
     }
 #endif
+}
+
+/// <summary>
+/// Combines world-item pickups that arrive during the same frame. World drops still fly
+/// and disappear individually, while PlayerInventory receives one AddItem call per item
+/// type instead of one call per world object.
+/// </summary>
+internal static class WorldItemPickupBatcher
+{
+    private const float BatchWindowSeconds = 0.05f;
+
+    private struct PickupRequest
+    {
+        public WorldItem item;
+        public WorldItemPickupAttractor attractor;
+        public PlayerInventory inventory;
+        public string itemId;
+        public int amount;
+    }
+
+    private static readonly List<PickupRequest> Pending = new List<PickupRequest>(64);
+    private static WorldItemPickupBatchRunner runner;
+    private static float flushAtUnscaledTime;
+
+    public static bool Queue(
+        WorldItem item,
+        WorldItemPickupAttractor attractor,
+        PlayerInventory inventory)
+    {
+        if (item == null
+            || inventory == null
+            || string.IsNullOrEmpty(item.ItemId)
+            || item.Amount <= 0
+            || !item.TryQueueCollection())
+        {
+            return false;
+        }
+
+        if (Pending.Count == 0)
+        {
+            flushAtUnscaledTime = Time.unscaledTime + BatchWindowSeconds;
+        }
+
+        Pending.Add(new PickupRequest
+        {
+            item = item,
+            attractor = attractor,
+            inventory = inventory,
+            itemId = item.ItemId,
+            amount = item.Amount
+        });
+
+        EnsureRunner();
+        return true;
+    }
+
+    internal static void Flush()
+    {
+        while (Pending.Count > 0)
+        {
+            PickupRequest seed = Pending[Pending.Count - 1];
+            PlayerInventory inventory = seed.inventory;
+            string itemId = seed.itemId;
+            int totalAmount = 0;
+
+            for (int i = 0; i < Pending.Count; i++)
+            {
+                PickupRequest request = Pending[i];
+                if (request.inventory == inventory
+                    && request.itemId == itemId
+                    && request.item != null
+                    && request.item.gameObject.activeInHierarchy
+                    && request.item.IsCollectionPending
+                    && request.item.ItemId == itemId)
+                {
+                    totalAmount += request.amount;
+                }
+            }
+
+            int collectedAmount = 0;
+            if (inventory != null && totalAmount > 0)
+            {
+                int remaining = inventory.AddItem(itemId, totalAmount);
+                collectedAmount = totalAmount - Mathf.Clamp(remaining, 0, totalAmount);
+            }
+
+            for (int i = Pending.Count - 1; i >= 0; i--)
+            {
+                PickupRequest request = Pending[i];
+                if (request.inventory != inventory || request.itemId != itemId)
+                {
+                    continue;
+                }
+
+                Pending.RemoveAt(i);
+                if (request.item == null
+                    || !request.item.gameObject.activeInHierarchy
+                    || !request.item.IsCollectionPending
+                    || request.item.ItemId != itemId)
+                {
+                    continue;
+                }
+
+                int amountForItem = Mathf.Min(request.amount, collectedAmount);
+                collectedAmount -= amountForItem;
+                bool fullyCollected = request.item.ResolveQueuedCollection(amountForItem);
+                if (!fullyCollected && request.attractor != null)
+                {
+                    request.attractor.ResolveQueuedPickup(false);
+                }
+            }
+        }
+    }
+
+    internal static void FlushIfReady()
+    {
+        if (Pending.Count > 0 && Time.unscaledTime >= flushAtUnscaledTime)
+        {
+            Flush();
+        }
+    }
+
+    private static void EnsureRunner()
+    {
+        if (runner != null)
+        {
+            return;
+        }
+
+        GameObject runnerObject = new GameObject("World Item Pickup Batch Runner");
+        runner = runnerObject.AddComponent<WorldItemPickupBatchRunner>();
+    }
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStaticState()
+    {
+        Pending.Clear();
+        runner = null;
+        flushAtUnscaledTime = 0f;
+    }
+}
+
+internal sealed class WorldItemPickupBatchRunner : MonoBehaviour
+{
+    private void LateUpdate()
+    {
+        WorldItemPickupBatcher.FlushIfReady();
+    }
 }

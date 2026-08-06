@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using KMS.Audio;
 using TMPro;
@@ -25,17 +26,20 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
     {
         [Min(0f)] public float detailDistance;
         [Min(0f)] public float treeDistance;
+        [Min(0)] public int maxMeshTrees;
         [Range(0f, 100f)] public float detailDensityPercent;
         [Min(0)] public int activeRange;
 
         public TerrainQualityPreset(
             float newDetailDistance,
             float newTreeDistance,
+            int newMaxMeshTrees,
             float newDetailDensityPercent,
             int newActiveRange)
         {
             detailDistance = newDetailDistance;
             treeDistance = newTreeDistance;
+            maxMeshTrees = newMaxMeshTrees;
             detailDensityPercent = newDetailDensityPercent;
             activeRange = newActiveRange;
         }
@@ -44,6 +48,7 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
         {
             detailDistance = Mathf.Max(0f, detailDistance);
             treeDistance = Mathf.Max(0f, treeDistance);
+            maxMeshTrees = Mathf.Max(0, maxMeshTrees);
             detailDensityPercent = Mathf.Clamp(detailDensityPercent, 0f, 100f);
             activeRange = Mathf.Max(0, activeRange);
         }
@@ -59,6 +64,7 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
     private const string TerrainQualityPreferenceKey = "GH.Graphics.TerrainQuality";
     private const string DetailDistancePreferenceKey = "GH.Graphics.DetailDistance";
     private const string TreeDistancePreferenceKey = "GH.Graphics.TreeDistance";
+    private const string MaxMeshTreesPreferenceKey = "GH.Graphics.MaxMeshTrees";
     private const string DetailDensityPreferenceKey = "GH.Graphics.DetailDensity";
     private const string ChunkActiveRangePreferenceKey = "GH.Graphics.ChunkActiveRange";
     private const int DefaultResolutionWidth = 1920;
@@ -89,13 +95,13 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
     [Header("Terrain And Chunk Quality Presets")]
     [InspectorName("하")]
     [SerializeField] private TerrainQualityPreset lowTerrainQuality =
-        new TerrainQualityPreset(75f, 100f, 50f, 1);
+        new TerrainQualityPreset(75f, 100f, 400, 50f, 1);
     [InspectorName("중")]
     [SerializeField] private TerrainQualityPreset mediumTerrainQuality =
-        new TerrainQualityPreset(125f, 175f, 75f, 1);
+        new TerrainQualityPreset(125f, 175f, 750, 75f, 1);
     [InspectorName("상")]
     [SerializeField] private TerrainQualityPreset highTerrainQuality =
-        new TerrainQualityPreset(225f, 325f, 100f, 2);
+        new TerrainQualityPreset(225f, 325f, 1250, 100f, 2);
 
     [Header("Generated UI References")]
     [SerializeField] private RectTransform runtimeUiRoot;
@@ -120,8 +126,11 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
     private bool selectedFullScreen;
     private bool isInitialized;
     private bool isRefreshingAudioUi;
+    private bool isApplicationQuitting;
     private bool hasCommittedSnapshot;
     private SettingsSnapshot committedSnapshot;
+    private CanvasGroup applyFadeCanvasGroup;
+    private Coroutine applyCloseFadeCoroutine;
 
     private void Awake()
     {
@@ -130,6 +139,8 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
 
     private void OnEnable()
     {
+        applyCloseFadeCoroutine = null;
+        ResetApplyFadeVisual();
         Initialize();
         LoadCommittedSettingsIntoUi();
         CaptureCommittedSnapshot();
@@ -138,12 +149,40 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
 
     private void OnDisable()
     {
-        if (!isInitialized || !hasCommittedSnapshot)
+        if (applyCloseFadeCoroutine != null)
+        {
+            StopCoroutine(applyCloseFadeCoroutine);
+        }
+
+        applyCloseFadeCoroutine = null;
+        ResetApplyFadeVisual();
+
+        if (isApplicationQuitting
+            || KMSAudioService.IsApplicationQuitting
+            || !isInitialized
+            || !hasCommittedSnapshot)
         {
             return;
         }
 
         RestoreCommittedSnapshot();
+    }
+
+    private void OnApplicationQuit()
+    {
+        isApplicationQuitting = true;
+
+        if (!isInitialized || !hasCommittedSnapshot)
+        {
+            return;
+        }
+
+        // Slider previews update the KMS preference values immediately. Restore only
+        // the saved values on quit without applying them back to live audio sources.
+        PlayerPrefs.SetFloat(MasterVolumePreferenceKey, committedSnapshot.masterVolume);
+        PlayerPrefs.SetFloat(MusicVolumePreferenceKey, committedSnapshot.musicVolume);
+        PlayerPrefs.SetFloat(SfxVolumePreferenceKey, committedSnapshot.sfxVolume);
+        PlayerPrefs.Save();
     }
 
     public void PreviousResolution()
@@ -202,6 +241,65 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
         PlayerPrefs.Save();
         CaptureCommittedSnapshot();
         RefreshApplyButtonState();
+        TryStartApplyCloseFade();
+    }
+
+    private void TryStartApplyCloseFade()
+    {
+        if (applyCloseFadeCoroutine != null
+            || SceneUIManager.Instance == null
+            || !SceneUIManager.Instance.TryGetSettingsSubPanelApplyFadeDuration(
+                out float fadeDuration))
+        {
+            return;
+        }
+
+        applyCloseFadeCoroutine = StartCoroutine(FadeAndCloseThisPanel(fadeDuration));
+    }
+
+    private IEnumerator FadeAndCloseThisPanel(float duration)
+    {
+        CanvasGroup canvasGroup = GetOrCreateApplyFadeCanvasGroup();
+        canvasGroup.interactable = false;
+        canvasGroup.blocksRaycasts = false;
+
+        float elapsed = 0f;
+        duration = Mathf.Max(0.01f, duration);
+        while (elapsed < duration && gameObject.activeInHierarchy)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            canvasGroup.alpha = 1f - Mathf.Clamp01(elapsed / duration);
+            yield return null;
+        }
+
+        applyCloseFadeCoroutine = null;
+        gameObject.SetActive(false);
+    }
+
+    private CanvasGroup GetOrCreateApplyFadeCanvasGroup()
+    {
+        if (applyFadeCanvasGroup == null)
+        {
+            applyFadeCanvasGroup = GetComponent<CanvasGroup>();
+            if (applyFadeCanvasGroup == null)
+            {
+                applyFadeCanvasGroup = gameObject.AddComponent<CanvasGroup>();
+            }
+        }
+
+        return applyFadeCanvasGroup;
+    }
+
+    private void ResetApplyFadeVisual()
+    {
+        if (applyFadeCanvasGroup == null)
+        {
+            return;
+        }
+
+        applyFadeCanvasGroup.alpha = 1f;
+        applyFadeCanvasGroup.interactable = true;
+        applyFadeCanvasGroup.blocksRaycasts = true;
     }
 
     /// <summary>기본 해상도, 전체 화면, 중간 품질, 최대 음량을 편집 값으로 불러옵니다.</summary>
@@ -277,8 +375,7 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
             && sfxVolumeSlider != null
             && masterVolumeInput != null
             && musicVolumeInput != null
-            && sfxVolumeInput != null
-            && terrainQualityDropdown != null)
+            && sfxVolumeInput != null)
         {
             return;
         }
@@ -453,30 +550,12 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
             return;
         }
 
-        RectTransform applyRect = applyButton.transform as RectTransform;
-        if (applyRect != null)
-        {
-            applyRect.sizeDelta = new Vector2(280f, 62f);
-            applyRect.anchoredPosition = new Vector2(155f, -322f);
-        }
-
         if (resetDefaultsButton == null)
         {
             Transform existingReset = runtimeUiRoot.Find("Reset Defaults");
             resetDefaultsButton = existingReset != null
                 ? existingReset.GetComponent<Button>()
                 : null;
-        }
-
-        if (resetDefaultsButton == null)
-        {
-            resetDefaultsButton = CreateButton(
-                "Reset Defaults",
-                runtimeUiRoot,
-                "기본값 복원",
-                new Vector2(280f, 62f),
-                new Vector2(-155f, -322f),
-                buttonColor);
         }
 
         Transform guideTransform = runtimeUiRoot.Find("Guide");
@@ -868,12 +947,15 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
         nextButton.onClick.RemoveListener(NextResolution);
         screenModeButton.onClick.RemoveListener(ToggleScreenMode);
         applyButton.onClick.RemoveListener(ApplySettings);
-        resetDefaultsButton.onClick.RemoveListener(RestoreDefaults);
         previousButton.onClick.AddListener(PreviousResolution);
         nextButton.onClick.AddListener(NextResolution);
         screenModeButton.onClick.AddListener(ToggleScreenMode);
         applyButton.onClick.AddListener(ApplySettings);
-        resetDefaultsButton.onClick.AddListener(RestoreDefaults);
+        if (resetDefaultsButton != null)
+        {
+            resetDefaultsButton.onClick.RemoveListener(RestoreDefaults);
+            resetDefaultsButton.onClick.AddListener(RestoreDefaults);
+        }
 
         masterVolumeSlider.onValueChanged.AddListener(HandleMasterVolumeChanged);
         musicVolumeSlider.onValueChanged.AddListener(HandleMusicVolumeChanged);
@@ -882,7 +964,11 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
         masterVolumeInput.onEndEdit.AddListener(HandleMasterVolumeInput);
         musicVolumeInput.onEndEdit.AddListener(HandleMusicVolumeInput);
         sfxVolumeInput.onEndEdit.AddListener(HandleSfxVolumeInput);
-        terrainQualityDropdown.onValueChanged.AddListener(HandleTerrainQualityChanged);
+        if (terrainQualityDropdown != null)
+        {
+            terrainQualityDropdown.onValueChanged.AddListener(
+                HandleTerrainQualityChanged);
+        }
     }
 
     private void LoadTerrainQualitySelection()
@@ -1123,12 +1209,14 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
         ApplyTerrainAndChunkValues(
             preset.detailDistance,
             preset.treeDistance,
+            preset.maxMeshTrees,
             preset.detailDensityPercent,
             preset.activeRange);
 
         PlayerPrefs.SetInt(TerrainQualityPreferenceKey, selectedTerrainQualityIndex);
         PlayerPrefs.SetFloat(DetailDistancePreferenceKey, preset.detailDistance);
         PlayerPrefs.SetFloat(TreeDistancePreferenceKey, preset.treeDistance);
+        PlayerPrefs.SetInt(MaxMeshTreesPreferenceKey, preset.maxMeshTrees);
         PlayerPrefs.SetFloat(DetailDensityPreferenceKey, preset.detailDensityPercent);
         PlayerPrefs.SetInt(ChunkActiveRangePreferenceKey, preset.activeRange);
     }
@@ -1149,6 +1237,7 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
     private static void ApplyTerrainAndChunkValues(
         float detailDistance,
         float treeDistance,
+        int maxMeshTrees,
         float detailDensityPercent,
         int activeRange)
     {
@@ -1167,8 +1256,13 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
 
             terrain.detailObjectDistance = Mathf.Max(0f, detailDistance);
             terrain.treeDistance = Mathf.Max(0f, treeDistance);
+            terrain.treeMaximumFullLODCount = Mathf.Max(0, maxMeshTrees);
             terrain.detailObjectDensity = density;
         }
+
+        // Terrain Tree Distance와 카메라의 Tree 레이어 컬링 거리를 항상
+        // 동일하게 유지해 높은 프리셋이 카메라 컬링에 다시 잘리지 않게 한다.
+        TreeDistanceCulling.ApplyTreeDistanceToAll(treeDistance);
 
         WorldChunkManager[] chunkManagers = FindObjectsByType<WorldChunkManager>(
             FindObjectsInactive.Include,
@@ -1190,12 +1284,26 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
             || !PlayerPrefs.HasKey(DetailDensityPreferenceKey)
             || !PlayerPrefs.HasKey(ChunkActiveRangePreferenceKey))
         {
+            // 최초 실행은 UI의 기본 선택인 '중' 프리셋을 적용한다.
+            ApplyTerrainAndChunkValues(125f, 175f, 750, 75f, 1);
             return;
         }
+
+        int terrainQualityIndex = Mathf.Clamp(
+            PlayerPrefs.GetInt(TerrainQualityPreferenceKey, 1),
+            0,
+            2);
+        int defaultMaxMeshTrees = terrainQualityIndex switch
+        {
+            0 => 400,
+            2 => 1250,
+            _ => 750
+        };
 
         ApplyTerrainAndChunkValues(
             PlayerPrefs.GetFloat(DetailDistancePreferenceKey),
             PlayerPrefs.GetFloat(TreeDistancePreferenceKey),
+            PlayerPrefs.GetInt(MaxMeshTreesPreferenceKey, defaultMaxMeshTrees),
             PlayerPrefs.GetFloat(DetailDensityPreferenceKey),
             PlayerPrefs.GetInt(ChunkActiveRangePreferenceKey));
     }
@@ -1479,17 +1587,17 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
     {
         if (lowTerrainQuality == null)
         {
-            lowTerrainQuality = new TerrainQualityPreset(75f, 100f, 50f, 1);
+            lowTerrainQuality = new TerrainQualityPreset(75f, 100f, 400, 50f, 1);
         }
 
         if (mediumTerrainQuality == null)
         {
-            mediumTerrainQuality = new TerrainQualityPreset(125f, 175f, 75f, 1);
+            mediumTerrainQuality = new TerrainQualityPreset(125f, 175f, 750, 75f, 1);
         }
 
         if (highTerrainQuality == null)
         {
-            highTerrainQuality = new TerrainQualityPreset(225f, 325f, 100f, 2);
+            highTerrainQuality = new TerrainQualityPreset(225f, 325f, 1250, 100f, 2);
         }
 
         lowTerrainQuality.ClampValues();

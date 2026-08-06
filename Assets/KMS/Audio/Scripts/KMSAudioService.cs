@@ -10,12 +10,14 @@ namespace KMS.Audio
     public sealed class KMSAudioService : MonoBehaviour
     {
         private const string CatalogResourceName = "KMSAudioCatalog";
+        private const string MasterVolumeKey = "GH.Audio.MasterVolume";
         private const string SfxVolumeKey = "KMS.Audio.SfxVolume";
         private const string MusicVolumeKey = "KMS.Audio.MusicVolume";
         private const int InitialSourceCount = 12;
         private const int MaximumSourceCount = 32;
 
         private static KMSAudioService instance;
+        private static bool isApplicationQuitting;
 
         [SerializeField] private KMSAudioCatalog catalog;
 
@@ -35,16 +37,32 @@ namespace KMS.Audio
 
         public static KMSAudioService Instance => EnsureInstance();
         public static bool HasInstance => instance != null;
+        public static bool IsApplicationQuitting => isApplicationQuitting;
         public KMSAudioCatalog Catalog => catalog;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetStatics()
+        {
+            instance = null;
+            isApplicationQuitting = false;
+        }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         private static void Bootstrap()
         {
+            AudioListener.pause = false;
+            AudioListener.volume = Mathf.Clamp01(
+                PlayerPrefs.GetFloat(MasterVolumeKey, 1f));
             EnsureInstance();
         }
 
         public static KMSAudioService EnsureInstance()
         {
+            if (isApplicationQuitting)
+            {
+                return null;
+            }
+
             if (instance != null)
             {
                 return instance;
@@ -116,19 +134,53 @@ namespace KMS.Audio
             }
         }
 
+        private void OnApplicationQuit()
+        {
+            isApplicationQuitting = true;
+            StopAllCoroutines();
+            musicFadeRoutine = null;
+
+            if (musicSourceA != null)
+            {
+                musicSourceA.Stop();
+            }
+
+            if (musicSourceB != null)
+            {
+                musicSourceB.Stop();
+            }
+
+            for (int i = 0; i < sfxSources.Count; i++)
+            {
+                if (sfxSources[i] != null)
+                {
+                    sfxSources[i].Stop();
+                }
+            }
+
+            AudioListener.pause = true;
+        }
+
         public static bool Play2D(GameSfxId id)
         {
-            return EnsureInstance().Play(id, Vector3.zero, true);
+            KMSAudioService service = EnsureInstance();
+            return service != null && service.Play(id, Vector3.zero, true);
         }
 
         public static bool PlayAt(GameSfxId id, Vector3 position)
         {
-            return EnsureInstance().Play(id, position, false);
+            KMSAudioService service = EnsureInstance();
+            return service != null && service.Play(id, position, false);
         }
 
         public static void SetSfxVolume(float value)
         {
             KMSAudioService service = EnsureInstance();
+            if (service == null)
+            {
+                return;
+            }
+
             service.sfxVolume = Mathf.Clamp01(value);
             PlayerPrefs.SetFloat(SfxVolumeKey, service.sfxVolume);
         }
@@ -136,6 +188,11 @@ namespace KMS.Audio
         public static void SetMusicVolume(float value)
         {
             KMSAudioService service = EnsureInstance();
+            if (service == null)
+            {
+                return;
+            }
+
             service.musicVolume = Mathf.Clamp01(value);
             PlayerPrefs.SetFloat(MusicVolumeKey, service.musicVolume);
             if (service.activeMusicSource != null

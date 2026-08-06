@@ -12,6 +12,7 @@ namespace KMS.Combat
     {
         [Header("References")]
         [SerializeField] private KMS.PlayerInput input;
+        [SerializeField] private KMS.PlayerStats stats;
         [SerializeField] private KMS.PlayerMovement movement;
         [SerializeField] private KmsPlayerInventory inventory;
         [SerializeField] private Transform cameraTransform;
@@ -43,6 +44,7 @@ namespace KMS.Combat
         private void Reset()
         {
             input = GetComponent<KMS.PlayerInput>();
+            stats = GetComponent<KMS.PlayerStats>();
             movement = GetComponent<KMS.PlayerMovement>();
             inventory = GetComponent<KmsPlayerInventory>();
 
@@ -55,6 +57,7 @@ namespace KMS.Combat
         private void Awake()
         {
             if (input == null) input = GetComponent<KMS.PlayerInput>();
+            if (stats == null) stats = GetComponent<KMS.PlayerStats>();
             if (movement == null) movement = GetComponent<KMS.PlayerMovement>();
             if (inventory == null) inventory = GetComponent<KmsPlayerInventory>();
             if (cameraTransform == null && Camera.main != null) cameraTransform = Camera.main.transform;
@@ -89,6 +92,7 @@ namespace KMS.Combat
 
         private void TryAttack()
         {
+            if (stats != null && !stats.IsAlive) return;
             if (cooldownTimer > 0f) return;
             if (catalogManager == null)
             {

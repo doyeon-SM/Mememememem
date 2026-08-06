@@ -1,6 +1,7 @@
 ﻿using KMS;
 using System.Collections;
 using System.Collections.Generic;
+using KMS.Audio;
 using TMPro;
 using UnityEngine;
 using UnityEngine.Serialization;
@@ -256,6 +257,12 @@ public class WayPointStone : MonoBehaviour, IInteractable
         SetUnlockedState(active);
     }
 
+    /// <summary>웨이포인트가 처음 등록됐을 때 진입 알림과 같은 UI를 표시합니다.</summary>
+    public void ShowUnlockedAreaNotification()
+    {
+        ShowAreaNotification();
+    }
+
     // 런타임에서 웨이포인트 정의를 바꿀 때 사용한다.
     /// <summary>런타임에 이 스톤이 나타낼 웨이포인트 정의를 교체합니다.</summary>
     public void SetDefinition(WayPointDefinition newDefinition)
@@ -299,6 +306,9 @@ public class WayPointStone : MonoBehaviour, IInteractable
         ActiveNotificationTokens[areaNotificationText] = currentNotificationToken;
         areaNotificationText.text = waypointName;
         SetAreaNotificationVisible(true);
+
+        KMSAudioService.Play2D(GameSfxId.WaySound);
+
         hideNotificationCoroutine = StartCoroutine(
             HideAreaNotificationAfterDelay(currentNotificationToken));
     }

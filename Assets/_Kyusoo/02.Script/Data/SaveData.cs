@@ -82,14 +82,21 @@ public class Vector3Data
 }
 
 [Serializable]
+public class ScenePlayerPosData
+{
+    public string sceneName;
+    public Vector3Data lastPlayerPos;
+    public bool hasSavedPlayerPos = false;
+}
+
+[Serializable]
 public class SaveData
 {
     public string lastSaveTime;
-    public string lastPlayScene = "Main_World2";
+    public string lastPlayScene = "Main_World_3";
 
-    [Header("탐험 씬 플레이어 마지막 좌표 데이터")]
-    public Vector3Data lastPlayerPos;      
-    public bool hasSavedPlayerPos = false; 
+    [Header("씬별 플레이어 마지막 좌표 데이터")]
+    public List<ScenePlayerPosData> playerPosDataList = new List<ScenePlayerPosData>();
 
     [Header("영지 기초 성장 데이터")]
     public int territoryLevel = 1;

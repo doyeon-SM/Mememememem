@@ -36,6 +36,10 @@ namespace KMS
         [SerializeField] private TMP_Text defeatMessageText;
         [SerializeField] private Button respawnButton;
 
+        [Header("Item Obtained Toasts")]
+        [SerializeField] private RectTransform itemObtainedToastContainer;
+        [SerializeField] private KMSItemObtainedToastView itemObtainedToastTemplate;
+
         [Header("Responsive Layout")]
         [SerializeField, Range(0.1f, 1f)] private float survivalWidthRatio = 0.42f;
         [SerializeField, Min(0f)] private float survivalMinWidth = 500f;
@@ -47,6 +51,13 @@ namespace KMS
         public Button RespawnButton => respawnButton;
 
         private readonly List<Image> hungerEffectSegmentImages = new List<Image>();
+        private readonly List<ActiveItemObtainedToast> itemObtainedToasts = new List<ActiveItemObtainedToast>();
+
+        private sealed class ActiveItemObtainedToast
+        {
+            public KMSItemObtainedToastView view;
+            public Coroutine lifetimeRoutine;
+        }
 
         private void Awake()
         {
@@ -55,6 +66,10 @@ namespace KMS
             if (notificationTemplate != null)
             {
                 notificationTemplate.SetActive(false);
+            }
+            if (itemObtainedToastTemplate != null)
+            {
+                itemObtainedToastTemplate.gameObject.SetActive(false);
             }
 
             SetThrowGuideVisible(false);
@@ -84,6 +99,11 @@ namespace KMS
         private void OnRectTransformDimensionsChange()
         {
             UpdateResponsiveLayout();
+        }
+
+        private void OnDisable()
+        {
+            ClearItemObtainedToasts();
         }
 
         public void SetHealth(float current, float max)
@@ -123,7 +143,12 @@ namespace KMS
         public void SetDefeatOverlayVisible(bool visible, string message)
         {
             if (defeatMessageText != null) defeatMessageText.text = message;
-            if (defeatOverlay != null) defeatOverlay.SetActive(visible);
+            if (respawnButton != null) respawnButton.interactable = visible;
+            if (defeatOverlay != null)
+            {
+                defeatOverlay.SetActive(visible);
+                if (visible) defeatOverlay.transform.SetAsLastSibling();
+            }
         }
 
         public void ShowNotification(string message, float duration)
@@ -145,6 +170,33 @@ namespace KMS
             StartCoroutine(RemoveNotificationAfterDelay(item, canvasGroup, duration));
         }
 
+        public void ShowItemObtained(
+            ItemData item,
+            int amount,
+            float visibleDuration,
+            float fadeDuration,
+            int maxVisible)
+        {
+            if (item == null || amount <= 0 || itemObtainedToastContainer == null || itemObtainedToastTemplate == null)
+                return;
+
+            PruneItemObtainedToasts();
+            while (itemObtainedToasts.Count >= Mathf.Max(1, maxVisible))
+            {
+                RemoveItemObtainedToast(itemObtainedToasts[0]);
+            }
+
+            KMSItemObtainedToastView instance = Instantiate(itemObtainedToastTemplate, itemObtainedToastContainer);
+            instance.name = $"ItemObtained_{item.Item_ID}";
+            instance.SetData(item, amount);
+            instance.gameObject.SetActive(true);
+
+            ActiveItemObtainedToast toast = new ActiveItemObtainedToast { view = instance };
+            itemObtainedToasts.Add(toast);
+            toast.lifetimeRoutine = StartCoroutine(
+                RunItemObtainedToastLifetime(toast, visibleDuration, fadeDuration));
+        }
+
         public bool HasRequiredReferences()
         {
             return realTimeText != null
@@ -162,7 +214,9 @@ namespace KMS
                    && throwGuide != null
                    && defeatOverlay != null
                    && defeatMessageText != null
-                   && respawnButton != null;
+                   && respawnButton != null
+                   && itemObtainedToastContainer != null
+                   && itemObtainedToastTemplate != null;
         }
 
         private void EnsureRespawnButton()
@@ -203,6 +257,57 @@ namespace KMS
             label.fontSize = 26f;
             label.alignment = TextAlignmentOptions.Center;
             label.color = new Color32(25, 25, 25, 255);
+        }
+
+        private IEnumerator RunItemObtainedToastLifetime(
+            ActiveItemObtainedToast toast,
+            float visibleDuration,
+            float fadeDuration)
+        {
+            if (toast.view == null) yield break;
+            CanvasGroup canvasGroup = toast.view.CanvasGroup;
+            if (canvasGroup == null)
+            {
+                RemoveItemObtainedToast(toast, false);
+                yield break;
+            }
+
+            float fadeInElapsed = 0f;
+            float fadeInDuration = Mathf.Min(0.16f, Mathf.Max(0f, fadeDuration));
+            canvasGroup.alpha = fadeInDuration > 0f ? 0f : 1f;
+            while (fadeInElapsed < fadeInDuration && toast.view != null)
+            {
+                fadeInElapsed += Time.unscaledDeltaTime;
+                canvasGroup.alpha = Mathf.Clamp01(fadeInElapsed / fadeInDuration);
+                yield return null;
+            }
+
+            yield return new WaitForSecondsRealtime(Mathf.Max(0f, visibleDuration));
+            if (toast.view == null) yield break;
+
+            yield return FadeOut(canvasGroup, Mathf.Max(0f, fadeDuration));
+            RemoveItemObtainedToast(toast, false);
+        }
+
+        private void PruneItemObtainedToasts()
+        {
+            itemObtainedToasts.RemoveAll(toast => toast == null || toast.view == null);
+        }
+
+        private void RemoveItemObtainedToast(ActiveItemObtainedToast toast, bool stopRoutine = true)
+        {
+            if (toast == null) return;
+            if (stopRoutine && toast.lifetimeRoutine != null) StopCoroutine(toast.lifetimeRoutine);
+            itemObtainedToasts.Remove(toast);
+            if (toast.view != null) Destroy(toast.view.gameObject);
+        }
+
+        private void ClearItemObtainedToasts()
+        {
+            for (int i = itemObtainedToasts.Count - 1; i >= 0; i--)
+            {
+                RemoveItemObtainedToast(itemObtainedToasts[i]);
+            }
         }
 
         private void UpdateResponsiveLayout()
