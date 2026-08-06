@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using HDY.Capture;
@@ -110,8 +110,16 @@ public class SaveData
     public int currentGridSize = 5;
     public List<bool> expansionExpandedStates = new List<bool>();
 
-    [Header("제작법 해금 데이터")]
-    public List<bool> recipeUnlockedStates = new List<bool>();
+    // [HDY 요청 - 여신상 저장 버그 수정] 예전에는 recipeUnlockedStates(List<bool>)로 "몇 번째 항목이
+    // 해금됐는지"를 리스트 순서(인덱스)에만 의존해서 저장했다. 그런데 RecipeUnlockManager의 해금 목록이
+    // RecipeUnlocks.csv를 매번 파싱해서 만드는 방식으로 바뀌면서, 시트에 행을 추가/삭제/순서변경할 때마다
+    // 인덱스가 밀려 저장된 true/false가 엉뚱한 레시피에 적용되는 문제가 있었다. 바로 아래
+    // cookRecipeUnlockedStates(요리 레시피)가 이미 쓰고 있던 "해금된 Item_ID만 저장" 방식으로 통일해서,
+    // 시트 순서가 바뀌어도 항상 올바른 레시피에 매칭되게 한다.
+    // 필드명을 바꿨기 때문에 이 변경 이전에 저장된 세이브 파일의 여신상 해금 상태는 한 번 초기화된다
+    // (도연님 확인: 지금 단계에서는 괜찮음, 별도 마이그레이션 없음).
+    [Header("제작법 해금 데이터 (해금된 Item_ID 목록)")]
+    public List<string> unlockedRecipeItemIds = new List<string>();
 
     [Header("요리 제작법 해금 데이터")]
     public List<string> cookRecipeUnlockedStates = new List<string>();

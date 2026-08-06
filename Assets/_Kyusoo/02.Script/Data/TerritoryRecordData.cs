@@ -93,7 +93,8 @@ public class TerritoryRecordData : MonoBehaviour, IRecord
         saveData.isBlueprintGiven = false;
         saveData.currentGridSize = 10;
         saveData.expansionExpandedStates = new List<bool>();
-        saveData.recipeUnlockedStates = new List<bool>();
+        // [HDY 요청 - 여신상 저장 버그 수정] recipeUnlockedStates(List<bool>) -> unlockedRecipeItemIds(List<string>)
+        saveData.unlockedRecipeItemIds = new List<string>();
     }
 
     public void SaveData(string saveFilePath)
@@ -124,13 +125,21 @@ public class TerritoryRecordData : MonoBehaviour, IRecord
             // 🌟 [수정] ConsumeFoodRecordData가 사용하는 foodWarehouseStorageData 덮어쓰기 구문 완전히 제거!
         }
 
-        // 2. 레시피 해금
+        // 2. 레시피(여신상) 해금
+        // [HDY 요청 - 여신상 저장 버그 수정] 예전에는 IsUnlocked를 리스트 순서(인덱스) 그대로 bool
+        // 배열에 담아 저장했다. RecipeUnlockManager의 해금 목록이 RecipeUnlocks.csv를 매번 파싱해서
+        // 만드는 방식으로 바뀌면서, 시트에 행이 추가/삭제/순서변경될 때마다 인덱스가 밀려 저장된
+        // true/false가 엉뚱한 레시피에 적용되는 문제가 있었다. Item_ID만 저장하도록 바꿔서
+        // 시트 순서가 바뀌어도 항상 올바른 레시피에 매칭되게 한다(요리 레시피 저장 방식과 동일).
         if (liveRecipeManager != null)
         {
-            currentData.recipeUnlockedStates.Clear();
+            currentData.unlockedRecipeItemIds.Clear();
             foreach (var entry in liveRecipeManager.RecipeUnlocks)
             {
-                currentData.recipeUnlockedStates.Add(entry.IsUnlocked);
+                if (entry != null && entry.IsUnlocked && !string.IsNullOrEmpty(entry.Item_ID))
+                {
+                    currentData.unlockedRecipeItemIds.Add(entry.Item_ID);
+                }
             }
         }
 
@@ -188,7 +197,13 @@ public class TerritoryRecordData : MonoBehaviour, IRecord
 
             if (sceneType == SceneType.Exploration) return;
 
-            if (liveRecipeManager != null && saveData.recipeUnlockedStates != null)
+            // [HDY 요청 - 여신상 저장 버그 수정] Item_ID 집합으로 변환한 뒤, 현재 recipeUnlocks를
+            // 순회하며 각 항목의 Item_ID가 그 집합에 있는지로 IsUnlocked를 결정한다. 인덱스에 의존하지
+            // 않으므로 RecipeUnlocks.csv의 행 순서/개수가 바뀌어도 항상 올바른 레시피에 매칭된다.
+            // (필드명이 recipeUnlockedStates -> unlockedRecipeItemIds로 바뀌었기 때문에, 이 변경 이전에
+            // 저장된 세이브 파일은 saveData.unlockedRecipeItemIds가 비어있게 되어 여신상 해금 상태가
+            // 한 번 초기화된다 - 확인 후 진행하기로 함.)
+            if (liveRecipeManager != null)
             {
                 FieldInfo managerRecipeField = typeof(RecipeUnlockManager).GetField("recipeUnlocks", BindingFlags.NonPublic | BindingFlags.Instance);
                 if (managerRecipeField != null)
@@ -196,10 +211,14 @@ public class TerritoryRecordData : MonoBehaviour, IRecord
                     List<RecipeUnlockEntry> managerRecipes = managerRecipeField.GetValue(liveRecipeManager) as List<RecipeUnlockEntry>;
                     if (managerRecipes != null)
                     {
-                        int limit = Mathf.Min(managerRecipes.Count, saveData.recipeUnlockedStates.Count);
-                        for (int i = 0; i < limit; i++)
+                        HashSet<string> unlockedIds = saveData.unlockedRecipeItemIds != null
+                            ? new HashSet<string>(saveData.unlockedRecipeItemIds)
+                            : new HashSet<string>();
+
+                        foreach (var entry in managerRecipes)
                         {
-                            managerRecipes[i].IsUnlocked = saveData.recipeUnlockedStates[i];
+                            if (entry == null) continue;
+                            entry.IsUnlocked = !string.IsNullOrEmpty(entry.Item_ID) && unlockedIds.Contains(entry.Item_ID);
                         }
                     }
                 }

@@ -1,4 +1,4 @@
-﻿using HDY.Capture;
+using HDY.Capture;
 using HDY.Forge;
 using HDY.Item;
 using HDY.Mem;
@@ -93,7 +93,9 @@ public class RecordManager : MonoBehaviour
             isBlueprintGiven = false,
             currentGridSize = 5,
             expansionExpandedStates = new List<bool>(),
-            recipeUnlockedStates = new List<bool>(),
+            // [HDY 요청 - 여신상 저장 버그 수정] recipeUnlockedStates(List<bool>, 인덱스 기반) ->
+            // unlockedRecipeItemIds(List<string>, Item_ID 기반)로 교체. 자세한 이유는 SaveData.cs 주석 참고.
+            unlockedRecipeItemIds = new List<string>(),
             cookRecipeUnlockedStates = new List<string>(),
             maxSatiety = 0,
             currentSatiety = 0,
