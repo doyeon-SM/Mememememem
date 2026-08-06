@@ -24,7 +24,13 @@ namespace KMS.Audio
         WaySound,
         UIClick,
         UIPanelOpen,
-        UIPanelClose
+        UIPanelClose,
+        // [HDY 요청] 강화(승급/연마/전승 포함) 성공·실패, 영지 레벨업, 여신상 해금, 퀘스트(튜토리얼 스텝) 완료 사운드.
+        ForgeEnhanceSuccess,
+        ForgeEnhanceFailure,
+        TerritoryLevelUp,
+        GoddessStatueUnlock,
+        QuestComplete
     }
 
     [Serializable]
@@ -217,6 +223,19 @@ namespace KMS.Audio
                     cue.Volume = 0.75f;
                     cue.Cooldown = 0.08f;
                     cue.MaxVoices = 2;
+                    break;
+                // [HDY 요청] 강화/승급/연마/전승 성공·실패, 영지 레벨업, 여신상 해금, 퀘스트 완료 -
+                // 전부 UI/시스템성 알림 사운드라 2D(SpatialBlend 0)로 고정하고, 중첩 재생을 막기 위해
+                // 짧은 쿨다운과 MaxVoices 1을 준다.
+                case GameSfxId.ForgeEnhanceSuccess:
+                case GameSfxId.ForgeEnhanceFailure:
+                case GameSfxId.TerritoryLevelUp:
+                case GameSfxId.GoddessStatueUnlock:
+                case GameSfxId.QuestComplete:
+                    cue.SpatialBlend = 0f;
+                    cue.Volume = 0.85f;
+                    cue.Cooldown = 0.05f;
+                    cue.MaxVoices = 1;
                     break;
                 default:
                     cue.Volume = 1f;

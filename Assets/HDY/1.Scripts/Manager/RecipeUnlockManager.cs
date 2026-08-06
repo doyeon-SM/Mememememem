@@ -4,6 +4,7 @@ using System.Globalization;
 using UnityEngine;
 using HDY.Item;
 using HDY.Territory;
+using KMS.Audio;
 
 namespace HDY.Recipe
 {
@@ -61,6 +62,10 @@ namespace HDY.Recipe
     /// [영지 경험치 보상] 해금에 성공하면(ApplyUnlock/TryPurchase/Unlock 모두 포함) RecipeUnlockEntry.RewardExp만큼
     /// TerritoryData.AddExp가 호출된다. territoryData 참조는 인스펙터에 비어있으면 자동 탐색(FindFirstObjectByType)
     /// 한다. 이미 해금된 항목을 다시 해금 처리해도(재호출) 경험치가 중복 지급되지 않도록 가드한다.
+    ///
+    /// [사운드 - HDY 요청] 여신상 UI가 실제로 사용하는 라이브 해금 성공 경로인 ApplyUnlock()에서만
+    /// KMSAudioService.Play2D(GameSfxId.GoddessStatueUnlock)을 재생한다. 치트용 Unlock()과 이제는 UI가
+    /// 호출하지 않는 구버전 TryPurchase()에는 추가하지 않았다(요청 범위 = 실제 해금 성공 흐름).
     ///
     /// [저장/불러오기 대응] TerritoryData와 함께 저장/불러오기 시스템이 이 매니저의 생명주기를 직접 관리할
     /// 예정이라, 더 이상 DontDestroyOnLoad 싱글톤을 쓰지 않는다(일반 컴포넌트).
@@ -277,6 +282,10 @@ namespace HDY.Recipe
 
             entry.IsUnlocked = true;
             Debug.Log($"[RecipeUnlockManager] 레시피 해금 완료(팝업 결제 후 적용): Item_ID={itemId}");
+
+            // [HDY 요청 - 사운드] 여신상 해금 성공 효과음. 여신상 UI가 실제로 쓰는 라이브 성공 경로라
+            // 여기서만 재생한다(치트/구버전 경로는 제외).
+            KMSAudioService.Play2D(GameSfxId.GoddessStatueUnlock);
 
             GrantUnlockExp(entry);
 
