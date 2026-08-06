@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using HDY.Recipe;
 
-[CreateAssetMenu(fileName = "FacilityUpgradeCostTable", menuName = "KKS/Building/Facility Upgrade Cost Table")]
+[CreateAssetMenu(fileName = "UpgradeTable_", menuName = "KKS/Building/Facility Upgrade Cost Table")]
 public class FacilityUpgradeCostTable : ScriptableObject
 {
     [Serializable]
