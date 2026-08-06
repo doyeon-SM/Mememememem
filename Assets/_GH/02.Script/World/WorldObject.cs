@@ -428,7 +428,7 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
 
             // 드롭 항목마다 도구의 개수 확률을 독립적으로 추첨한다.
             int baseDropCount = ToolDropManager.Instance != null
-                ? ToolDropManager.Instance.RollDropCount(tool)
+                ? ToolDropManager.Instance.RollDropCount(tool != null ? tool.Item_ID : string.Empty)
                 : 1;
             int dropCount = baseDropCount + gatherBonus;
 

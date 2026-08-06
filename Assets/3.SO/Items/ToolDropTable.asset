@@ -13,7 +13,100 @@ MonoBehaviour:
   m_Name: ToolDropTable
   m_EditorClassIdentifier: Assembly-CSharp::ToolDropTable
   rules:
-  - tool: {fileID: 0}
+  - toolItemId: tool_shabby_axe
+    legacyTool: {fileID: 0}
     chances:
-    - dropCount: 0
-      weight: 0
+    - dropCount: 5
+      weight: 25
+    - dropCount: 6
+      weight: 25
+    - dropCount: 7
+      weight: 25
+    - dropCount: 8
+      weight: 25
+  - toolItemId: tool_shabby_hoe
+    legacyTool: {fileID: 0}
+    chances:
+    - dropCount: 2
+      weight: 33
+    - dropCount: 3
+      weight: 33
+    - dropCount: 4
+      weight: 33
+  - toolItemId: tool_shabby_pickax
+    legacyTool: {fileID: 0}
+    chances:
+    - dropCount: 5
+      weight: 25
+    - dropCount: 6
+      weight: 25
+    - dropCount: 7
+      weight: 25
+    - dropCount: 8
+      weight: 25
+  - toolItemId: tool_axe
+    legacyTool: {fileID: 0}
+    chances:
+    - dropCount: 6
+      weight: 20
+    - dropCount: 7
+      weight: 20
+    - dropCount: 8
+      weight: 20
+    - dropCount: 9
+      weight: 20
+    - dropCount: 10
+      weight: 20
+  - toolItemId: tool_hoe
+    legacyTool: {fileID: 0}
+    chances:
+    - dropCount: 3
+      weight: 50
+    - dropCount: 4
+      weight: 50
+  - toolItemId: tool_pickax
+    legacyTool: {fileID: 0}
+    chances:
+    - dropCount: 6
+      weight: 20
+    - dropCount: 7
+      weight: 20
+    - dropCount: 8
+      weight: 20
+    - dropCount: 9
+      weight: 20
+    - dropCount: 10
+      weight: 20
+  - toolItemId: tool_decent_axe
+    legacyTool: {fileID: 0}
+    chances:
+    - dropCount: 8
+      weight: 20
+    - dropCount: 9
+      weight: 20
+    - dropCount: 10
+      weight: 20
+    - dropCount: 11
+      weight: 20
+    - dropCount: 12
+      weight: 20
+  - toolItemId: tool_decent_hoe
+    legacyTool: {fileID: 0}
+    chances:
+    - dropCount: 5
+      weight: 50
+    - dropCount: 6
+      weight: 50
+  - toolItemId: tool_decent_pickax
+    legacyTool: {fileID: 0}
+    chances:
+    - dropCount: 8
+      weight: 20
+    - dropCount: 9
+      weight: 20
+    - dropCount: 10
+      weight: 20
+    - dropCount: 11
+      weight: 20
+    - dropCount: 12
+      weight: 20

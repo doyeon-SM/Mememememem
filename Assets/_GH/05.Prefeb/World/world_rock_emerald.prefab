@@ -74,7 +74,7 @@ MonoBehaviour:
   myType: 2
   dropItems:
   - itemId: item_diamond
-  maxObjectHp: 10
+  maxObjectHp: 30
   currentObjectHp: 0
   respawnTime: 30
   needGrade: 0
@@ -83,6 +83,7 @@ MonoBehaviour:
   treeFallLandingGraceSeconds: 0.25
   treeFallLandedAngle: 55
   treeFallTimeoutSeconds: 5
+  ignorePlayerCollisionWhileTreeFalling: 1
   resourceRenderers: []
   resourceColliders: []
   dropSpawnPoint: {fileID: 0}
