@@ -105,8 +105,11 @@ public class RecordManager : MonoBehaviour
             waypointInfo = new List<WaypointInfo>(),
             chestInfo = new List<ChestInfo>(),
             forgeInstanceDataList = new List<ForgeInstanceData>(),
-            hasSavedPlayerPos = false,
-            lastPlayerPos = null
+            playerPosDataList = new List<ScenePlayerPosData>
+            {
+                new ScenePlayerPosData { sceneName = "Main_World_3", lastPlayerPos = null, hasSavedPlayerPos = false },
+                new ScenePlayerPosData { sceneName = "Main_World_Cave", lastPlayerPos = null, hasSavedPlayerPos = false }
+            },
         };
 
         // 1. 인벤토리 기본 구조 (10x6 = 60 슬롯)
