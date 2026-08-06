@@ -76,10 +76,15 @@ MonoBehaviour:
   myType: 1
   dropItems:
   - itemId: item_wood
-  maxObjectHp: 5
+  maxObjectHp: 20
   currentObjectHp: 0
   respawnTime: 15
   needGrade: 0
+  treeFallPushSpeed: 1.2
+  treeFallAngularSpeed: 2.4
+  treeFallLandingGraceSeconds: 0.25
+  treeFallLandedAngle: 55
+  treeFallTimeoutSeconds: 5
   resourceRenderers: []
   resourceColliders: []
   dropSpawnPoint: {fileID: 2869377088730611303}
