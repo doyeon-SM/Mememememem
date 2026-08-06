@@ -2816,7 +2816,6 @@ GameObject:
   m_Component:
   - component: {fileID: 9028560332686509555}
   - component: {fileID: 7190759329429898678}
-  - component: {fileID: 2704758107374107572}
   - component: {fileID: 2825149733357899923}
   - component: {fileID: 4191295553828768883}
   - component: {fileID: 757377502652196312}
@@ -2890,29 +2889,6 @@ CharacterController:
   m_SkinWidth: 0.03
   m_MinMoveDistance: 0
   m_Center: {x: 0, y: 1.395, z: 0}
---- !u!114 &2704758107374107572
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5320301024596143200}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 19102, guid: 0000000000000000e000000000000000, type: 0}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  m_PanelSettings: {fileID: 11400000, guid: ea47c811135b491d92316667619daf26, type: 2}
-  m_ParentUI: {fileID: 0}
-  sourceAsset: {fileID: 9197481963319205126, guid: a9e5e94483104f2ca4af1736f588c4fb, type: 3}
-  m_SortingOrder: 0
-  m_Position: 0
-  m_WorldSpaceSizeMode: 1
-  m_WorldSpaceWidth: 1920
-  m_WorldSpaceHeight: 1080
-  m_PivotReferenceSize: 0
-  m_Pivot: 0
-  m_WorldSpaceCollider: {fileID: 0}
 --- !u!114 &2825149733357899923
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3065,7 +3041,7 @@ MonoBehaviour:
   playerInput: {fileID: 0}
   hudView: {fileID: 0}
   inventory: {fileID: 0}
-  uiDocument: {fileID: 2704758107374107572}
+  uiDocument: {fileID: 0}
   healthBarName: player-health-bar
   hungerBarName: player-hunger-bar
   messageOverlayName: message-overlay
@@ -3252,7 +3228,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::KMS.KMSMemDexLauncher
   hudView: {fileID: 0}
-  uiDocument: {fileID: 2704758107374107572}
+  uiDocument: {fileID: 0}
   collectionButtonName: collection-button
   memDexPrefab: {fileID: 6947569884078246553, guid: 73388961ba2024149adf73e0f355ad57, type: 3}
   modalSortingOrder: 200
