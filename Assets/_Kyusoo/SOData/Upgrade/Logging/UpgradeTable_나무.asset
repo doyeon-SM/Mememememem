@@ -13,23 +13,11 @@ MonoBehaviour:
   m_Name: "UpgradeTable_\uB098\uBB34"
   m_EditorClassIdentifier: Assembly-CSharp::FacilityUpgradeCostTable
   Steps:
-  - GoldCost: 0
+  - GoldCost: 10000
     MaterialCosts:
     - Item_ID: item_wood
-      Amount: 100
-  - GoldCost: 0
-    MaterialCosts:
-    - Item_ID: item_woodplank
-      Amount: 50
-  - GoldCost: 0
-    MaterialCosts:
-    - Item_ID: item_woodplank
-      Amount: 100
-  - GoldCost: 0
-    MaterialCosts:
-    - Item_ID: item_processed_plank
-      Amount: 20
-  - GoldCost: 0
-    MaterialCosts:
-    - Item_ID: item_processed_plank
       Amount: 30
+  - GoldCost: 20000
+    MaterialCosts:
+    - Item_ID: item_wood
+      Amount: 50

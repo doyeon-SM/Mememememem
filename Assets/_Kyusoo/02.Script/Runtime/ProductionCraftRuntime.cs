@@ -26,7 +26,7 @@ public class ProductionCraftRuntime : MonoBehaviour
 
     [Header("제작 완료 데이터")]
     public int currentStorageCount = 0;
-    public int maxStorageCount;
+    public int maxStorageCount = 100;
 
     [Header("배치된 멤 정보")]
     [SerializeField] private List<MemData> addMems = new List<MemData>();
@@ -55,7 +55,6 @@ public class ProductionCraftRuntime : MonoBehaviour
     {
         EnsureBuildingData();
         CacheMemPositions();
-        maxStorageCount = 10;
 
         if (FacilityCollectManager.Instance != null)
             FacilityCollectManager.Instance.RegisterFacility(this);
@@ -112,6 +111,7 @@ public class ProductionCraftRuntime : MonoBehaviour
         currentCraftingItem = targetItemId;
         targetQuantity = quantity;
         remainingQuantity = quantity;
+        maxStorageCount = quantity;
         currentProgressTime = 0f;
 
         RecipeData recipe = FindRecipeDataInCatalog(currentCraftingItem);

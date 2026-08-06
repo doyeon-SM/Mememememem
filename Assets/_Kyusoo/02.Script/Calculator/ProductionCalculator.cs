@@ -32,7 +32,7 @@ public static class ProductionCalculator
     /// </summary>
     public static int GetMaxMemCount(int facilityLevel)
     {
-        return Mathf.Clamp(facilityLevel, 1, 5);
+        return Mathf.Max(2, facilityLevel * 2);
     }
 
     /// <summary>

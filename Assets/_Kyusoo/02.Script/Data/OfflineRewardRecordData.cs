@@ -166,7 +166,7 @@ public class OfflineRewardRecordData : MonoBehaviour, IRecord
             string kstNow = DateTime.UtcNow.AddHours(9).ToString("yyyy-MM-dd HH:mm:ss");
             if (currentData.timeData == null) currentData.timeData = new GameTimeSaveData();
 
-            currentData.timeData.lastSaveRealTimeKst = kstNow;
+            //currentData.timeData.lastSaveRealTimeKst = kstNow;
             currentData.lastSaveTime = kstNow;
 
             System.IO.File.WriteAllText(RecordManager.Instance.SaveFilePath, JsonUtility.ToJson(currentData, true));
@@ -249,31 +249,56 @@ public class OfflineRewardRecordData : MonoBehaviour, IRecord
                 Debug.Log($"[오프라인 보상] [제작대 시설] '{craft.gameObject.name}' 스킵 🛑 : DeployedMems(배치된 멤) 이 0마리입니다.");
                 continue;
             }
+            if (craft.remainingQuantity <= 0)
+            {
+                Debug.Log($"[오프라인 보상] [제작대 시설] '{craft.gameObject.name}' 스킵 🛑 : remainingQuantity(남은 목표량)가 0 이하입니다.");
+                craft.isProducing = false;
+                craft.currentProgressTime = 0f;
+                continue;
+            }
 
-            RecipeData recipe = ItemCatalogManager.Instance != null ? ItemCatalogManager.Instance.FindRecipeData(craft.currentCraftingItem) : null;
+            // maxStorageCount 0 이하 방어 코드 (기본값 10)
+            int effectiveMaxStorage = craft.maxStorageCount > 0 ? craft.maxStorageCount : 100;
+            craft.maxStorageCount = effectiveMaxStorage;
+
+            if (craft.currentStorageCount >= effectiveMaxStorage)
+            {
+                Debug.Log($"[오프라인 보상] [제작대 시설] '{craft.gameObject.name}' 스킵 🛑 : 보관함이 이미 가득 찼습니다 ({craft.currentStorageCount}/{effectiveMaxStorage}).");
+                craft.isProducing = false;
+                continue;
+            }
+
+            // 카탈로그 안전 참조
+            var catalog = ItemCatalogManager.Resolve(null);
+            RecipeData recipe = catalog != null ? catalog.FindRecipeData(craft.currentCraftingItem) : null;
             float baseDuration = recipe != null ? recipe.time : 20f;
             float unitTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, craft.DeployedMems);
             if (unitTime <= 0f) continue;
 
             float totalProgress = craft.currentProgressTime + workSeconds;
-            int units = Mathf.FloorToInt(totalProgress / unitTime);
-            int actualProduced = Mathf.Min(units, craft.remainingQuantity);
+            int unitsPossible = Mathf.FloorToInt(totalProgress / unitTime);
+
+            // 남은 수량과 보관함 여유 공간 중 최소값 계산
+            int availableSpace = effectiveMaxStorage - craft.currentStorageCount;
+            int maxCanProduce = Mathf.Min(craft.remainingQuantity, availableSpace);
+            int actualProduced = Mathf.Min(unitsPossible, maxCanProduce);
+
             int prevCount = craft.currentStorageCount;
 
-            craft.currentStorageCount = Mathf.Min(craft.maxStorageCount, craft.currentStorageCount + actualProduced);
+            craft.currentStorageCount += actualProduced;
             craft.remainingQuantity -= actualProduced;
 
-            if (craft.remainingQuantity <= 0 || isStarved)
+            if (craft.remainingQuantity <= 0 || craft.currentStorageCount >= effectiveMaxStorage || isStarved)
             {
                 craft.isProducing = false;
-                craft.currentProgressTime = 0f;
+                craft.currentProgressTime = (craft.remainingQuantity <= 0 || isStarved) ? 0f : (totalProgress % unitTime);
             }
             else
             {
                 craft.currentProgressTime = totalProgress % unitTime;
             }
 
-            Debug.Log($"<color=cyan>[오프라인 보상] [제작대 시설 성공]</color> '{craft.gameObject.name}' ({craft.currentCraftingItem}) ➡️ +{actualProduced}개 제작 (보관량: {prevCount} -> {craft.currentStorageCount}/{craft.maxStorageCount}, 남은 목표량: {craft.remainingQuantity})");
+            Debug.Log($"<color=cyan>[오프라인 보상] [제작대 시설 성공]</color> '{craft.gameObject.name}' ({craft.currentCraftingItem}) ➡️ +{actualProduced}개 제작 (보관량: {prevCount} -> {craft.currentStorageCount}/{effectiveMaxStorage}, 남은 목표량: {craft.remainingQuantity})");
         }
 
         // 3) 모닥불

@@ -67,26 +67,29 @@ public class TimeRecordData : MonoBehaviour, IRecord
         SaveData currentData = RecordManager.Instance.ReadRawSaveFileOnly();
         if (currentData == null) currentData = new SaveData();
 
+        // 1. 인게임 환경 시간(elapsedTime) 저장은 항상 수행
         if (liveTimeManager != null)
         {
+            if (currentData.timeData == null) currentData.timeData = new GameTimeSaveData();
             currentData.timeData.elapsedTime = liveTimeManager.ElapsedTime;
         }
 
         string activeSceneName = SceneManager.GetActiveScene().name.ToLower();
 
-        // 🌟 [핵심 방어] 타이틀 씬이거나 인게임 씬(Territory/Main_World)이 아닌 경우 저장 시각(lastSaveRealTimeKst)을 갱신하지 않고 이전 값 유지!
-        if (!activeSceneName.Contains("title"))
+        // 🌟 [수정 조건 1] 영지 씬(territory)에서만 lastSaveRealTimeKst 시각을 최신화하여 저장!
+        // 영지에서 종료/강제종료 하거나, 영지 -> 탐험/동굴 씬으로 이동하기 직전(현재 씬이 영지일 때)에만 동작합니다.
+        if (activeSceneName.Contains("territory"))
         {
             string kstNow = DateTime.UtcNow.AddHours(9).ToString("yyyy-MM-dd HH:mm:ss");
             if (currentData.timeData == null) currentData.timeData = new GameTimeSaveData();
 
             currentData.timeData.lastSaveRealTimeKst = kstNow;
             currentData.lastSaveTime = kstNow;
-            Debug.Log($"<color=lime>[TimeRecordData]</color> ⏰ KST 인게임 저장 시각 최신화: {kstNow}");
+            Debug.Log($"<color=lime>[TimeRecordData]</color> ⏰ [영지 씬] KST 저장 시각 최신화 완료: {kstNow}");
         }
         else
         {
-            Debug.Log("<color=yellow>[TimeRecordData]</color> ⚠️ 타이틀 씬 저장 요청 감지: lastSaveRealTimeKst 보존됨");
+            Debug.Log($"<color=yellow>[TimeRecordData]</color> ⚠️ [영지 씬 아님: {activeSceneName}] lastSaveRealTimeKst 저장 스킵 (기존 시각 보존)");
         }
 
         File.WriteAllText(saveFilePath, JsonUtility.ToJson(currentData, true));
@@ -95,6 +98,9 @@ public class TimeRecordData : MonoBehaviour, IRecord
     public void ApplyData(SaveData saveData, SceneType sceneType)
     {
         RefreshManagerReference();
+
+        // 🌟 [수정 조건 2] lastSaveRealTimeKst는 로드하지 않음!
+        // 오직 인게임 환경 시간(elapsedTime)만 복구
         if (liveTimeManager != null && saveData.timeData != null)
         {
             float targetElapsedTime = saveData.timeData.elapsedTime;
@@ -108,7 +114,7 @@ public class TimeRecordData : MonoBehaviour, IRecord
 
             MethodInfo syncMethod = typeof(GameTimeManager).GetMethod("SyncInitialState", BindingFlags.NonPublic | BindingFlags.Instance);
             syncMethod?.Invoke(liveTimeManager, null);
-            Debug.Log($"<color=cyan>[TimeRecordData]</color> ⏰ 경과 시간 복구: {targetElapsedTime:F1}초");
+            Debug.Log($"<color=cyan>[TimeRecordData]</color> ⏰ 경과 시간 복구 완료: {targetElapsedTime:F1}초");
         }
     }
 }
