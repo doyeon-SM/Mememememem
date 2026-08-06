@@ -204,30 +204,38 @@ PrefabInstance:
       objectReference: {fileID: 1489626806}
     - target: {fileID: 8093623029131725433, guid: 1fd7f05ccdad1e542a072a6d84143edd, type: 3}
       propertyPath: spawnTableIds.Array.size
-      value: 6
+      value: 7
       objectReference: {fileID: 0}
     - target: {fileID: 8093623029131725433, guid: 1fd7f05ccdad1e542a072a6d84143edd, type: 3}
       propertyPath: 'spawnTableIds.Array.data[0]'
-      value: Mem_Rare_01
+      value: Mem_Rare_02_Bee
       objectReference: {fileID: 0}
     - target: {fileID: 8093623029131725433, guid: 1fd7f05ccdad1e542a072a6d84143edd, type: 3}
       propertyPath: 'spawnTableIds.Array.data[1]'
-      value: Mem_Rare_01_A
+      value: Mem_Rare_02_Pouch
       objectReference: {fileID: 0}
     - target: {fileID: 8093623029131725433, guid: 1fd7f05ccdad1e542a072a6d84143edd, type: 3}
       propertyPath: 'spawnTableIds.Array.data[2]'
-      value: Mem_Rare_02
+      value: Mem_Rare_03_Butterfly
       objectReference: {fileID: 0}
     - target: {fileID: 8093623029131725433, guid: 1fd7f05ccdad1e542a072a6d84143edd, type: 3}
       propertyPath: 'spawnTableIds.Array.data[3]'
-      value: Mem_Rare_03
+      value: Mem_Rare_04_Crystalblue
       objectReference: {fileID: 0}
     - target: {fileID: 8093623029131725433, guid: 1fd7f05ccdad1e542a072a6d84143edd, type: 3}
       propertyPath: 'spawnTableIds.Array.data[4]'
-      value: Mem_Rare_04
+      value: Mem_Rare_05_Branch
       objectReference: {fileID: 0}
     - target: {fileID: 8093623029131725433, guid: 1fd7f05ccdad1e542a072a6d84143edd, type: 3}
       propertyPath: 'spawnTableIds.Array.data[5]'
+      value: Mem_Rare_05_Clover
+      objectReference: {fileID: 0}
+    - target: {fileID: 8093623029131725433, guid: 1fd7f05ccdad1e542a072a6d84143edd, type: 3}
+      propertyPath: 'spawnTableIds.Array.data[6]'
+      value: Mem_Rare_06_Starfish
+      objectReference: {fileID: 0}
+    - target: {fileID: 8093623029131725433, guid: 1fd7f05ccdad1e542a072a6d84143edd, type: 3}
+      propertyPath: 'spawnTableIds.Array.data[7]'
       value: Mem_Rare_05
       objectReference: {fileID: 0}
     - target: {fileID: 8527542342734120356, guid: 1fd7f05ccdad1e542a072a6d84143edd, type: 3}
@@ -441,6 +449,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: TestCapsule
       objectReference: {fileID: 0}
+    - target: {fileID: 5207469710425988775, guid: c1ad0ec31bfa9a54e8519048ed2fe0fa, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -569,14 +581,62 @@ PrefabInstance:
       objectReference: {fileID: 945545935}
     - target: {fileID: 8093623029131725433, guid: b8aa83686ffdc094abf6a5c1ce36df8a, type: 3}
       propertyPath: spawnTableIds.Array.size
-      value: 2
+      value: 10
       objectReference: {fileID: 0}
     - target: {fileID: 8093623029131725433, guid: b8aa83686ffdc094abf6a5c1ce36df8a, type: 3}
       propertyPath: 'spawnTableIds.Array.data[0]'
-      value: Mem_Rare_01_Leaf
+      value: Mem_Rare_01_Acorn
       objectReference: {fileID: 0}
     - target: {fileID: 8093623029131725433, guid: b8aa83686ffdc094abf6a5c1ce36df8a, type: 3}
       propertyPath: 'spawnTableIds.Array.data[1]'
+      value: Mem_Rare_01_Apple
+      objectReference: {fileID: 0}
+    - target: {fileID: 8093623029131725433, guid: b8aa83686ffdc094abf6a5c1ce36df8a, type: 3}
+      propertyPath: 'spawnTableIds.Array.data[2]'
+      value: Mem_Rare_01_Daisy
+      objectReference: {fileID: 0}
+    - target: {fileID: 8093623029131725433, guid: b8aa83686ffdc094abf6a5c1ce36df8a, type: 3}
+      propertyPath: 'spawnTableIds.Array.data[3]'
+      value: Mem_Rare_01_Strawhat
+      objectReference: {fileID: 0}
+    - target: {fileID: 8093623029131725433, guid: b8aa83686ffdc094abf6a5c1ce36df8a, type: 3}
+      propertyPath: 'spawnTableIds.Array.data[4]'
+      value: Mem_Rare_01_Windmill
+      objectReference: {fileID: 0}
+    - target: {fileID: 8093623029131725433, guid: b8aa83686ffdc094abf6a5c1ce36df8a, type: 3}
+      propertyPath: 'spawnTableIds.Array.data[5]'
+      value: Mem_Rare_01_Ladybug
+      objectReference: {fileID: 0}
+    - target: {fileID: 8093623029131725433, guid: b8aa83686ffdc094abf6a5c1ce36df8a, type: 3}
+      propertyPath: 'spawnTableIds.Array.data[6]'
+      value: Mem_Rare_01_Leaf
+      objectReference: {fileID: 0}
+    - target: {fileID: 8093623029131725433, guid: b8aa83686ffdc094abf6a5c1ce36df8a, type: 3}
+      propertyPath: 'spawnTableIds.Array.data[7]'
+      value: Mem_Rare_01_Shell
+      objectReference: {fileID: 0}
+    - target: {fileID: 8093623029131725433, guid: b8aa83686ffdc094abf6a5c1ce36df8a, type: 3}
+      propertyPath: 'spawnTableIds.Array.data[8]'
+      value: Mem_Rare_01_Strawhat
+      objectReference: {fileID: 0}
+    - target: {fileID: 8093623029131725433, guid: b8aa83686ffdc094abf6a5c1ce36df8a, type: 3}
+      propertyPath: 'spawnTableIds.Array.data[9]'
+      value: Mem_Rare_01_Sunflower
+      objectReference: {fileID: 0}
+    - target: {fileID: 8093623029131725433, guid: b8aa83686ffdc094abf6a5c1ce36df8a, type: 3}
+      propertyPath: 'spawnTableIds.Array.data[10]'
+      value: Mem_Rare_01_Sunflower
+      objectReference: {fileID: 0}
+    - target: {fileID: 8093623029131725433, guid: b8aa83686ffdc094abf6a5c1ce36df8a, type: 3}
+      propertyPath: 'spawnTableIds.Array.data[11]'
+      value: Mem_Rare_01_Sunflower
+      objectReference: {fileID: 0}
+    - target: {fileID: 8093623029131725433, guid: b8aa83686ffdc094abf6a5c1ce36df8a, type: 3}
+      propertyPath: 'spawnTableIds.Array.data[12]'
+      value: Mem_Rare_01_Sunflower
+      objectReference: {fileID: 0}
+    - target: {fileID: 8093623029131725433, guid: b8aa83686ffdc094abf6a5c1ce36df8a, type: 3}
+      propertyPath: 'spawnTableIds.Array.data[13]'
       value: Mem_Rare_01_Sunflower
       objectReference: {fileID: 0}
     - target: {fileID: 8527542342734120356, guid: b8aa83686ffdc094abf6a5c1ce36df8a, type: 3}
@@ -755,6 +815,10 @@ PrefabInstance:
     - target: {fileID: 5320301024596143200, guid: 62a59b4c3527cde43bc47278c90121d8, type: 3}
       propertyPath: m_Name
       value: 0720_Player_KMS
+      objectReference: {fileID: 0}
+    - target: {fileID: 5320301024596143200, guid: 62a59b4c3527cde43bc47278c90121d8, type: 3}
+      propertyPath: m_IsActive
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 9028560332686509555, guid: 62a59b4c3527cde43bc47278c90121d8, type: 3}
       propertyPath: m_LocalPosition.x
@@ -1240,6 +1304,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: MemCatalogManager
       objectReference: {fileID: 0}
+    - target: {fileID: 8276230485055090308, guid: bcbc9372b45773944a77f7063994d66f, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -1626,6 +1694,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: ItemCatalogManager
       objectReference: {fileID: 0}
+    - target: {fileID: 2402855318529382452, guid: e5e80955d5db15140b61d0af065870a7, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 4659454082767282141, guid: e5e80955d5db15140b61d0af065870a7, type: 3}
       propertyPath: m_LocalPosition.x
       value: 4.36901
@@ -1844,6 +1916,10 @@ PrefabInstance:
     - target: {fileID: 6423965748234773401, guid: 8dd9d97a35976f04e90c0e6df28386f0, type: 3}
       propertyPath: m_Name
       value: MemCaptureManger
+      objectReference: {fileID: 0}
+    - target: {fileID: 6423965748234773401, guid: 8dd9d97a35976f04e90c0e6df28386f0, type: 3}
+      propertyPath: m_IsActive
+      value: 1
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -2105,7 +2181,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &2136516337
 MonoBehaviour:
   m_ObjectHideFlags: 0

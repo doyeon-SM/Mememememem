@@ -225,12 +225,22 @@ namespace MemSystem.Spawn
                     }
                     else
                     {
-                        Debug.LogWarning($"[MemSpawner] spawnTableIds의 '{id}'에 해당하는 MemData를 찾을 수 없습니다.");
+                        Debug.LogWarning($"[MemSpawner] '{name}'의 spawnTableIds에 적힌 '{id}'를 " +
+                                         $"MemCatalog 시트에서 찾을 수 없습니다 (Mem_ID 오타이거나 시트에 행이 없음).", this);
                     }
                 }
             }
 
             resolvedSpawnTable = list.ToArray();
+
+            // 조회 결과가 0개면 이 스포너는 스폰 트리거 로그만 계속 찍고 영원히 한 마리도 못 낳는다.
+            // 조용히 실패하면 원인을 찾기 어려우니 스포너 이름과 함께 크게 남긴다.
+            if (resolvedSpawnTable.Length == 0)
+            {
+                int idCount = spawnTableIds != null ? spawnTableIds.Length : 0;
+                Debug.LogError($"[MemSpawner] '{name}'의 스폰 테이블이 비어 스폰이 불가능합니다 — " +
+                               $"spawnTableIds {idCount}개 중 시트에서 조회된 멤이 0개입니다.", this);
+            }
         }
 
         // =================================================================
@@ -367,6 +377,11 @@ namespace MemSystem.Spawn
             {
                 activeMems.Add(mem);
                 MemEvents.OnMemSpawned?.Invoke(mem);
+            }
+            else
+            {
+                Debug.LogError($"[MemSpawner] '{name}'이 풀에서 멤을 꺼내지 못했습니다 " +
+                               $"({data.memId} / 위치 {spawnPos}).", this);
             }
         }
 

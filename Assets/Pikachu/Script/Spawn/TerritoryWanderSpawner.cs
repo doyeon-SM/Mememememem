@@ -231,10 +231,12 @@ public class TerritoryWanderSpawner : MonoBehaviour
         if (mem.TryGetComponent(out MemHealthBar healthBar))
             healthBar.SetHidden(!showHealthBar);
 
-        // 영지 멤은 조용해야 한다. 월드 배회 멤과 같은 프리팹/풀을 공유하므로
-        // 풀에서 꺼낼 때마다 명시적으로 음소거한다. (반환 시 자동 해제됨)
+        // 영지에서는 발소리를 끈다. 좁은 공간에 여러 마리가 모여 있어 발소리가 겹치면 지저분해진다.
+        // 울음소리는 그대로 살려둔다 — MemSound의 전역 게이트가 "한 번에 한 마리, 최소 간격"을
+        // 보장하므로 멤이 많아져도 시끄러워지지 않는다.
+        // 월드 배회 멤과 같은 프리팹/풀을 공유하므로 풀에서 꺼낼 때마다 명시적으로 지정한다. (반환 시 자동 해제됨)
         if (mem.Sound != null)
-            mem.Sound.SetMuted(true);
+            mem.Sound.SetFootstepsEnabled(false);
 
         // 배회 경계 설정. 근무 멤도 시설에서 해제되면 배회로 돌아가므로 함께 적용한다.
         ApplyWanderBoundsIfNeeded(mem);
