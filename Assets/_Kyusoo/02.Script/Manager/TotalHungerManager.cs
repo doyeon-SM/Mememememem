@@ -316,7 +316,7 @@ public class TotalHungerManager : MonoBehaviour
 
         // 이번 틱에 어떤 멤도 굶는 상태가 바뀌지 않았으면(계속 정상이거나 계속 굶는 중) 시설 상태를
         // 다시 건드릴 필요가 없다 - 이미 맞는 상태로 가동/정지 중이다.
-        if (!anyChanged) return;
+        //if (!anyChanged) return;
 
         if (anyStillStarving)
         {
