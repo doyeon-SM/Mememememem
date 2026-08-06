@@ -663,7 +663,7 @@ namespace KMS
             if (hasDisplayedGold && gold == lastDisplayedGold) return;
             lastDisplayedGold = gold;
             hasDisplayedGold = true;
-            string value = $"Gold: {gold} ";
+            string value = $"{gold}";
             if (UsesToolkitHud)
             {
                 if (toolkitGoldLabel != null) toolkitGoldLabel.text = value;
