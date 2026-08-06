@@ -82,7 +82,7 @@ public class PlayerDefaultItemTest : MonoBehaviour
             }
 
             string itemId = entry.Item;
-            if (playerInventory.GetItemAmount(itemId) > 0)
+            if (OwnsItemIncludingForged(itemId))
             {
                 continue;
             }
@@ -111,6 +111,56 @@ public class PlayerDefaultItemTest : MonoBehaviour
                 Debug.LogWarning($"[PlayerDefaultItemTest] 공간 부족으로 {itemId} x{remainingAmount}개를 지급하지 못했습니다.", this);
             }
         }
+    }
+
+    /// <summary>
+    /// [HDY 요청 - 재지급 버그 수정] PlayerInventory.GetItemAmount는 stack.itemId와 완전히 똑같은
+    /// 문자열인 경우만 센다. 그런데 이 아이템에 대장간 강화/승급/연마(이 클래스가 호출하는
+    /// ApplyFixedToolRefinement 포함)가 한 번이라도 적용되면, ForgeManager.ApplyInstanceToSlot이
+    /// stack.itemId를 "{BaseItemId}@{InstanceId}" 형태의 합성 ID로 바꿔버린다. 그 결과 GetItemAmount만
+    /// 으로는 이미 강화까지 적용된 도구를 "보유 중"으로 인식하지 못해서, 맵을 나갔다가 돌아와 Start()가
+    /// 다시 실행될 때마다 같은 기본 아이템이 계속 재지급되는 문제가 있었다.
+    /// 여기서는 공용 PlayerInventory.GetItemAmount 로직은 그대로 두고(다른 시스템에 영향 없도록),
+    /// 이 컴포넌트 안에서만 인벤토리/퀵슬롯을 직접 훑어 합성 ID의 BaseItemId까지 비교해서 판정한다.
+    /// </summary>
+    private bool OwnsItemIncludingForged(string itemId)
+    {
+        if (playerInventory.GetItemAmount(itemId) > 0)
+        {
+            return true;
+        }
+
+        return ContainerHasBaseItem(playerInventory.inventory, itemId)
+            || ContainerHasBaseItem(playerInventory.quickSlots, itemId);
+    }
+
+    /// <summary>[HDY 요청 - 재지급 버그 수정] 컨테이너 한 곳을 훑어 합성 ID든 아니든 BaseItemId가 itemId와 일치하는 스택이 있는지 확인한다.</summary>
+    private static bool ContainerHasBaseItem(InventoryContainer container, string itemId)
+    {
+        if (container == null || container.slots == null)
+        {
+            return false;
+        }
+
+        foreach (ItemStack stack in container.slots)
+        {
+            if (stack == null || stack.IsEmpty)
+            {
+                continue;
+            }
+
+            if (stack.itemId == itemId)
+            {
+                return true;
+            }
+
+            if (ForgeInstanceRegistry.TryParseCompositeId(stack.itemId, out string baseItemId, out _) && baseItemId == itemId)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
