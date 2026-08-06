@@ -7,9 +7,10 @@ namespace HDY.Territory
     /// <summary>
     /// 게임에서 쓰는 두 가지 시간을 계산/포맷해서 제공하는 매니저.
     ///
-    /// 1) 리얼타임 - 실제 대한민국 표준시(KST, UTC+9)를 "00시 00분" 형식으로 제공한다. 시스템의 로컬
-    ///    시간대 설정과 무관하게 항상 UTC 기준으로 9시간을 더해 계산하므로, 빌드/실행 환경이 어디든
-    ///    KST로 정확히 표시된다.
+    /// 1) 리얼타임 - 실제 대한민국 표준시(KST, UTC+9)를 "PM 00:00" 형식(12시간제, AM/PM 접두사)으로
+    ///    제공한다. 시스템의 로컬 시간대 설정과 무관하게 항상 UTC 기준으로 9시간을 더해 계산하므로,
+    ///    빌드/실행 환경이 어디든 KST로 정확히 표시된다. 정오/자정은 12시로 표기한다(0시가 아님 - 일반적인
+    ///    12시간제 표기 관례).
     /// 2) 인게임 시간 - 게임 시작 이후 누적된 시간(초, elapsedTime)을 dayLengthSeconds(기본 20분 = 1200초)로
     ///    나눈 나머지를 "하루 안에서 흐른 시간"으로 보고 "00분 00초" 형식으로 제공한다. dayLengthSeconds가
     ///    지날 때마다 0으로 돌아가는 것이 "하루가 초기화된다"는 뜻이다.
@@ -71,7 +72,7 @@ namespace HDY.Territory
         [SerializeField] private float dayLengthSeconds = 20f * 60f;
 
         [Header("Text 연결 (선택 사항 - GameTimeTextBinder를 쓰면 여기 직접 연결하지 않아도 됨)")]
-        [Tooltip("\"00시 00분\" 형식으로 표시할 TMP_Text. 값이 바뀔 때마다 이 매니저가 알아서 text를 갱신한다. 씬 전환 시 끊기지 않게 하려면 GameTimeTextBinder를 대신 쓰는 것을 권장한다.")]
+        [Tooltip("\"PM 00:00\" 형식(12시간제 + AM/PM)으로 표시할 TMP_Text. 값이 바뀔 때마다 이 매니저가 알아서 text를 갱신한다. 씬 전환 시 끊기지 않게 하려면 GameTimeTextBinder를 대신 쓰는 것을 권장한다.")]
         [SerializeField] private TMP_Text realTimeText;
 
         /// <summary>게임 시작 이후 누적된 인게임 시간(초). 실제 누적 주체는 이 매니저다.</summary>
@@ -100,7 +101,7 @@ namespace HDY.Territory
         private string lastRealTimeText = string.Empty;
         private string lastInGameTimeText = string.Empty;
 
-        /// <summary>리얼타임 표시 문자열("00시 00분")이 바뀔 때마다(분 단위) 발행.</summary>
+        /// <summary>리얼타임 표시 문자열("PM 00:00")이 바뀔 때마다(분 단위) 발행.</summary>
         public event Action<string> OnRealTimeTextChanged;
 
         /// <summary>인게임 시간 표시 문자열("00분 00초")이 바뀔 때마다(초 단위) 발행.</summary>
@@ -228,12 +229,20 @@ namespace HDY.Territory
             return $"{minutes:00}분 {seconds:00}초";
         }
 
+        /// <summary>
+        /// [HDY 요청] 24시간제 hour(0~23)를 12시간제 "AM/PM 00:00" 형식으로 변환한다. 0시/12시는 관례대로
+        /// 12시로 표기한다(0시로 표기하지 않음) - 예: 0시(자정)→"AM 12:00", 13시→"PM 01:00", 12시(정오)→"PM 12:00".
+        /// </summary>
         private static string FormatRealTime(int hour, int minute)
         {
-            return $"{hour:00}시 {minute:00}분";
+            string period = hour < 12 ? "AM" : "PM";
+            int displayHour = hour % 12;
+            if (displayHour == 0) displayHour = 12;
+
+            return $"{period} {displayHour:00}:{minute:00}";
         }
 
-        /// <summary>지금 기준 리얼타임(KST) 표시 문자열을 반환한다("00시 00분"). Update에서 매 프레임 최신 상태로 유지된다.</summary>
+        /// <summary>지금 기준 리얼타임(KST) 표시 문자열을 반환한다("PM 00:00"). Update에서 매 프레임 최신 상태로 유지된다.</summary>
         public string GetRealTimeText() => lastRealTimeText;
 
         /// <summary>지금 기준 인게임 시간 표시 문자열을 반환한다("00분 00초"). Update에서 매 프레임 최신 상태로 유지된다.</summary>

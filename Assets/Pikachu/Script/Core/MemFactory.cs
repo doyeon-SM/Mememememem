@@ -40,6 +40,11 @@ namespace MemSystem.Core
         [Tooltip("생성된 멤의 부모 Transform — 하이어라키 정리용. 미설정 시 이 오브젝트 하위에 생성됩니다.")]
         [SerializeField] private Transform memParent;
 
+        [Header("HP 바")]
+        [Tooltip("멤 머리 위 HP 바 스타일. Background/Fill 스프라이트를 드래그로 넣을 수 있고, " +
+                 "비우면 단색 사각형으로 표시됩니다. Height Offset으로 높이를 조절하세요.")]
+        [SerializeField] private Visual.MemHealthBarStyle healthBarStyle = new Visual.MemHealthBarStyle();
+
         // =================================================================
         // Public API
         // =================================================================
@@ -64,6 +69,15 @@ namespace MemSystem.Core
                 return null;
             }
 
+            // 머리 위 HP 바 자동 부착 (프리팹 수정 없이 코드로 UI 생성).
+            // 풀 인스턴스마다 1회만 붙으며, 이후 재사용 내내 유지됩니다.
+            // 스타일은 GameObject가 비활성인 지금(=Awake 전에) 주입해야 BuildUI에 반영됩니다.
+            if (go.GetComponent<Visual.MemHealthBar>() == null)
+            {
+                var bar = go.AddComponent<Visual.MemHealthBar>();
+                bar.SetStyle(healthBarStyle);
+            }
+
             return mem;
         }
 
@@ -84,7 +98,13 @@ namespace MemSystem.Core
             mem.gameObject.SetActive(true);
 
             // 3. 활성화된 상태에서 안전하게 NavMeshAgent Warp 호출 (이전 경로/보간 찌꺼기 제거)
-            if (mem.Movement != null) mem.Movement.Warp(position);
+            //    실패하면 NavMesh 밖에 놓인 채로 스폰된다 → 이동 명령이 전부 무시되므로 반드시 확인한다.
+            if (mem.Movement != null && !mem.Movement.Warp(position))
+            {
+                Debug.LogError(
+                    $"[MemFactory] {data.memName} 이 NavMesh 밖에 스폰되었습니다 (위치: {position}). " +
+                    $"이 멤은 이동하지 못합니다 — 스폰 지점을 NavMesh 위로 옮기세요.", mem);
+            }
 
             // 데이터 주입 + 초기화 (AI 초기화 → PlayIdle 등 Animator 제어 포함)
             mem.Initialize(data, tierTable);

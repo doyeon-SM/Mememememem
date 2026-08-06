@@ -4,8 +4,10 @@ using System.Collections.Generic;
 using GH.Loading;
 using KMS.InventoryDuped;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 using UnityEngine.Serialization;
+using UnityEngine.UI;
 
 /// <summary>
 /// 모든 웨이포인트의 런타임 해금 상태, 지도 개방 조건, 스톤 등록과 이동 요청을 관리합니다.
@@ -19,6 +21,8 @@ public class WayPointManager : MonoBehaviour
 
     [Header("WayPoint Data")]
     [SerializeField] private List<WayPointMapDefinition> mapDefinitions = new List<WayPointMapDefinition>();
+    [Tooltip("스테이지 목록입니다. 각 스테이지에는 항상 표시할 기본 지도와 방문 후 표시할 하위 지도를 등록할 수 있습니다.")]
+    [SerializeField] private List<WayPointStageDefinition> stageDefinitions = new List<WayPointStageDefinition>();
     [SerializeField] private List<WayPointDefinition> definitions = new List<WayPointDefinition>();
 
     [Header("Scene Map UI")]
@@ -31,6 +35,10 @@ public class WayPointManager : MonoBehaviour
     [SerializeField] private WayPointMapDefinition shortcutMap;
     [Tooltip("등록된 씬에서는 단축키 지도를 웨이포인트 이동 모드로 엽니다.")]
     [SerializeField] private List<string> shortcutTravelSceneNames = new List<string> { "Territory" };
+
+    [Header("Territory Travel")]
+    [Tooltip("활성화된 웨이포인트 스톤에서 연 지도의 전용 버튼으로만 진입할 수 있는 영지 씬 이름입니다.")]
+    [SerializeField] private string territorySceneName = "Territory";
 
     [Header("Map Input And Cursor")]
     [SerializeField] private bool notifyInputManager = true;
@@ -48,18 +56,41 @@ public class WayPointManager : MonoBehaviour
     [SerializeField] private string playerLayerName = "Player";
     [SerializeField] private bool dontDestroyOnLoad = true;
 
+    [Header("Same Scene Travel Presentation")]
+    [Min(0.01f)] [SerializeField] private float fadeOutDuration = 0.2f;
+    [Min(0.01f)] [SerializeField] private float fadeInDuration = 0.2f;
+    [SerializeField] private Color travelFadeColor = Color.black;
+    [SerializeField] private ParticleSystem arrivalParticlePrefab;
+    [Tooltip("도착 파티클 전용 머티리얼입니다. 비워 두면 URP 호환 머티리얼을 런타임에 생성합니다.")]
+    [SerializeField] private Material arrivalParticleMaterial;
+    [Min(1)] [SerializeField] private int fallbackArrivalParticleCount = 18;
+    [SerializeField] private Color fallbackArrivalParticleColor =
+        new Color(0.35f, 0.86f, 1f, 1f);
+
     [Header("Debug")]
     [SerializeField] private bool logWayPointState = true;
     [SerializeField] private bool logUnlockStackTrace = true;
 
     private readonly Dictionary<string, WayPointRunTime> statesById = new Dictionary<string, WayPointRunTime>();
     private readonly Dictionary<string, WayPointStone> stonesById = new Dictionary<string, WayPointStone>();
+    // ScriptableObject 참조 대신 Instance ID만 보관해 세션 방문 기록의 메모리 점유를 줄입니다.
+    // 저장된 웨이포인트 해금 상태를 복원할 때도 해당 지도 ID를 추가하므로 별도 저장 필드가 필요 없습니다.
+    private readonly HashSet<int> visitedMapIds = new HashSet<int>();
+    private WayPointMapDefinition currentAreaMap;
     private WayPointRunTime pendingTravelState;
     private GameObject targetUI;
     private bool isMapOpen;
     private bool manageCursorForOpenMap;
+    private string openedFromWayPointId;
+    private bool authorizingTerritoryLoad;
     private int lastShortcutToggleFrame = -1;
     private Coroutine cursorPolicyRefreshCoroutine;
+    private Coroutine sameSceneTravelRoutine;
+    private CanvasGroup travelFadeCanvasGroup;
+    private bool isTravelTransitionRunning;
+    private Material runtimeArrivalParticleMaterial;
+    private Texture2D runtimeArrivalParticleTexture;
+    private bool warnedMissingArrivalParticleShader;
 
     /// <summary>잠긴 웨이포인트가 처음 해금될 때 발생합니다.</summary>
     public event Action<WayPointRunTime> OnWayPointUnlocked;
@@ -84,6 +115,9 @@ public class WayPointManager : MonoBehaviour
 
     /// <summary>현재 활성 씬의 지도 UI가 매니저를 통해 열려 있는지 나타냅니다.</summary>
     public bool IsMapOpen => isMapOpen;
+
+    /// <summary>동일 씬 웨이포인트의 페이드 이동 연출이 진행 중인지 나타냅니다.</summary>
+    public bool IsTravelTransitionRunning => isTravelTransitionRunning;
 
     private void Awake()
     {
@@ -116,6 +150,7 @@ public class WayPointManager : MonoBehaviour
     private void Start()
     {
         RegisterSceneStones();
+        RegisterCurrentSceneMapVisit(SceneManager.GetActiveScene().name);
         ResolveSceneMapUI();
 
         if (hideMapOnSceneLoad)
@@ -128,7 +163,15 @@ public class WayPointManager : MonoBehaviour
 
     private void OnDestroy()
     {
-        if (isMapOpen)
+        bool shouldReleaseInput = isMapOpen || isTravelTransitionRunning;
+        if (sameSceneTravelRoutine != null)
+        {
+            StopCoroutine(sameSceneTravelRoutine);
+            sameSceneTravelRoutine = null;
+        }
+
+        isTravelTransitionRunning = false;
+        if (shouldReleaseInput)
         {
             ApplyMapInputState(false, manageCursorForOpenMap);
         }
@@ -136,6 +179,18 @@ public class WayPointManager : MonoBehaviour
         if (LoadingManager.Instance != null)
         {
             LoadingManager.Instance.LoadingCompleted -= HandleCrossSceneTravelCompleted;
+        }
+
+        if (runtimeArrivalParticleMaterial != null)
+        {
+            Destroy(runtimeArrivalParticleMaterial);
+            runtimeArrivalParticleMaterial = null;
+        }
+
+        if (runtimeArrivalParticleTexture != null)
+        {
+            Destroy(runtimeArrivalParticleTexture);
+            runtimeArrivalParticleTexture = null;
         }
 
         if (Instance == this)
@@ -209,6 +264,8 @@ public class WayPointManager : MonoBehaviour
             return false;
         }
 
+        // 단축키나 일반 지도 버튼으로 연 경우에는 스톤 출발 권한을 남기지 않는다.
+        openedFromWayPointId = string.Empty;
         manageCursorForOpenMap = !IsAlwaysVisibleCursorScene();
         isMapOpen = true;
         SetSceneMapVisible(true);
@@ -221,9 +278,11 @@ public class WayPointManager : MonoBehaviour
     public bool OpenMapFromStone(WayPointDefinition sourceWayPoint)
     {
         WayPointMapDefinition targetMap = sourceWayPoint != null ? sourceWayPoint.mapDefinition : null;
+        RegisterMapVisit(targetMap);
         bool opened = OpenMap(WayPointMapOpenMode.Travel, targetMap);
         if (opened && mapUI != null)
         {
+            openedFromWayPointId = sourceWayPoint != null ? sourceWayPoint.id : string.Empty;
             mapUI.SetOpenedFromWayPoint(sourceWayPoint);
         }
 
@@ -243,6 +302,7 @@ public class WayPointManager : MonoBehaviour
         bool shouldManageCursor = manageCursorForOpenMap;
         isMapOpen = false;
         manageCursorForOpenMap = false;
+        openedFromWayPointId = string.Empty;
 
         if (wasOpen)
         {
@@ -343,12 +403,13 @@ public class WayPointManager : MonoBehaviour
 
     private void ApplyMapInputState(bool open, bool manageCursor)
     {
+        bool gameplayBlocked = open || isTravelTransitionRunning;
         if (notifyInputManager && InputManager.Instance != null)
         {
-            InputManager.Instance.SetSystemMenuOpen(open);
+            InputManager.Instance.SetSystemMenuOpen(gameplayBlocked);
         }
 
-        SetKmsPlayerInputBlocked(open);
+        SetKmsPlayerInputBlocked(gameplayBlocked);
 
         // 영지처럼 상시 커서를 사용하는 이동 허용 씬에서는 커서 상태를 절대 변경하지 않는다.
         if (!unlockCursorWhileOpen || !manageCursor)
@@ -557,6 +618,107 @@ public class WayPointManager : MonoBehaviour
     }
 
     /// <summary>
+    /// 현재 표시 중인 지도와 관계없이 게임에 등록된 전체 웨이포인트 중
+    /// 하나 이상이 해금되어 있는지 확인합니다.
+    /// </summary>
+    public bool HasAnyUnlockedWayPointInGame()
+    {
+        foreach (WayPointRunTime state in statesById.Values)
+        {
+            if (state != null && state.IsActive)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>기존 호출부 호환용 전체 웨이포인트 활성 상태 검사입니다.</summary>
+    public bool HasAnyActiveWayPoint()
+    {
+        return HasAnyUnlockedWayPointInGame();
+    }
+
+    /// <summary>지정한 씬 이름이 영지 씬인지 확인합니다.</summary>
+    public bool IsTerritorySceneName(string sceneName)
+    {
+        return !string.IsNullOrWhiteSpace(sceneName)
+            && !string.IsNullOrWhiteSpace(territorySceneName)
+            && string.Equals(sceneName.Trim(), territorySceneName.Trim(), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 현재 지도가 실제 스톤에서 열렸고, 현재 지도와 관계없이 게임에 등록된 전체 웨이포인트 중
+    /// 하나 이상이 해금되어 있을 때만 영지 이동을 허용합니다.
+    /// 일반 지도 열기 또는 전체 웨이포인트가 잠긴 상태에서는 거짓입니다.
+    /// </summary>
+    public bool CanTravelToTerritoryFromOpenedStone()
+    {
+        if (!isMapOpen
+            || IsTerritorySceneName(SceneManager.GetActiveScene().name)
+            || string.IsNullOrWhiteSpace(openedFromWayPointId)
+            || !HasAnyUnlockedWayPointInGame()
+            || LoadingManager.Instance == null
+            || LoadingManager.Instance.IsLoading)
+        {
+            return false;
+        }
+
+        return statesById.TryGetValue(openedFromWayPointId, out WayPointRunTime sourceState)
+            && sourceState != null
+            && sourceState.Stone != null;
+    }
+
+    /// <summary>실제 웨이포인트 스톤에서 연 지도의 영지 이동 버튼 요청을 처리합니다.</summary>
+    public bool TryTravelToTerritory()
+    {
+        statesById.TryGetValue(openedFromWayPointId, out WayPointRunTime sourceState);
+
+        if (!HasAnyUnlockedWayPointInGame())
+        {
+            NotifyTravelFailed(sourceState, "게임 전체에 해금된 웨이포인트가 없어 영지로 이동할 수 없습니다.");
+            return false;
+        }
+
+        if (!CanTravelToTerritoryFromOpenedStone())
+        {
+            NotifyTravelFailed(sourceState, "영지는 실제 웨이포인트 스톤에서 연 지도를 통해서만 이동할 수 있습니다.");
+            return false;
+        }
+
+        authorizingTerritoryLoad = true;
+        bool started;
+        try
+        {
+            started = LoadingManager.Instance.LoadScene(territorySceneName.Trim(), string.Empty);
+        }
+        finally
+        {
+            authorizingTerritoryLoad = false;
+        }
+
+        if (!started)
+        {
+            NotifyTravelFailed(sourceState, $"영지 씬 로딩 요청에 실패했습니다: {territorySceneName}");
+            return false;
+        }
+
+        OnWayPointTravelStarted?.Invoke(sourceState);
+        CloseMap();
+        return true;
+    }
+
+    /// <summary>
+    /// LoadingManager가 영지 씬 직접 로딩 요청을 받았을 때 전용 스톤 이동 흐름에서 시작된 요청인지 검증합니다.
+    /// 영지 외 씬은 기존 로딩 흐름을 그대로 허용합니다.
+    /// </summary>
+    public bool IsSceneLoadAuthorized(string sceneName)
+    {
+        return !IsTerritorySceneName(sceneName) || authorizingTerritoryLoad;
+    }
+
+    /// <summary>
     /// 지도 개방, 웨이포인트 해금, 현재 씬의 스톤 존재 여부를 기준으로 이동 가능성을 확인합니다.
     /// 다른 씬 목적지는 현재 씬에 스톤 참조가 없어도 이동 가능합니다.
     /// </summary>
@@ -688,6 +850,36 @@ public class WayPointManager : MonoBehaviour
         return definition != null && CanUnlockByExternalAction(definition.id, requireMapAvailable);
     }
 
+    /// <summary>
+    /// 세이브 데이터에서 복원한 해금 상태를 런타임 상태와 연결된 씬 오브젝트에 함께 반영합니다.
+    /// 일반 해금 이벤트는 발생시키지 않아 로드 중 중복 저장을 막고, 상태 변경 이벤트만 전달합니다.
+    /// </summary>
+    public bool ApplySavedUnlockedState(string id, bool unlocked)
+    {
+        if (!statesById.TryGetValue(id, out WayPointRunTime state))
+        {
+            Debug.LogWarning($"[WayPointManager] Cannot restore unknown waypoint id: {id}");
+            return false;
+        }
+
+        state.IsActive = unlocked;
+
+        // 별도의 방문 지도 세이브 목록을 만들지 않고, 이미 저장되는 웨이포인트 해금 상태를
+        // 해당 하위 지도를 실제로 방문했다는 근거로 재사용합니다.
+        if (unlocked && state.Definition != null && state.Definition.mapDefinition != null)
+        {
+            visitedMapIds.Add(state.Definition.mapDefinition.GetInstanceID());
+        }
+
+        if (state.Stone != null)
+        {
+            state.Stone.SetUnlockedState(unlocked);
+        }
+
+        OnWayPointStateChanged?.Invoke(state);
+        return true;
+    }
+
     private bool SetUnlocked(string id, bool requireMapAvailable, WayPointUnlockType requiredUnlockType, string logMessage)
     {
         if (!statesById.TryGetValue(id, out WayPointRunTime state))
@@ -715,11 +907,16 @@ public class WayPointManager : MonoBehaviour
         }
 
         state.IsActive = true;
+        if (state.Definition.mapDefinition != null)
+        {
+            visitedMapIds.Add(state.Definition.mapDefinition.GetInstanceID());
+        }
         LogState($"{logMessage}: id={id}", state.Definition, logUnlockStackTrace);
 
         if (state.Stone != null)
         {
             state.Stone.SetUnlockedState(true);
+            state.Stone.ShowUnlockedAreaNotification();
         }
 
         OnWayPointUnlocked?.Invoke(state);
@@ -729,10 +926,10 @@ public class WayPointManager : MonoBehaviour
         return true;
     }
 
-    // 특정 맵이 현재 열려 있는지 확인한다.
+    // 특정 지도가 현재 열려 있는지 확인한다.
     /// <summary>
     /// 지도가 현재 선택 및 이동에 사용 가능한지 확인합니다.
-    /// 첫 지도는 초기 설정을 따르고, 이후 지도는 이전 지도의 모든 웨이포인트 해금을 요구합니다.
+    /// 처음부터 개방된 지도이거나, 등록된 모든 선행 지도의 웨이포인트가 전부 해금되면 사용할 수 있습니다.
     /// </summary>
     public bool IsMapAvailable(WayPointMapDefinition mapDefinition)
     {
@@ -741,12 +938,128 @@ public class WayPointManager : MonoBehaviour
             return true;
         }
 
-        if (mapDefinition.requiredPreviousMap == null)
+        WayPointStageDefinition stageDefinition = GetStageForMap(mapDefinition);
+        if (stageDefinition != null)
         {
-            return mapDefinition.unlockedOnStart;
+            return IsStageAvailable(stageDefinition);
         }
 
-        return AreAllWayPointsUnlockedInMap(mapDefinition.requiredPreviousMap);
+        return IsStandaloneMapAvailable(mapDefinition);
+    }
+
+    /// <summary>
+    /// 기본 지도, 이미 방문한 하위 지도 또는 스테이지에 속하지 않은 기존 지도인지 확인합니다.
+    /// 잠긴 다른 스테이지의 기본 지도는 목록에 표시되지만 하위 지도는 실제 방문 전까지 숨깁니다.
+    /// </summary>
+    public bool IsMapVisibleInList(WayPointMapDefinition mapDefinition)
+    {
+        if (mapDefinition == null)
+        {
+            return false;
+        }
+
+        WayPointStageDefinition stageDefinition = GetStageForMap(mapDefinition);
+        if (stageDefinition == null)
+        {
+            return true;
+        }
+
+        return stageDefinition.IsDefaultMap(mapDefinition) || HasVisitedMap(mapDefinition);
+    }
+
+    /// <summary>지정 지도를 방문 처리하고 같은 씬에 여러 지도가 있을 때 현재 지역 지도로 기록합니다.</summary>
+    public bool RegisterMapVisit(WayPointMapDefinition mapDefinition)
+    {
+        if (mapDefinition == null)
+        {
+            return false;
+        }
+
+        bool newlyVisited = visitedMapIds.Add(mapDefinition.GetInstanceID());
+        bool currentAreaChanged = currentAreaMap != mapDefinition;
+        currentAreaMap = mapDefinition;
+
+        if (newlyVisited || currentAreaChanged)
+        {
+            OnMapAvailabilityChanged?.Invoke(mapDefinition);
+        }
+
+        return newlyVisited;
+    }
+
+    /// <summary>
+    /// 지정 지도가 현재 세션에서 방문됐거나 저장된 웨이포인트 해금 상태로 방문이 복원됐는지 확인합니다.
+    /// </summary>
+    public bool HasVisitedMap(WayPointMapDefinition mapDefinition)
+    {
+        return mapDefinition != null && visitedMapIds.Contains(mapDefinition.GetInstanceID());
+    }
+
+    /// <summary>
+    /// 스테이지에 등록된 모든 완료 조건 지도의 웨이포인트가 해금됐는지 확인합니다.
+    /// 완료 조건이 없으면 스테이지의 Unlocked On Start 값을 사용합니다.
+    /// </summary>
+    public bool IsStageAvailable(WayPointStageDefinition stageDefinition)
+    {
+        if (stageDefinition == null)
+        {
+            return false;
+        }
+
+        bool hasRequiredMap = false;
+
+        if (stageDefinition.requiredCompletedMaps != null)
+        {
+            foreach (WayPointMapDefinition requiredMap in stageDefinition.requiredCompletedMaps)
+            {
+                if (requiredMap == null || stageDefinition.ContainsMap(requiredMap))
+                {
+                    continue;
+                }
+
+                hasRequiredMap = true;
+                if (!AreAllWayPointsUnlockedInMap(requiredMap))
+                {
+                    return false;
+                }
+            }
+        }
+
+        return hasRequiredMap || stageDefinition.unlockedOnStart;
+    }
+
+    // 스테이지에 포함되지 않은 기존 지도 데이터의 개방 규칙을 유지한다.
+    private bool IsStandaloneMapAvailable(WayPointMapDefinition mapDefinition)
+    {
+        bool hasRequiredMap = false;
+
+        if (mapDefinition.requiredPreviousMap != null)
+        {
+            hasRequiredMap = true;
+            if (!AreAllWayPointsUnlockedInMap(mapDefinition.requiredPreviousMap))
+            {
+                return false;
+            }
+        }
+
+        if (mapDefinition.requiredCompletedMaps != null)
+        {
+            foreach (WayPointMapDefinition requiredMap in mapDefinition.requiredCompletedMaps)
+            {
+                if (requiredMap == null || requiredMap == mapDefinition)
+                {
+                    continue;
+                }
+
+                hasRequiredMap = true;
+                if (!AreAllWayPointsUnlockedInMap(requiredMap))
+                {
+                    return false;
+                }
+            }
+        }
+
+        return hasRequiredMap || mapDefinition.unlockedOnStart;
     }
 
     // 특정 맵에 포함된 모든 웨이포인트가 해금되었는지 확인한다.
@@ -808,6 +1121,22 @@ public class WayPointManager : MonoBehaviour
             }
         }
 
+        foreach (WayPointStageDefinition stageDefinition in GetAllStages())
+        {
+            if (stageDefinition == null || stageDefinition.maps == null)
+            {
+                continue;
+            }
+
+            foreach (WayPointMapDefinition mapDefinition in stageDefinition.maps)
+            {
+                if (mapDefinition != null && !result.Contains(mapDefinition))
+                {
+                    result.Add(mapDefinition);
+                }
+            }
+        }
+
         foreach (WayPointRunTime state in statesById.Values)
         {
             WayPointMapDefinition map = state.Definition != null ? state.Definition.mapDefinition : null;
@@ -818,6 +1147,162 @@ public class WayPointManager : MonoBehaviour
         }
 
         return result;
+    }
+
+    /// <summary>인스펙터에 등록된 모든 스테이지를 중복 없이 반환합니다.</summary>
+    public List<WayPointStageDefinition> GetAllStages()
+    {
+        List<WayPointStageDefinition> result = new List<WayPointStageDefinition>();
+
+        foreach (WayPointStageDefinition stageDefinition in stageDefinitions)
+        {
+            if (stageDefinition != null && !result.Contains(stageDefinition))
+            {
+                result.Add(stageDefinition);
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>지정 지도가 속한 스테이지를 반환하며, 등록되지 않았으면 null입니다.</summary>
+    public WayPointStageDefinition GetStageForMap(WayPointMapDefinition mapDefinition)
+    {
+        if (mapDefinition == null)
+        {
+            return null;
+        }
+
+        foreach (WayPointStageDefinition stageDefinition in stageDefinitions)
+        {
+            if (stageDefinition != null && stageDefinition.ContainsMap(mapDefinition))
+            {
+                return stageDefinition;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 스테이지 안에서 현재 씬에 연결된 지도를 우선해 반환합니다.
+    /// 현재 씬 지도가 없으면 요청 지도, 그 다음 등록된 첫 지도를 사용합니다.
+    /// </summary>
+    public WayPointMapDefinition GetPreferredMapForStage(
+        WayPointStageDefinition stageDefinition,
+        string sceneName,
+        WayPointMapDefinition preferredMap = null)
+    {
+        if (stageDefinition == null || stageDefinition.maps == null)
+        {
+            return null;
+        }
+
+        if (preferredMap != null
+            && stageDefinition.ContainsMap(preferredMap)
+            && IsMapVisibleInList(preferredMap)
+            && IsMapAssignedToScene(preferredMap, sceneName))
+        {
+            return preferredMap;
+        }
+
+        foreach (WayPointMapDefinition mapDefinition in stageDefinition.maps)
+        {
+            if (IsMapVisibleInList(mapDefinition)
+                && IsMapAssignedToScene(mapDefinition, sceneName))
+            {
+                return mapDefinition;
+            }
+        }
+
+        if (preferredMap != null
+            && stageDefinition.ContainsMap(preferredMap)
+            && IsMapVisibleInList(preferredMap))
+        {
+            return preferredMap;
+        }
+
+        foreach (WayPointMapDefinition mapDefinition in stageDefinition.maps)
+        {
+            if (IsMapVisibleInList(mapDefinition))
+            {
+                return mapDefinition;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>지정 씬에 연결된 모든 지도 정의를 매니저 등록 순서대로 반환합니다.</summary>
+    public List<WayPointMapDefinition> GetMapsForScene(string sceneName)
+    {
+        List<WayPointMapDefinition> result = new List<WayPointMapDefinition>();
+
+        foreach (WayPointMapDefinition mapDefinition in GetAllMaps())
+        {
+            if (IsMapAssignedToScene(mapDefinition, sceneName))
+            {
+                result.Add(mapDefinition);
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>지도 정의가 지정 씬에 연결되어 있는지 확인합니다.</summary>
+    public bool IsMapAssignedToScene(WayPointMapDefinition mapDefinition, string sceneName)
+    {
+        return mapDefinition != null
+            && !string.IsNullOrWhiteSpace(mapDefinition.sceneName)
+            && !string.IsNullOrWhiteSpace(sceneName)
+            && string.Equals(mapDefinition.sceneName.Trim(), sceneName.Trim(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// 활성 씬에 연결된 지도 중 우선 지도를 반환합니다.
+    /// 같은 씬에 여러 지도가 있으면 요청 지도, 현재 방문 지역, 표시 가능한 첫 지도 순으로 반환합니다.
+    /// </summary>
+    public WayPointMapDefinition GetPreferredMapForScene(
+        string sceneName,
+        WayPointMapDefinition preferredMap = null)
+    {
+        List<WayPointMapDefinition> sceneMaps = GetMapsForScene(sceneName);
+        if (sceneMaps.Count == 0)
+        {
+            return null;
+        }
+
+        if (preferredMap != null
+            && sceneMaps.Contains(preferredMap)
+            && IsMapVisibleInList(preferredMap))
+        {
+            return preferredMap;
+        }
+
+        if (currentAreaMap != null
+            && sceneMaps.Contains(currentAreaMap)
+            && IsMapVisibleInList(currentAreaMap))
+        {
+            return currentAreaMap;
+        }
+
+        foreach (WayPointMapDefinition mapDefinition in sceneMaps)
+        {
+            if (IsMapVisibleInList(mapDefinition) && IsMapAvailable(mapDefinition))
+            {
+                return mapDefinition;
+            }
+        }
+
+        foreach (WayPointMapDefinition mapDefinition in sceneMaps)
+        {
+            if (IsMapVisibleInList(mapDefinition))
+            {
+                return mapDefinition;
+            }
+        }
+
+        return null;
     }
 
     // 지도 UI에서 활성화된 아이콘을 클릭했을 때 이동을 시도한다.
@@ -838,6 +1323,12 @@ public class WayPointManager : MonoBehaviour
     /// <returns>즉시 이동했거나 씬 로딩 요청이 정상 시작되었으면 참입니다.</returns>
     public bool TryTravel(string id, Transform targetPlayer)
     {
+        if (isTravelTransitionRunning)
+        {
+            NotifyTravelFailed(null, "웨이포인트 이동 연출이 이미 진행 중입니다.");
+            return false;
+        }
+
         if (!statesById.TryGetValue(id, out WayPointRunTime state))
         {
             NotifyTravelFailed(null, $"Unknown waypoint id: {id}");
@@ -875,13 +1366,19 @@ public class WayPointManager : MonoBehaviour
             }
 
             OnWayPointTravelStarted?.Invoke(state);
-            MovePlayer(targetPlayer, state.Stone.SpawnPosition);
-            RefreshWorldChunks();
-            OnWayPointTravelCompleted?.Invoke(state);
+            isTravelTransitionRunning = true;
+            sameSceneTravelRoutine = StartCoroutine(
+                RunSameSceneTravel(state, targetPlayer, state.Stone.SpawnPosition));
             return true;
         }
 
         string targetSceneName = state.Definition.mapDefinition.sceneName;
+        if (IsTerritorySceneName(targetSceneName))
+        {
+            NotifyTravelFailed(state, "지도 웨이포인트 아이콘으로는 영지로 이동할 수 없습니다.");
+            return false;
+        }
+
         if (LoadingManager.Instance == null)
         {
             NotifyTravelFailed(state, "LoadingManager is missing.");
@@ -895,6 +1392,7 @@ public class WayPointManager : MonoBehaviour
         }
 
         pendingTravelState = state;
+        RegisterMapVisit(state.Definition.mapDefinition);
         LoadingManager.Instance.LoadingCompleted -= HandleCrossSceneTravelCompleted;
         LoadingManager.Instance.LoadingCompleted += HandleCrossSceneTravelCompleted;
         OnWayPointTravelStarted?.Invoke(state);
@@ -949,16 +1447,356 @@ public class WayPointManager : MonoBehaviour
         return player;
     }
 
-    // 다음 맵의 잠금 상태가 바뀔 수 있으니 UI에 다시 확인하라고 알린다.
+    // 이 지도를 선행 조건으로 사용하는 다른 지도의 잠금 상태가 바뀔 수 있으니 UI에 알린다.
     private void NotifyMapAvailabilityChanged(WayPointMapDefinition changedMap)
     {
+        foreach (WayPointStageDefinition stageDefinition in GetAllStages())
+        {
+            if (!stageDefinition.RequiresCompletionOf(changedMap))
+            {
+                continue;
+            }
+
+            WayPointMapDefinition representativeMap = GetPreferredMapForStage(
+                stageDefinition,
+                SceneManager.GetActiveScene().name);
+            OnMapAvailabilityChanged?.Invoke(representativeMap);
+        }
+
         foreach (WayPointMapDefinition map in GetAllMaps())
         {
-            if (map != null && map.requiredPreviousMap == changedMap)
+            if (map != null
+                && GetStageForMap(map) == null
+                && map.RequiresCompletionOf(changedMap))
             {
                 OnMapAvailabilityChanged?.Invoke(map);
             }
         }
+    }
+
+    private IEnumerator RunSameSceneTravel(
+        WayPointRunTime state,
+        Transform targetPlayer,
+        Vector3 destination)
+    {
+        ApplyMapInputState(isMapOpen, manageCursorForOpenMap);
+        CanvasGroup fadeGroup = EnsureTravelFadeCanvas();
+        if (fadeGroup != null)
+        {
+            fadeGroup.blocksRaycasts = true;
+            yield return FadeTravelOverlay(fadeGroup, 0f, 1f, fadeOutDuration);
+        }
+
+        MovePlayer(targetPlayer, destination);
+        RegisterMapVisit(state.Definition.mapDefinition);
+        RefreshWorldChunks();
+        SpawnArrivalParticles(destination);
+        yield return null;
+
+        if (fadeGroup != null)
+        {
+            yield return FadeTravelOverlay(fadeGroup, 1f, 0f, fadeInDuration);
+            fadeGroup.blocksRaycasts = false;
+        }
+
+        isTravelTransitionRunning = false;
+        sameSceneTravelRoutine = null;
+        ApplyMapInputState(isMapOpen, manageCursorForOpenMap);
+        OnWayPointTravelCompleted?.Invoke(state);
+    }
+
+    private static IEnumerator FadeTravelOverlay(
+        CanvasGroup fadeGroup,
+        float startAlpha,
+        float endAlpha,
+        float duration)
+    {
+        float safeDuration = Mathf.Max(0.01f, duration);
+        float elapsed = 0f;
+        fadeGroup.alpha = startAlpha;
+
+        while (elapsed < safeDuration)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            fadeGroup.alpha = Mathf.Lerp(
+                startAlpha,
+                endAlpha,
+                Mathf.Clamp01(elapsed / safeDuration));
+            yield return null;
+        }
+
+        fadeGroup.alpha = endAlpha;
+    }
+
+    private CanvasGroup EnsureTravelFadeCanvas()
+    {
+        if (travelFadeCanvasGroup != null)
+        {
+            return travelFadeCanvasGroup;
+        }
+
+        GameObject fadeObject = new GameObject(
+            "GH WayPoint Travel Fade",
+            typeof(RectTransform),
+            typeof(Canvas),
+            typeof(CanvasScaler),
+            typeof(GraphicRaycaster),
+            typeof(CanvasGroup),
+            typeof(Image));
+        fadeObject.transform.SetParent(transform, false);
+
+        Canvas canvas = fadeObject.GetComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.overrideSorting = true;
+        canvas.sortingOrder = short.MaxValue;
+
+        RectTransform rect = fadeObject.GetComponent<RectTransform>();
+        rect.anchorMin = Vector2.zero;
+        rect.anchorMax = Vector2.one;
+        rect.offsetMin = Vector2.zero;
+        rect.offsetMax = Vector2.zero;
+
+        Image image = fadeObject.GetComponent<Image>();
+        image.color = travelFadeColor;
+        image.raycastTarget = true;
+
+        travelFadeCanvasGroup = fadeObject.GetComponent<CanvasGroup>();
+        travelFadeCanvasGroup.alpha = 0f;
+        travelFadeCanvasGroup.interactable = false;
+        travelFadeCanvasGroup.blocksRaycasts = false;
+        return travelFadeCanvasGroup;
+    }
+
+    /// <summary>씬 로딩 후 웨이포인트 스톤에 지정된 위치로 플레이어를 정확히 배치합니다.</summary>
+    public bool TryPlacePlayerAtDestination(Transform targetPlayer, Vector3 destination)
+    {
+        if (targetPlayer == null)
+        {
+            return false;
+        }
+
+        MovePlayer(targetPlayer, destination);
+        SpawnArrivalParticles(destination);
+        return true;
+    }
+
+    private void SpawnArrivalParticles(Vector3 position)
+    {
+        ParticleSystem particles;
+        if (arrivalParticlePrefab != null)
+        {
+            particles = Instantiate(arrivalParticlePrefab, position, Quaternion.identity);
+            ParticleSystemRenderer prefabRenderer = particles.GetComponent<ParticleSystemRenderer>();
+            if (prefabRenderer != null && !IsUsableParticleMaterial(prefabRenderer.sharedMaterial))
+            {
+                Material fallbackMaterial = ResolveArrivalParticleMaterial();
+                if (fallbackMaterial == null)
+                {
+                    Destroy(particles.gameObject);
+                    return;
+                }
+
+                prefabRenderer.sharedMaterial = fallbackMaterial;
+            }
+        }
+        else
+        {
+            GameObject particleObject = new GameObject("GH WayPoint Arrival Particles");
+            particleObject.transform.position = position + Vector3.up * 0.15f;
+            particles = particleObject.AddComponent<ParticleSystem>();
+            ParticleSystemRenderer particleRenderer =
+                particleObject.GetComponent<ParticleSystemRenderer>();
+            Material particleMaterial = ResolveArrivalParticleMaterial();
+            if (particleRenderer == null || particleMaterial == null)
+            {
+                Destroy(particleObject);
+                return;
+            }
+
+            particleRenderer.sharedMaterial = particleMaterial;
+
+            ParticleSystem.MainModule main = particles.main;
+            main.duration = 0.45f;
+            main.loop = false;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(0.35f, 0.65f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(0.8f, 2.2f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.06f, 0.14f);
+            main.startColor = fallbackArrivalParticleColor;
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+            main.stopAction = ParticleSystemStopAction.Destroy;
+
+            ParticleSystem.EmissionModule emission = particles.emission;
+            emission.rateOverTime = 0f;
+            emission.SetBursts(new[]
+            {
+                new ParticleSystem.Burst(0f, (short)Mathf.Clamp(
+                    fallbackArrivalParticleCount,
+                    1,
+                    short.MaxValue))
+            });
+
+            ParticleSystem.ShapeModule shape = particles.shape;
+            shape.shapeType = ParticleSystemShapeType.Hemisphere;
+            shape.radius = 0.3f;
+        }
+
+        if (particles != null)
+        {
+            particles.Play(true);
+        }
+    }
+
+    private bool IsUsableParticleMaterial(Material material)
+    {
+        if (material == null || material.shader == null || !material.shader.isSupported)
+        {
+            return false;
+        }
+
+        if (GraphicsSettings.currentRenderPipeline == null)
+        {
+            return true;
+        }
+
+        string renderPipelineTag = material.GetTag(
+            "RenderPipeline",
+            false,
+            string.Empty);
+        return string.Equals(
+                   renderPipelineTag,
+                   "UniversalPipeline",
+                   StringComparison.Ordinal) ||
+               material.shader.name.StartsWith(
+                   "Universal Render Pipeline/",
+                   StringComparison.Ordinal);
+    }
+
+    private Material ResolveArrivalParticleMaterial()
+    {
+        if (IsUsableParticleMaterial(arrivalParticleMaterial))
+        {
+            return arrivalParticleMaterial;
+        }
+
+        if (IsUsableParticleMaterial(runtimeArrivalParticleMaterial))
+        {
+            return runtimeArrivalParticleMaterial;
+        }
+
+        Shader shader = Shader.Find("Universal Render Pipeline/Particles/Unlit");
+        if ((shader == null || !shader.isSupported) &&
+            GraphicsSettings.currentRenderPipeline == null)
+        {
+            shader = Shader.Find("Particles/Standard Unlit");
+        }
+
+        if (shader == null || !shader.isSupported)
+        {
+            if (!warnedMissingArrivalParticleShader)
+            {
+                warnedMissingArrivalParticleShader = true;
+                Debug.LogWarning(
+                    "[WayPointManager] 지원되는 파티클 셰이더를 찾지 못해 도착 파티클을 생략합니다.",
+                    this);
+            }
+
+            return null;
+        }
+
+        runtimeArrivalParticleTexture = CreateArrivalParticleTexture();
+        runtimeArrivalParticleMaterial = new Material(shader)
+        {
+            name = "GH Runtime WayPoint Arrival Particle Material",
+            hideFlags = HideFlags.HideAndDontSave,
+            renderQueue = (int)RenderQueue.Transparent
+        };
+
+        SetMaterialFloatIfPresent(runtimeArrivalParticleMaterial, "_Surface", 1f);
+        SetMaterialFloatIfPresent(runtimeArrivalParticleMaterial, "_Blend", 1f);
+        SetMaterialFloatIfPresent(
+            runtimeArrivalParticleMaterial,
+            "_SrcBlend",
+            (float)BlendMode.SrcAlpha);
+        SetMaterialFloatIfPresent(
+            runtimeArrivalParticleMaterial,
+            "_DstBlend",
+            (float)BlendMode.One);
+        SetMaterialFloatIfPresent(runtimeArrivalParticleMaterial, "_ZWrite", 0f);
+        runtimeArrivalParticleMaterial.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+
+        if (runtimeArrivalParticleMaterial.HasProperty("_BaseMap"))
+        {
+            runtimeArrivalParticleMaterial.SetTexture(
+                "_BaseMap",
+                runtimeArrivalParticleTexture);
+        }
+
+        if (runtimeArrivalParticleMaterial.HasProperty("_MainTex"))
+        {
+            runtimeArrivalParticleMaterial.SetTexture(
+                "_MainTex",
+                runtimeArrivalParticleTexture);
+        }
+
+        if (runtimeArrivalParticleMaterial.HasProperty("_BaseColor"))
+        {
+            runtimeArrivalParticleMaterial.SetColor("_BaseColor", Color.white);
+        }
+
+        if (runtimeArrivalParticleMaterial.HasProperty("_Color"))
+        {
+            runtimeArrivalParticleMaterial.SetColor("_Color", Color.white);
+        }
+
+        return runtimeArrivalParticleMaterial;
+    }
+
+    private static void SetMaterialFloatIfPresent(
+        Material material,
+        string propertyName,
+        float value)
+    {
+        if (material.HasProperty(propertyName))
+        {
+            material.SetFloat(propertyName, value);
+        }
+    }
+
+    private static Texture2D CreateArrivalParticleTexture()
+    {
+        const int textureSize = 32;
+        Texture2D texture = new Texture2D(
+            textureSize,
+            textureSize,
+            TextureFormat.RGBA32,
+            false,
+            true)
+        {
+            name = "GH Runtime WayPoint Arrival Particle Texture",
+            hideFlags = HideFlags.HideAndDontSave,
+            filterMode = FilterMode.Bilinear,
+            wrapMode = TextureWrapMode.Clamp
+        };
+
+        Color[] pixels = new Color[textureSize * textureSize];
+        float center = (textureSize - 1) * 0.5f;
+        for (int y = 0; y < textureSize; y++)
+        {
+            for (int x = 0; x < textureSize; x++)
+            {
+                float normalizedX = (x - center) / center;
+                float normalizedY = (y - center) / center;
+                float distance = Mathf.Sqrt(
+                    normalizedX * normalizedX + normalizedY * normalizedY);
+                float alpha = Mathf.Clamp01(1f - distance);
+                alpha *= alpha;
+                pixels[y * textureSize + x] = new Color(1f, 1f, 1f, alpha);
+            }
+        }
+
+        texture.SetPixels(pixels);
+        texture.Apply(false, true);
+        return texture;
     }
 
     // CharacterController가 있으면 잠시 꺼서 순간이동 위치가 밀리지 않도록 한다.
@@ -975,10 +1813,21 @@ public class WayPointManager : MonoBehaviour
             controller.enabled = false;
             targetPlayer.position = destination;
             controller.enabled = true;
-            return;
+        }
+        else
+        {
+            targetPlayer.position = destination;
         }
 
-        targetPlayer.position = destination;
+        Rigidbody body = PlayerReferenceResolver.FindComponentInPlayerHierarchy<Rigidbody>(
+            targetPlayer.gameObject,
+            playerTag,
+            playerLayerName);
+        if (body != null && !body.isKinematic)
+        {
+            body.linearVelocity = Vector3.zero;
+            body.angularVelocity = Vector3.zero;
+        }
     }
 
     // 순간이동 직후 플레이어 위치 기준으로 청크 활성 상태를 즉시 맞춘다.
@@ -1000,10 +1849,12 @@ public class WayPointManager : MonoBehaviour
 
         isMapOpen = false;
         manageCursorForOpenMap = false;
+        openedFromWayPointId = string.Empty;
         mapUI = null;
         targetUI = null;
         player = null;
         RegisterSceneStones();
+        RegisterCurrentSceneMapVisit(scene.name);
         ResolveSceneMapUI();
 
         if (hideMapOnSceneLoad)
@@ -1012,6 +1863,34 @@ public class WayPointManager : MonoBehaviour
         }
 
         RefreshSceneCursorPolicy(scene.name);
+    }
+
+    // 씬에 지도 하나만 연결되어 있으면 그 지도를 자동 방문 처리한다.
+    // 같은 씬에 여러 지도가 있으면 현재 지역을 추측하지 않고 기본 지도 또는 지역 트리거에 맡긴다.
+    private void RegisterCurrentSceneMapVisit(string sceneName)
+    {
+        List<WayPointMapDefinition> sceneMaps = GetMapsForScene(sceneName);
+        if (sceneMaps.Count == 1)
+        {
+            RegisterMapVisit(sceneMaps[0]);
+            return;
+        }
+
+        if (currentAreaMap != null && IsMapAssignedToScene(currentAreaMap, sceneName))
+        {
+            return;
+        }
+
+        currentAreaMap = null;
+        foreach (WayPointMapDefinition mapDefinition in sceneMaps)
+        {
+            WayPointStageDefinition stageDefinition = GetStageForMap(mapDefinition);
+            if (stageDefinition != null && stageDefinition.IsDefaultMap(mapDefinition))
+            {
+                RegisterMapVisit(mapDefinition);
+                return;
+            }
+        }
     }
 
     private void HandleCrossSceneTravelCompleted()

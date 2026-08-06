@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.Serialization;
 using UnityEngine.UI;
 
@@ -23,12 +24,24 @@ public class WayPointMapUI : MonoBehaviour
 
     [Header("Map Select")]
     [SerializeField] private RectTransform mapButtonParent;
-    [SerializeField] private Button mapButtonPrefab;
-    [SerializeField] private Vector2 generatedMapButtonSize = new Vector2(160f, 34f);
-    [SerializeField] private Color selectedMapButtonBackgroundColor = new Color(0.25f, 0.55f, 0.9f, 1f);
-    [SerializeField] private Color normalMapButtonBackgroundColor = new Color(0.08f, 0.11f, 0.14f, 0.92f);
-    [SerializeField] private Color normalMapButtonTextColor = new Color(1f, 1f, 1f, 1f);
-    [SerializeField] private Color lockedMapButtonTextColor = new Color(0.55f, 0.55f, 0.55f, 1f);
+    [Tooltip("자동 생성할 StageButton 프리팹 루트의 WayPointMapButtonView를 지정합니다.")]
+    [SerializeField] private WayPointMapButtonView stageButtonPrefab;
+
+    // 새 StageButton 이전의 Button 프리팹 및 자동 생성 UI 호환용입니다.
+    // 기존 직렬화는 유지하되 새 Inspector에서는 노출하지 않습니다.
+    [HideInInspector] [SerializeField] private Button mapButtonPrefab;
+    [HideInInspector] [SerializeField] private Vector2 generatedMapButtonSize = new Vector2(160f, 34f);
+    [HideInInspector] [SerializeField] private Color selectedMapButtonBackgroundColor = new Color(0.25f, 0.55f, 0.9f, 1f);
+    [HideInInspector] [SerializeField] private Color normalMapButtonBackgroundColor = new Color(0.08f, 0.11f, 0.14f, 0.92f);
+    [HideInInspector] [SerializeField] private Color normalMapButtonTextColor = new Color(1f, 1f, 1f, 1f);
+    [HideInInspector] [SerializeField] private Color lockedMapButtonTextColor = new Color(0.55f, 0.55f, 0.55f, 1f);
+
+    [Header("Territory Travel")]
+    [Tooltip("별도로 만든 영지 이동 버튼을 연결합니다. 일반 지도에서는 숨기고, 스톤에서 연 지도에서만 표시합니다.")]
+    [SerializeField] private Button territoryTravelButton;
+    [Tooltip("비워 두면 Territory Travel Button의 자식 TMP_Text를 자동으로 찾습니다.")]
+    [SerializeField] private TMP_Text territoryTravelButtonText;
+    [SerializeField] private string territoryTravelUnavailableSuffix = " (이동불가)";
 
     [Header("Close")]
     [SerializeField] private bool closeAfterTravel = true;
@@ -39,16 +52,31 @@ public class WayPointMapUI : MonoBehaviour
 
     [Header("Tooltip")]
     [SerializeField] private RectTransform tooltipRoot;
+    [Tooltip("새 WayPoint_ToolTip 디자인 루트의 전용 뷰입니다.")]
+    [SerializeField] private WayPointTooltipView tooltipView;
     [FormerlySerializedAs("tooltipText")]
     [SerializeField] private TMP_Text tooltipTitleText;
     [SerializeField] private TMP_Text tooltipDescriptionText;
     [SerializeField] private TMP_FontAsset tooltipFont;
     [SerializeField] private float tooltipHorizontalGap = 18f;
     [SerializeField] private float tooltipViewportPadding = 8f;
+    [Tooltip("아이콘에서 툴팁의 Fill_BG로 마우스를 옮길 수 있도록 숨김을 잠시 유예하는 시간입니다.")]
+    [Min(0f)]
+    [SerializeField] private float tooltipHideDelay = 0.08f;
     [SerializeField] private Vector2 tooltipSize = new Vector2(240f, 90f);
     [SerializeField] private Color tooltipBackgroundColor = new Color(0f, 0f, 0f, 0.82f);
     [SerializeField] private Color canTravelColor = new Color(0.45f, 1f, 0.55f, 1f);
     [SerializeField] private Color cannotTravelColor = new Color(1f, 0.45f, 0.45f, 1f);
+
+    [Header("Preview Mode")]
+    [Tooltip("프리뷰 모드 안내를 덧붙일 기존 TMP_Text입니다.")]
+    [SerializeField] private TMP_Text previewModeText;
+    [SerializeField] private string previewModeSuffix = " (프리뷰 모드)";
+    [Tooltip("프리뷰 모드에서 문구를 교체할 Description TMP_Text입니다. 이동 모드에서는 UI에 원래 입력된 문구를 유지합니다.")]
+    [SerializeField] private TMP_Text previewDescriptionText;
+    [Tooltip("프리뷰 모드에서 Description에 표시할 문구입니다. 비워 두면 원래 문구를 유지합니다.")]
+    [TextArea]
+    [SerializeField] private string previewModeDescription = "프리뷰 모드에서는 웨이포인트로 이동할 수 없습니다.";
 
     [Header("Tooltip Text")]
     [TextArea]
@@ -61,9 +89,12 @@ public class WayPointMapUI : MonoBehaviour
     [SerializeField] private string lockedMapStatusText = "이동 불가: 잠긴 맵";
     [TextArea]
     [SerializeField] private string canTravelStatusText = "이동 가능";
+    [TextArea]
+    [SerializeField] private string currentLocationStatusText = "현재 위치";
 
     private readonly Dictionary<string, WayPointMapIconUI> iconsById = new Dictionary<string, WayPointMapIconUI>();
     private readonly Dictionary<WayPointMapDefinition, Button> mapButtonsByDefinition = new Dictionary<WayPointMapDefinition, Button>();
+    private readonly Dictionary<Button, GameObject> mapButtonRootsByButton = new Dictionary<Button, GameObject>();
     private WayPointMapDefinition currentMap;
     private WayPointMapOpenMode currentOpenMode = WayPointMapOpenMode.PreviewOnly;
     private WayPointRunTime currentTooltipState;
@@ -72,6 +103,16 @@ public class WayPointMapUI : MonoBehaviour
     private Canvas cachedCanvas;
     private bool cachedCanvasOriginalOverrideSorting;
     private int cachedCanvasOriginalSortingOrder;
+    private Text territoryTravelLegacyText;
+    private string territoryTravelButtonBaseText;
+    private string previewModeOriginalText;
+    private bool previewModeTextCached;
+    private string previewDescriptionOriginalText;
+    private bool previewDescriptionTextCached;
+    private bool pointerOverWayPointIcon;
+    private bool pointerOverTooltip;
+    private bool tooltipHideRequested;
+    private float tooltipHideAtTime;
 
     /// <summary>현재 지도를 열 때 적용된 보기 전용 또는 이동 모드입니다.</summary>
     public WayPointMapOpenMode CurrentOpenMode => currentOpenMode;
@@ -107,12 +148,16 @@ public class WayPointMapUI : MonoBehaviour
 
         CacheCanvasState();
         EnsureTooltip();
+        CachePreviewModeText();
+        CachePreviewDescriptionText();
+        BindTerritoryTravelButton();
     }
 
     private void OnEnable()
     {
         TrySubscribe();
         RefreshMapView();
+        RefreshTerritoryTravelButton();
     }
 
     private void Start()
@@ -121,9 +166,29 @@ public class WayPointMapUI : MonoBehaviour
         RefreshMapView();
     }
 
+    private void LateUpdate()
+    {
+        if (!tooltipHideRequested)
+        {
+            return;
+        }
+
+        if (pointerOverWayPointIcon || pointerOverTooltip)
+        {
+            tooltipHideRequested = false;
+            return;
+        }
+
+        if (Time.unscaledTime >= tooltipHideAtTime)
+        {
+            HideTooltip();
+        }
+    }
+
     private void OnDisable()
     {
         HideTooltip();
+        RestorePreviewModeText();
         RestoreCanvasSorting();
         Unsubscribe();
     }
@@ -134,6 +199,8 @@ public class WayPointMapUI : MonoBehaviour
         {
             Instance = null;
         }
+
+        UnbindTerritoryTravelButton();
     }
 
     private void OnValidate()
@@ -150,14 +217,17 @@ public class WayPointMapUI : MonoBehaviour
         BringCanvasToFront();
         currentOpenMode = openMode;
         openedFromWayPointId = string.Empty;
-        currentMap = ResolveMap(mapOverride);
+        currentMap = ResolveInitialMap(mapOverride);
         RefreshMapView();
+        RefreshTerritoryTravelButton();
+        RefreshPreviewModeText();
     }
 
     /// <summary>지도 표시가 꺼지기 전에 툴팁과 Canvas 정렬 상태를 정리합니다.</summary>
     public void PrepareClose()
     {
         HideTooltip();
+        RestorePreviewModeText();
         RestoreCanvasSorting();
     }
 
@@ -165,6 +235,24 @@ public class WayPointMapUI : MonoBehaviour
     internal void SetOpenedFromWayPoint(WayPointDefinition sourceWayPoint)
     {
         openedFromWayPointId = sourceWayPoint != null ? sourceWayPoint.id : string.Empty;
+        RefreshAllIcons();
+        if (currentTooltipState != null)
+        {
+            RefreshTooltip(currentTooltipState);
+        }
+        RefreshTerritoryTravelButton();
+    }
+
+    /// <summary>런타임 또는 인스펙터에서 만든 영지 이동 버튼 참조를 교체합니다.</summary>
+    public void SetTerritoryTravelButton(Button button)
+    {
+        UnbindTerritoryTravelButton();
+        territoryTravelButton = button;
+        territoryTravelButtonText = null;
+        territoryTravelLegacyText = null;
+        territoryTravelButtonBaseText = string.Empty;
+        BindTerritoryTravelButton();
+        RefreshTerritoryTravelButton();
     }
 
     // Stone에서 직접 지도 이동 모드를 열고 싶을 때 호출한다.
@@ -193,12 +281,21 @@ public class WayPointMapUI : MonoBehaviour
     {
         return currentOpenMode == WayPointMapOpenMode.Travel
             && state != null
+            && !IsCurrentLocation(state)
             && WayPointManager.Instance != null
             && WayPointManager.Instance.CanTravel(state.Id);
     }
 
-    // 스테이지 버튼을 눌렀을 때 해당 맵으로 지도 배경과 아이콘을 바꾼다.
-    /// <summary>사용 가능한 지도라면 지도 배경과 아이콘을 해당 스테이지로 전환합니다.</summary>
+    /// <summary>지도를 연 웨이포인트와 지정 상태가 같으면 현재 위치로 취급합니다.</summary>
+    public bool IsCurrentLocation(WayPointRunTime state)
+    {
+        return state != null
+            && !string.IsNullOrWhiteSpace(openedFromWayPointId)
+            && string.Equals(openedFromWayPointId, state.Id, System.StringComparison.Ordinal);
+    }
+
+    // 지도 버튼을 눌렀을 때 해당 맵으로 지도 배경과 아이콘을 바꾼다.
+    /// <summary>사용 가능한 지도라면 지도 배경과 아이콘을 해당 지도로 전환합니다.</summary>
     public void SelectMap(WayPointMapDefinition mapDefinition)
     {
         if (mapDefinition == null || WayPointManager.Instance == null)
@@ -206,7 +303,8 @@ public class WayPointMapUI : MonoBehaviour
             return;
         }
 
-        if (!WayPointManager.Instance.IsMapAvailable(mapDefinition))
+        if (!WayPointManager.Instance.IsMapVisibleInList(mapDefinition)
+            || !WayPointManager.Instance.IsMapAvailable(mapDefinition))
         {
             return;
         }
@@ -228,7 +326,7 @@ public class WayPointMapUI : MonoBehaviour
 
         if (!string.IsNullOrWhiteSpace(openedFromWayPointId) && openedFromWayPointId == id)
         {
-            Debug.Log("[WayPointMapUI] The selected waypoint is the same stone that opened the map. Teleport can succeed but may look unchanged.");
+            return;
         }
 
         bool traveled = WayPointManager.Instance.TryTravel(id);
@@ -253,16 +351,59 @@ public class WayPointMapUI : MonoBehaviour
         }
 
         EnsureTooltip();
-        if (tooltipRoot == null || tooltipTitleText == null || tooltipDescriptionText == null)
+        bool hasNewTooltip = tooltipView != null;
+        bool hasLegacyTooltip = tooltipTitleText != null && tooltipDescriptionText != null;
+        if (tooltipRoot == null || (!hasNewTooltip && !hasLegacyTooltip))
         {
             return;
         }
 
         currentTooltipState = state;
+        tooltipHideRequested = false;
         tooltipRoot.gameObject.SetActive(true);
         tooltipRoot.SetAsLastSibling();
-        RefreshTooltipText(state);
+        RefreshTooltip(state);
         MoveTooltip(iconRectTransform);
+    }
+
+    /// <summary>웨이포인트 아이콘 진입 시 해당 툴팁을 표시하고 예약된 숨김을 취소합니다.</summary>
+    public void NotifyWayPointPointerEnter(WayPointRunTime state, RectTransform iconRectTransform)
+    {
+        pointerOverWayPointIcon = true;
+        tooltipHideRequested = false;
+        ShowTooltip(state, iconRectTransform);
+    }
+
+    /// <summary>웨이포인트 아이콘에서 벗어나면 툴팁 숨김을 예약합니다.</summary>
+    public void NotifyWayPointPointerExit()
+    {
+        pointerOverWayPointIcon = false;
+        RequestTooltipHide();
+    }
+
+    /// <summary>툴팁 버튼 영역에 진입하면 아이콘에서 예약한 숨김을 취소합니다.</summary>
+    public void NotifyTooltipPointerEnter()
+    {
+        pointerOverTooltip = true;
+        tooltipHideRequested = false;
+    }
+
+    /// <summary>툴팁 버튼 영역에서도 벗어나면 툴팁 숨김을 예약합니다.</summary>
+    public void NotifyTooltipPointerExit()
+    {
+        pointerOverTooltip = false;
+        RequestTooltipHide();
+    }
+
+    private void RequestTooltipHide()
+    {
+        if (currentTooltipState == null)
+        {
+            return;
+        }
+
+        tooltipHideRequested = true;
+        tooltipHideAtTime = Time.unscaledTime + tooltipHideDelay;
     }
 
     // 아이콘 위치를 기준으로 좌/우 중 더 여유 있는 쪽에 툴팁을 고정한다.
@@ -323,6 +464,15 @@ public class WayPointMapUI : MonoBehaviour
 
     private Vector2 GetTooltipSize()
     {
+        if (tooltipView != null && tooltipView.RectTransform != null)
+        {
+            Vector2 viewSize = tooltipView.RectTransform.rect.size;
+            if (viewSize.x > 0f && viewSize.y > 0f)
+            {
+                return viewSize;
+            }
+        }
+
         if (tooltipRoot == null)
         {
             return tooltipSize;
@@ -353,6 +503,9 @@ public class WayPointMapUI : MonoBehaviour
     public void HideTooltip()
     {
         currentTooltipState = null;
+        pointerOverWayPointIcon = false;
+        pointerOverTooltip = false;
+        tooltipHideRequested = false;
         if (tooltipRoot != null)
         {
             tooltipRoot.gameObject.SetActive(false);
@@ -403,6 +556,21 @@ public class WayPointMapUI : MonoBehaviour
         RefreshAllIcons();
     }
 
+    // 지도를 처음 열 때 현재 씬에 연결된 지도를 우선한다.
+    private WayPointMapDefinition ResolveInitialMap(WayPointMapDefinition requestedMap)
+    {
+        if (WayPointManager.Instance == null)
+        {
+            return requestedMap != null ? requestedMap : defaultMap;
+        }
+
+        WayPointMapDefinition sceneMap = WayPointManager.Instance.GetPreferredMapForScene(
+            SceneManager.GetActiveScene().name,
+            requestedMap);
+
+        return sceneMap != null ? sceneMap : ResolveMap(requestedMap);
+    }
+
     // 지정된 맵이 없거나 잠겨 있으면 볼 수 있는 첫 맵을 선택한다.
     private WayPointMapDefinition ResolveMap(WayPointMapDefinition requestedMap)
     {
@@ -411,12 +579,27 @@ public class WayPointMapUI : MonoBehaviour
             return requestedMap != null ? requestedMap : defaultMap;
         }
 
-        if (requestedMap != null && WayPointManager.Instance.IsMapAvailable(requestedMap))
+        // 현재 씬에 실제로 연결된 지도는 잠금 상태여도 현재 위치를 올바르게
+        // 표시해야 하므로 다른 지도로 대체하지 않는다.
+        if (requestedMap != null
+            && WayPointManager.Instance.IsMapVisibleInList(requestedMap)
+            && WayPointManager.Instance.IsMapAssignedToScene(
+                requestedMap,
+                SceneManager.GetActiveScene().name))
         {
             return requestedMap;
         }
 
-        if (defaultMap != null && WayPointManager.Instance.IsMapAvailable(defaultMap))
+        if (requestedMap != null
+            && WayPointManager.Instance.IsMapVisibleInList(requestedMap)
+            && WayPointManager.Instance.IsMapAvailable(requestedMap))
+        {
+            return requestedMap;
+        }
+
+        if (defaultMap != null
+            && WayPointManager.Instance.IsMapVisibleInList(defaultMap)
+            && WayPointManager.Instance.IsMapAvailable(defaultMap))
         {
             return defaultMap;
         }
@@ -424,7 +607,8 @@ public class WayPointMapUI : MonoBehaviour
         List<WayPointMapDefinition> maps = WayPointManager.Instance.GetAllMaps();
         foreach (WayPointMapDefinition map in maps)
         {
-            if (WayPointManager.Instance.IsMapAvailable(map))
+            if (WayPointManager.Instance.IsMapVisibleInList(map)
+                && WayPointManager.Instance.IsMapAvailable(map))
             {
                 return map;
             }
@@ -444,7 +628,7 @@ public class WayPointMapUI : MonoBehaviour
         mapImage.sprite = currentMap.mapSprite;
     }
 
-    // 매니저에 등록된 맵 목록을 기준으로 스테이지 선택 버튼을 만든다.
+    // 스테이지 기본 지도는 항상 표시하고, 하위 지도는 실제 방문 후에만 표시한다.
     private void RebuildMapButtons()
     {
         if (WayPointManager.Instance == null || mapButtonParent == null)
@@ -453,15 +637,47 @@ public class WayPointMapUI : MonoBehaviour
         }
 
         HashSet<WayPointMapDefinition> visibleMaps = new HashSet<WayPointMapDefinition>();
-        List<WayPointMapDefinition> maps = WayPointManager.Instance.GetAllMaps();
+        List<WayPointMapDefinition> orderedMaps = new List<WayPointMapDefinition>();
 
-        foreach (WayPointMapDefinition mapDefinition in maps)
+        // 스테이지 등록 순서를 유지한다. 각 스테이지의 기본 지도 뒤에
+        // 최초 방문한 동굴/실내 같은 하위 지도 버튼을 배치한다.
+        foreach (WayPointStageDefinition stageDefinition in WayPointManager.Instance.GetAllStages())
         {
-            if (mapDefinition == null)
+            if (stageDefinition == null)
             {
                 continue;
             }
 
+            AddVisibleMapButtonTarget(orderedMaps, stageDefinition.GetDefaultMap());
+
+            if (stageDefinition.maps == null)
+            {
+                continue;
+            }
+
+            foreach (WayPointMapDefinition mapDefinition in stageDefinition.maps)
+            {
+                if (mapDefinition == null || stageDefinition.IsDefaultMap(mapDefinition))
+                {
+                    continue;
+                }
+
+                AddVisibleMapButtonTarget(orderedMaps, mapDefinition);
+            }
+        }
+
+        // 아직 스테이지 데이터로 옮기지 않은 기존 지도도 계속 표시한다.
+        foreach (WayPointMapDefinition mapDefinition in WayPointManager.Instance.GetAllMaps())
+        {
+            if (WayPointManager.Instance.GetStageForMap(mapDefinition) == null)
+            {
+                AddVisibleMapButtonTarget(orderedMaps, mapDefinition);
+            }
+        }
+
+        int siblingIndex = 0;
+        foreach (WayPointMapDefinition mapDefinition in orderedMaps)
+        {
             visibleMaps.Add(mapDefinition);
 
             if (!mapButtonsByDefinition.TryGetValue(mapDefinition, out Button button) || button == null)
@@ -470,7 +686,19 @@ public class WayPointMapUI : MonoBehaviour
                 mapButtonsByDefinition[mapDefinition] = button;
             }
 
-            button.gameObject.SetActive(true);
+            if (button == null)
+            {
+                continue;
+            }
+
+            GameObject buttonRoot = GetMapButtonRoot(button);
+            if (buttonRoot == null)
+            {
+                continue;
+            }
+
+            buttonRoot.SetActive(true);
+            buttonRoot.transform.SetSiblingIndex(siblingIndex++);
             RefreshMapButton(button, mapDefinition);
         }
 
@@ -478,23 +706,82 @@ public class WayPointMapUI : MonoBehaviour
         {
             if (pair.Value != null && !visibleMaps.Contains(pair.Key))
             {
-                pair.Value.gameObject.SetActive(false);
+                GameObject buttonRoot = GetMapButtonRoot(pair.Value);
+                if (buttonRoot != null)
+                {
+                    buttonRoot.SetActive(false);
+                }
             }
         }
     }
 
-    // 스테이지 버튼 프리팹이 있으면 사용하고, 없으면 기본 버튼을 자동 생성한다.
+    private void AddVisibleMapButtonTarget(
+        List<WayPointMapDefinition> orderedMaps,
+        WayPointMapDefinition mapDefinition)
+    {
+        if (mapDefinition == null
+            || orderedMaps.Contains(mapDefinition)
+            || WayPointManager.Instance == null
+            || !WayPointManager.Instance.IsMapVisibleInList(mapDefinition))
+        {
+            return;
+        }
+
+        orderedMaps.Add(mapDefinition);
+    }
+
     private Button CreateMapButton(WayPointMapDefinition mapDefinition)
     {
-        Button button;
-
-        if (mapButtonPrefab != null)
+        string buttonId = string.IsNullOrWhiteSpace(mapDefinition.id)
+            ? mapDefinition.name
+            : mapDefinition.id;
+        Button button = CreateMapButtonObject(buttonId);
+        if (button == null)
         {
-            button = Instantiate(mapButtonPrefab, mapButtonParent);
+            return null;
+        }
+
+        button.onClick.AddListener(() => SelectMap(mapDefinition));
+        return button;
+    }
+
+    // 새 버튼 프리팹은 실제 Button이 하위 FillBG (1)에 있으므로
+    // 루트 WayPointMapButtonView를 생성한 뒤 내부 Button을 반환한다.
+    private Button CreateMapButtonObject(string buttonId)
+    {
+        Button button;
+        GameObject buttonRoot = null;
+
+        if (stageButtonPrefab != null)
+        {
+            WayPointMapButtonView instanceView =
+                Instantiate(stageButtonPrefab, mapButtonParent);
+            button = instanceView != null ? instanceView.Button : null;
+            buttonRoot = instanceView != null ? instanceView.gameObject : null;
+        }
+        else if (mapButtonPrefab != null)
+        {
+            WayPointMapButtonView templateView =
+                mapButtonPrefab.GetComponentInParent<WayPointMapButtonView>(true);
+
+            if (templateView != null)
+            {
+                GameObject instanceObject = Instantiate(templateView.gameObject, mapButtonParent);
+                WayPointMapButtonView instanceView =
+                    instanceObject.GetComponent<WayPointMapButtonView>();
+                button = instanceView != null ? instanceView.Button : null;
+                buttonRoot = instanceObject;
+            }
+            else
+            {
+                // 기존 루트 Button 프리팹도 계속 지원한다.
+                button = Instantiate(mapButtonPrefab, mapButtonParent);
+                buttonRoot = button != null ? button.gameObject : null;
+            }
         }
         else
         {
-            GameObject buttonObject = new GameObject($"MapButton_{mapDefinition.id}", typeof(RectTransform), typeof(Image), typeof(Button));
+            GameObject buttonObject = new GameObject($"MapButton_{buttonId}", typeof(RectTransform), typeof(Image), typeof(Button));
             buttonObject.transform.SetParent(mapButtonParent, false);
 
             RectTransform rectTransform = buttonObject.transform as RectTransform;
@@ -521,26 +808,82 @@ public class WayPointMapUI : MonoBehaviour
             text.raycastTarget = false;
 
             button = buttonObject.GetComponent<Button>();
+            buttonRoot = buttonObject;
         }
 
-        button.name = $"MapButton_{mapDefinition.id}";
+        if (button == null)
+        {
+            Debug.LogError(
+                $"[WayPointMapUI] Map button '{buttonId}'에 사용할 Button을 찾을 수 없습니다. "
+                + "StageButton/FillBG (1)의 Button 연결을 확인하세요.",
+                this);
+            return null;
+        }
+
+        if (buttonRoot == null)
+        {
+            WayPointMapButtonView instanceView =
+                button.GetComponentInParent<WayPointMapButtonView>(true);
+            buttonRoot = instanceView != null ? instanceView.gameObject : button.gameObject;
+        }
+
+        mapButtonRootsByButton[button] = buttonRoot;
+        buttonRoot.name = $"MapButton_{buttonId}";
         button.onClick.RemoveAllListeners();
-        button.onClick.AddListener(() => SelectMap(mapDefinition));
         return button;
+    }
+
+    private GameObject GetMapButtonRoot(Button button)
+    {
+        if (button == null)
+        {
+            return null;
+        }
+
+        if (mapButtonRootsByButton.TryGetValue(button, out GameObject registeredRoot)
+            && registeredRoot != null)
+        {
+            return registeredRoot;
+        }
+
+        WayPointMapButtonView view =
+            button.GetComponentInParent<WayPointMapButtonView>(true);
+        GameObject resolvedRoot = view != null ? view.gameObject : button.gameObject;
+        mapButtonRootsByButton[button] = resolvedRoot;
+        return resolvedRoot;
     }
 
     // 맵 해금 상태와 현재 선택 상태에 맞춰 버튼 표시를 갱신한다.
     private void RefreshMapButton(Button button, WayPointMapDefinition mapDefinition)
     {
+        if (button == null)
+        {
+            return;
+        }
+
         bool isAvailable = WayPointManager.Instance != null && WayPointManager.Instance.IsMapAvailable(mapDefinition);
         bool isSelected = currentMap == mapDefinition;
 
+        WayPointMapButtonView view = button.GetComponentInParent<WayPointMapButtonView>();
+        if (view != null)
+        {
+            view.Refresh(
+                mapDefinition,
+                GetMapDisplayName(mapDefinition),
+                isAvailable);
+            return;
+        }
+
+        ApplyMapButtonVisuals(button, GetMapDisplayName(mapDefinition), isAvailable, isSelected);
+    }
+
+    private void ApplyMapButtonVisuals(Button button, string displayName, bool isAvailable, bool isSelected)
+    {
         button.interactable = isAvailable;
 
         TMP_Text text = button.GetComponentInChildren<TMP_Text>(true);
         if (text != null)
         {
-            string displayName = string.IsNullOrWhiteSpace(mapDefinition.displayName) ? mapDefinition.id : mapDefinition.displayName;
             text.text = isAvailable ? displayName : $"{displayName} (잠김)";
             text.color = isAvailable ? normalMapButtonTextColor : lockedMapButtonTextColor;
         }
@@ -548,7 +891,6 @@ public class WayPointMapUI : MonoBehaviour
         Text legacyText = button.GetComponentInChildren<Text>(true);
         if (legacyText != null)
         {
-            string displayName = string.IsNullOrWhiteSpace(mapDefinition.displayName) ? mapDefinition.id : mapDefinition.displayName;
             legacyText.text = isAvailable ? displayName : $"{displayName} (잠김)";
             legacyText.color = isAvailable ? normalMapButtonTextColor : lockedMapButtonTextColor;
         }
@@ -558,6 +900,18 @@ public class WayPointMapUI : MonoBehaviour
         {
             background.color = isSelected ? selectedMapButtonBackgroundColor : normalMapButtonBackgroundColor;
         }
+    }
+
+    private static string GetMapDisplayName(WayPointMapDefinition mapDefinition)
+    {
+        if (mapDefinition == null)
+        {
+            return string.Empty;
+        }
+
+        return string.IsNullOrWhiteSpace(mapDefinition.displayName)
+            ? mapDefinition.id
+            : mapDefinition.displayName;
     }
 
     // 현재 맵에 속한 웨이포인트 아이콘만 생성하거나 갱신한다.
@@ -627,14 +981,96 @@ public class WayPointMapUI : MonoBehaviour
 
         if (currentTooltipState == state)
         {
-            RefreshTooltipText(state);
+            RefreshTooltip(state);
         }
+
+        RefreshTerritoryTravelButton();
     }
 
     // 맵 해금 조건이 바뀌면 현재 맵 선택과 아이콘 목록을 다시 확인한다.
     private void HandleMapAvailabilityChanged(WayPointMapDefinition mapDefinition)
     {
         RefreshMapView();
+        RefreshTerritoryTravelButton();
+    }
+
+    private void BindTerritoryTravelButton()
+    {
+        if (territoryTravelButton == null)
+        {
+            return;
+        }
+
+        territoryTravelButton.onClick.RemoveListener(HandleTerritoryTravelButtonClicked);
+        territoryTravelButton.onClick.AddListener(HandleTerritoryTravelButtonClicked);
+
+        if (territoryTravelButtonText == null)
+        {
+            territoryTravelButtonText = territoryTravelButton.GetComponentInChildren<TMP_Text>(true);
+        }
+
+        territoryTravelLegacyText = territoryTravelButton.GetComponentInChildren<Text>(true);
+        if (string.IsNullOrEmpty(territoryTravelButtonBaseText))
+        {
+            territoryTravelButtonBaseText = territoryTravelButtonText != null
+                ? territoryTravelButtonText.text
+                : territoryTravelLegacyText != null
+                    ? territoryTravelLegacyText.text
+                    : "영지로 이동";
+        }
+    }
+
+    private void UnbindTerritoryTravelButton()
+    {
+        if (territoryTravelButton != null)
+        {
+            territoryTravelButton.onClick.RemoveListener(HandleTerritoryTravelButtonClicked);
+        }
+    }
+
+    private void HandleTerritoryTravelButtonClicked()
+    {
+        if (WayPointManager.Instance == null || !WayPointManager.Instance.TryTravelToTerritory())
+        {
+            RefreshTerritoryTravelButton();
+        }
+    }
+
+    /// <summary>
+    /// 일반 지도에서는 영지 버튼을 숨기고, 스톤 지도에서는 이동 가능 여부와 문구를 갱신합니다.
+    /// </summary>
+    private void RefreshTerritoryTravelButton()
+    {
+        if (territoryTravelButton == null)
+        {
+            return;
+        }
+
+        bool openedFromStone = currentOpenMode == WayPointMapOpenMode.Travel
+            && !string.IsNullOrWhiteSpace(openedFromWayPointId);
+        territoryTravelButton.gameObject.SetActive(openedFromStone);
+        if (!openedFromStone)
+        {
+            return;
+        }
+
+        bool canTravel = WayPointManager.Instance != null
+            && WayPointManager.Instance.CanTravelToTerritoryFromOpenedStone();
+        territoryTravelButton.interactable = canTravel;
+
+        string label = canTravel
+            ? territoryTravelButtonBaseText
+            : territoryTravelButtonBaseText + territoryTravelUnavailableSuffix;
+
+        if (territoryTravelButtonText != null)
+        {
+            territoryTravelButtonText.text = label;
+        }
+
+        if (territoryTravelLegacyText != null)
+        {
+            territoryTravelLegacyText.text = label;
+        }
     }
 
     // 프리팹이 있으면 프리팹을 쓰고, 없으면 기본 Image/Button 아이콘을 런타임에 만든다.
@@ -730,6 +1166,22 @@ public class WayPointMapUI : MonoBehaviour
     // 툴팁 오브젝트가 없으면 기본 툴팁 UI를 자동 생성한다.
     private void EnsureTooltip()
     {
+        if (tooltipView != null)
+        {
+            if (tooltipRoot == null)
+            {
+                tooltipRoot = tooltipView.transform.parent as RectTransform;
+                if (tooltipRoot == null)
+                {
+                    tooltipRoot = tooltipView.RectTransform;
+                }
+            }
+
+            tooltipView.Initialize(this);
+            tooltipRoot.gameObject.SetActive(false);
+            return;
+        }
+
         if (tooltipRoot != null && tooltipTitleText != null && tooltipDescriptionText != null)
         {
             ConfigureTooltipRect();
@@ -831,6 +1283,21 @@ public class WayPointMapUI : MonoBehaviour
     }
 
     // 웨이포인트 이름, 설명, 현재 이동 가능 여부를 툴팁 텍스트에 반영한다.
+    private void RefreshTooltip(WayPointRunTime state)
+    {
+        if (tooltipView != null)
+        {
+            tooltipView.Refresh(
+                state,
+                currentOpenMode,
+                CanTravelByClick(state),
+                IsCurrentLocation(state));
+            return;
+        }
+
+        RefreshTooltipText(state);
+    }
+
     private void RefreshTooltipText(WayPointRunTime state)
     {
         if (tooltipTitleText == null || tooltipDescriptionText == null || state == null || state.Definition == null)
@@ -854,6 +1321,12 @@ public class WayPointMapUI : MonoBehaviour
         {
             statusColor = cannotTravelColor;
             return previewOnlyStatusText;
+        }
+
+        if (IsCurrentLocation(state))
+        {
+            statusColor = canTravelColor;
+            return currentLocationStatusText;
         }
 
         if (state == null || !state.IsActive)
@@ -884,6 +1357,7 @@ public class WayPointMapUI : MonoBehaviour
     private void CloseMap()
     {
         HideTooltip();
+        RestorePreviewModeText();
         RestoreCanvasSorting();
 
         if (WayPointManager.Instance != null)
@@ -893,5 +1367,62 @@ public class WayPointMapUI : MonoBehaviour
         }
 
         gameObject.SetActive(false);
+    }
+
+    private void CachePreviewModeText()
+    {
+        if (previewModeTextCached || previewModeText == null)
+        {
+            return;
+        }
+
+        previewModeOriginalText = previewModeText.text;
+        previewModeTextCached = true;
+    }
+
+    private void RefreshPreviewModeText()
+    {
+        CachePreviewModeText();
+        CachePreviewDescriptionText();
+
+        if (previewModeTextCached && previewModeText != null)
+        {
+            previewModeText.text = currentOpenMode == WayPointMapOpenMode.PreviewOnly
+                ? previewModeOriginalText + previewModeSuffix
+                : previewModeOriginalText;
+        }
+
+        if (previewDescriptionTextCached && previewDescriptionText != null)
+        {
+            bool usePreviewDescription = currentOpenMode == WayPointMapOpenMode.PreviewOnly
+                && !string.IsNullOrWhiteSpace(previewModeDescription);
+            previewDescriptionText.text = usePreviewDescription
+                ? previewModeDescription
+                : previewDescriptionOriginalText;
+        }
+    }
+
+    private void RestorePreviewModeText()
+    {
+        if (previewModeTextCached && previewModeText != null)
+        {
+            previewModeText.text = previewModeOriginalText;
+        }
+
+        if (previewDescriptionTextCached && previewDescriptionText != null)
+        {
+            previewDescriptionText.text = previewDescriptionOriginalText;
+        }
+    }
+
+    private void CachePreviewDescriptionText()
+    {
+        if (previewDescriptionTextCached || previewDescriptionText == null)
+        {
+            return;
+        }
+
+        previewDescriptionOriginalText = previewDescriptionText.text;
+        previewDescriptionTextCached = true;
     }
 }

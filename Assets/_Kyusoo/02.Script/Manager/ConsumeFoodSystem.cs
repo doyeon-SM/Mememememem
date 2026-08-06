@@ -1,10 +1,26 @@
-﻿using HDY.Inventory;
+using HDY.Capture;
+using HDY.Inventory;
 using HDY.Item;
 using KMS.InventoryDuped;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>
+/// [HDY 요청 - 영지 배고픔 시스템 전면 개편]
+/// 예전에는 "영지 전체 분당 소비량(TotalHungerManager.TotalHungerPerMinute = 가동 중인 멤들의 MaxHunger 합)"을
+/// 60초마다 밥통에서 한꺼번에 차감하고, 부족하면 모든 시설을 일괄 정지시키는 방식이었다.
+///
+/// 이제는 멤 1마리 단위로 배고픔을 관리한다(CapturedMemEntry.CurrentHunger). 실제 매분 소비/급식 처리는
+/// TotalHungerManager.ProcessPerMinuteConsumption()이 각 시설의 가동 중인 멤을 순회하며 담당하고, 이
+/// 클래스는 그 요청을 받아 밥통에서 실제로 음식을 소비하는 역할(TryFeedMem)만 한다.
+///
+/// [레거시 플래그] IsWorkStoppedDueToStarvation은 기존에 여러 시설 코드(ProductionFacilityRuntime 등)가
+/// "생산을 시작해도 되는지"의 보조 조건으로 참조하고 있어 완전히 제거하지 않았다. 다만 의미가 "밥통이
+/// 완전히 바닥났는지" 정도의 비상 신호로 축소되었고, 더 이상 이 플래그로 모든 시설을 일괄 정지시키지
+/// 않는다 - 개별 시설 정지/재개는 TotalHungerManager가 각 시설의 StopWorkDueToStarvation/재개 메서드를
+/// 그 멤이 배치된 시설에 대해서만 개별 호출해서 처리한다.
+/// </summary>
 public class ConsumeFoodSystem : MonoBehaviour
 {
     public static ConsumeFoodSystem Instance { get; private set; }
@@ -15,21 +31,25 @@ public class ConsumeFoodSystem : MonoBehaviour
     [SerializeField] private float consumeInterval = 60f;
 
     private float timer = 0f;
+
+    /// <summary>
+    /// [의미 축소 - 영지 배고픔 시스템 개편] 이제 "밥통이 완전히 바닥났는지"만 나타내는 비상 신호다.
+    /// 더 이상 이 값을 true로 만든다고 해서 모든 시설이 일괄 정지되지 않는다(개별 시설이 각자의 배치된
+    /// 멤이 실제로 급식에 실패했는지로 스스로 정지/재개한다). 다만 일부 시설 코드가 여전히 "생산 시작
+    /// 가능 여부"의 보조 조건으로 이 플래그를 참조하므로 하위 호환을 위해 계속 계산해서 제공한다.
+    /// </summary>
     private bool isWorkStoppedDueToStarvation = false;
-    private bool isWaitingForMissedMeal = false;
 
     [SerializeField] private int maxSatiety = 0;
     [SerializeField] private int currentSatiety = 0;
 
-    private InventoryContainer foodStorageContainer = new InventoryContainer { width = 5, height = 2 };
+    private InventoryContainer foodStorageContainer = new InventoryContainer { width = 10, height = 1 };
     private InventoryContainer foodBagContainer = new InventoryContainer { width = 10, height = 7 };
 
-    /// <summary>현재 음식이 부족하여 영지 전체가 중지되었는지 여부 반환</summary>
     public bool IsWorkStoppedDueToStarvation => isWorkStoppedDueToStarvation;
     public int MaxSatiety => maxSatiety;
     public int CurrentSatiety => currentSatiety;
 
-    // RecordManager 및 FoodWarehouseUI가 직접 공유하여 링크할 프로퍼티 통로 개방
     public InventoryContainer FoodStorageContainer => foodStorageContainer;
     public InventoryContainer FoodBagContainer => foodBagContainer;
 
@@ -42,8 +62,14 @@ public class ConsumeFoodSystem : MonoBehaviour
             Instance = this;
             DontDestroyOnLoad(gameObject);
 
-            // 장부 슬롯 배정 구조 초기화 완수
-            foodStorageContainer.Initialize();
+            foodStorageContainer.width = 10;
+            foodStorageContainer.height = 1;
+            foodStorageContainer.slots = new ItemStack[5];
+            for (int i = 0; i < 5; i++)
+            {
+                foodStorageContainer.slots[i] = new ItemStack();
+            }
+
             foodBagContainer.Initialize();
         }
         else
@@ -51,8 +77,6 @@ public class ConsumeFoodSystem : MonoBehaviour
             Destroy(gameObject);
             return;
         }
-
-        if (foodWarehouseUI == null) foodWarehouseUI = FindFirstObjectByType<FoodWarehouseUI>();
     }
 
     private void Start()
@@ -65,67 +89,55 @@ public class ConsumeFoodSystem : MonoBehaviour
 
     private void Update()
     {
-        if (!isWorkStoppedDueToStarvation)
+        // [HDY 요청 - 영지 배고픔 시스템] 굶고 있는 멤도 매 틱 급식을 재시도해야 하므로, 예전과 달리
+        // 전역 정지 플래그와 무관하게 타이머는 항상 진행된다.
+        timer += Time.deltaTime;
+        if (timer >= consumeInterval)
         {
-            timer += Time.deltaTime;
-            if (timer >= consumeInterval)
-            {
-                timer = 0f;
-                ProcessFoodConsumption(false);
-            }
+            timer = 0f;
+            TotalHungerManager.Instance?.ProcessPerMinuteConsumption();
+            RefreshLegacyStarvationFlag();
         }
     }
 
     /// <summary>
-    /// 음식 소모 차감 연산 및 포만감 강제 실시간 정산 통제 총괄 엔진
+    /// [HDY 요청 - 영지 배고픔 시스템] 밥통이 완전히 바닥났는지 여부만 갱신한다(비상 신호).
+    /// TotalHungerManager.ProcessPerMinuteConsumption()이 개별 급식을 전부 처리한 뒤 호출된다.
     /// </summary>
-    public void ProcessFoodConsumption(bool isManualChange = false)
+    private void RefreshLegacyStarvationFlag()
     {
-        if (foodWarehouseUI == null) foodWarehouseUI = FindFirstObjectByType<FoodWarehouseUI>();
+        currentSatiety = CalculateTotalStorageSatiety(out _);
+        isWorkStoppedDueToStarvation = currentSatiety <= 0;
+        NotifyFoodStatusChanged();
+    }
 
-        int totalHunger = TotalHungerManager.Instance != null ? TotalHungerManager.Instance.TotalHungerPerMinute : 0;
-        int totalSatietyAvailable = CalculateTotalStorageSatiety(out List<int> validFoodIndices);
+    /// <summary>
+    /// [HDY 요청 - 영지 배고픔 시스템] 멤 1마리를 먹인다. entry.CurrentHunger가 maxHunger에 도달할 때까지
+    /// 밥통에서 음식을 "아이템 단위"로 소비한다 - 마지막 한 아이템으로 목표치를 넘기더라도 그 아이템은
+    /// 통째로 소비되고 초과분은 버려진다(예: MaxHunger=15, 포만감 10짜리 음식이 10개 있으면 2개를 소비해서
+    /// CurrentHunger를 15로 채움). 밥통에 있는 음식으로 목표치까지 다 채우지 못하면(재고 부족) 가진 만큼만
+    /// 채우고 false를 반환한다 - 호출부(TotalHungerManager)가 이 결과로 해당 멤이 배치된 시설/슬롯을
+    /// 정지시킬지 판단한다.
+    /// </summary>
+    public bool TryFeedMem(CapturedMemEntry entry, int maxHunger)
+    {
+        if (entry == null) return false;
 
-        if (isManualChange)
+        int needed = maxHunger - entry.CurrentHunger;
+        if (needed <= 0)
         {
-            maxSatiety = totalSatietyAvailable;
-            currentSatiety = totalSatietyAvailable;
+            entry.CurrentHunger = maxHunger;
+            return true;
         }
 
-        if (totalHunger > totalSatietyAvailable)
-        {
-            if (!isWorkStoppedDueToStarvation)
-            {
-                isWorkStoppedDueToStarvation = true;
-                isWaitingForMissedMeal = true;
-
-                SetAllFacilitiesWorkingState(false);
-                Debug.LogWarning("<color=red><b>[영지 경보]</b></color> 음식 부족으로 모든 시설 가동이 정지됩니다.");
-            }
-            currentSatiety = totalSatietyAvailable;
-            NotifyFoodStatusChanged();
-            return;
-        }
-
-        if (isWorkStoppedDueToStarvation)
-        {
-            isWorkStoppedDueToStarvation = false;
-            SetAllFacilitiesWorkingState(true);
-            Debug.Log("<color=lime><b>[영지 정상화]</b></color> 음식을 충분히 확보했습니다. 모든 시설이 다시 가동을 시작합니다.");
-            timer = 0f;
-        }
-
-        if (!isManualChange || (isManualChange && isWaitingForMissedMeal))
-        {
-            if (totalHunger > 0)
-            {
-                ConsumeFoodFromStorage(totalHunger, validFoodIndices);
-                isWaitingForMissedMeal = false;
-            }
-        }
+        int obtained = ConsumeItemsForHunger(needed);
+        entry.CurrentHunger = Mathf.Min(maxHunger, entry.CurrentHunger + obtained);
 
         currentSatiety = CalculateTotalStorageSatiety(out _);
         NotifyFoodStatusChanged();
+        if (foodWarehouseUI != null) foodWarehouseUI.RefreshAllPanelsAndSlots();
+
+        return entry.CurrentHunger >= maxHunger;
     }
 
     public void OnStorageToStorageMove()
@@ -135,29 +147,21 @@ public class ConsumeFoodSystem : MonoBehaviour
         NotifyFoodStatusChanged();
     }
 
+    /// <summary>플레이어가 음식을 가방에서 창고(밥통)로 옮겼을 때 호출된다. 표시값만 갱신한다 - 실제
+    /// 급식/정지 판단은 다음 매분 틱에서 TotalHungerManager가 개별 멤 단위로 다시 시도한다.</summary>
     public void OnRightToLeftMove()
     {
-        ProcessFoodConsumption(true);
+        RefreshLegacyStarvationFlag();
+
+        TotalHungerManager.Instance?.ProcessPerMinuteConsumption();
     }
 
+    /// <summary>플레이어가 음식을 창고(밥통)에서 가방으로 옮겼을 때 호출된다. 표시값만 갱신한다 - 이제
+    /// 이 시점에 모든 시설을 일괄 정지시키지 않는다(개별 시설은 다음 매분 틱에서 자기 멤의 급식 성공
+    /// 여부로 스스로 정지/재개한다).</summary>
     public void OnLeftToRightMove()
     {
-        int totalHunger = TotalHungerManager.Instance != null ? TotalHungerManager.Instance.TotalHungerPerMinute : 0;
-        int totalSatietyAvailable = CalculateTotalStorageSatiety(out _);
-
-        maxSatiety = totalSatietyAvailable;
-        currentSatiety = totalSatietyAvailable;
-
-        if (totalHunger > totalSatietyAvailable && !isWorkStoppedDueToStarvation)
-        {
-            isWorkStoppedDueToStarvation = true;
-            isWaitingForMissedMeal = false;
-
-            SetAllFacilitiesWorkingState(false);
-            Debug.LogWarning("<color=red><b>[영지 경보]</b></color> 창고 음식 회수로 보관량이 허기량보다 부족해져 즉시 작업이 정지됩니다.");
-        }
-
-        NotifyFoodStatusChanged();
+        RefreshLegacyStarvationFlag();
     }
 
     public void ForceSyncManualState(int loadedCurrent, int loadedMax, bool loadedStarvation)
@@ -179,23 +183,27 @@ public class ConsumeFoodSystem : MonoBehaviour
         }
     }
 
-    private int CalculateTotalStorageSatiety(out List<int> validFoodIndices)
+    public int CalculateTotalStorageSatiety(out List<int> validFoodIndices)
     {
         validFoodIndices = new List<int>();
         int sumSatiety = 0;
 
         if (foodStorageContainer == null || foodStorageContainer.slots == null) return 0;
 
-        // UI창이 꺼져있을 때에도 에러 없이 백과사전 스캔 에셋 데이터를 찾아올 수 있도록 안전 방어 분기를 설계합니다.
         ItemCatalogManager catalog = foodWarehouseUI != null ? foodWarehouseUI.CatalogManager : FindFirstObjectByType<ItemCatalogManager>();
-        if (catalog == null) return 0;
 
         for (int i = 0; i < foodStorageContainer.slots.Length; i++)
         {
             ItemStack slot = foodStorageContainer.slots[i];
             if (slot == null || slot.IsEmpty) continue;
 
-            ItemData itemData = catalog.FindItemData(slot.itemId);
+            ItemData itemData = catalog != null ? catalog.FindItemData(slot.itemId) : null;
+
+            if (itemData == null && RecordManager.Instance != null)
+            {
+                itemData = RecordManager.Instance.FindItemDataInProject(slot.itemId);
+            }
+
             if (itemData == null || itemData.EatEffects == null) continue;
 
             foreach (ItemEffect effect in itemData.EatEffects)
@@ -211,80 +219,84 @@ public class ConsumeFoodSystem : MonoBehaviour
         return sumSatiety;
     }
 
-    private void ConsumeFoodFromStorage(int hungerToConsume, List<int> foodIndices)
+    /// <summary>
+    /// [HDY 요청 - 영지 배고픔 시스템] neededSatiety만큼 채우기 위해 필요한 아이템 개수를 올림 계산해서
+    /// 밥통에서 소비한다(마지막 아이템으로 목표를 넘길 수 있음 - 호출부인 TryFeedMem이 최종 캡핑 처리).
+    /// 실제로 확보한 satiety를 반환한다. 재고가 부족하면 있는 만큼만 소비하고 그만큼만 반환한다(요청량 미만).
+    /// </summary>
+    private int ConsumeItemsForHunger(int neededSatiety)
     {
-        int remainingHunger = hungerToConsume;
+        if (foodStorageContainer == null || foodStorageContainer.slots == null) return 0;
+
         ItemCatalogManager catalog = foodWarehouseUI != null ? foodWarehouseUI.CatalogManager : FindFirstObjectByType<ItemCatalogManager>();
+        int remaining = neededSatiety;
+        int obtained = 0;
 
-        foreach (int index in foodIndices)
+        for (int i = 0; i < foodStorageContainer.slots.Length; i++)
         {
-            ItemStack slot = foodStorageContainer.slots[index];
-            ItemData itemData = catalog != null ? catalog.FindItemData(slot.itemId) : null;
-            if (itemData == null) continue;
+            if (remaining <= 0) break;
 
-            int singleSatiety = 0;
-            if (itemData.EatEffects != null)
+            ItemStack slot = foodStorageContainer.slots[i];
+            if (slot == null || slot.IsEmpty) continue;
+
+            ItemData itemData = catalog != null ? catalog.FindItemData(slot.itemId) : null;
+            if (itemData == null && RecordManager.Instance != null)
             {
-                foreach (ItemEffect effect in itemData.EatEffects)
-                {
-                    if (effect != null && effect.Effect == EffectType.Satiety)
-                    {
-                        singleSatiety = (int)effect.Value;
-                        break;
-                    }
-                }
+                itemData = RecordManager.Instance.FindItemDataInProject(slot.itemId);
             }
 
+            int singleSatiety = GetSatietyValue(itemData);
             if (singleSatiety <= 0) continue;
 
-            while (slot.amount > 0 && remainingHunger > 0)
+            int itemsNeeded = Mathf.CeilToInt((float)remaining / singleSatiety);
+            int itemsToConsume = Mathf.Min(slot.amount, itemsNeeded);
+
+            slot.amount -= itemsToConsume;
+            int satietyFromThis = itemsToConsume * singleSatiety;
+            obtained += satietyFromThis;
+            remaining -= satietyFromThis;
+
+            if (slot.amount <= 0)
             {
-                slot.amount--;
-                remainingHunger -= singleSatiety;
-            }
-
-            if (slot.amount <= 0) slot.Clear();
-            if (remainingHunger <= 0) break;
-        }
-
-        if (foodWarehouseUI != null) foodWarehouseUI.RefreshAllPanelsAndSlots();
-    }
-
-    private void SetAllFacilitiesWorkingState(bool isWorking)
-    {
-        var productionFacilities = FindObjectsByType<ProductionFacilityRuntime>(FindObjectsSortMode.None);
-        foreach (var facility in productionFacilities)
-        {
-            if (facility == null) continue;
-            if (!isWorking) facility.isProducing = false;
-            else facility.CheckProductionCondition();
-        }
-
-        var craftingFacilities = FindObjectsByType<ProductionCraftRuntime>(FindObjectsSortMode.None);
-        foreach (var craft in craftingFacilities)
-        {
-            if (craft == null) continue;
-            if (!isWorking) craft.isProducing = false;
-            else
-            {
-                if (craft.currentCraftingItem != null && craft.DeployedMems.Count > 0) craft.isProducing = true;
+                slot.Clear();
             }
         }
+
+        return obtained;
     }
 
+    /// <summary>[오프라인 보상 등에서 사용] 지정한 satiety를 밥통에서 그대로 소비한다(아이템 단위, 초과분 버림 없이 딱 맞춰 소비 시도).</summary>
     public void ConsumeSatietyFromWarehouse(int satietyToConsume)
     {
         int remainingSatiety = satietyToConsume;
 
-        // 창고 슬롯을 순회하며 음식 소모
+
+        if (foodStorageContainer == null || foodStorageContainer.slots == null) return;
+
+        ItemCatalogManager catalog = null;
+        if (foodWarehouseUI != null && foodWarehouseUI.CatalogManager != null)
+        {
+            catalog = foodWarehouseUI.CatalogManager;
+        }
+        else
+        {
+            catalog = FindFirstObjectByType<ItemCatalogManager>();
+        }
+
         foreach (var slot in foodStorageContainer.slots)
         {
-            if (slot == null || slot.IsEmpty) continue;
+            if (slot == null || slot.IsEmpty || string.IsNullOrEmpty(slot.itemId)) continue;
 
-            // 아이템 정보 조회 (아이템 카탈로그 연동)
-            var itemData = foodWarehouseUI.CatalogManager.FindItemData(slot.itemId);
-            int itemSatiety = GetSatietyValue(itemData); // 아이템 데이터에서 포만감 수치 추출하는 함수
+            ItemData itemData = catalog != null ? catalog.FindItemData(slot.itemId) : null;
 
+            if (itemData == null && RecordManager.Instance != null)
+            {
+                itemData = RecordManager.Instance.FindItemDataInProject(slot.itemId);
+            }
+
+            if (itemData == null) continue;
+
+            int itemSatiety = GetSatietyValue(itemData);
             if (itemSatiety <= 0) continue;
 
             while (slot.amount > 0 && remainingSatiety >= itemSatiety)
@@ -297,14 +309,13 @@ public class ConsumeFoodSystem : MonoBehaviour
             if (remainingSatiety <= 0) break;
         }
 
-        // UI 갱신 및 상태 동기화
         currentSatiety = CalculateTotalStorageSatiety(out _);
         NotifyFoodStatusChanged();
     }
 
     private int GetSatietyValue(ItemData data)
     {
-        if (data == null || data.EatEffects == null) return 0;
+        if (data == null || data.EatEffects == null || data.EatEffects.Count == 0) return 0;
         foreach (var effect in data.EatEffects)
         {
             if (effect.Effect == EffectType.Satiety) return (int)effect.Value;

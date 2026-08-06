@@ -5,18 +5,37 @@ using MemSystem.Data;
 using HDY.Capture;
 using HDY.UI;
 using HDY.Mem;
+using TMPro;
 
 public class MemSlotUI : MonoBehaviour, IDropHandler, IPointerClickHandler
 {
-    [Header("슬롯 UI 요소 참조 (미리 배치될 프리팹의 컴포넌트들)")]
+    [Header("슬롯 UI 요소 참조")]
     [SerializeField] private Image iconImage;
+    [SerializeField] private Image stat;
+    [SerializeField] private TextMeshProUGUI statText;
     [SerializeField] private Button slotButton;
+    [SerializeField] private Image activeIcon; 
+
+    [Header("스탯 아이콘 매핑")]
+    [SerializeField] private Sprite craftingStatIcon;
+    [SerializeField] private Sprite loggingStatIcon;
+    [SerializeField] private Sprite miningStatIcon;
+    [SerializeField] private Sprite transportStatIcon;
+    [SerializeField] private Sprite farmingStatIcon;
 
     public int SlotIndex { get; private set; }
     private bool isUnlocked = false;
 
     private MemData currentPlacedMem = null;
     private CapturedMemEntry currentPlacedEntry = null;
+
+    private void Awake()
+    {
+        if (activeIcon != null)
+        {
+            activeIcon.gameObject.SetActive(false);
+        }
+    }
 
     public void InitializeSlot(int index)
     {
@@ -33,29 +52,30 @@ public class MemSlotUI : MonoBehaviour, IDropHandler, IPointerClickHandler
             slotButton.onClick.RemoveAllListeners();
             slotButton.onClick.AddListener(OnClickSlot);
         }
+
+        if (activeIcon != null)
+        {
+            activeIcon.gameObject.SetActive(false);
+        }
     }
 
-    /// <summary>
-    /// 마우스 좌클릭을 통한 배치된 슬롯 해제처리
-    /// </summary>
     public void OnPointerClick(PointerEventData eventData)
     {
         if (eventData.button == PointerEventData.InputButton.Left)
         {
             ExecuteSlotReleaseProcess();
         }
+
+        if (eventData.button == PointerEventData.InputButton.Right)
+        {
+            ExecuteSlotReleaseProcess();
+        }
     }
 
-    /// <summary>
-    /// 기존 OnClickSlot의 역할을 완벽하게 대체하는 실질 해제 트랜잭션 부서
-    /// </summary>
     private void ExecuteSlotReleaseProcess()
     {
+        if (currentPlacedMem == null) return;
 
-        if (currentPlacedMem == null)
-        {
-            return;
-        }
         MonoBehaviour activePanel = GetCurrentActivePanel();
 
         if (activePanel is ProductionPanelUI prodPanel)
@@ -66,21 +86,35 @@ public class MemSlotUI : MonoBehaviour, IDropHandler, IPointerClickHandler
         {
             craftPanel.TryRemoveMemFromUI(currentPlacedMem);
         }
+        else if (activePanel is RanchPanelUI ranchPanel)
+        {
+            ranchPanel.TryRemoveMemFromUI(currentPlacedMem);
+        }
+        else if (activePanel is GeneratorPanelUI genPanel)
+        {
+            genPanel.TryRemoveMemFromUI(currentPlacedMem);
+        }
+        else if (activePanel is TransportPanelUI transPanel)
+        {
+            transPanel.TryRemoveMemFromUI(currentPlacedMem);
+        }
+        else if (activePanel is CampFirePanelUI campFirePanel)
+        {
+            campFirePanel.TryRemoveMemFromUI(currentPlacedMem);
+        }
+        else if (activePanel is KitchenPanelUI kitchenPanel)
+        {
+            kitchenPanel.TryRemoveMemFromUI(currentPlacedMem);
+        }
     }
 
-    /// <summary>
-    /// 해금된 슬롯의 색상 변경 및 배치된 복사 멤의 비주얼 이미지 출력
-    /// </summary>
     public void RefreshStatus(bool unlocked, MemData memData, CapturedMemEntry entryData)
     {
         isUnlocked = unlocked;
         currentPlacedMem = memData;
         currentPlacedEntry = entryData;
 
-        if (slotButton != null)
-        {
-            slotButton.interactable = isUnlocked;
-        }
+        if (slotButton != null) slotButton.interactable = isUnlocked;
 
         if (!isUnlocked)
         {
@@ -89,168 +123,255 @@ public class MemSlotUI : MonoBehaviour, IDropHandler, IPointerClickHandler
                 iconImage.sprite = null;
                 iconImage.color = Color.black;
             }
+
+            if (activeIcon != null)
+            {
+                activeIcon.gameObject.SetActive(false);
+            }
+
+            ApplyStatDisplay(null, string.Empty);
         }
         else
         {
-            if (iconImage != null)
+            if (currentPlacedMem != null)
             {
-                if (currentPlacedMem != null)
+                if (iconImage != null)
                 {
-                    Sprite sprite = (isUnlocked && currentPlacedMem != null && MemIconRenderer.Instance != null)
+                    Sprite sprite = (MemIconRenderer.Instance != null)
                             ? MemIconRenderer.Instance.GetIcon(currentPlacedMem.memId)
                             : null;
-                    if (currentPlacedMem.modelPrefab != null)
-                    {
-                        iconImage.sprite = sprite;
-                        iconImage.gameObject.SetActive(sprite != null);
-                    }
+
+                    iconImage.sprite = sprite;
+                    iconImage.color = new Color(1f, 1f, 1f, 1f);
+                    iconImage.gameObject.SetActive(sprite != null);
                 }
-                else
+
+                if (activeIcon != null)
+                {
+                    activeIcon.gameObject.SetActive(true);
+                }
+
+                UpdateStatDisplay();
+            }
+            else
+            {
+                if (iconImage != null)
                 {
                     iconImage.sprite = null;
-                    iconImage.color = Color.white;
+                    iconImage.color = new Color(1f, 1f, 1f, 100f / 255f);
+                }
+
+                if (stat != null)
+                {
+                    stat.sprite = null;
+                    stat.color = new Color(1f, 1f, 1f, 100f / 255f);
+                    statText.text = "0";
+                }
+
+                if (activeIcon != null)
+                {
+                    activeIcon.gameObject.SetActive(false);
                 }
             }
         }
     }
+
+    private void UpdateStatDisplay()
+    {
+        if (currentPlacedMem == null)
+        {
+            ApplyStatDisplay(null, string.Empty);
+            return;
+        }
+
+        BuildingType? buildingType = null;
+        MonoBehaviour activePanel = GetCurrentActivePanel();
+
+        if (activePanel is ProductionPanelUI prodPanel && prodPanel.TargetFacility != null && prodPanel.TargetFacility.buildingData != null)
+        {
+            buildingType = prodPanel.TargetFacility.buildingData.buildingType;
+        }
+        else if (activePanel is CraftingPanelUI craftPanel && craftPanel.TargetFacility != null && craftPanel.TargetFacility.buildingData != null)
+        {
+            buildingType = craftPanel.TargetFacility.buildingData.buildingType;
+        }
+        else if (activePanel is RanchPanelUI ranchPanel && ranchPanel.TargetFacility != null && ranchPanel.TargetFacility.buildingData != null)
+        {
+            buildingType = ranchPanel.TargetFacility.buildingData.buildingType;
+        }
+        else if (activePanel is GeneratorPanelUI genPanel && genPanel.TargetFacility != null && genPanel.TargetFacility.buildingData != null)
+        {
+            buildingType = genPanel.TargetFacility.buildingData.buildingType;
+        }
+        else if (activePanel is TransportPanelUI transPanel && transPanel.TargetFacility != null && transPanel.TargetFacility.buildingData != null)
+        {
+            buildingType = transPanel.TargetFacility.buildingData.buildingType;
+        }
+        else if (activePanel is CampFirePanelUI campFirePanel && campFirePanel.TargetFacility != null && campFirePanel.TargetFacility.buildingData != null)
+        {
+            buildingType = campFirePanel.TargetFacility.buildingData.buildingType;
+        }
+        else if (activePanel is KitchenPanelUI kitchenPanel && kitchenPanel.TargetFacility != null && kitchenPanel.TargetFacility.buildingData != null)
+        {
+            buildingType = kitchenPanel.TargetFacility.buildingData.buildingType;
+        }
+
+        if (buildingType.HasValue)
+        {
+            ProductionStatType requiredStat = ProductionCalculator.GetRequiredStatType(buildingType.Value);
+            int statValue = currentPlacedMem.productionStats.GetStat(requiredStat);
+            Sprite statIcon = GetStatIcon(requiredStat);
+
+            ApplyStatDisplay(statIcon, statValue.ToString());
+        }
+        else
+        {
+            ApplyStatDisplay(null, string.Empty);
+        }
+    }
+
+    private Sprite GetStatIcon(ProductionStatType statType)
+    {
+        switch (statType)
+        {
+            case ProductionStatType.Crafting: return craftingStatIcon;
+            case ProductionStatType.Logging: return loggingStatIcon;
+            case ProductionStatType.Mining: return miningStatIcon;
+            case ProductionStatType.Transport: return transportStatIcon;
+            case ProductionStatType.Farming: return farmingStatIcon;
+            default: return null;
+        }
+    }
+
+    private void ApplyStatDisplay(Sprite statSprite, string textValue)
+    {
+        if (stat != null)
+        {
+            stat.sprite = statSprite;
+            stat.color = Color.white;
+            stat.gameObject.SetActive(statSprite != null);
+        }
+
+        if (statText != null)
+        {
+            statText.text = textValue;
+            statText.gameObject.SetActive(!string.IsNullOrEmpty(textValue));
+        }
+    }
+
     private MonoBehaviour GetCurrentActivePanel()
     {
-        string myPrefabName = gameObject.name;
-        Debug.Log($"myPrefabName: {myPrefabName}");
-
-        if (myPrefabName.Contains("Product"))
+        if (PanelManager.Instance != null)
         {
-            return ProductionPanelUI.Instance;
+            if (PanelManager.Instance.IsCraftingPanelActive && CraftingPanelUI.Instance != null) return CraftingPanelUI.Instance;
+            if (PanelManager.Instance.IsProductionPanelActive && ProductionPanelUI.Instance != null) return ProductionPanelUI.Instance;
+            if (PanelManager.Instance.IsRanchPanelActive && RanchPanelUI.Instance != null) return RanchPanelUI.Instance;
+            if (PanelManager.Instance.IsGeneratorPanelActive && GeneratorPanelUI.Instance != null) return GeneratorPanelUI.Instance;
+            if (PanelManager.Instance.IsTransportPanelActive && TransportPanelUI.Instance != null) return TransportPanelUI.Instance;
+            if (PanelManager.Instance.IsCampFirePanelActive && CampFirePanelUI.Instance != null) return CampFirePanelUI.Instance;
+            if (PanelManager.Instance.IsKitchenPanelActive && KitchenPanelUI.Instance != null) return KitchenPanelUI.Instance;
         }
-        else if (myPrefabName.Contains("Craft"))
-        {
-            return CraftingPanelUI.Instance;
-        }
-
         return null;
     }
 
-    /// <summary>
-    /// 시설 내 슬롯 클릭 시 해제 처리
-    /// </summary>
     private void OnClickSlot()
     {
-        Debug.Log("OnClickSlot 동작 시작");
-        if (currentPlacedMem == null) return;
-        Debug.Log($"currentPlacedMem 존재{currentPlacedMem}");
-        MonoBehaviour activePanel = GetCurrentActivePanel();
-        Debug.Log($"activePanel{activePanel}");
-        if (activePanel is ProductionPanelUI prodPanel)
-        {
-            prodPanel.TryRemoveMemFromUI(currentPlacedMem);
-        }
-        else if (activePanel is CraftingPanelUI craftPanel)
-        {
-            craftPanel.TryRemoveMemFromUI(currentPlacedMem);
-        }
+        ExecuteSlotReleaseProcess();
     }
 
-    /// <summary>
-    /// 멤 Drag&Drop처리했을 때 슬롯에 배치처리
-    /// </summary>
     public void OnDrop(PointerEventData eventData)
     {
-        if (!isUnlocked)
+        MonoBehaviour activePanel = GetCurrentActivePanel();
+        if (activePanel == null) return;
+
+        Object targetRuntime = GetRuntimeFromPanel(activePanel);
+
+        if (targetRuntime is RanchFacilityRuntime && !isUnlocked)
         {
-            Debug.LogWarning($"시설 레벨 조건이 충족되지 않아 잠겨있는 슬롯 칸입니다.");
+            Debug.LogWarning($"[MemSlotUI] 잠겨있는 목장 슬롯입니다. (인덱스: {SlotIndex})");
             return;
         }
 
         if (eventData.pointerDrag != null && eventData.pointerDrag.TryGetComponent<HDY.UI.MemSlotUI>(out HDY.UI.MemSlotUI draggedSlot))
         {
-            // C# Reflection으로 데이터 복사 접근 정밀화
             var type = typeof(HDY.UI.MemSlotUI);
             var fieldEntry = type.GetField("cachedEntry", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             var fieldData = type.GetField("cachedData", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
 
-            if (fieldEntry != null && fieldData != null)
+            if (fieldEntry != null)
             {
                 CapturedMemEntry warehouseEntry = fieldEntry.GetValue(draggedSlot) as CapturedMemEntry;
-                MemData warehouseData = fieldData.GetValue(draggedSlot) as MemData;
+                MemData warehouseData = fieldData != null ? fieldData.GetValue(draggedSlot) as MemData : null;
 
-                // 테스트 데이터로 인해 발생한 사항에 대한 임시 방어코드.
-                // 창고 원본 entry는 존재하나 데이터가 null인 테스트 상황에 대비합니다.
-                // 실제로는 해당코드 제거 후 다시 테스트 필요
                 if (warehouseEntry != null)
                 {
-                    if (warehouseData == null)
+                    if ((warehouseData == null || string.IsNullOrEmpty(warehouseData.memId)) && MemCatalogManager.Instance != null)
                     {
-                        Debug.LogWarning($"<color=orange>[OnDrop 경고]</color> 창고 멤의 MemData가 null입니다. 테스트 연동을 위해 임시 디버그용 가방 데이터를 생성합니다.");
-
-                        warehouseData = ScriptableObject.CreateInstance<MemData>();
-                        warehouseData.memName = "디버그용 테스트 멤";
-                        warehouseData.tier = MemTier.Rare;
-
-                        warehouseData.productionStats.crafting = 1;
-                        warehouseData.productionStats.logging = 1;
-                        warehouseData.productionStats.mining = 1;
-                        warehouseData.productionStats.transport = 1;
-                        warehouseData.productionStats.farming = 1;
+                        warehouseData = MemCatalogManager.Instance.FindMemData(warehouseEntry.MemId);
                     }
-                    MonoBehaviour activePanel = GetCurrentActivePanel();
 
-                    if (activePanel is ProductionPanelUI prodPanel)
+                    bool isDeployedSuccess = false;
+
+                    if (targetRuntime is ProductionFacilityRuntime prodRuntime)
                     {
-                        prodPanel.TryDeployMemFromUI(warehouseData, warehouseEntry);
+                        isDeployedSuccess = prodRuntime.TryAddMem(warehouseData, warehouseEntry);
+                        if (isDeployedSuccess && activePanel is ProductionPanelUI prodPanel) prodPanel.RefreshStaticUI();
                     }
-                    else if (activePanel is CraftingPanelUI craftPanel)
+                    else if (targetRuntime is ProductionCraftRuntime craftRuntime)
                     {
-                        craftPanel.TryDeployMemFromUI(warehouseData, warehouseEntry);
+                        isDeployedSuccess = craftRuntime.TryAddMem(warehouseData, warehouseEntry);
+                        if (isDeployedSuccess && activePanel is CraftingPanelUI craftPanel) craftPanel.RefreshStaticUI();
+                    }
+                    else if (targetRuntime is RanchFacilityRuntime ranchRuntime)
+                    {
+                        isDeployedSuccess = ranchRuntime.TryAddMemToSlot(SlotIndex, warehouseData, warehouseEntry);
+                        if (isDeployedSuccess && activePanel is RanchPanelUI ranchPanel) ranchPanel.RefreshStaticUI();
+                    }
+                    else if (targetRuntime is GeneratorRuntime genRuntime)
+                    {
+                        isDeployedSuccess = genRuntime.TryAddMem(warehouseData, warehouseEntry);
+                        if (isDeployedSuccess && activePanel is GeneratorPanelUI genPanel) genPanel.RefreshStaticUI();
+                    }
+                    else if (targetRuntime is TransportRuntime transRuntime)
+                    {
+                        isDeployedSuccess = transRuntime.TryAddMem(warehouseData, warehouseEntry);
+                        if (isDeployedSuccess && activePanel is TransportPanelUI transPanel) transPanel.RefreshStaticUI();
+                    }
+                    else if (targetRuntime is CampFireRuntime campFireRuntime)
+                    {
+                        isDeployedSuccess = campFireRuntime.TryAddMem(warehouseData, warehouseEntry);
+                        if (isDeployedSuccess && activePanel is CampFirePanelUI campFirePanel) campFirePanel.RefreshStaticUI();
+                    }
+                    else if (targetRuntime is KitchenRuntime kitchenRuntime)
+                    {
+                        isDeployedSuccess = kitchenRuntime.TryAddMem(warehouseData, warehouseEntry);
+                        if (isDeployedSuccess && activePanel is KitchenPanelUI kitchenPanel) kitchenPanel.RefreshStaticUI();
+                    }
+
+                    if (isDeployedSuccess)
+                    {
+                        Debug.Log($"<color=lime>[MemSlotUI]</color> 런타임 직접 배치 성공: {warehouseEntry.MemId}");
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"<color=orange>[MemSlotUI]</color> 런타임 배치 조건 불충족으로 취소됨");
                     }
                 }
-                else
-                {
-                    Debug.LogError("[OnDrop 에러] 드래그한 창고 슬롯의 CapturedMemEntry 자체가 null입니다. 완전한 빈 슬롯을 드래그했습니다.");
-                }
             }
-            else
-            {
-                Debug.LogError("[OnDrop 에러] 팀원 스크립트의 cachedEntry 또는 cachedData private 필드명을 찾을 수 없습니다.");
-            }
-        }
-        else
-        {
-            Debug.LogWarning("[OnDrop 경고] 드래그해온 오브젝트에서 팀원의 MemSlotUI 컴포넌트를 찾지 못했습니다.");
         }
     }
 
-    
+    private Object GetRuntimeFromPanel(MonoBehaviour panel)
+    {
+        if (panel is ProductionPanelUI prod) return prod.TargetFacility;
+        if (panel is CraftingPanelUI craft) return craft.TargetFacility;
+        if (panel is RanchPanelUI ranch) return ranch.TargetFacility;
+        if (panel is GeneratorPanelUI gen) return gen.TargetFacility;
+        if (panel is TransportPanelUI trans) return trans.TargetFacility;
+        if (panel is CampFirePanelUI campFire) return campFire.TargetFacility;
+        if (panel is KitchenPanelUI kitchen) return kitchen.TargetFacility;
 
-    // 테스트함수 없이 실제 동작시킬때 사용할 함수(윗 버전은 임시용)
-    //public void OnDrop(PointerEventData eventData)
-    //{
-    //    if (!isUnlocked)
-    //    {
-    //        Debug.LogWarning($"시설 레벨 조건이 충족되지 않아 잠겨있는 슬롯 칸입니다. (인덱스: {SlotIndex})");
-    //        return;
-    //    }
-
-    //    if (eventData.pointerDrag != null && eventData.pointerDrag.TryGetComponent<HDY.UI.MemSlotUI>(out HDY.UI.MemSlotUI draggedSlot))
-    //    {
-    //        var type = typeof(HDY.UI.MemSlotUI);
-    //        var fieldEntry = type.GetField("cachedEntry", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-    //        var fieldData = type.GetField("cachedData", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-
-    //        if (fieldEntry != null && fieldData != null)
-    //        {
-    //            CapturedMemEntry warehouseEntry = fieldEntry.GetValue(draggedSlot) as CapturedMemEntry;
-    //            MemData warehouseData = fieldData.GetValue(draggedSlot) as MemData;
-
-    //            if (warehouseEntry != null && warehouseData != null)
-    //            {
-    //                Debug.Log($"포획 멤 데이터 추출 완료: {warehouseData.memName}.");
-    //                ProductionPanelUI.Instance.TryDeployMemFromUI(warehouseData, warehouseEntry);
-    //            }
-    //            else
-    //            {
-    //                Debug.LogWarning("[OnDrop 경고] 슬롯에 정상적인 멤 데이터가 존재하지 않아 배치를 취소합니다.");
-    //            }
-    //        }
-    //    }
-    //}
+        Debug.Log($"[Panel 확인하기 {panel}]");
+        return null;
+    }
 }

@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
@@ -11,9 +12,9 @@ namespace HDY.UI
     /// 멤 정보 패널(그리드 옆 고정 표시) 담당.
     /// 멤창고(MemStorageUI)와 도감(MemDexUI) 둘 다에서 재사용한다.
     /// - 창고: 포획된 개체(CapturedMemEntry)가 있어 ShowInfo(entry, data) 사용, 탐험 스탯은 그 개체의 실제 값(단일 숫자).
-    /// - 도감: 포획된 개체가 없어 ShowInfo(data) 사용. MemData.explorationStat 하나만으로는 개체별 실제 범위를
-    ///   반영하지 못하므로, MemTierTable에서 해당 등급의 explorationMin~explorationMax 범위를 찾아 "20~100"
-    ///   형식으로 보여준다(테이블/스펙이 없으면 MemData의 단일 값으로 대체).
+    /// - 도감: 포획된 개체가 없어 ShowInfo(data, firstCapturedTimestamp) 사용. MemData.explorationStat 하나만으로는
+    ///   개체별 실제 범위를 반영하지 못하므로, MemTierTable에서 해당 등급의 explorationMin~explorationMax 범위를
+    ///   찾아 "20~100" 형식으로 보여준다(테이블/스펙이 없으면 MemData의 단일 값으로 대체).
     /// 두 오버로드 모두 내부적으로 RenderInfo로 렌더링을 위임한다.
     ///
     /// [스탯 표시 = "이름: 숫자"] 제작/벌목/채광/이동/생산 5개 생산 스탯은 각각 "제작: 3"처럼 라벨과
@@ -22,11 +23,25 @@ namespace HDY.UI
     /// ("라벨 : " + data) != null이 되어(문자열 이어붙이기 결과는 항상 null이 아니므로) 조건이 항상
     /// 참으로 평가되고, 그 결과 라벨 문구는 버려진 채 숫자만 표시되고 있었다(생산 줄은 추가로 farming이
     /// 아니라 transport를 잘못 참조하는 복사-붙여넣기 실수도 있었음). 이번에 두 문제 모두 고쳤다.
+    ///
+    /// [HDY 요청 - 데이터 없을 때 "??" 표시] 아직 아무 멤도 선택되지 않은 최초 상태(또는 이후 선택이
+    /// 해제된 상태), 혹은 멤 데이터(SO)가 아직 입력되지 않은 경우에는 이름/티어/스탯 6종 텍스트를
+    /// 비활성화하지 않고 계속 켜둔 채로 값만 "??"(스탯은 "라벨: ??")로 표시한다. 예전에는 이 상태에서
+    /// 텍스트 오브젝트 자체를 꺼버렸는데, 그러면 "정보가 없다"는 사실이 빈 화면으로만 보여 구분이 안 됐다.
+    /// 아이콘만 예외적으로 계속 숨긴다("??"로 대신할 만한 이미지가 없어서다).
+    ///
+    /// [HDY 요청 - 해상도 분리] 상세정보 패널이라 512px(GetIcon512)을 사용한다. 도감 슬롯(MemDexSlotUI)은
+    /// 128px, 창고 그리드 슬롯(MemSlotUI)은 64px을 쓰는 것과 구분된다.
+    ///
+    /// [HDY 요청 - 최초 포획 정보, 도감 전용] infoFirstCapturedText는 도감(ShowInfo(MemData, long?))에서만
+    /// 채워지고 보여진다 - 창고(ShowInfo(entry, data))에서는 이 줄 자체를 항상 숨긴다. 같은 패널을 두 화면이
+    /// 공유하지만, 최초 포획 정보는 도감에서만 의미가 있다고 판단해서 화면(호출하는 오버로드)에 따라
+    /// 켜고 끄는 방식으로 분기했다.
     /// </summary>
     public class MemStorageUI_Info : MonoBehaviour
     {
         [Header("데이터 참조")]
-        [Tooltip("등급별 탐험 스탯 범위(최소~최대) 조회용. 도감(ShowInfo(MemData))에서 범위 표시에 사용한다.")]
+        [Tooltip("등급별 탐험 스탯 범위(최소~최대) 조회용. 도감(ShowInfo(MemData, long?))에서 범위 표시에 사용한다.")]
         [SerializeField] private MemTierTable tierTable;
 
         [Header("정보 패널 (그리드 옆 고정 표시)")]
@@ -40,23 +55,68 @@ namespace HDY.UI
         [SerializeField] private TMP_Text infoFarmingText;
         [SerializeField] private TMP_Text infoExplorationText;
 
+        [Header("최초 포획 정보 (도감 전용 - 창고에서는 항상 숨김)")]
+        [Tooltip("도감에서 멤을 선택했을 때 최초 포획 날짜+시간을 표시하는 텍스트. 창고 쪽 ShowInfo(entry, data)에서는 사용하지 않고 항상 숨긴다.")]
+        [SerializeField] private TMP_Text infoFirstCapturedText;
+
+        private void Awake()
+        {
+            // 아직 ShowInfo가 한 번도 호출되지 않은 최초 상태 - 아이콘은 숨기고, 이름/티어/스탯 텍스트는
+            // 켠 채로 "??"를 보여준다. 최초 포획 정보 줄은 기본적으로 숨김(도감에서 ShowInfo(MemData, long?)를
+            // 호출할 때만 켜진다).
+            HideInfo();
+        }
+
         /// <summary>클릭된 멤(CapturedMemEntry + SO 데이터)을 화면에 표시한다. (멤창고에서 사용) 탐험 스탯은 그 개체의 실제 값.</summary>
         public void ShowInfo(CapturedMemEntry entry, MemData data)
         {
-            if (entry == null) return;
+            if (entry == null)
+            {
+                HideInfo();
+                return;
+            }
 
-            RenderInfo(data, entry.MemId, entry.ExplorationStat.ToString());
+            RenderInfo(data, data != null ? entry.ExplorationStat.ToString() : null);
+            ApplyIcon(data, true); // 창고에 있는 개체는 이미 포획된 것이므로 항상 원래 색(실루엣 아님)
+
+            // [HDY 요청 - 최초 포획 정보는 도감 전용] 창고 화면에서는 이 줄을 항상 숨긴다.
+            SetFirstCapturedVisible(false, null);
         }
 
         /// <summary>
         /// MemData만으로 정보를 표시한다. (도감에서 사용) 포획된 개체가 없어 탐험 스탯은 단일 값 대신
         /// MemTierTable에서 찾은 해당 등급의 "최소~최대" 범위로 보여준다.
         /// </summary>
-        public void ShowInfo(MemData data)
+        /// <param name="firstCapturedTimestamp">
+        /// [HDY 요청 - 최초 포획 정보] 이 멤 종의 최초 포획 시각(UTC Unix, 초). MemDexRecordManager에
+        /// 기록이 없으면(아직 발견되지 않았으면) null을 넘기면 되고, 이 경우 "최초 포획: ??"로 표시된다.
+        /// </param>
+        public void ShowInfo(MemData data, long? firstCapturedTimestamp = null)
         {
-            if (data == null) return;
+            if (data == null)
+            {
+                HideInfo();
+                return;
+            }
 
-            RenderInfo(data, data.memId, BuildExplorationRangeText(data));
+            // [HDY 요청 - 미발견 실루엣] 최초 포획 정보(firstCapturedTimestamp)가 없으면 아직 한 번도
+            // 포획한 적 없는 종이므로, 이름/티어/스탯 정보는 노출하지 않고("??") 아이콘만 도감 그리드
+            // (MemDexSlotUI)와 동일하게 검은 실루엣으로 보여준다(스포일러 방지).
+            bool isDiscovered = firstCapturedTimestamp.HasValue;
+
+            RenderInfo(isDiscovered ? data : null, isDiscovered ? BuildExplorationRangeText(data) : null);
+            ApplyIcon(data, isDiscovered);
+
+            SetFirstCapturedVisible(true, firstCapturedTimestamp);
+        }
+
+        /// <summary>표시할 정보가 없을 때(최초 상태, 선택 해제, 혹은 멤 데이터 미입력) 아이콘만 숨기고
+        /// 텍스트들은 "??" 상태로 렌더링한다. 최초 포획 정보 줄도 함께 숨긴다.</summary>
+        private void HideInfo()
+        {
+            RenderInfo(null, null);
+            ApplyIcon(null, true);
+            SetFirstCapturedVisible(false, null);
         }
 
         /// <summary>MemTierTable에서 이 멤 등급의 탐험 스탯 범위를 찾아 "최소~최대" 형식으로 반환한다. 테이블/스펙이 없으면 MemData의 단일 값으로 대체(경고 로그 남김).</summary>
@@ -73,59 +133,102 @@ namespace HDY.UI
             return data.explorationStat.ToString();
         }
 
-        /// <summary>실제 텍스트/아이콘 렌더링. fallbackName은 data가 없을 때 이름 대신 표시할 값(memId), explorationDisplayText는 탐험 스탯 줄에 그대로 붙일 문자열(단일 값 또는 범위).</summary>
-        private void RenderInfo(MemData data, string fallbackName, string explorationDisplayText)
+        /// <summary>
+        /// [HDY 요청 - 최초 포획 정보, 도감 전용] infoFirstCapturedText를 켜고 끈다. show가 false면(창고
+        /// 화면이거나 선택 해제 상태) 줄 자체를 숨긴다. show가 true면(도감 화면) timestamp가 있으면
+        /// 로컬 시간 기준 "yyyy-MM-dd HH:mm" 형식으로, 없으면(미발견) "최초 포획: ??"로 표시한다.
+        /// </summary>
+        private void SetFirstCapturedVisible(bool show, long? timestamp)
         {
-            if (infoIconImage != null)
+            if (infoFirstCapturedText == null) return;
+
+            infoFirstCapturedText.gameObject.SetActive(show);
+            if (!show) return;
+
+            if (timestamp.HasValue)
             {
-                // MemIconRenderer가 modelPrefab을 촬영해서 만든 아이콘을 memId로 조회한다(없으면 감춤).
-                var sprite = (data != null && MemIconRenderer.Instance != null)
-                    ? MemIconRenderer.Instance.GetIcon(data.memId)
-                    : null;
-
-                infoIconImage.sprite = sprite;
-                infoIconImage.gameObject.SetActive(sprite != null);
+                var localTime = DateTimeOffset.FromUnixTimeSeconds(timestamp.Value).ToLocalTime();
+                infoFirstCapturedText.text = $"최초 포획: {localTime:yyyy-MM-dd HH:mm}";
             }
+            else
+            {
+                infoFirstCapturedText.text = "최초 포획: ??";
+            }
+        }
 
+        /// <summary>
+        /// 실제 텍스트/아이콘 렌더링. data가 null이면 아이콘은 숨기고 이름/티어/스탯 값은 전부 "??"로 표시한다.
+        /// explorationDisplayText는 탐험 스탯 줄에 그대로 붙일 문자열(단일 값 또는 범위) - data가 null이면 무시되고 "??"로 대체된다.
+        /// </summary>
+        private void RenderInfo(MemData data, string explorationDisplayText)
+        {
             if (infoNameText != null)
             {
-                infoNameText.text = data != null ? data.memName : fallbackName;
+                infoNameText.gameObject.SetActive(true);
+                infoNameText.text = data != null ? data.memName : "??";
             }
 
             if (infoTierText != null)
             {
-                infoTierText.text = data != null ? data.tier.ToString() : "-";
+                infoTierText.gameObject.SetActive(true);
+                infoTierText.text = data != null ? data.tier.ToString() : "??";
             }
 
             if (infoCraftingText != null)
             {
-                infoCraftingText.text = data != null ? $"제작: {data.productionStats.crafting}" : "제작: 0";
+                infoCraftingText.gameObject.SetActive(true);
+                infoCraftingText.text = data != null ? $"제작: {data.productionStats.crafting}" : "제작: ??";
             }
 
             if (infoLoggingText != null)
             {
-                infoLoggingText.text = data != null ? $"벌목: {data.productionStats.logging}" : "벌목: 0";
+                infoLoggingText.gameObject.SetActive(true);
+                infoLoggingText.text = data != null ? $"벌목: {data.productionStats.logging}" : "벌목: ??";
             }
 
             if (infoMiningText != null)
             {
-                infoMiningText.text = data != null ? $"채광: {data.productionStats.mining}" : "채광: 0";
+                infoMiningText.gameObject.SetActive(true);
+                infoMiningText.text = data != null ? $"채광: {data.productionStats.mining}" : "채광: ??";
             }
 
             if (infoTransportText != null)
             {
-                infoTransportText.text = data != null ? $"이동: {data.productionStats.transport}" : "이동: 0";
+                infoTransportText.gameObject.SetActive(true);
+                infoTransportText.text = data != null ? $"이동: {data.productionStats.transport}" : "이동: ??";
             }
 
             if (infoFarmingText != null)
             {
-                infoFarmingText.text = data != null ? $"생산: {data.productionStats.farming}" : "생산: 0";
+                infoFarmingText.gameObject.SetActive(true);
+                infoFarmingText.text = data != null ? $"생산: {data.productionStats.farming}" : "생산: ??";
             }
 
             if (infoExplorationText != null)
             {
-                infoExplorationText.text = "탐험 : " + explorationDisplayText;
+                infoExplorationText.gameObject.SetActive(true);
+                infoExplorationText.text = "탐험 : " + (data != null ? explorationDisplayText : "??");
             }
+        }
+
+        /// <summary>
+        /// [HDY 요청 - 미발견 실루엣] 아이콘을 표시한다. MemIconRenderer가 modelPrefab을 촬영해서 만든 아이콘을
+        /// memId로 조회한다(없으면 감춤). isDiscovered가 false면(도감에서 최초 포획 정보가 없는 경우) 도감
+        /// 그리드(MemDexSlotUI)와 동일하게 색만 검정으로 덮어씌워 실루엣처럼 보이게 한다 - 스프라이트(모양)
+        /// 자체는 그대로 두고 Image.color만 바꾸는 방식이라 별도의 실루엣 전용 스프라이트가 필요 없다.
+        /// [HDY 요청 - 해상도 분리] 상세정보 패널이라 512px(GetIcon512)을 사용한다.
+        /// </summary>
+        private void ApplyIcon(MemData data, bool isDiscovered)
+        {
+            if (infoIconImage == null) return;
+
+            var sprite = (data != null && MemIconRenderer.Instance != null)
+                ? MemIconRenderer.Instance.GetIcon512(data.memId)
+                : null;
+
+            infoIconImage.sprite = sprite;
+            infoIconImage.gameObject.SetActive(sprite != null);
+            infoIconImage.color = isDiscovered ? Color.white : Color.black;
         }
     }
 }

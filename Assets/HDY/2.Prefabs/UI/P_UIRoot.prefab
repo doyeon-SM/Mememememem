@@ -60,9 +60,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
   m_Color: {r: 1, g: 1, b: 1, a: 0}
-  m_RaycastTarget: 1
+  m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
-  m_Maskable: 1
+  m_Maskable: 0
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
@@ -110,6 +110,18 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 847386157474845177, guid: 7ef13426b4d127d4c98b256a43fe0391, type: 3}
       propertyPath: m_AnchoredPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1823391538698417912, guid: 7ef13426b4d127d4c98b256a43fe0391, type: 3}
+      propertyPath: m_Maskable
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2034876906935982715, guid: 7ef13426b4d127d4c98b256a43fe0391, type: 3}
+      propertyPath: m_Maskable
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3435650933792988800, guid: 7ef13426b4d127d4c98b256a43fe0391, type: 3}
+      propertyPath: m_Maskable
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 3650596912800681011, guid: 7ef13426b4d127d4c98b256a43fe0391, type: 3}
@@ -212,6 +224,22 @@ PrefabInstance:
       propertyPath: m_SizeDelta.x
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 3845493696103189265, guid: 7ef13426b4d127d4c98b256a43fe0391, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: -0.000022175778
+      objectReference: {fileID: 0}
+    - target: {fileID: 5037905350095408935, guid: 7ef13426b4d127d4c98b256a43fe0391, type: 3}
+      propertyPath: m_Sprite
+      value: 
+      objectReference: {fileID: 21300000, guid: 8938dd46676857d42861c72cf0f3c346, type: 3}
+    - target: {fileID: 5037905350095408935, guid: 7ef13426b4d127d4c98b256a43fe0391, type: 3}
+      propertyPath: m_Maskable
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5037905350095408935, guid: 7ef13426b4d127d4c98b256a43fe0391, type: 3}
+      propertyPath: m_RaycastTarget
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 5587091440836191740, guid: 7ef13426b4d127d4c98b256a43fe0391, type: 3}
       propertyPath: m_Name
       value: P_UpgradePopup
@@ -230,6 +258,14 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5867426976392462208, guid: 7ef13426b4d127d4c98b256a43fe0391, type: 3}
       propertyPath: m_AnchoredPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6951131841176093861, guid: 7ef13426b4d127d4c98b256a43fe0391, type: 3}
+      propertyPath: m_Maskable
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6951131841176093861, guid: 7ef13426b4d127d4c98b256a43fe0391, type: 3}
+      propertyPath: m_RaycastTarget
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 7034409021580470973, guid: 7ef13426b4d127d4c98b256a43fe0391, type: 3}
@@ -280,6 +316,14 @@ PrefabInstance:
       propertyPath: m_Value
       value: 1
       objectReference: {fileID: 0}
+    - target: {fileID: 8158385519634448631, guid: 7ef13426b4d127d4c98b256a43fe0391, type: 3}
+      propertyPath: m_Maskable
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8252567737549442842, guid: 7ef13426b4d127d4c98b256a43fe0391, type: 3}
+      propertyPath: m_Maskable
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 8396899987396866121, guid: 7ef13426b4d127d4c98b256a43fe0391, type: 3}
       propertyPath: m_AnchorMax.y
       value: 0
@@ -296,6 +340,14 @@ PrefabInstance:
       propertyPath: m_AnchoredPosition.y
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 8846953745438704689, guid: 7ef13426b4d127d4c98b256a43fe0391, type: 3}
+      propertyPath: m_Maskable
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8846953745438704689, guid: 7ef13426b4d127d4c98b256a43fe0391, type: 3}
+      propertyPath: m_RaycastTarget
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 9115726264080460078, guid: 7ef13426b4d127d4c98b256a43fe0391, type: 3}
       propertyPath: m_AnchorMax.y
       value: 0
@@ -312,11 +364,34 @@ PrefabInstance:
       propertyPath: m_AnchoredPosition.y
       value: 0
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 8602934969909645145, guid: 7ef13426b4d127d4c98b256a43fe0391, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 7862212666022961509, guid: 7ef13426b4d127d4c98b256a43fe0391, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 3658208332605659503}
   m_SourcePrefab: {fileID: 100100000, guid: 7ef13426b4d127d4c98b256a43fe0391, type: 3}
+--- !u!1 &4099686830924485449 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 7862212666022961509, guid: 7ef13426b4d127d4c98b256a43fe0391, type: 3}
+  m_PrefabInstance: {fileID: 6195039593658184236}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &3658208332605659503
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4099686830924485449}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3312d7739989d2b4e91e6319e9a96d76, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.RectMask2D
+  m_Padding: {x: 0, y: 0, z: 0, w: 0}
+  m_Softness: {x: 0, y: 0}
 --- !u!224 &7048204916085264549 stripped
 RectTransform:
   m_CorrespondingSourceObject: {fileID: 3758661495296451209, guid: 7ef13426b4d127d4c98b256a43fe0391, type: 3}

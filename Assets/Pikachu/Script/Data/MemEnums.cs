@@ -6,6 +6,7 @@
 // - MemTier: 멤의 등급 (레어 ~ 신화). 등급별 스탯/출현 지역이 다릅니다.
 // - MemPersonality: 멤의 성격. 플레이어와의 적대 조건을 결정합니다.
 // - ProductionStatType: 영지 시설 배치 시 참조하는 생산 스탯 종류입니다.
+// - MemAccessorySlot: 악세서리 부착 위치. MemVisual이 슬롯별 뼈에 붙입니다.
 // ============================================================================
 namespace MemSystem.Data
 {
@@ -58,5 +59,27 @@ namespace MemSystem.Data
         Mining = 2,      // 채광 — 채굴장 배치 (원석 생산량 증가)
         Transport = 3,   // 이동 — 운반 시설, 발전기 배치 (회수 시설 수 및 전력 생산량 증가)
         Farming = 4      // 생산 — 밭, 목장 배치 (재료 생산량 증가)
+    }
+
+    /// <summary>
+    /// 악세서리 부착 슬롯.
+    /// 슬롯 하나당 악세서리 하나만 장착되며, 같은 슬롯에 새로 끼우면 기존 것이 교체됩니다.
+    ///
+    /// 각 슬롯이 실제로 붙는 뼈(Bone)는 MemVisual에서 매핑합니다.
+    /// Mem_Rig.fbx 기준 기본 매핑:
+    ///   Head/Face → "Head",  Body/Back → "Spine",
+    ///   HandL → "LowerArm.L",  HandR → "LowerArm.R"
+    ///
+    /// [주의] 도구 프랍(도끼·곡괭이 등)은 이 슬롯을 쓰지 않고 별도 경로로 장착됩니다.
+    ///        HandL 슬롯 악세서리는 작업 중 도구와 겹칠 수 있으니 확인하세요.
+    /// </summary>
+    public enum MemAccessorySlot
+    {
+        Head = 0,    // 머리 — 모자, 뿔, 리본 등
+        Face = 1,    // 얼굴 — 안경, 마스크 등 (Head 뼈 기준, 오프셋만 다름)
+        Body = 2,    // 몸통 — 목도리, 가방끈, 앞치마 등
+        Back = 3,    // 등 — 배낭, 날개, 망토 등
+        HandL = 4,   // 왼손 — 장신구 (도구와 겹칠 수 있음)
+        HandR = 5    // 오른손 — 장신구
     }
 }

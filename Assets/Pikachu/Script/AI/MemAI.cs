@@ -15,6 +15,7 @@ using MemSystem.Core;
 using MemSystem.Data;
 using MemSystem.Movement;
 using MemSystem.Visual;
+using MemSystem.Sound;
 using MemSystem.AI.States;
 
 namespace MemSystem.AI
@@ -88,6 +89,9 @@ namespace MemSystem.AI
         /// <summary>행복 상태</summary>
         public HappyState HappyState { get; private set; }
 
+        /// <summary>시설 작업 상태 (영지 생산 시설 배치 시 사용)</summary>
+        public FacilityWorkState FacilityWorkState { get; private set; }
+
         // =================================================================
         // 현재 상태
         // =================================================================
@@ -107,6 +111,9 @@ namespace MemSystem.AI
 
         /// <summary>비주얼 컴포넌트</summary>
         public MemVisual Visual { get; private set; }
+
+        /// <summary>효과음 컴포넌트 (프리팹에 없으면 null)</summary>
+        public MemSound Sound { get; private set; }
 
         /// <summary>플레이어 Transform</summary>
         public Transform PlayerTransform => playerTransform;
@@ -139,6 +146,7 @@ namespace MemSystem.AI
             Owner = owner;
             Movement = owner.Movement;
             Visual = owner.Visual;
+            Sound = owner.Sound;
 
             // 플레이어 자동 탐색 (Inspector에서 미설정 시)
             if (playerTransform == null)
@@ -153,13 +161,14 @@ namespace MemSystem.AI
             // 상태 인스턴스 생성 (최초 1회만, 이후 재사용)
             if (IdleState == null)
             {
-                IdleState     = new IdleState();
-                WanderState   = new WanderState();
-                FleeState     = new FleeState();
-                CombatState   = new CombatState();
-                CapturedState = new CapturedState();
-                HungryState   = new HungryState();
-                HappyState    = new HappyState();
+                IdleState         = new IdleState();
+                WanderState       = new WanderState();
+                FleeState         = new FleeState();
+                CombatState       = new CombatState();
+                CapturedState     = new CapturedState();
+                HungryState       = new HungryState();
+                HappyState        = new HappyState();
+                FacilityWorkState = new FacilityWorkState();
             }
 
             // 초기 상태: Idle
@@ -335,6 +344,11 @@ namespace MemSystem.AI
             if (Owner?.Stats == null) return;
             if (Owner.Stats.Personality != MemPersonality.Aggressive) return;
             if (CurrentState == CombatState || CurrentState == FleeState || CurrentState == CapturedState) return;
+
+            // NavMesh 밖이면 선제 공격보다 복귀가 우선.
+            // 여기서 Combat으로 끌고 가버리면 Idle/Wander의 NavMesh 자가 복구 루프가
+            // 한 번도 돌지 못해, 난폭 멤만 제자리에 굳는다.
+            if (Movement != null && !Movement.IsOnNavMesh) return;
             if (playerTransform == null)
             {
                 var player = GameObject.FindGameObjectWithTag("Player");

@@ -1,76 +1,91 @@
-using System.Collections.Generic;
+ï»¿using System.Collections.Generic;
 using UnityEngine;
 using MemSystem.Data;
 
 public static class ProductionCalculator
 {
-    /// <summary>
-    /// ½Ã¼³ Á¾·ù¿¡ ¸ÅÄ¡µÇ´Â ¸âÀÇ »ı»ê ½ºÅÈ Á¾·ù ¸ÅÄªÇÔ¼ö
-    /// </summary>
     public static ProductionStatType GetRequiredStatType(BuildingType buildingType)
     {
-        return buildingType switch
+        switch (buildingType)
         {
-            BuildingType.Workshop => ProductionStatType.Crafting,
-            BuildingType.LoggingCamp => ProductionStatType.Logging,
-            BuildingType.MiningCamp => ProductionStatType.Mining,
-            BuildingType.Farm or BuildingType.Ranch => ProductionStatType.Farming,
-            BuildingType.TransportFacility or BuildingType.Generator => ProductionStatType.Transport,
-            _ => ProductionStatType.Crafting
-        };
+            case BuildingType.Workshop:
+            case BuildingType.CampFire:
+            case BuildingType.Kitchen:
+                return ProductionStatType.Crafting;
+            case BuildingType.LoggingCamp:
+                return ProductionStatType.Logging;
+            case BuildingType.MiningCamp:
+                return ProductionStatType.Mining;
+            case BuildingType.TransportFacility:
+            case BuildingType.Generator:
+                return ProductionStatType.Transport;
+            case BuildingType.Farm:
+            case BuildingType.Ranch:
+                return ProductionStatType.Farming;
+            default:
+                return ProductionStatType.Crafting;
+        }
     }
 
     /// <summary>
-    /// ½Ã¼³ ·¹º§¿¡ µû¸¥ ÃÖ´ë ¹èÄ¡ °¡´É ¸â ¼ıÀÚ °è»ê (1, 3, 5, 7, 9·¹º§¿¡¼­ È®Àå)
+    /// ì¼ë°˜ ì‹œì„¤(ìƒì‚°, ëª©ì¥ ë“±)ì˜ ë ˆë²¨ë‹¹ ìµœëŒ€ ë©¤ ë°°ì¹˜ ìˆ˜ (1ë ˆë²¨ë‹¹ 1ìŠ¬ë¡¯, ìµœëŒ€ 5ê°œ)
     /// </summary>
     public static int GetMaxMemCount(int facilityLevel)
     {
-        int maxCount = 1 + ((facilityLevel - 1) / 2);
-        return Mathf.Clamp(maxCount, 1, 5);
+        return Mathf.Max(2, facilityLevel * 2);
     }
 
     /// <summary>
-    /// Æ¯Á¤ ½Ã¼³¿¡ ¸âÀ» ¹èÄ¡ÇÒ ¼ö ÀÖ´ÂÁö ÀÚ°İ °ËÁõÇÏ´Â ÇÔ¼ö
-    /// GetStat ¸Ş¼Òµå¸¦ È°¿ëÇÏ¿© ÃÖ¼Ò 1´Ü°èÀÌ»ó ¸ÅÄ¡µÇ´ÂÁö È®ÀÎ
+    /// ìš´ì†¡ ì‹œì„¤ì˜ ë ˆë²¨ë‹¹ ìµœëŒ€ ë©¤ ë°°ì¹˜ ìˆ˜ (1ë ˆë²¨ë‹¹ 1ìŠ¬ë¡¯, ìµœëŒ€ 3ê°œ)
     /// </summary>
+    public static int GetTransportMaxMemCount(int facilityLevel)
+    {
+        return Mathf.Clamp(facilityLevel, 1, 3);
+    }
+
     public static bool CanDeployToFacility(MemData memData, BuildingType buildingType)
     {
         if (memData == null) return false;
-
         ProductionStatType requiredStat = GetRequiredStatType(buildingType);
-
         return memData.productionStats.GetStat(requiredStat) >= 1;
     }
 
-    /// <summary>
-    /// ¸â ¹èÄ¡¼ö, ¸â µî±ŞÀ» ±â¹İÀ¸·Î ÃÖÁ¾ »ı»ê ¼Ò¿ä ½Ã°£À» °è»êÇÏ´Â ¸¶½ºÅÍ °ø½Ä
-    /// ¸â ¹èÄ¡º° 2ÃÊ¾¿ °¨¼Ò(1¸¶¸® = 0ÃÊ, 5¸¶¸® = 10ÃÊ)
-    /// ¸â µî±Şº° 2ÃÊ¾¿ °¨¼Ò(Rare = 0ÃÊ, Mythic = 10ÃÊ)
-    /// </summary>
     public static float CalculateFinalProductionTime(float baseItemTime, List<MemData> assignedMems)
     {
         if (assignedMems == null || assignedMems.Count == 0) return baseItemTime;
-
         int memCount = assignedMems.Count;
         float totalReduction = 0f;
 
-        if (memCount >= 5) totalReduction += 10f; 
+        if (memCount >= 5) totalReduction += 10f;
         else if (memCount >= 2) totalReduction += (memCount - 1) * 2f;
 
         foreach (MemData mem in assignedMems)
         {
             if (mem == null) continue;
-
             switch (mem.tier)
             {
                 case MemTier.Rare: totalReduction += 0f; break;
                 case MemTier.Epic: totalReduction += 2f; break;
                 case MemTier.Unique: totalReduction += 4f; break;
                 case MemTier.Legendary: totalReduction += 6f; break;
-                case MemTier.Mythic: totalReduction += 10f; break; 
+                case MemTier.Mythic: totalReduction += 10f; break;
             }
         }
-
         return Mathf.Max(baseItemTime - totalReduction, 2f);
+    }
+
+    public static float CalculatePowerGenerationTime(float baseTime, MemData mem)
+    {
+        if (mem == null) return baseTime;
+        float reduction = 0f;
+        switch (mem.tier)
+        {
+            case MemTier.Rare: reduction = 0f; break;
+            case MemTier.Epic: reduction = 2f; break;
+            case MemTier.Unique: reduction = 4f; break;
+            case MemTier.Legendary: reduction = 6f; break;
+            case MemTier.Mythic: reduction = 10f; break;
+        }
+        return Mathf.Max(baseTime - reduction, 2f);
     }
 }

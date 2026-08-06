@@ -1,7 +1,6 @@
-using UnityEngine;
+Ôªøusing UnityEngine;
 using UnityEngine.UI;
 using HDY.UI;
-using UnityEngine.Rendering.Universal;
 
 public class SortButtonManagement : MonoBehaviour
 {
@@ -9,76 +8,187 @@ public class SortButtonManagement : MonoBehaviour
 
     private void Awake()
     {
-        if (Instance == null) Instance = this;
-        else Destroy(gameObject);
+        if (Instance == null)
+        {
+            Instance = this;
+        }
+        else
+        {
+            Destroy(gameObject);
+        }
     }
 
-    /// <summary>
-    /// ≈¨∏Ø«— Ω√º≥π∞ø° µÓ∑œµ» ƒƒ∆˜≥Õ∆Æ(Production**Runtime)¿« BuildingData.BuildingType¿ª √£æ∆ø¿∞Ì
-    /// MemId, Tier, Ω√º≥ ¿¸øÎ Ω∫≈» πˆ∆∞ √— 3∞≥∏∏ ≥≤±‚∞Ì ≥™∏”¡ˆ∏¶ ¿¸∫Œ SetActive(false)√≥∏Æ«œ±‚
-    /// </summary>
-    public void UpdateSortFiltersByFacility(GameObject facilityObject)
+    public void UpdateSortFilters(GameObject facilityObject)
     {
-        if (facilityObject == null) return;
-
-        BuildingType type = BuildingType.Workshop;
-        bool hasValidRuntime = false;
-
-        if (facilityObject.TryGetComponent<ProductionCraftRuntime>(out var craftRuntime))
+        if (facilityObject == null)
         {
-            if (craftRuntime.buildingData != null)
-            {
-                type = craftRuntime.buildingData.buildingType;
-                hasValidRuntime = true;
-            }
-        }
-        else if (facilityObject.TryGetComponent<ProductionFacilityRuntime>(out var facilityRuntime))
-        {
-            if (facilityRuntime.buildingData != null)
-            {
-                type = facilityRuntime.buildingData.buildingType;
-                hasValidRuntime = true;
-            }
+            Debug.LogWarning("[SortButtonManagement] facilityObjectÍ∞Ä nullÏûÖÎãàÎã§.");
+            return;
         }
 
-        if (!hasValidRuntime) return;
+        MemStorageUI_Sort[] activeSortComponents = Object.FindObjectsByType<MemStorageUI_Sort>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+        if (activeSortComponents == null || activeSortComponents.Length == 0)
+        {
+            Debug.LogWarning("[SortButtonManagement] ÌôúÏÑ±ÌôîÎêú P_Sort(MemStorageUI_Sort)Í∞Ä ÏóÜÏäµÎãàÎã§.");
+            return;
+        }
 
-        string targetKeyword = "";
+        string targetKeyword = GetKeywordFromFacility(facilityObject);
+
+        foreach (var sortComp in activeSortComponents)
+        {
+            if (sortComp == null || !sortComp.gameObject.activeInHierarchy) continue;
+
+            Transform pSortTransform = sortComp.transform;
+            int activeCount = 0;
+
+            for (int i = 0; i < pSortTransform.childCount; i++)
+            {
+                Transform child = pSortTransform.GetChild(i);
+                string childNameLower = child.name.ToLower();
+
+                bool shouldActive = false;
+                if (childNameLower.Contains("id") || childNameLower.Contains("tier"))
+                {
+                    shouldActive = true;
+                }
+                else if (!string.IsNullOrEmpty(targetKeyword) && childNameLower.Contains(targetKeyword))
+                {
+                    shouldActive = true;
+                }
+
+                child.gameObject.SetActive(shouldActive);
+                if (shouldActive) activeCount++;
+            }
+
+            if (pSortTransform is RectTransform rectTransform)
+            {
+                LayoutRebuilder.ForceRebuildLayoutImmediate(rectTransform);
+            }
+        }
+    }
+
+    private string GetKeywordFromFacility(GameObject facilityObject)
+    {
+        var kitchenRuntime = facilityObject.GetComponentInParent<KitchenRuntime>();
+        if (kitchenRuntime == null) kitchenRuntime = facilityObject.GetComponentInChildren<KitchenRuntime>();
+        if (kitchenRuntime != null && kitchenRuntime.buildingData != null)
+        {
+            return GetKeywordByBuildingType(kitchenRuntime.buildingData.buildingType);
+        }
+
+        var kitchenUI = facilityObject.GetComponentInParent<KitchenPanelUI>();
+        if (kitchenUI == null) kitchenUI = facilityObject.GetComponentInChildren<KitchenPanelUI>();
+        if (kitchenUI != null && kitchenUI.TargetFacility != null && kitchenUI.TargetFacility.buildingData != null)
+        {
+            return GetKeywordByBuildingType(kitchenUI.TargetFacility.buildingData.buildingType);
+        }
+
+        var campFireRuntime = facilityObject.GetComponentInParent<CampFireRuntime>();
+        if (campFireRuntime == null) campFireRuntime = facilityObject.GetComponentInChildren<CampFireRuntime>();
+        if (campFireRuntime != null && campFireRuntime.buildingData != null)
+        {
+            return GetKeywordByBuildingType(campFireRuntime.buildingData.buildingType);
+        }
+
+        var campFireUI = facilityObject.GetComponentInParent<CampFirePanelUI>();
+        if (campFireUI == null) campFireUI = facilityObject.GetComponentInChildren<CampFirePanelUI>();
+        if (campFireUI != null && campFireUI.TargetFacility != null && campFireUI.TargetFacility.buildingData != null)
+        {
+            return GetKeywordByBuildingType(campFireUI.TargetFacility.buildingData.buildingType);
+        }
+
+        var transportRuntime = facilityObject.GetComponentInParent<TransportRuntime>();
+        if (transportRuntime == null) transportRuntime = facilityObject.GetComponentInChildren<TransportRuntime>();
+        if (transportRuntime != null && transportRuntime.buildingData != null)
+        {
+            return GetKeywordByBuildingType(transportRuntime.buildingData.buildingType);
+        }
+
+        var transportUI = facilityObject.GetComponentInParent<TransportPanelUI>();
+        if (transportUI == null) transportUI = facilityObject.GetComponentInChildren<TransportPanelUI>();
+        if (transportUI != null && transportUI.TargetFacility != null && transportUI.TargetFacility.buildingData != null)
+        {
+            return GetKeywordByBuildingType(transportUI.TargetFacility.buildingData.buildingType);
+        }
+
+        var genRuntime = facilityObject.GetComponentInParent<GeneratorRuntime>();
+        if (genRuntime == null) genRuntime = facilityObject.GetComponentInChildren<GeneratorRuntime>();
+        if (genRuntime != null && genRuntime.buildingData != null)
+        {
+            return GetKeywordByBuildingType(genRuntime.buildingData.buildingType);
+        }
+
+        var genUI = facilityObject.GetComponentInParent<GeneratorPanelUI>();
+        if (genUI == null) genUI = facilityObject.GetComponentInChildren<GeneratorPanelUI>();
+        if (genUI != null && genUI.TargetFacility != null && genUI.TargetFacility.buildingData != null)
+        {
+            return GetKeywordByBuildingType(genUI.TargetFacility.buildingData.buildingType);
+        }
+
+        var ranchRuntime = facilityObject.GetComponentInParent<RanchFacilityRuntime>();
+        if (ranchRuntime == null) ranchRuntime = facilityObject.GetComponentInChildren<RanchFacilityRuntime>();
+        if (ranchRuntime != null && ranchRuntime.buildingData != null)
+        {
+            return GetKeywordByBuildingType(ranchRuntime.buildingData.buildingType);
+        }
+
+        var ranchUI = facilityObject.GetComponentInParent<RanchPanelUI>();
+        if (ranchUI == null) ranchUI = facilityObject.GetComponentInChildren<RanchPanelUI>();
+        if (ranchUI != null && ranchUI.TargetFacility != null && ranchUI.TargetFacility.buildingData != null)
+        {
+            return GetKeywordByBuildingType(ranchUI.TargetFacility.buildingData.buildingType);
+        }
+
+        var craftRuntime = facilityObject.GetComponentInParent<ProductionCraftRuntime>();
+        if (craftRuntime == null) craftRuntime = facilityObject.GetComponentInChildren<ProductionCraftRuntime>();
+        if (craftRuntime != null && craftRuntime.buildingData != null)
+        {
+            return GetKeywordByBuildingType(craftRuntime.buildingData.buildingType);
+        }
+
+        var facilityRuntime = facilityObject.GetComponentInParent<ProductionFacilityRuntime>();
+        if (facilityRuntime == null) facilityRuntime = facilityObject.GetComponentInChildren<ProductionFacilityRuntime>();
+        if (facilityRuntime != null && facilityRuntime.buildingData != null)
+        {
+            return GetKeywordByBuildingType(facilityRuntime.buildingData.buildingType);
+        }
+
+        var expUI = facilityObject.GetComponentInParent<HDY.UI.ExplorationPanelUI>();
+        if (expUI == null) expUI = facilityObject.GetComponentInChildren<HDY.UI.ExplorationPanelUI>();
+        if (expUI != null)
+        {
+            return "exp";
+        }
+
+        return "";
+    }
+
+    private string GetKeywordByBuildingType(BuildingType type)
+    {
         switch (type)
         {
-            case BuildingType.Workshop: targetKeyword = "craft"; break; 
-            case BuildingType.LoggingCamp: targetKeyword = "log"; break; 
-            case BuildingType.MiningCamp: targetKeyword = "mining"; break; 
-            case BuildingType.TransportFacility: targetKeyword = "trans"; break; 
-            case BuildingType.Farm: targetKeyword = "farm"; break; 
-        }
-        Debug.Log($"type: {type}, targetKeyword: {targetKeyword}");
+            case BuildingType.Workshop:
+            case BuildingType.CampFire: 
+            case BuildingType.Kitchen:  
+                return "craft";
 
-        MemStorageUI_Sort sortComponent = UnityEngine.Object.FindAnyObjectByType<MemStorageUI_Sort>();
-        if (sortComponent == null) return;
+            case BuildingType.LoggingCamp:
+                return "log";
 
-        Transform pSortTransform = sortComponent.transform;
+            case BuildingType.MiningCamp:
+                return "mining";
 
-        for (int i = 0; i < pSortTransform.childCount; i++)
-        {
-            Transform child = pSortTransform.GetChild(i);
-            string childNameLower = child.name.ToLower();
+            case BuildingType.TransportFacility:
+            case BuildingType.Generator:
+                return "trans";
 
-            if (childNameLower.Contains("id") || childNameLower.Contains("tier"))
-            {
-                child.gameObject.SetActive(true);
-            }
-            else
-            {
-                if (!string.IsNullOrEmpty(targetKeyword) && childNameLower.Contains(targetKeyword))
-                {
-                    child.gameObject.SetActive(true);
-                }
-                else
-                {
-                    child.gameObject.SetActive(false);
-                }
-            }
+            case BuildingType.Farm:
+            case BuildingType.Ranch:
+                return "farm";
+
+            default:
+                return "Error: Empty Type";
         }
     }
 }

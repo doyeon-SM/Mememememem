@@ -127,6 +127,15 @@ namespace GH.Loading
                 return false;
             }
 
+            if (WayPointManager.Instance != null
+                && !WayPointManager.Instance.IsSceneLoadAuthorized(sceneName))
+            {
+                Debug.LogWarning(
+                    $"[LoadingManager] 영지 씬 직접 로딩 요청을 차단했습니다. 활성화된 웨이포인트 스톤에서 이동해야 합니다: {sceneName}",
+                    this);
+                return false;
+            }
+
             if (!Application.CanStreamedLevelBeLoaded(sceneName))
             {
                 Debug.LogError($"[LoadingManager] Build Settings에서 씬을 찾을 수 없습니다: {sceneName}", this);
@@ -181,6 +190,12 @@ namespace GH.Loading
 
         private IEnumerator RunLoading(LoadingContext context, List<ILoadingTask> tasks)
         {
+            if (RecordManager.Instance != null)
+            {
+                RecordManager.Instance.SaveAllData();
+                RecordManager.Instance.SetSceneUnloading(true);
+            }
+
             ShowRandomTip();
             onLoadingStarted?.Invoke();
 
@@ -339,18 +354,33 @@ namespace GH.Loading
                 return;
             }
 
-            CharacterController controller = PlayerReferenceResolver
-                .FindComponentInPlayerHierarchy<CharacterController>(playerObject);
-            if (controller != null)
+            if (WayPointManager.Instance != null)
             {
-                controller.enabled = false;
+                if (!WayPointManager.Instance.TryPlacePlayerAtDestination(
+                        playerObject.transform,
+                        destinationStone.SpawnPosition))
+                {
+                    Debug.LogWarning(
+                        $"[LoadingManager] 목적지에 배치할 플레이어를 찾지 못했습니다. waypoint={destinationWayPointId}",
+                        destinationStone);
+                    return;
+                }
             }
-
-            playerObject.transform.position = destinationStone.SpawnPosition;
-
-            if (controller != null)
+            else
             {
-                controller.enabled = true;
+                CharacterController controller = PlayerReferenceResolver
+                    .FindComponentInPlayerHierarchy<CharacterController>(playerObject);
+                if (controller != null)
+                {
+                    controller.enabled = false;
+                }
+
+                playerObject.transform.position = destinationStone.SpawnPosition;
+
+                if (controller != null)
+                {
+                    controller.enabled = true;
+                }
             }
 
             WorldChunkManager chunkManager = FindFirstObjectByType<WorldChunkManager>(FindObjectsInactive.Include);

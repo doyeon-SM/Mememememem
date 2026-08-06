@@ -1,6 +1,7 @@
 ﻿using HDY.Capture;
 using HDY.Inventory;
 using HDY.Item;
+using HDY.Mem;
 using HDY.Recipe;
 using KMS.InventoryDuped;
 using MemSystem.Data;
@@ -10,42 +11,79 @@ using UnityEngine;
 
 public class ProductionCraftRuntime : MonoBehaviour
 {
-    [Header("제작 시설 기반 정보")]
+    [Header("시설 기본 정보")]
     public BuildingData buildingData;
 
-    [Header("제작 상태 여부")]
+    [Header("제작 가동 상태")]
     public bool isProducing = false;
-
-    public ItemData currentCraftingItem;
-
+    public string currentCraftingItem;
     public float totalRequiredTime;
     public float currentProgressTime = 0f;
 
-    [Header("제작 수량 데이터: 목표 설정 수량, 남은 수량")]
+    [Header("제작 수량 데이터")]
     public int targetQuantity = 1;
     public int remainingQuantity = 0;
 
-    [Header("제작 완료 데이터: 제작 완료된 수량, 최대 수량")]
+    [Header("제작 완료 데이터")]
     public int currentStorageCount = 0;
-    public int maxStorageCount;
+    public int maxStorageCount = 100;
 
-    [Header("제작대에 배치된 멤 정보")]
+    [Header("배치된 멤 정보")]
     [SerializeField] private List<MemData> addMems = new List<MemData>();
     [SerializeField] private List<CapturedMemEntry> addMemEntries = new List<CapturedMemEntry>();
 
     public List<MemData> DeployedMems => addMems;
     public List<CapturedMemEntry> DeployedMemEntries => addMemEntries;
 
-    // 임시. 생산 소요 시간
-    private float craftingDuration = 20f;
+    // 🌟 MemPos 트랜스폼 캐싱 리스트
+    [SerializeField] private List<Transform> memPositions = new List<Transform>();
+    public List<Transform> MemPositions
+    {
+        get
+        {
+            if (memPositions == null || memPositions.Count == 0) CacheMemPositions();
+            return memPositions;
+        }
+    }
 
     public static event Action OnMemDeploymentChanged;
-
-    public static event Action<BuildingType, bool> MemAdded;
+    public static event Action<BuildingType, MemData, bool, List<Transform>> MemAdded;
+    public static event Action<BuildingType, List<MemData>, List<Transform>> FacilityStarted;
+    public static event Action<BuildingType, List<MemData>, FacilityStopReason, List<Transform>> FacilityStopped;
 
     private void Start()
     {
-        maxStorageCount = 10;
+        EnsureBuildingData();
+        CacheMemPositions();
+
+        if (FacilityCollectManager.Instance != null)
+            FacilityCollectManager.Instance.RegisterFacility(this);
+    }
+
+    private void OnDestroy()
+    {
+        if (FacilityCollectManager.Instance != null)
+            FacilityCollectManager.Instance.UnregisterFacility(this);
+    }
+
+    private void EnsureBuildingData()
+    {
+        if (buildingData == null && TryGetComponent<BuildingRuntime>(out var br))
+        {
+            buildingData = br.buildingData;
+        }
+    }
+
+    private void CacheMemPositions()
+    {
+        memPositions.Clear();
+        foreach (Transform child in GetComponentsInChildren<Transform>(true))
+        {
+            if (child != null && child.name.StartsWith("MemPos"))
+            {
+                memPositions.Add(child);
+            }
+        }
     }
 
     private void Update()
@@ -66,38 +104,37 @@ public class ProductionCraftRuntime : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// 제작 버튼 클릭시 동작되는 함수
-    /// 총 소요시간(1개당 제작 시간 - 멤 등급으로인해 감속되는 시간)을 기반으로 제작을 진행
-    /// 작업상태를 True로 변경
-    /// </summary>
-    public void SelectAndStartCrafting(ItemData targetItem, int quantity)
+    public void SelectAndStartCrafting(string targetItemId, int quantity)
     {
-        if (targetItem == null || addMems.Count == 0) return;
+        if (string.IsNullOrEmpty(targetItemId) || addMems.Count == 0) return;
 
-        currentCraftingItem = targetItem;
+        currentCraftingItem = targetItemId;
         targetQuantity = quantity;
         remainingQuantity = quantity;
+        maxStorageCount = quantity;
         currentProgressTime = 0f;
 
-        totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(craftingDuration, addMems);
+        RecipeData recipe = FindRecipeDataInCatalog(currentCraftingItem);
+        float baseDuration = recipe != null ? recipe.time : 20f;
 
-        /* 🌟 [임시 주석 처리]: 허기 및 굶주림 정지 조건 체크 무력화
+        totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, addMems);
+
         if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
         {
-            isProducing = true;
+            SetProducingActive(true);
         }
         else
         {
             isProducing = false;
         }
-        */
-        isProducing = true; // 식량 고갈 상태 유무를 묻지 않고 제작 강제 개시
     }
 
-    /// <summary>
-    /// 제작 도중 멤 슬롯 상태 변경(교체, 제거)시 진행 비율을 보존 or 제거 + 시간 재 계산처리
-    /// </summary>
+    public void SelectAndStartCrafting(ItemData targetItem, int quantity)
+    {
+        if (targetItem == null) return;
+        SelectAndStartCrafting(targetItem.Item_ID, quantity);
+    }
+
     private void RecalculateCraftingTimer()
     {
         if (addMems.Count == 0)
@@ -107,46 +144,57 @@ public class ProductionCraftRuntime : MonoBehaviour
             currentCraftingItem = null;
             remainingQuantity = 0;
             targetQuantity = 1;
-            Debug.LogWarning("가동 중이던 제작 공정이 취소되었습니다.");
             return;
         }
 
-        if (currentCraftingItem != null)
+        if (!string.IsNullOrEmpty(currentCraftingItem))
         {
             float currentProgressPercent = totalRequiredTime > 0f ? (currentProgressTime / totalRequiredTime) : 0f;
-            totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(craftingDuration, addMems);
+
+            RecipeData recipe = FindRecipeDataInCatalog(currentCraftingItem);
+            float baseDuration = recipe != null ? recipe.time : 20f;
+
+            totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, addMems);
             currentProgressTime = totalRequiredTime * currentProgressPercent;
 
-            /* 🌟 [임시 주석 처리]: 멤 교체 연산 시 굶주림 작동 중지 감지 무력화
             if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
             {
-                isProducing = true;
+                SetProducingActive(true);
             }
             else
             {
                 isProducing = false;
             }
-            */
-            isProducing = true; // 식량 상태에 관계없이 무조건 제작 상태 상시 유지
         }
     }
 
-    /// <summary>
-    /// Drop으로 멤배치하였을 때 동작하는 함수  
-    /// </summary>
     public bool TryAddMem(MemData targetMem, CapturedMemEntry targetEntry)
     {
-        if (targetMem == null || buildingData == null) return false;
+        EnsureBuildingData();
 
-        if (addMems.Contains(targetMem)) return false;
+        if (targetEntry == null || buildingData == null) return false;
 
-        if (!ProductionCalculator.CanDeployToFacility(targetMem, buildingData.buildingType))
+        MemData realMemData = targetMem;
+        if ((realMemData == null || string.IsNullOrEmpty(realMemData.memId)) && MemCatalogManager.Instance != null && !string.IsNullOrEmpty(targetEntry.MemId))
         {
-            ProductionStatType requiredStat = ProductionCalculator.GetRequiredStatType(buildingData.buildingType);
-            return false;
+            realMemData = MemCatalogManager.Instance.FindMemData(targetEntry.MemId);
         }
 
-        addMems.Add(targetMem);
+        if (realMemData == null) return false;
+
+        if (addMemEntries.Exists(e => e != null && e.KeyId == targetEntry.KeyId)) return false;
+        if (targetEntry.IsActive) return false;
+
+        ProductionStatType requiredStat = ProductionCalculator.GetRequiredStatType(buildingData.buildingType);
+
+        if (!ProductionCalculator.CanDeployToFacility(realMemData, buildingData.buildingType)) return false;
+
+        if (addMems.Count >= 1 && addMemEntries.Count > 0)
+        {
+            RemoveMem(addMemEntries[0]);
+        }
+
+        addMems.Add(realMemData);
         addMemEntries.Add(targetEntry);
         targetEntry.IsActive = true;
 
@@ -155,92 +203,102 @@ public class ProductionCraftRuntime : MonoBehaviour
         if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
 
         OnMemDeploymentChanged?.Invoke();
-        MemAdded?.Invoke(buildingData.buildingType, true);
+
+        if (buildingData != null)
+        {
+            MemAdded?.Invoke(buildingData.buildingType, realMemData, true, MemPositions);
+        }
 
         return true;
     }
 
-    /// <summary>
-    /// 멤 제거 + 시간 재조정처리
-    /// </summary>
-    public void RemoveMem(MemData targetMem)
+    public void RemoveMem(CapturedMemEntry targetEntry)
     {
-        if (addMems.Contains(targetMem))
+        if (targetEntry == null) return;
+
+        int index = addMemEntries.FindIndex(e => e != null && e.KeyId == targetEntry.KeyId);
+        if (index >= 0)
         {
-            int index = addMems.IndexOf(targetMem);
-            if (index >= 0 && index < addMemEntries.Count)
-            {
-                addMemEntries[index].IsActive = false;
-                addMemEntries.RemoveAt(index);
-            }
-            addMems.RemoveAt(index);
+            MemData removedMem = (index < addMems.Count) ? addMems[index] : null;
+
+            addMemEntries[index].IsActive = false;
+            addMemEntries.RemoveAt(index);
+            if (index < addMems.Count) addMems.RemoveAt(index);
 
             RecalculateCraftingTimer();
 
             if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
 
             OnMemDeploymentChanged?.Invoke();
-            MemAdded?.Invoke(buildingData.buildingType, false);
+
+            if (buildingData != null && removedMem != null)
+            {
+                MemAdded?.Invoke(buildingData.buildingType, removedMem, false, MemPositions);
+            }
         }
     }
 
-    /// <summary>
-    /// 제작 물품이 100%되어 완료되었을 때 생산 물품 수량 증가 + 다음 생산 진행처리
-    /// </summary>
+    public void RemoveMem(MemData targetMem)
+    {
+        if (targetMem == null) return;
+
+        int index = addMems.IndexOf(targetMem);
+        if (index >= 0 && index < addMemEntries.Count)
+        {
+            RemoveMem(addMemEntries[index]);
+        }
+    }
+
     private void CompleteCraftingUnit()
     {
         currentStorageCount++;
-        remainingQuantity--; 
-
+        remainingQuantity--;
         currentProgressTime = 0f;
 
         if (remainingQuantity > 0)
         {
-            totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(craftingDuration, addMems);
+            RecipeData recipe = FindRecipeDataInCatalog(currentCraftingItem);
+            float baseDuration = recipe != null ? recipe.time : 20f;
+            totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, addMems);
         }
         else
         {
             isProducing = false;
+
+            if (buildingData != null)
+            {
+                FacilityStopped?.Invoke(buildingData.buildingType, addMems, FacilityStopReason.CompleteCrafting, MemPositions);
+            }
         }
+
+        FacilityCollectManager.Instance?.NotifyFacilityChanged(this);
     }
 
-    /// <summary>
-    /// 제작 도중 취소 버튼 클릭 시 누적 완성 개수를 판별하여 환불 처리
-    /// </summary>
     public void CancelCrafting()
     {
-        if(!isProducing && currentCraftingItem == null) return;
+        if (!isProducing && string.IsNullOrEmpty(currentCraftingItem)) return;
 
+        bool wasWorking = isProducing;
         var inventory = FindFirstObjectByType<PlayerInventory>();
         var warehouse = FindFirstObjectByType<WarehouseInventory>();
-        
+
         if (currentStorageCount > 0)
         {
-            if (inventory != null)
+            ItemData itemData = FindItemDataInCatalog(currentCraftingItem);
+            if (inventory != null && itemData != null)
             {
-                inventory.AddItem(currentCraftingItem, currentStorageCount);
+                inventory.AddItem(itemData, currentStorageCount);
             }
         }
 
         if (remainingQuantity > 0)
         {
-            RecipeData matchedRecipe = null;
-            RecipeData[] allRecipes = Resources.FindObjectsOfTypeAll<RecipeData>();
-            foreach (RecipeData recipe in allRecipes)
-            {
-                if (recipe != null && recipe.Recipe_Item_ID == currentCraftingItem.Item_ID)
-                {
-                    matchedRecipe = recipe;
-                    break;
-                }
-            }
-
+            RecipeData matchedRecipe = FindRecipeDataInCatalog(currentCraftingItem);
             if (matchedRecipe != null && matchedRecipe.Requset_Items_ID != null)
             {
                 foreach (var req in matchedRecipe.Requset_Items_ID)
                 {
                     if (req == null || string.IsNullOrEmpty(req.Item_ID)) continue;
-
                     int refundAmount = req.Amount * remainingQuantity;
                     if (refundAmount <= 0) continue;
 
@@ -262,25 +320,26 @@ public class ProductionCraftRuntime : MonoBehaviour
         targetQuantity = 1;
         currentProgressTime = 0f;
         currentCraftingItem = null;
+
+        if (wasWorking && buildingData != null)
+        {
+            FacilityStopped?.Invoke(buildingData.buildingType, addMems, FacilityStopReason.CancelCrafting, MemPositions);
+        }
     }
 
-    /// <summary>
-    /// 수령 보상 처리
-    /// 0개일 때, return;
-    /// 전체 제작 예정 수량보다 적은상태에서 수령할 때, 수령 + 화면유지
-    /// 전체 제작 수량을 다 제작한 상태에서 수령하면 수령 + 초기화면 전환
-    /// </summary>
     public bool CollectCraftedItems()
     {
         if (currentStorageCount <= 0) return false;
 
-        //
         PlayerInventory inventory = FindFirstObjectByType<PlayerInventory>();
-        if(inventory != null)
+        ItemData itemData = FindItemDataInCatalog(currentCraftingItem);
+
+        if (inventory != null && itemData != null)
         {
-            int remaining = inventory.AddItem(currentCraftingItem, currentStorageCount);
+            int remaining = inventory.AddItem(itemData, currentStorageCount);
             currentStorageCount = remaining;
         }
+        FacilityCollectManager.Instance?.NotifyFacilityChanged(this);
 
         if (currentStorageCount > 0) return false;
 
@@ -291,6 +350,52 @@ public class ProductionCraftRuntime : MonoBehaviour
             return true;
         }
 
-        return false; 
+        return false;
+    }
+
+    private ItemData FindItemDataInCatalog(string itemId)
+    {
+        if (string.IsNullOrEmpty(itemId)) return null;
+        if (ItemCatalogManager.Instance == null) return null;
+
+        return ItemCatalogManager.Instance.FindItemData(itemId);
+    }
+
+    private RecipeData FindRecipeDataInCatalog(string recipeItemId)
+    {
+        if (string.IsNullOrEmpty(recipeItemId)) return null;
+        if (ItemCatalogManager.Instance == null) return null;
+
+        return ItemCatalogManager.Instance.FindRecipeData(recipeItemId);
+    }
+
+    private void SetProducingActive(bool value)
+    {
+        if (isProducing == value) return;
+        isProducing = value;
+
+        if (isProducing && buildingData != null)
+        {
+            FacilityStarted?.Invoke(buildingData.buildingType, addMems, MemPositions);
+        }
+    }
+
+    public void StopWorkDueToStarvation()
+    {
+        if (!isProducing) return;
+        isProducing = false;
+
+        if (buildingData != null)
+        {
+            FacilityStopped?.Invoke(buildingData.buildingType, addMems, FacilityStopReason.Starvation, MemPositions);
+        }
+    }
+
+    public void ResumeWorkAfterStarvation()
+    {
+        if (!string.IsNullOrEmpty(currentCraftingItem) && addMems.Count > 0)
+        {
+            SetProducingActive(true);
+        }
     }
 }

@@ -42,16 +42,40 @@ namespace KMS.Persistence
     }
 
     [Serializable]
+    public class KMSFoodEffectValueSaveData
+    {
+        public int effectType;
+        public float value;
+    }
+
+    [Serializable]
+    public class KMSFoodEffectSegmentSaveData
+    {
+        public string itemId;
+        public float remainingSatiety;
+        public KMSFoodEffectValueSaveData[] effects;
+    }
+
+    [Serializable]
+    public class KMSFoodEffectStateSaveData
+    {
+        public int layoutVersion;
+        public float normalSatiety;
+        public KMSFoodEffectSegmentSaveData[] segments;
+    }
+
+    [Serializable]
     public class PlayerStatsSaveData
     {
         public float currentHealth;
         public float currentHunger;
+        public KMSFoodEffectStateSaveData foodEffects;
     }
 
     [Serializable]
     public class PlayerSaveData
     {
-        public int version = 1;
+        public int version = 3;
         public PlayerInventorySaveData inventory;
         public PlayerStatsSaveData stats;
     }

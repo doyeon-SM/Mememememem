@@ -1,0 +1,128 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1001 &8100000000000000001
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: bac2fcc302a62844a89aee2e2601b56b, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: bac2fcc302a62844a89aee2e2601b56b, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: bac2fcc302a62844a89aee2e2601b56b, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: bac2fcc302a62844a89aee2e2601b56b, type: 3}
+      propertyPath: m_Name
+      value: world_wheat_1
+      objectReference: {fileID: 0}
+    - target: {fileID: 4924422847440594516, guid: bac2fcc302a62844a89aee2e2601b56b, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 4924422847440594516, guid: bac2fcc302a62844a89aee2e2601b56b, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 4924422847440594516, guid: bac2fcc302a62844a89aee2e2601b56b, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 2
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 5700643235097214190, guid: bac2fcc302a62844a89aee2e2601b56b, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 6339802745384693053}
+    - targetCorrespondingSourceObject: {fileID: 5700643235097214190, guid: bac2fcc302a62844a89aee2e2601b56b, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 7462683594273631895}
+  m_SourcePrefab: {fileID: 100100000, guid: bac2fcc302a62844a89aee2e2601b56b, type: 3}
+--- !u!1 &4572345235553254639 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 5700643235097214190, guid: bac2fcc302a62844a89aee2e2601b56b, type: 3}
+  m_PrefabInstance: {fileID: 8100000000000000001}
+  m_PrefabAsset: {fileID: 0}
+--- !u!65 &6339802745384693053
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4572345235553254639}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 0.45898438, y: 0.52148455, z: 0.9980471}
+  m_Center: {x: 0, y: 0, z: 0.49902356}
+--- !u!114 &7462683594273631895
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4572345235553254639}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 474a6e4947e4d7e48a9f5af0776e8b68, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::WorldObject
+  displayName: "\uBC00"
+  interactionPrompt: "\uCC44\uC9D1"
+  harvestWithInteractInput: 0
+  myType: 3
+  dropItems:
+  - itemId: 
+  maxObjectHp: 1
+  currentObjectHp: 0
+  respawnTime: 30
+  needGrade: 0
+  treeFallPushSpeed: 1.2
+  treeFallAngularSpeed: 2.4
+  treeFallLandingGraceSeconds: 0.25
+  treeFallLandedAngle: 55
+  treeFallTimeoutSeconds: 5
+  resourceRenderers: []
+  resourceColliders: []
+  dropSpawnPoint: {fileID: 0}
+  groundLayer:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  dropSpawnHeight: 0.02
+  dropAreaOffset: {x: 0, y: 0, z: 0}
+  dropAreaSize: {x: 4, y: 4}
+  dropPositionAttempts: 12
+  dropClearanceRadius: 0.25
+  dropClearanceHeight: 0.9
+  maxGroundSlope: 50
+  launchDrops: 1
+  dropEjectPoint: {fileID: 0}
+  dropEjectLocalOffset: {x: 0, y: 0.8, z: 0}
+  itemFlightDuration: 0.55
+  itemFlightArcHeight: 0.85
+  itemSpinSpeed: 320
+  itemStartJitterRadius: 0.12
+  showDropSpawnGizmo: 1
+  dropSpawnGizmoColor: {r: 1, g: 0.72, b: 0.1, a: 0.9}
+  poolPrewarmCount: 0
+  autoReturnToPoolSeconds: 10
+  enableDebugAutoDrop: 0
+  debugAutoDropInterval: 2

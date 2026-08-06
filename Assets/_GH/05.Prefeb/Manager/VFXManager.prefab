@@ -1,0 +1,96 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &3928475609272222453
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 4870489797622569431}
+  - component: {fileID: 7934448668012779162}
+  m_Layer: 0
+  m_Name: VFXManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &4870489797622569431
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3928475609272222453}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 279.75446, y: 47.96114, z: -10.10471}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &7934448668012779162
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3928475609272222453}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e81f407e536f43fab16fde01bb0636ee, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::WorldItemRarityVfxManager
+  rarityStyles:
+  - itemClass: 0
+    color: {r: 0.18, g: 0.55, b: 1, a: 1}
+    emissionIntensity: 1.8
+    sparkRate: 4
+    sparkSize: 0.035
+    ringRadius: 0.34
+    ringWidth: 0.014
+    useSecondaryRing: 0
+  - itemClass: 1
+    color: {r: 0.68, g: 0.25, b: 1, a: 1}
+    emissionIntensity: 2.3
+    sparkRate: 7
+    sparkSize: 0.04
+    ringRadius: 0.36
+    ringWidth: 0.017
+    useSecondaryRing: 0
+  - itemClass: 2
+    color: {r: 0.93412864, g: 1, b: 0, a: 1}
+    emissionIntensity: 2.8
+    sparkRate: 10
+    sparkSize: 0.045
+    ringRadius: 0.38
+    ringWidth: 0.02
+    useSecondaryRing: 1
+  - itemClass: 3
+    color: {r: 1, g: 0.52, b: 0.06, a: 1}
+    emissionIntensity: 3.5
+    sparkRate: 14
+    sparkSize: 0.052
+    ringRadius: 0.41
+    ringWidth: 0.024
+    useSecondaryRing: 1
+  - itemClass: 4
+    color: {r: 1, g: 0.08, b: 0.32, a: 1}
+    emissionIntensity: 4.3
+    sparkRate: 20
+    sparkSize: 0.06
+    ringRadius: 0.45
+    ringWidth: 0.03
+    useSecondaryRing: 1
+  coreScale: 0.24
+  particleRadius: 0.34
+  particleRiseSpeed: 0.12
+  beamHeight: 2.7
+  beamWidth: 0.055
+  beamHaloWidth: 0.24
+  groundGlowScale: 1.05
+  pointLightIntensity: 0.8
+  pointLightRange: 1.65

@@ -1,0 +1,57 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b2c2a72b083cd504da06b235a6ddb1b3, type: 3}
+  m_Name: 1_Default
+  m_EditorClassIdentifier: 
+  mode: 0
+  transparentShadow: 0
+  charShadowDirOffset: {x: 0, y: 0, z: 0}
+  followLayerMask:
+    serializedVersion: 2
+    m_Bits: 0
+  maxToonBrightness: 10
+  bias: 1
+  normalBias: 0.1
+  quality: 2
+  textureScale: 8
+  transparentTextureScale: 8
+  oit: 0
+  oitMode: 0
+  charPostProcessing: 1
+  charScreenOutline: 0
+  charScreenOutlineExcludeInnerLines: 0
+  charScreenOutlineColor: {r: 0, g: 0, b: 0, a: 1}
+  charScreenOutlineThickness: 1
+  charScreenOutlineEdgeStrength: 1
+  charPostExposure: 1
+  charGammaAdjust: 0
+  charToneMapping: 0
+  charContrast: 0
+  charColorFilter: {r: 1, g: 1, b: 1, a: 1}
+  charHueShift: 0
+  charSaturation: 0
+  screenRimWidth: 0.25
+  screenRimColor: {r: 1, g: 1, b: 1, a: 1}
+  envPostProcessing: 0
+  envToneMapping: 0
+  envPostExposure: 1
+  charBloom: 1
+  threshold: 1.1
+  intensity: 3
+  scatter: 0.55
+  clamp: 65472
+  tint: {r: 1, g: 1, b: 1, a: 1}
+  highQualityFiltering: 0
+  downscale: 0
+  maxIterations: 6
+  dirtTexture: {fileID: 0}
+  dirtIntensity: 0

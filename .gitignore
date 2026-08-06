@@ -13,7 +13,10 @@
 /[Bb]uilds/
 /[Ll]ogs/
 /[Uu]ser[Ss]ettings/
-/[Aa]ssets/[Ii]gnore/
+# Keep Assets/Ignore excluded, except for the complete SoStylized asset pack.
+/[Aa]ssets/[Ii]gnore/*
+!/[Aa]ssets/[Ii]gnore/[Ss]o[Ss]tylized/
+!/[Aa]ssets/[Ii]gnore/[Ss]o[Ss]tylized/**
 *.log
 
 # By default unity supports Blender asset imports, *.blend1 blender files do not need to be commited to version control.
@@ -105,3 +108,15 @@ InitTestScene*.unity*
 
 # Auto-generated cache in Assets folder
 /[Aa]ssets/[Ss]ceneDependencyCache*
+
+
+Assets/Pikachu/Modern UI Pack/
+Assets/Pikachu/Modern UI Pack.meta
+Assets/Pikachu/Ignore/
+
+Assets/_Kyusoo/01.Asset/Modern UI Pack/
+Assets/_Kyusoo/01.Asset/Modern UI Pack.meta
+
+# Locally purchased Unity Asset Store packages (not committed).
+/Assets/KMS/99.Assets/DamageNumbersPro/
+/Assets/KMS/99.Assets/DamageNumbersPro.meta

@@ -12,6 +12,7 @@ namespace MemSystem.AI.States
     /// NavMesh 위의 랜덤 지점으로 이동하며, 목적지 도달 시
     /// 확률(ReturnToIdleChance)에 따라 Idle로 복귀하거나 다시 Wander합니다.
     /// 5초간 이동 못하면 Stuck으로 판정하고 새 목적지를 설정합니다.
+    /// 배회 중에는 MemSound가 랜덤한 간격으로 울음소리를 재생합니다.
     /// </summary>
     public class WanderState : IMemState
     {
@@ -24,12 +25,29 @@ namespace MemSystem.AI.States
             if (ai.Movement != null)
                 ai.Movement.Wander();
 
+            // 배회 울음소리 판정 시작 (첫 울음까지 랜덤 대기)
+            if (ai.Sound != null)
+                ai.Sound.BeginCry();
+
             stuckTimer = 0f;
         }
 
         public void Update(MemAI ai)
         {
+            // 울음소리는 이동 상태와 무관하게 배회 내내 판정한다
+            if (ai.Sound != null)
+                ai.Sound.TickCry();
+
             if (ai.Movement == null) return;
+
+            // 시설 카빙에 갇혀 NavMesh 밖에 놓였으면 즉시 복구 후 재배회.
+            // (Wander()가 내부에서 가장 가까운 NavMesh로 복귀시킨다)
+            if (!ai.Movement.IsOnNavMesh)
+            {
+                ai.Movement.Wander();
+                stuckTimer = 0f;
+                return;
+            }
 
             // 실제 이동 속도가 낮으면(막힘, 경로 대기 중) 대기 모션, 이동 중이면 걷기 모션
             if (ai.Movement.CurrentSpeed > 0.1f)
@@ -71,7 +89,9 @@ namespace MemSystem.AI.States
 
         public void Exit(MemAI ai)
         {
-            // 정리 로직 없음
+            // 배회를 벗어나면 울음 판정 정지 (재생 중인 소리는 끝까지 들린다)
+            if (ai.Sound != null)
+                ai.Sound.StopCry();
         }
     }
 }

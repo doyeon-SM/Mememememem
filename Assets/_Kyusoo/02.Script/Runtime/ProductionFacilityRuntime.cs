@@ -1,6 +1,8 @@
 ﻿using HDY.Capture;
 using HDY.Inventory;
 using HDY.Item;
+using HDY.Mem;
+using HDY.Recipe;
 using MemSystem.Data;
 using System;
 using System.Collections.Generic;
@@ -8,229 +10,268 @@ using UnityEngine;
 
 public class ProductionFacilityRuntime : MonoBehaviour
 {
-    [Header("시설 기반 정보 (배치 시 데이터 주입됨)")]
+    [Header("기본 정보")]
     public BuildingData buildingData;
     public int currentLevel = 1;
 
-    [Header("실시간 생산 상태 변수")]
+    [Header("생산 관련 정보")]
     public bool isProducing = false;
-    public ItemData craftingItem;
+    public string craftingItem;
     public float totalRequiredTime;
     public float currentProgressTime = 0f;
     public float baseProductionTime = 30f;
 
-    [Header("시설 내 자원 축적 현황")]
+    [Header("보관함 정보")]
     public int currentStorageCount = 0;
     public int maxStorageCount = 100;
 
-    [Header("현재 시설에 배치된 멤 리스트")]
+    [Header("배치된 멤 데이터")]
     [SerializeField] private List<MemData> addMems = new List<MemData>();
-
     [SerializeField] private List<CapturedMemEntry> addMemEntries = new List<CapturedMemEntry>();
-
     public List<MemData> DeployedMems => addMems;
     public List<CapturedMemEntry> DeployedMemEntries => addMemEntries;
 
-    public static event Action OnMemDeploymentChanged;
+    [SerializeField] private List<Transform> memPositions = new List<Transform>();
+    public List<Transform> MemPositions
+    {
+        get
+        {
+            if (memPositions == null || memPositions.Count == 0) CacheMemPositions();
+            return memPositions;
+        }
+    }
 
-    public static event Action<BuildingType, bool> MemAdded;
+    public static event Action OnMemDeploymentChanged;
+    public static event Action<BuildingType, MemData, bool, List<Transform>> MemAdded;
+    public static event Action<BuildingType, List<MemData>, List<Transform>> FacilityStarted;
+    public static event Action<BuildingType, List<MemData>, FacilityStopReason, List<Transform>> FacilityStopped;
 
     private void Start()
     {
-        UpdateMaxStorage();
+        EnsureBuildingData();
+        CacheMemPositions();
         CheckProductionCondition();
+        if (FacilityCollectManager.Instance != null)
+            FacilityCollectManager.Instance.RegisterFacility(this);
     }
 
-    public void UpdateMaxStorage()
+    private void OnDestroy()
     {
-        maxStorageCount = currentLevel * 100;
+        if (FacilityCollectManager.Instance != null)
+            FacilityCollectManager.Instance.UnregisterFacility(this);
+    }
+
+    private void EnsureBuildingData()
+    {
+        if (buildingData == null && TryGetComponent<BuildingRuntime>(out var br))
+        {
+            buildingData = br.buildingData;
+        }
+    }
+
+    private void CacheMemPositions()
+    {
+        memPositions.Clear();
+        foreach (Transform child in GetComponentsInChildren<Transform>(true))
+        {
+            if (child != null && child.name.StartsWith("MemPos"))
+            {
+                memPositions.Add(child);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 레벨업 시 멤 슬롯 한 칸 추가 해금 (최대 5레벨)
+    /// </summary>
+    public void LevelUp()
+    {
+        if (currentLevel < 5)
+        {
+            currentLevel++;
+            CheckProductionCondition();
+            OnMemDeploymentChanged?.Invoke();
+
+            if (ProductionPanelUI.Instance != null && ProductionPanelUI.Instance.TargetFacility == this)
+            {
+                ProductionPanelUI.Instance.RefreshStaticUI();
+            }
+        }
     }
 
     private void Update()
     {
         if (!isProducing) return;
-
-        if (currentStorageCount >= maxStorageCount)
-        {
-            return;
-        }
+        if (currentStorageCount >= maxStorageCount) return;
 
         currentProgressTime += Time.deltaTime;
-
         if (currentProgressTime >= totalRequiredTime)
         {
             CompleteProductionUnit();
         }
     }
 
-    /// <summary>
-    /// 최소 1마리의 멤이 배치되면 아이템 생산되도록 처리
-    /// </summary>
     public void CheckProductionCondition()
     {
-        if (craftingItem == null || addMems.Count == 0)
+        if (string.IsNullOrEmpty(craftingItem) || addMems.Count == 0)
         {
             isProducing = false;
             currentProgressTime = 0f;
             return;
         }
 
-        if (currentProgressTime > 0f && totalRequiredTime > 0f)
+        float baseDuration = baseProductionTime;
+        float newTotalTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, addMems);
+
+        // 🌟 [수정] 진행 소요 시간을 먼저 구한 뒤 기존 진행 시간을 보존
+        if (totalRequiredTime > 0f && currentProgressTime > 0f)
         {
             float currentProgressPercent = currentProgressTime / totalRequiredTime;
-            totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseProductionTime, addMems);
+            totalRequiredTime = newTotalTime;
             currentProgressTime = totalRequiredTime * currentProgressPercent;
-
-            /* 🌟 [임시 주석 처리]: 허기 상태 및 식량 부족으로 인한 작업 중지 가드 무력화
-            if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
-            {
-                isProducing = true;
-            }
-            */
-            isProducing = true; // 식량 상태에 상관없이 무조건 생산 진행
         }
         else
         {
-            totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseProductionTime, addMems);
+            totalRequiredTime = newTotalTime;
+            if (currentProgressTime > totalRequiredTime)
+            {
+                currentProgressTime = 0f;
+            }
+        }
 
-            /* 🌟 [임시 주석 처리]: 허기 상태 및 식량 부족으로 인한 작업 중지 분기 무력화
-            if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
-            {
-                isProducing = true;
-                currentProgressTime = 0f;
-            }
-            else
-            {
-                isProducing = false;
-                currentProgressTime = 0f;
-            }
-            */
-            isProducing = true; // 식량 상태에 상관없이 무조건 활성화
-            currentProgressTime = 0f;
+        if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
+        {
+            SetProducingActive(true);
+        }
+        else
+        {
+            isProducing = false;
         }
     }
 
-
-    /// <summary>
-    /// UI에서 특정 멤을 클릭하여 배치할때 호출
-    /// </summary>
     public bool TryAddMem(MemData targetMem, CapturedMemEntry targetEntry)
     {
-        if (targetMem == null || buildingData == null) return false;
+        EnsureBuildingData();
+        if (targetEntry == null || buildingData == null) return false;
+
+        MemData realMemData = targetMem;
+        if ((realMemData == null || string.IsNullOrEmpty(realMemData.memId)) && MemCatalogManager.Instance != null && !string.IsNullOrEmpty(targetEntry.MemId))
+        {
+            realMemData = MemCatalogManager.Instance.FindMemData(targetEntry.MemId);
+        }
+        if (realMemData == null) return false;
 
         int maxCapacity = ProductionCalculator.GetMaxMemCount(currentLevel);
-        if (addMems.Contains(targetMem))
+        if (addMemEntries.Exists(e => e != null && e.KeyId == targetEntry.KeyId)) return false;
+        if (targetEntry.IsActive) return false;
+
+        if (!ProductionCalculator.CanDeployToFacility(realMemData, buildingData.buildingType)) return false;
+
+        if (addMems.Count >= maxCapacity && addMemEntries.Count > 0)
         {
-            Debug.LogWarning($"{targetMem.memName}은 이미 이 시설에 투입되어 있습니다.");
-            return false;
-        }
-        if (addMems.Count >= maxCapacity)
-        {
-            // 배치교체 필요
-            Debug.LogWarning($"배치 인원이 가득 찼습니다.");
-            return false;
+            RemoveMem(addMemEntries[0]);
         }
 
-        if (!ProductionCalculator.CanDeployToFacility(targetMem, buildingData.buildingType))
-        {
-            ProductionStatType requiredStat = ProductionCalculator.GetRequiredStatType(buildingData.buildingType);
-            Debug.LogWarning($"{targetMem.memName}이 {requiredStat} 스탯이 없어 시설에 배치할 수 없습니다.");
-            return false;
-        }
-
-        // 3. 배치 성공 및 실시간 소요 시간 재반영
-        addMems.Add(targetMem);
+        addMems.Add(realMemData);
         addMemEntries.Add(targetEntry);
         targetEntry.IsActive = true;
-        Debug.Log($"[생산] {targetMem.memName} 배치 성공!");
-
         CheckProductionCondition();
 
         if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
         OnMemDeploymentChanged?.Invoke();
 
-        BuildingType type = buildingData.buildingType;
-        switch (type)
+        if (buildingData != null)
         {
-            case BuildingType.LoggingCamp: MemAdded?.Invoke(BuildingType.LoggingCamp, true); break;
-            case BuildingType.MiningCamp: MemAdded?.Invoke(BuildingType.MiningCamp, true); break;
-            case BuildingType.Farm: MemAdded?.Invoke(BuildingType.Farm, true); break;
-                //case BuildingType.Ranch: MemAdded?.Invoke(BuildingType.Ranch, true); break;
-                //case BuildingType.TransportFacility: MemAdded?.Invoke(BuildingType.TransportFacility, true); break;
-                //case BuildingType.Generator: MemAdded?.Invoke(BuildingType.Generator, true); break;
+            MemAdded?.Invoke(buildingData.buildingType, realMemData, true, MemPositions);
         }
-
         return true;
     }
 
-    /// <summary>
-    /// 시설에 배치된 멤을 제거할때 처리할 함수
-    /// </summary>
-    public void RemoveMem(MemData targetMem)
+    public void RemoveMem(CapturedMemEntry targetEntry)
     {
-        if (addMems.Contains(targetMem))
+        if (targetEntry == null) return;
+        int index = addMemEntries.FindIndex(e => e != null && e.KeyId == targetEntry.KeyId);
+        if (index >= 0)
         {
-            int index = addMems.IndexOf(targetMem);
-            if (index >= 0 && index < addMemEntries.Count)
-            {
-                addMemEntries[index].IsActive = false;
-                addMemEntries.RemoveAt(index);
-            }
-            addMems.RemoveAt(index);
-
-            Debug.Log($"[생산 해제] {targetMem.memName} 시설에서 제외 완료.");
-
+            MemData removedMem = (index < addMems.Count) ? addMems[index] : null;
+            addMemEntries[index].IsActive = false;
+            addMemEntries.RemoveAt(index);
+            if (index < addMems.Count) addMems.RemoveAt(index);
             CheckProductionCondition();
 
             if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
             OnMemDeploymentChanged?.Invoke();
 
-            BuildingType type = buildingData.buildingType;
-            switch (type)
+            if (buildingData != null && removedMem != null)
             {
-                case BuildingType.LoggingCamp: MemAdded?.Invoke(BuildingType.LoggingCamp, false); break;
-                case BuildingType.MiningCamp: MemAdded?.Invoke(BuildingType.MiningCamp, false); break;
-                case BuildingType.Farm: MemAdded?.Invoke(BuildingType.Farm, false); break;
-                    //case BuildingType.Ranch: MemAdded?.Invoke(BuildingType.Ranch, true); break;
-                    //case BuildingType.TransportFacility: MemAdded?.Invoke(BuildingType.TransportFacility, true); break;
-                    //case BuildingType.Generator: MemAdded?.Invoke(BuildingType.Generator, true); break;
+                MemAdded?.Invoke(buildingData.buildingType, removedMem, false, MemPositions);
             }
         }
     }
 
-
-    /// <summary>
-    /// 아이템 1개 생성이 완료되었을 때, 시설 내부에 저장되도록 처리
-    /// </summary>
-    private void CompleteProductionUnit()
+    public void RemoveMem(MemData targetMem)
     {
-        currentStorageCount++;
-
-        // 아이템 수량 텍스트 수정처리(Event발행, currentStorageCount)
-
-        currentProgressTime = 0f;
-        if (craftingItem != null)
+        if (targetMem == null) return;
+        int index = addMems.IndexOf(targetMem);
+        if (index >= 0 && index < addMemEntries.Count)
         {
-            totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseProductionTime, addMems);
+            RemoveMem(addMemEntries[index]);
         }
     }
 
-    /// <summary>
-    /// 시설물에서 생산된 아이템 전체를 수령할때 호출될 함수
-    /// </summary>
+    private void CompleteProductionUnit()
+    {
+        currentStorageCount++;
+        currentProgressTime = 0f;
+        if (!string.IsNullOrEmpty(craftingItem))
+        {
+            float baseDuration = baseProductionTime;
+            totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, addMems);
+        }
+        FacilityCollectManager.Instance?.NotifyFacilityChanged(this);
+    }
+
     public void StoredItems()
     {
-        if (currentStorageCount <= 0) return;
-        if (craftingItem == null) return;
+        if (currentStorageCount <= 0 || string.IsNullOrEmpty(craftingItem)) return;
+        ItemData targetItemData = FindItemDataInCatalog(craftingItem);
+        if (targetItemData == null) return;
 
         int amountToCollect = currentStorageCount;
-
         WarehouseInventory warehouse = FindFirstObjectByType<WarehouseInventory>();
         if (warehouse != null)
         {
-            int remaining = warehouse.AddItem(craftingItem, amountToCollect);
+            int remaining = warehouse.AddItem(targetItemData, amountToCollect);
             currentStorageCount = remaining;
         }
+        FacilityCollectManager.Instance?.NotifyFacilityChanged(this);
+    }
 
+    private ItemData FindItemDataInCatalog(string itemId)
+    {
+        if (string.IsNullOrEmpty(itemId)) return null;
+        if (ItemCatalogManager.Instance == null) return null;
+        return ItemCatalogManager.Instance.FindItemData(itemId);
+    }
+
+    private void SetProducingActive(bool value)
+    {
+        if (isProducing == value) return;
+        isProducing = value;
+        if (isProducing && buildingData != null)
+        {
+            FacilityStarted?.Invoke(buildingData.buildingType, addMems, MemPositions);
+        }
+    }
+
+    public void StopWorkDueToStarvation()
+    {
+        if (!isProducing) return;
+        isProducing = false;
+        if (buildingData != null)
+        {
+            FacilityStopped?.Invoke(buildingData.buildingType, addMems, FacilityStopReason.Starvation, MemPositions);
+        }
+        FacilityCollectManager.Instance?.NotifyFacilityChanged(this);
     }
 }

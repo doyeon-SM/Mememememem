@@ -1,0 +1,591 @@
+﻿using System;
+using System.IO;
+using System.Linq;
+using System.Collections.Generic;
+using UnityEngine;
+using HDY.Capture;
+using MemSystem.Data;
+using HDY.Mem;
+using HDY.Item;
+
+public class FacilityRecordData : MonoBehaviour, IRecord
+{
+    private void OnEnable()
+    {
+        GridManager.OnGridDataChanged += OnFacilityDataChanged;
+        FacilityCollectManager.OnFacilityChangedEvent += OnFacilityCollectChangedHandler;
+
+        ProductionFacilityRuntime.OnMemDeploymentChanged += OnFacilityDataChanged;
+        ProductionCraftRuntime.OnMemDeploymentChanged += OnFacilityDataChanged;
+        RanchFacilityRuntime.OnMemDeploymentChanged += OnFacilityDataChanged;
+        GeneratorRuntime.OnMemDeploymentChanged += OnFacilityDataChanged;
+        TransportRuntime.OnMemDeploymentChanged += OnFacilityDataChanged;
+        CampFireRuntime.OnMemDeploymentChanged += OnFacilityDataChanged;
+        KitchenRuntime.OnMemDeploymentChanged += OnFacilityDataChanged;
+
+        ProductionFacilityRuntime.FacilityStarted += OnFacilityStartedHandler;
+        ProductionFacilityRuntime.FacilityStopped += OnFacilityStoppedHandler;
+
+        ProductionCraftRuntime.FacilityStarted += OnFacilityStartedHandler;
+        ProductionCraftRuntime.FacilityStopped += OnFacilityStoppedHandler;
+
+        RanchFacilityRuntime.FacilityStarted += OnFacilityStartedHandler;
+        RanchFacilityRuntime.FacilityStopped += OnFacilityStoppedHandler;
+
+        GeneratorRuntime.FacilityStarted += OnFacilityStartedHandler;
+        GeneratorRuntime.FacilityStopped += OnFacilityStoppedHandler;
+
+        TransportRuntime.FacilityStarted += OnFacilityStartedHandler;
+        TransportRuntime.FacilityStopped += OnFacilityStoppedHandler;
+
+        CampFireRuntime.FacilityStarted += OnFacilityStartedHandler;
+        CampFireRuntime.FacilityStopped += OnFacilityStoppedHandler;
+
+        KitchenRuntime.FacilityStarted += OnFacilityStartedHandler;
+        KitchenRuntime.FacilityStopped += OnFacilityStoppedHandler;
+    }
+
+    private void OnDisable()
+    {
+        GridManager.OnGridDataChanged -= OnFacilityDataChanged;
+        FacilityCollectManager.OnFacilityChangedEvent -= OnFacilityCollectChangedHandler;
+
+        ProductionFacilityRuntime.OnMemDeploymentChanged -= OnFacilityDataChanged;
+        ProductionCraftRuntime.OnMemDeploymentChanged -= OnFacilityDataChanged;
+        RanchFacilityRuntime.OnMemDeploymentChanged -= OnFacilityDataChanged;
+        GeneratorRuntime.OnMemDeploymentChanged -= OnFacilityDataChanged;
+        TransportRuntime.OnMemDeploymentChanged -= OnFacilityDataChanged;
+        CampFireRuntime.OnMemDeploymentChanged -= OnFacilityDataChanged;
+        KitchenRuntime.OnMemDeploymentChanged -= OnFacilityDataChanged;
+
+        ProductionFacilityRuntime.FacilityStarted -= OnFacilityStartedHandler;
+        ProductionFacilityRuntime.FacilityStopped -= OnFacilityStoppedHandler;
+
+        ProductionCraftRuntime.FacilityStarted -= OnFacilityStartedHandler;
+        ProductionCraftRuntime.FacilityStopped -= OnFacilityStoppedHandler;
+
+        RanchFacilityRuntime.FacilityStarted -= OnFacilityStartedHandler;
+        RanchFacilityRuntime.FacilityStopped -= OnFacilityStoppedHandler;
+
+        GeneratorRuntime.FacilityStarted -= OnFacilityStartedHandler;
+        GeneratorRuntime.FacilityStopped -= OnFacilityStoppedHandler;
+
+        TransportRuntime.FacilityStarted -= OnFacilityStartedHandler;
+        TransportRuntime.FacilityStopped -= OnFacilityStoppedHandler;
+
+        CampFireRuntime.FacilityStarted -= OnFacilityStartedHandler;
+        CampFireRuntime.FacilityStopped -= OnFacilityStoppedHandler;
+
+        KitchenRuntime.FacilityStarted -= OnFacilityStartedHandler;
+        KitchenRuntime.FacilityStopped -= OnFacilityStoppedHandler;
+    }
+
+    private void OnApplicationQuit()
+    {
+        OnFacilityDataChanged();
+    }
+
+    private void OnApplicationPause(bool pauseStatus)
+    {
+        if (pauseStatus) OnFacilityDataChanged();
+    }
+
+    private void OnFacilityCollectChangedHandler(MonoBehaviour facility) => OnFacilityDataChanged();
+    private void OnFacilityStartedHandler(BuildingType type, List<MemData> mems, List<Transform> positions) => OnFacilityDataChanged();
+    private void OnFacilityStoppedHandler(BuildingType type, List<MemData> mems, FacilityStopReason reason, List<Transform> positions) => OnFacilityDataChanged();
+
+    private void OnFacilityDataChanged()
+    {
+        if (RecordManager.IsLoadingData || RecordManager.IsSceneUnloading) return;
+
+        var gridManager = FindFirstObjectByType<GridManager>();
+        if (gridManager != null)
+        {
+            var fieldInfo = typeof(GridManager).GetField("isPlacementMode", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+            if (fieldInfo != null && (bool)fieldInfo.GetValue(gridManager))
+            {
+                return;
+            }
+        }
+
+        if (RecordManager.Instance != null)
+        {
+            SaveData(RecordManager.Instance.SaveFilePath);
+        }
+    }
+
+    public void InitDefaultData(ref SaveData saveData)
+    {
+        saveData.placedBuildings = new List<PlacedBuildingData>();
+    }
+
+    public void SaveData(string saveFilePath)
+    {
+        if (RecordManager.IsLoadingData || RecordManager.IsSceneUnloading) return;
+
+        SaveData currentData = RecordManager.Instance.ReadRawSaveFileOnly();
+        if (currentData == null) currentData = new SaveData();
+
+        var activeBuildings = FindObjectsByType<BuildingRuntime>(FindObjectsSortMode.None);
+
+        var gridManager = FindFirstObjectByType<GridManager>();
+        if (gridManager == null && activeBuildings.Length == 0)
+        {
+            return;
+        }
+
+        currentData.placedBuildings = new List<PlacedBuildingData>();
+
+        HashSet<string> allDeployedMemIDs = new HashSet<string>();
+        HashSet<GameObject> processedObjects = new HashSet<GameObject>();
+        Dictionary<string, FacilityData> activeFacilityDict = new Dictionary<string, FacilityData>();
+
+        foreach (var br in activeBuildings)
+        {
+            if (br == null || br.buildingData == null || !br.gameObject.activeInHierarchy) continue;
+            if (processedObjects.Contains(br.gameObject)) continue;
+            processedObjects.Add(br.gameObject);
+
+            PlacedBuildingData bSave = new PlacedBuildingData
+            {
+                buildingName = br.buildingData.buildingName,
+                gridX = br.gridX,
+                gridZ = br.gridZ,
+                rotationY = br.transform.eulerAngles.y
+            };
+
+            string uniqueId = $"{br.buildingData.buildingName}_{br.gridX}_{br.gridZ}";
+            FacilityData rData = new FacilityData { Building_ID = uniqueId };
+
+            if (br.TryGetComponent<ProductionFacilityRuntime>(out var facility))
+            {
+                rData.currentLevel = facility.currentLevel;
+                rData.isActive = facility.isProducing;
+                rData.currentCraftingItemId = facility.craftingItem ?? "";
+                rData.currentProgressTime = facility.currentProgressTime;
+                rData.currentStorageCount = facility.currentStorageCount;
+
+                if (facility.DeployedMemEntries != null)
+                {
+                    var ids = facility.DeployedMemEntries.Where(e => e != null && !string.IsNullOrEmpty(e.KeyId)).Select(e => e.KeyId).ToList();
+                    rData.DeployedMemIDs = ids;
+                    foreach (var id in ids) allDeployedMemIDs.Add(id);
+                }
+            }
+            else if (br.TryGetComponent<ProductionCraftRuntime>(out var craft))
+            {
+                rData.currentLevel = 1;
+                rData.isActive = craft.isProducing;
+                rData.currentCraftingItemId = craft.currentCraftingItem ?? "";
+                rData.targetQuantity = craft.targetQuantity;
+                rData.remainingQuantity = craft.remainingQuantity;
+                rData.currentProgressTime = craft.currentProgressTime;
+                rData.currentStorageCount = craft.currentStorageCount;
+
+                if (craft.DeployedMemEntries != null)
+                {
+                    var ids = craft.DeployedMemEntries.Where(e => e != null && !string.IsNullOrEmpty(e.KeyId)).Select(e => e.KeyId).ToList();
+                    rData.DeployedMemIDs = ids;
+                    foreach (var id in ids) allDeployedMemIDs.Add(id);
+                }
+            }
+            else if (br.TryGetComponent<RanchFacilityRuntime>(out var ranch))
+            {
+                rData.currentLevel = ranch.currentLevel;
+                rData.isActive = ranch.isProducing;
+                rData.ranchSlots = new List<RanchSlotSaveData>();
+                rData.DeployedMemIDs = new List<string>();
+
+                if (ranch.Slots != null)
+                {
+                    foreach (var slot in ranch.Slots)
+                    {
+                        string keyId = slot.deployedMemEntry != null ? slot.deployedMemEntry.KeyId : "";
+                        var slotSave = new RanchSlotSaveData
+                        {
+                            slotIndex = slot.slotIndex,
+                            isUnlocked = slot.isUnlocked,
+                            deployedMemKeyId = keyId,
+                            craftingItemId = slot.craftingItemId ?? "",
+                            isProducing = slot.isProducing,
+                            currentProgressTime = slot.currentProgressTime,
+                            currentStorageCount = slot.currentStorageCount
+                        };
+                        rData.ranchSlots.Add(slotSave);
+                        if (!string.IsNullOrEmpty(keyId))
+                        {
+                            allDeployedMemIDs.Add(keyId);
+                            rData.DeployedMemIDs.Add(keyId);
+                        }
+                    }
+                }
+            }
+            else if (br.TryGetComponent<GeneratorRuntime>(out var gen))
+            {
+                rData.currentLevel = gen.currentLevel;
+                rData.isActive = gen.isPowerGenerating;
+                rData.currentProgressTime = gen.currentPowerProgressTime;
+                rData.currentStorageCount = gen.currentPowerStorage; // 🌟 발전기의 전력 축적량을 currentStorageCount에 저장
+
+                if (gen.DeployedMemEntries != null)
+                {
+                    var ids = gen.DeployedMemEntries.Where(e => e != null && !string.IsNullOrEmpty(e.KeyId)).Select(e => e.KeyId).ToList();
+                    rData.DeployedMemIDs = ids;
+                    foreach (var id in ids) allDeployedMemIDs.Add(id);
+                }
+            }
+            else if (br.TryGetComponent<TransportRuntime>(out var trans))
+            {
+                rData.currentLevel = trans.currentLevel;
+                rData.isActive = trans.isWorking;
+                rData.currentProgressTime = trans.currentProgressTime;
+
+                if (trans.DeployedMemEntries != null)
+                {
+                    var ids = trans.DeployedMemEntries.Where(e => e != null && !string.IsNullOrEmpty(e.KeyId)).Select(e => e.KeyId).ToList();
+                    rData.DeployedMemIDs = ids;
+                    foreach (var id in ids) allDeployedMemIDs.Add(id);
+                }
+            }
+            else if (br.TryGetComponent<CampFireRuntime>(out var campFire))
+            {
+                rData.currentLevel = 1;
+                rData.isActive = campFire.isCooking;
+                rData.currentCraftingItemId = campFire.currentCookingItem ?? "";
+                rData.targetQuantity = campFire.targetQuantity;
+                rData.remainingQuantity = campFire.remainingQuantity;
+                rData.currentProgressTime = campFire.currentProgressTime;
+                rData.currentStorageCount = campFire.currentStorageCount;
+
+                if (campFire.DeployedMemEntries != null)
+                {
+                    var ids = campFire.DeployedMemEntries.Where(e => e != null && !string.IsNullOrEmpty(e.KeyId)).Select(e => e.KeyId).ToList();
+                    rData.DeployedMemIDs = ids;
+                    foreach (var id in ids) allDeployedMemIDs.Add(id);
+                }
+            }
+            else if (br.TryGetComponent<KitchenRuntime>(out var kitchen))
+            {
+                rData.currentLevel = 1;
+                rData.isActive = kitchen.isCooking;
+                rData.currentCraftingItemId = kitchen.currentCookingItem ?? "";
+                rData.targetQuantity = kitchen.targetQuantity;
+                rData.remainingQuantity = kitchen.remainingQuantity;
+                rData.currentProgressTime = kitchen.currentProgressTime;
+                rData.currentStorageCount = kitchen.currentStorageCount;
+
+                if (kitchen.DeployedMemEntries != null)
+                {
+                    var ids = kitchen.DeployedMemEntries.Where(e => e != null && !string.IsNullOrEmpty(e.KeyId)).Select(e => e.KeyId).ToList();
+                    rData.DeployedMemIDs = ids;
+                    foreach (var id in ids) allDeployedMemIDs.Add(id);
+                }
+            }
+
+            bSave.runtimeData = rData;
+            currentData.placedBuildings.Add(bSave);
+            activeFacilityDict[uniqueId] = rData;
+        }
+
+        if (RecordManager.Instance != null)
+        {
+            RecordManager.Instance.SynchronizeFacilityDatabase(activeFacilityDict);
+        }
+
+        if (currentData.serializedCapturedMems != null)
+        {
+            foreach (var memEntry in currentData.serializedCapturedMems)
+            {
+                if (memEntry != null && !string.IsNullOrEmpty(memEntry.KeyId))
+                {
+                    memEntry.IsActive = allDeployedMemIDs.Contains(memEntry.KeyId);
+                }
+            }
+        }
+
+        File.WriteAllText(saveFilePath, JsonUtility.ToJson(currentData, true));
+        Debug.Log("<color=lime>[FacilityRecordData]</color> 🏗️ 시설 런타임 상태 및 진행도 세이브 성공!");
+    }
+
+    public void ApplyData(SaveData saveData, SceneType sceneType)
+    {
+        if (sceneType == SceneType.Exploration) return;
+
+        var gridManager = FindFirstObjectByType<GridManager>();
+        if (gridManager == null) return;
+
+        // 그리드 초기화
+        int targetGridSize = saveData.currentGridSize > 0 ? saveData.currentGridSize : 10;
+        gridManager.InitializeGrid(targetGridSize, targetGridSize);
+
+        var bTemplateField = typeof(GridManager).GetField("buildings", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+        List<BuildingData> buildingTemplates = bTemplateField?.GetValue(gridManager) as List<BuildingData>;
+        Transform floorContainer = gridManager.FloorContainer != null ? gridManager.FloorContainer : gridManager.transform;
+
+        var memManager = FindFirstObjectByType<MemCaptureManager>();
+
+        if (saveData.placedBuildings != null && buildingTemplates != null)
+        {
+            foreach (var bSave in saveData.placedBuildings)
+            {
+                BuildingData matchData = buildingTemplates.Find(b => b.buildingName == bSave.buildingName);
+                if (matchData == null || matchData.buildingPrefab == null) continue;
+
+                int currentRotationIndex = Mathf.RoundToInt(bSave.rotationY / 90f) % 4;
+                bool isRotated = (currentRotationIndex == 1 || currentRotationIndex == 3);
+                int bWidth = isRotated ? matchData.height : matchData.width;
+                int bHeight = isRotated ? matchData.width : matchData.height;
+
+                Vector3 spawnPos = new Vector3(bSave.gridX + (bWidth / 2.0f), 0.301f, bSave.gridZ + (bHeight / 2.0f));
+                GameObject spawnedObj = Instantiate(matchData.buildingPrefab, spawnPos, Quaternion.Euler(0f, bSave.rotationY, 0f), floorContainer);
+
+                if (spawnedObj.TryGetComponent<BuildingRuntime>(out BuildingRuntime br))
+                {
+                    br.enabled = true;
+                    br.Initialize(matchData, bSave.gridX, bSave.gridZ);
+                }
+
+                var entry = bSave.runtimeData ?? new FacilityData { Building_ID = $"{matchData.buildingName}_{bSave.gridX}_{bSave.gridZ}" };
+
+                // 각 런타임 컴포넌트 데이터 복원
+                if (spawnedObj.TryGetComponent<ProductionFacilityRuntime>(out var facility))
+                {
+                    facility.buildingData = matchData;
+                    facility.currentLevel = entry.currentLevel > 0 ? entry.currentLevel : 1;
+                    facility.isProducing = entry.isActive;
+                    facility.currentProgressTime = entry.currentProgressTime;
+                    facility.currentStorageCount = entry.currentStorageCount;
+                    facility.craftingItem = entry.currentCraftingItemId;
+
+                    if (facility.DeployedMems != null) facility.DeployedMems.Clear();
+                    if (facility.DeployedMemEntries != null) facility.DeployedMemEntries.Clear();
+
+                    if (memManager != null && entry.DeployedMemIDs != null)
+                    {
+                        int maxCapacity = ProductionCalculator.GetMaxMemCount(facility.currentLevel);
+                        var safeMemIDs = entry.DeployedMemIDs.Distinct().Take(maxCapacity).ToList();
+                        foreach (var savedKeyId in safeMemIDs)
+                        {
+                            var match = memManager.CapturedMems.FirstOrDefault(m => m != null && m.KeyId == savedKeyId);
+                            if (match != null)
+                            {
+                                MemData realMemData = MemCatalogManager.Instance != null ? MemCatalogManager.Instance.FindMemData(match.MemId) : null;
+                                if (realMemData != null)
+                                {
+                                    match.IsActive = false;
+                                    facility.TryAddMem(realMemData, match);
+                                }
+                            }
+                        }
+                    }
+                    facility.CheckProductionCondition();
+                }
+                else if (spawnedObj.TryGetComponent<ProductionCraftRuntime>(out var craft))
+                {
+                    craft.buildingData = matchData;
+                    craft.isProducing = entry.isActive;
+                    craft.targetQuantity = entry.targetQuantity;
+                    craft.remainingQuantity = entry.remainingQuantity;
+                    craft.currentProgressTime = entry.currentProgressTime;
+                    craft.currentStorageCount = entry.currentStorageCount;
+                    craft.currentCraftingItem = entry.currentCraftingItemId;
+
+                    if (craft.DeployedMems != null) craft.DeployedMems.Clear();
+                    if (craft.DeployedMemEntries != null) craft.DeployedMemEntries.Clear();
+
+                    if (memManager != null && entry.DeployedMemIDs != null)
+                    {
+                        foreach (var savedKeyId in entry.DeployedMemIDs)
+                        {
+                            var match = memManager.CapturedMems.FirstOrDefault(m => m != null && m.KeyId == savedKeyId);
+                            if (match != null)
+                            {
+                                MemData realMemData = MemCatalogManager.Instance != null ? MemCatalogManager.Instance.FindMemData(match.MemId) : null;
+                                if (realMemData != null)
+                                {
+                                    match.IsActive = false;
+                                    craft.TryAddMem(realMemData, match);
+                                }
+                            }
+                        }
+                    }
+                }
+                else if (spawnedObj.TryGetComponent<RanchFacilityRuntime>(out var ranch))
+                {
+                    ranch.buildingData = matchData;
+                    ranch.currentLevel = entry.currentLevel > 0 ? entry.currentLevel : 1;
+                    ranch.UpdateSlotCapacity();
+
+                    if (entry.ranchSlots != null && entry.ranchSlots.Count > 0)
+                    {
+                        foreach (var slotSave in entry.ranchSlots)
+                        {
+                            if (slotSave.slotIndex >= 0 && slotSave.slotIndex < ranch.Slots.Count)
+                            {
+                                var slotRuntime = ranch.Slots[slotSave.slotIndex];
+                                slotRuntime.isUnlocked = slotSave.isUnlocked;
+
+                                if (!string.IsNullOrEmpty(slotSave.deployedMemKeyId) && memManager != null)
+                                {
+                                    var match = memManager.CapturedMems.FirstOrDefault(m => m != null && m.KeyId == slotSave.deployedMemKeyId);
+                                    if (match != null)
+                                    {
+                                        MemData realMemData = MemCatalogManager.Instance != null ? MemCatalogManager.Instance.FindMemData(match.MemId) : null;
+                                        if (realMemData != null)
+                                        {
+                                            slotRuntime.deployedMem = realMemData;
+                                            slotRuntime.deployedMemEntry = match;
+                                            match.IsActive = true;
+                                        }
+                                    }
+                                }
+
+                                string produceItemId = !string.IsNullOrEmpty(slotSave.craftingItemId)
+                                    ? slotSave.craftingItemId
+                                    : (slotRuntime.deployedMem != null ? ranch.GetRanchProduceItemId(slotRuntime.deployedMem) : string.Empty);
+
+                                slotRuntime.craftingItemId = produceItemId;
+                                slotRuntime.currentProgressTime = slotSave.currentProgressTime;
+                                slotRuntime.currentStorageCount = slotSave.currentStorageCount;
+                                slotRuntime.isProducing = slotSave.isProducing;
+                            }
+                        }
+                    }
+                    ranch.CheckAllSlotsProductionCondition();
+                }
+                else if (spawnedObj.TryGetComponent<GeneratorRuntime>(out var gen))
+                {
+                    gen.buildingData = matchData;
+                    gen.currentLevel = entry.currentLevel > 0 ? entry.currentLevel : 1;
+                    gen.UpdateMaxPowerStorage();
+
+                    if (gen.DeployedMems != null) gen.DeployedMems.Clear();
+                    if (gen.DeployedMemEntries != null) gen.DeployedMemEntries.Clear();
+
+                    if (memManager != null && entry.DeployedMemIDs != null)
+                    {
+                        foreach (var savedKeyId in entry.DeployedMemIDs)
+                        {
+                            var match = memManager.CapturedMems.FirstOrDefault(m => m != null && m.KeyId == savedKeyId);
+                            if (match != null)
+                            {
+                                MemData realMemData = MemCatalogManager.Instance != null ? MemCatalogManager.Instance.FindMemData(match.MemId) : null;
+                                if (realMemData != null)
+                                {
+                                    match.IsActive = false;
+                                    gen.TryAddMem(realMemData, match);
+                                }
+                            }
+                        }
+                    }
+
+                    gen.currentPowerStorage = entry.currentStorageCount;
+                    if (gen.DeployedMems.Count > 0)
+                    {
+                        gen.totalPowerRequiredTime = ProductionCalculator.CalculatePowerGenerationTime(gen.basePowerGenerationTime, gen.DeployedMems[0]);
+                    }
+                    gen.currentPowerProgressTime = entry.currentProgressTime;
+                    gen.isPowerGenerating = entry.isActive;
+                    gen.CheckPowerCondition();
+                }
+                else if (spawnedObj.TryGetComponent<TransportRuntime>(out var trans))
+                {
+                    trans.buildingData = matchData;
+                    trans.currentLevel = entry.currentLevel > 0 ? entry.currentLevel : 1;
+                    trans.isWorking = entry.isActive;
+                    trans.currentProgressTime = entry.currentProgressTime;
+
+                    if (trans.DeployedMems != null) trans.DeployedMems.Clear();
+                    if (trans.DeployedMemEntries != null) trans.DeployedMemEntries.Clear();
+
+                    if (memManager != null && entry.DeployedMemIDs != null)
+                    {
+                        int maxCapacity = ProductionCalculator.GetTransportMaxMemCount(trans.currentLevel);
+                        var safeMemIDs = entry.DeployedMemIDs.Distinct().Take(maxCapacity).ToList();
+                        foreach (var savedKeyId in safeMemIDs)
+                        {
+                            var match = memManager.CapturedMems.FirstOrDefault(m => m != null && m.KeyId == savedKeyId);
+                            if (match != null)
+                            {
+                                MemData realMemData = MemCatalogManager.Instance != null ? MemCatalogManager.Instance.FindMemData(match.MemId) : null;
+                                if (realMemData != null)
+                                {
+                                    match.IsActive = false;
+                                    trans.TryAddMem(realMemData, match);
+                                }
+                            }
+                        }
+                    }
+                    trans.CheckProductionCondition();
+                }
+                else if (spawnedObj.TryGetComponent<CampFireRuntime>(out var campFire))
+                {
+                    campFire.buildingData = matchData;
+                    campFire.isCooking = entry.isActive;
+                    campFire.targetQuantity = entry.targetQuantity;
+                    campFire.remainingQuantity = entry.remainingQuantity;
+                    campFire.currentProgressTime = entry.currentProgressTime;
+                    campFire.currentStorageCount = entry.currentStorageCount;
+                    campFire.currentCookingItem = entry.currentCraftingItemId;
+
+                    if (campFire.DeployedMems != null) campFire.DeployedMems.Clear();
+                    if (campFire.DeployedMemEntries != null) campFire.DeployedMemEntries.Clear();
+
+                    if (memManager != null && entry.DeployedMemIDs != null)
+                    {
+                        foreach (var savedKeyId in entry.DeployedMemIDs)
+                        {
+                            var match = memManager.CapturedMems.FirstOrDefault(m => m != null && m.KeyId == savedKeyId);
+                            if (match != null)
+                            {
+                                MemData realMemData = MemCatalogManager.Instance != null ? MemCatalogManager.Instance.FindMemData(match.MemId) : null;
+                                if (realMemData != null)
+                                {
+                                    match.IsActive = false;
+                                    campFire.TryAddMem(realMemData, match);
+                                }
+                            }
+                        }
+                    }
+                }
+                else if (spawnedObj.TryGetComponent<KitchenRuntime>(out var kitchen))
+                {
+                    kitchen.buildingData = matchData;
+                    kitchen.isCooking = entry.isActive;
+                    kitchen.targetQuantity = entry.targetQuantity;
+                    kitchen.remainingQuantity = entry.remainingQuantity;
+                    kitchen.currentProgressTime = entry.currentProgressTime;
+                    kitchen.currentStorageCount = entry.currentStorageCount;
+                    kitchen.currentCookingItem = entry.currentCraftingItemId;
+
+                    if (kitchen.DeployedMems != null) kitchen.DeployedMems.Clear();
+                    if (kitchen.DeployedMemEntries != null) kitchen.DeployedMemEntries.Clear();
+
+                    if (memManager != null && entry.DeployedMemIDs != null)
+                    {
+                        foreach (var savedKeyId in entry.DeployedMemIDs)
+                        {
+                            var match = memManager.CapturedMems.FirstOrDefault(m => m != null && m.KeyId == savedKeyId);
+                            if (match != null)
+                            {
+                                MemData realMemData = MemCatalogManager.Instance != null ? MemCatalogManager.Instance.FindMemData(match.MemId) : null;
+                                if (realMemData != null)
+                                {
+                                    match.IsActive = false;
+                                    kitchen.TryAddMem(realMemData, match);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                gridManager.SyncRestoredBuilding(spawnedObj, matchData, bSave.gridX, bSave.gridZ, bSave.rotationY);
+
+                RecordManager.Instance.UpdateFacilityData($"{matchData.buildingName}_{bSave.gridX}_{bSave.gridZ}", entry);
+            }
+        }
+
+        RecordManager.Instance.RefreshActivePanelMemSlotsRealtime();
+        Debug.Log("<color=cyan>[FacilityRecordData]</color> 🏗️ 배치 시설 복원 및 GridManager 완벽 동기화 완료!");
+    }
+}

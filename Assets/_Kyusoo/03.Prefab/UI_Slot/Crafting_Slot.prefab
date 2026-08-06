@@ -222,8 +222,8 @@ GameObject:
   m_Component:
   - component: {fileID: 2876601776629023516}
   - component: {fileID: 2883399725066291784}
-  - component: {fileID: 6571901147360078333}
   - component: {fileID: 3040114147956782830}
+  - component: {fileID: 6053805214206087278}
   m_Layer: 5
   m_Name: Crafting_Slot
   m_TagString: Untagged
@@ -278,21 +278,6 @@ MonoBehaviour:
   m_ChildScaleWidth: 0
   m_ChildScaleHeight: 0
   m_ReverseArrangement: 0
---- !u!114 &6571901147360078333
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6478490869400420258}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 650183a3f3609a143a55842a6852df55, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::CraftingSlotUI
-  itemIcon: {fileID: 1162572587593269254}
-  itemName: {fileID: 0}
-  clickBtn: {fileID: 3040114147956782830}
 --- !u!114 &3040114147956782830
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -337,3 +322,24 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls: []
+--- !u!114 &6053805214206087278
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6478490869400420258}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4bafc9e63828f4e4ea3743419b154f6d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MemSlotUI
+  iconImage: {fileID: 0}
+  stat: {fileID: 0}
+  statText: {fileID: 0}
+  slotButton: {fileID: 0}
+  craftingStatIcon: {fileID: 0}
+  loggingStatIcon: {fileID: 0}
+  miningStatIcon: {fileID: 0}
+  transportStatIcon: {fileID: 0}
+  farmingStatIcon: {fileID: 0}

@@ -9,6 +9,7 @@ public class WayPointMapIconUI : MonoBehaviour, IPointerEnterHandler, IPointerMo
 {
     [SerializeField] private Image iconImage;
     [SerializeField] private Button button;
+    [SerializeField] private TMPro.TMP_Text currentLocationText;
 
     private WayPointMapUI owner;
     private WayPointRunTime state;
@@ -84,7 +85,67 @@ public class WayPointMapIconUI : MonoBehaviour, IPointerEnterHandler, IPointerMo
 
         if (button != null)
         {
-            button.interactable = owner != null && state != null;
+            button.interactable = owner != null
+                && state != null
+                && !owner.IsCurrentLocation(state);
+        }
+
+        RefreshCurrentLocationLabel();
+    }
+
+    private void RefreshCurrentLocationLabel()
+    {
+        bool isCurrentLocation = owner != null && owner.IsCurrentLocation(state);
+        if (currentLocationText == null && isCurrentLocation)
+        {
+            GameObject labelObject = new GameObject(
+                "Current Location Label",
+                typeof(RectTransform),
+                typeof(CanvasRenderer),
+                typeof(TMPro.TextMeshProUGUI));
+            labelObject.layer = gameObject.layer;
+            RectTransform labelRect = labelObject.GetComponent<RectTransform>();
+            labelRect.SetParent(transform, false);
+            labelRect.anchorMin = new Vector2(0.5f, 0.5f);
+            labelRect.anchorMax = new Vector2(0.5f, 0.5f);
+            labelRect.pivot = new Vector2(0.5f, 0.5f);
+            labelRect.sizeDelta = new Vector2(120f, 28f);
+            labelRect.anchoredPosition = new Vector2(0f, -38f);
+
+            currentLocationText = labelObject.GetComponent<TMPro.TextMeshProUGUI>();
+            currentLocationText.text = "현재 위치";
+            TMPro.TMP_Text referenceText = null;
+            if (owner != null)
+            {
+                TMPro.TMP_Text[] referenceCandidates =
+                    owner.GetComponentsInChildren<TMPro.TMP_Text>(true);
+                for (int i = 0; i < referenceCandidates.Length; i++)
+                {
+                    if (referenceCandidates[i] != currentLocationText
+                        && referenceCandidates[i] != null
+                        && referenceCandidates[i].font != null)
+                    {
+                        referenceText = referenceCandidates[i];
+                        break;
+                    }
+                }
+            }
+            currentLocationText.font = referenceText != null
+                ? referenceText.font
+                : TMPro.TMP_Settings.defaultFontAsset;
+            currentLocationText.fontSize = 18f;
+            currentLocationText.fontStyle = TMPro.FontStyles.Bold;
+            currentLocationText.color = new Color(0.45f, 0.92f, 1f, 1f);
+            currentLocationText.alignment = TMPro.TextAlignmentOptions.Center;
+            currentLocationText.enableAutoSizing = true;
+            currentLocationText.fontSizeMin = 11f;
+            currentLocationText.fontSizeMax = 18f;
+            currentLocationText.raycastTarget = false;
+        }
+
+        if (currentLocationText != null)
+        {
+            currentLocationText.gameObject.SetActive(isCurrentLocation);
         }
     }
 
@@ -111,7 +172,8 @@ public class WayPointMapIconUI : MonoBehaviour, IPointerEnterHandler, IPointerMo
         }
     }
 
-    // 아이콘 클릭 시 지도 UI에 이동 요청을 전달한다.
+    // 이동 가능한 활성 웨이포인트는 아이콘 클릭으로 즉시 이동한다.
+    // 프리뷰 모드 또는 잠금 상태에서는 정보 툴팁만 유지한다.
     private void HandleClick()
     {
         if (owner == null || state == null)
@@ -119,12 +181,13 @@ public class WayPointMapIconUI : MonoBehaviour, IPointerEnterHandler, IPointerMo
             return;
         }
 
-        if (!owner.CanTravelByClick(state))
+        if (owner.CanTravelByClick(state))
         {
+            owner.TravelTo(state.Id);
             return;
         }
 
-        owner.TravelTo(state.Id);
+        owner.NotifyWayPointPointerEnter(state, transform as RectTransform);
     }
 
     // 마우스가 아이콘에 올라오면 툴팁을 보여준다.
@@ -135,7 +198,7 @@ public class WayPointMapIconUI : MonoBehaviour, IPointerEnterHandler, IPointerMo
             return;
         }
 
-        owner.ShowTooltip(state, transform as RectTransform);
+        owner.NotifyWayPointPointerEnter(state, transform as RectTransform);
     }
 
     // 마우스 이동에 맞춰 툴팁 위치를 갱신한다.
@@ -149,15 +212,13 @@ public class WayPointMapIconUI : MonoBehaviour, IPointerEnterHandler, IPointerMo
         owner.MoveTooltip(transform as RectTransform);
     }
 
-    // 마우스가 아이콘에서 벗어나면 툴팁을 숨긴다.
+    // 아이콘을 벗어나면 툴팁 숨김을 요청한다. Fill_BG로 진입하면 요청이 취소된다.
     public void OnPointerExit(PointerEventData eventData)
     {
-        if (owner == null)
+        if (owner != null)
         {
-            return;
+            owner.NotifyWayPointPointerExit();
         }
-
-        owner.HideTooltip();
     }
 
 }

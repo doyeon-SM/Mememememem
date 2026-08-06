@@ -1,0 +1,38 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5fb808657f8c0bf4291cc024f2d9af9f, type: 3}
+  m_Name: ForgeEnhancementTable
+  m_EditorClassIdentifier: Assembly-CSharp::HDY.Forge.ForgeEnhancementTable
+  Brackets:
+  - FromLevelInclusive: 1
+    ToLevelInclusive: 5
+    MaterialCost: 1
+    GoldCost: 0
+    SuccessRate: 0.8
+    FailureOverheatCharge: 0.5
+  - FromLevelInclusive: 6
+    ToLevelInclusive: 8
+    MaterialCost: 2
+    GoldCost: 0
+    SuccessRate: 0.5
+    FailureOverheatCharge: 0.333
+  - FromLevelInclusive: 9
+    ToLevelInclusive: 10
+    MaterialCost: 3
+    GoldCost: 0
+    SuccessRate: 0.3
+    FailureOverheatCharge: 0.2
+  PromotionMaterialCost: 10
+  PromotionGoldCost: 0
+  PromotionSuccessRate: 0.15
+  PromotionOverheatCharge: 0.1
+  OverheatGuaranteedThreshold: 1

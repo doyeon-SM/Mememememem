@@ -25,8 +25,11 @@ public class ItemDragUI : MonoBehaviour
         if (stack == null || stack.IsEmpty) return;
 
         gameObject.SetActive(true);
+        if (catalogManager == null)
+        {
+            catalogManager = ItemCatalogManager.Resolve(null);
+        }
 
-        // [HDY 요청] 슬롯에는 itemId만 있으므로 표시를 위해 카탈로그에서 ItemData를 다시 조회한다.
         ItemData data = catalogManager != null ? catalogManager.FindItemData(stack.itemId) : null;
 
         itemIcon.enabled = data != null && data.ItemIcon != null;

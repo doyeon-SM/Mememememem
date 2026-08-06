@@ -12,6 +12,7 @@ namespace KMS.Combat
     {
         [Header("References")]
         [SerializeField] private KMS.PlayerInput input;
+        [SerializeField] private KMS.PlayerStats stats;
         [SerializeField] private KMS.PlayerMovement movement;
         [SerializeField] private KmsPlayerInventory inventory;
         [SerializeField] private Transform cameraTransform;
@@ -21,6 +22,14 @@ namespace KMS.Combat
         [Header("Melee Attack")]
         [SerializeField] private LayerMask attackLayer = ~0;
         [SerializeField, Min(0f)] private float attackOriginHeight = 1.2f;
+        [SerializeField] private string[] catalogMeleeItemIds =
+        {
+            "tool_shabby_club",
+            "tool_club",
+            "tool_decent_club"
+        };
+        [SerializeField, Min(0.1f)] private float catalogWeaponAttackDistance = 3f;
+        [SerializeField, Min(0f)] private float catalogWeaponAttackCooldown = 0.5f;
 
         [Header("Debug")]
         [SerializeField] private bool drawDebugRay = true;
@@ -35,6 +44,7 @@ namespace KMS.Combat
         private void Reset()
         {
             input = GetComponent<KMS.PlayerInput>();
+            stats = GetComponent<KMS.PlayerStats>();
             movement = GetComponent<KMS.PlayerMovement>();
             inventory = GetComponent<KmsPlayerInventory>();
 
@@ -47,6 +57,7 @@ namespace KMS.Combat
         private void Awake()
         {
             if (input == null) input = GetComponent<KMS.PlayerInput>();
+            if (stats == null) stats = GetComponent<KMS.PlayerStats>();
             if (movement == null) movement = GetComponent<KMS.PlayerMovement>();
             if (inventory == null) inventory = GetComponent<KmsPlayerInventory>();
             if (cameraTransform == null && Camera.main != null) cameraTransform = Camera.main.transform;
@@ -81,23 +92,36 @@ namespace KMS.Combat
 
         private void TryAttack()
         {
+            if (stats != null && !stats.IsAlive) return;
             if (cooldownTimer > 0f) return;
+            if (catalogManager == null)
+            {
+                catalogManager = ItemCatalogManager.Resolve(null);
+            }
+
             if (inventory == null || cameraTransform == null || catalogManager == null) return;
 
             KmsItemStack selectedSlot = inventory.GetSelectedQuickSlot();
             if (selectedSlot == null || selectedSlot.IsEmpty) return;
 
-            WeaponItemData weapon = catalogManager.FindItemData(selectedSlot.itemId) as WeaponItemData;
-            if (weapon == null) return;
+            ItemData selectedItem = catalogManager.FindItemData(selectedSlot.itemId);
+            if (!TryGetAttackProfile(
+                    selectedSlot.itemId,
+                    selectedItem,
+                    out float attackDistance,
+                    out float attackCooldown,
+                    out int attackDamage))
+            {
+                return;
+            }
 
-            cooldownTimer = Mathf.Max(0f, weapon.AttackCooldown);
+            cooldownTimer = attackCooldown;
 
             if (animator != null)
             {
                 animator.SetTrigger(SlashHash);
             }
 
-            float attackDistance = Mathf.Max(0.1f, weapon.AttackDistance);
             Vector3 attackOrigin = transform.position + transform.up * attackOriginHeight;
             Ray ray = new Ray(attackOrigin, cameraTransform.forward);
 
@@ -127,7 +151,57 @@ namespace KMS.Combat
             IDamageable damageable = hit.collider.GetComponentInParent<IDamageable>();
             if (damageable == null || damageable.IsDead) return;
 
-            damageable.TakeDamage(Mathf.Max(1, weapon.Value));
+            damageable.TakeDamage(attackDamage);
+        }
+
+        private bool TryGetAttackProfile(
+            string itemId,
+            ItemData itemData,
+            out float attackDistance,
+            out float attackCooldown,
+            out int attackDamage)
+        {
+            attackDistance = 0f;
+            attackCooldown = 0f;
+            attackDamage = 0;
+
+            if (itemData is WeaponItemData weapon)
+            {
+                attackDistance = Mathf.Max(0.1f, weapon.AttackDistance);
+                attackCooldown = Mathf.Max(0f, weapon.AttackCooldown);
+                attackDamage = Mathf.Max(1, weapon.Value);
+                return true;
+            }
+
+            if (itemData == null ||
+                itemData.Category != ItemCategory.Tool ||
+                !IsCatalogMeleeItem(itemId))
+            {
+                return false;
+            }
+
+            attackDistance = Mathf.Max(0.1f, catalogWeaponAttackDistance);
+            attackCooldown = Mathf.Max(0f, catalogWeaponAttackCooldown);
+            attackDamage = Mathf.Max(1, itemData.Value);
+            return true;
+        }
+
+        private bool IsCatalogMeleeItem(string itemId)
+        {
+            if (string.IsNullOrEmpty(itemId) || catalogMeleeItemIds == null)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < catalogMeleeItemIds.Length; i++)
+            {
+                if (string.Equals(itemId, catalogMeleeItemIds[i], System.StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }

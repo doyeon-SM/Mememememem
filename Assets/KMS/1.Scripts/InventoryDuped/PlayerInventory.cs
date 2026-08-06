@@ -92,11 +92,39 @@ public class PlayerInventory : MonoBehaviour
     [Header("아이템 카탈로그 (Item_ID로 조회할 때 사용)")]
     [SerializeField] private ItemCatalogManager catalogManager;
 
+    // [HDY 요청 - 인벤토리 업그레이드] 인벤토리 그리드(10x6=60칸)는 씬에 항상 전부 배치되어 있지만,
+    // 실제로 사용 가능한 칸은 unlockedInventorySlotCount까지로 제한된다. 이 값 이후 칸은 업그레이드
+    // 전까지 잠겨있다(WarehouseUI가 CanvasGroup으로 회색 처리 + 상호작용 차단을 담당하고, 이 클래스는
+    // 그 잠금 여부 판정과 아이템이 실제로 잠긴 칸에 들어가지 않도록 막는 데이터 레벨 방어를 담당한다).
+    [Header("인벤토리 슬롯 잠금 해제 (업그레이드)")]
+    [Tooltip("시작할 때 바로 사용 가능한 인벤토리 칸 수. 이 값 이후 칸은 업그레이드 전까지 잠겨있다(회색 처리 및 상호작용 불가).")]
+    [SerializeField] private int startingInventorySlotCount = 10;
+    [Tooltip("업그레이드 1회당 추가로 언락되는 칸 수.")]
+    [SerializeField] private int slotsPerInventoryUpgrade = 5;
+    [Tooltip("현재 언락된 인벤토리 칸 수. 런타임에 UnlockNextInventorySlots()로 늘어난다.")]
+    [SerializeField] private int unlockedInventorySlotCount;
+
     public event Action OnInventoryChanged;
     public event Action<ItemData,int> OnItemObtained;
     public event Action<int> OnQuickSlotChanged;
     public event Action<int> OnSelectedQuickSlotChanged;
+    public event Action<int> OnQuickSlotSelectionChanged;
     public event Action<int> OnQuickSlotSelectionRequested;
+
+    /// <summary>[HDY 요청] 인벤토리 칸 잠금 해제 상태가 바뀔 때(업그레이드 성공 시) 발행. WarehouseUI가 구독해서 슬롯 잠금 표시를 갱신한다.</summary>
+    public event Action OnInventorySlotCountChanged;
+
+    /// <summary>업그레이드 없이 시작할 때 기본으로 언락되어 있는 인벤토리 칸 수.</summary>
+    public int StartingInventorySlotCount => startingInventorySlotCount;
+
+    /// <summary>업그레이드 1회당 추가로 언락되는 칸 수.</summary>
+    public int SlotsPerInventoryUpgrade => slotsPerInventoryUpgrade;
+
+    /// <summary>현재 언락되어 실제로 사용 가능한 인벤토리 칸 수.</summary>
+    public int UnlockedInventorySlotCount => unlockedInventorySlotCount;
+
+    /// <summary>인벤토리 그리드 전체 칸 수(씬에 배치된 최대치, 10x6=60). 이 이상은 언락할 수 없다.</summary>
+    public int MaxInventorySlotCount => inventory.slots != null ? inventory.slots.Length : 0;
 
     private void Awake()
     {
@@ -104,6 +132,11 @@ public class PlayerInventory : MonoBehaviour
         quickSlots.Initialize();
 
         catalogManager = ItemCatalogManager.Resolve(catalogManager);
+
+        // [HDY 요청 - 인벤토리 업그레이드] 아직 값이 설정되지 않았으면(0 이하) 시작 칸 수로 초기화하고,
+        // 그 외에는 현재 그리드 크기를 벗어나지 않도록 클램프한다(인스펙터 실수로 범위를 벗어난 값이 들어간 경우 방어).
+        if (unlockedInventorySlotCount <= 0) unlockedInventorySlotCount = startingInventorySlotCount;
+        unlockedInventorySlotCount = Mathf.Clamp(unlockedInventorySlotCount, 0, MaxInventorySlotCount);
     }
 
     private void Start()
@@ -205,7 +238,8 @@ public class PlayerInventory : MonoBehaviour
     {
         if (string.IsNullOrEmpty(itemId) || amount <= 0) return amount;
 
-        var itemData = catalogManager != null ? catalogManager.FindItemData(itemId) : null;
+        ItemCatalogManager catalog = ResolveCatalogManager();
+        var itemData = catalog != null ? catalog.FindItemData(itemId) : null;
 
         if (itemData == null)
         {
@@ -214,6 +248,95 @@ public class PlayerInventory : MonoBehaviour
         }
 
         return AddItem(itemData, amount);
+    }
+
+    /// <summary>
+    /// 일반 인벤토리만 같은 아이템끼리 압축한 뒤 지정 기준으로 정렬한다.
+    /// 장착 순서 의미가 있는 퀵슬롯은 변경하지 않는다.
+    /// </summary>
+    public bool ApplyInventorySort(InventorySortCriteria criteria)
+    {
+        bool sorted = InventorySortUtility.SortAndCompact(inventory, criteria, ResolveCatalogManager());
+        if (!sorted) return false;
+
+        OnInventoryChanged?.Invoke();
+        return true;
+    }
+
+    /// <summary>
+    /// [HDY 요청 - 인벤토리 업그레이드] 인벤토리 칸을 slotsPerInventoryUpgrade만큼 추가로 언락한다.
+    /// 실제 비용 확인/차감은 이 메서드의 책임이 아니다 - InventoryUpgrade(IUpgradable 구현체)가 계산하고,
+    /// 공용 업그레이드 팝업(UpgradePopupUI)이 비용을 다 낸 뒤에만 이 메서드를 호출해준다(WarehouseUpgrade와 동일한 역할 분담).
+    /// 이미 최대치(MaxInventorySlotCount)면 아무 일도 하지 않는다.
+    /// </summary>
+    public void UnlockNextInventorySlots()
+    {
+        int max = MaxInventorySlotCount;
+        if (unlockedInventorySlotCount >= max) return;
+
+        unlockedInventorySlotCount = Mathf.Min(max, unlockedInventorySlotCount + slotsPerInventoryUpgrade);
+
+        Debug.Log($"[PlayerInventory] 인벤토리 칸 언락: 현재 {unlockedInventorySlotCount}/{max}칸");
+
+        OnInventorySlotCountChanged?.Invoke();
+    }
+
+    /// <summary>[HDY 요청 - 인벤토리 업그레이드] 인벤토리 컨테이너에서 index가 아직 언락되지 않은 칸인지 확인한다.</summary>
+    public bool IsInventorySlotLocked(int index)
+    {
+        return index < 0 || index >= unlockedInventorySlotCount;
+    }
+
+    /// <summary>
+    /// 사망 시 보호 대상인 도구를 제외한 일반/퀵슬롯 아이템을 모두 제거한다.
+    /// 슬롯 위치는 유지하며, 전체 처리가 끝난 뒤 변경 이벤트를 한 번만 발행한다.
+    /// </summary>
+    public int ApplyDeathPenalty()
+    {
+        // 사용 도중 임시 차감된 퀵슬롯 아이템을 먼저 원상 복구한 뒤 사망 손실을 판정한다.
+        // 이 순서를 지키지 않으면 사용 취소 롤백으로 제거된 아이템이 다시 생길 수 있다.
+        EndQuickSlotUse();
+
+        int lostAmount = 0;
+        bool inventoryChanged = ClearDeathLossItems(inventory, ref lostAmount);
+        bool quickSlotsChanged = ClearDeathLossItems(quickSlots, ref lostAmount);
+
+        // 실제 손실이 0이어도 사용 예약 종료 결과와 현재 사망 스냅샷을 파일 저장 계층에 전달한다.
+        OnInventoryChanged?.Invoke();
+        if (inventoryChanged || quickSlotsChanged) NotifyAllQuickSlotsChanged();
+        return lostAmount;
+    }
+
+    private bool ClearDeathLossItems(InventoryContainer container, ref int lostAmount)
+    {
+        if (container == null || container.slots == null) return false;
+
+        bool changed = false;
+        for (int i = 0; i < container.slots.Length; i++)
+        {
+            ItemStack stack = container.slots[i];
+            if (stack == null || stack.IsEmpty) continue;
+
+            ItemData item = FindItemData(stack.itemId);
+            if (item == null)
+            {
+                // 카탈로그 누락 때문에 복구 불가능한 데이터 손실이 생기지 않도록 알 수 없는 아이템은 유지한다.
+                Debug.LogWarning($"[PlayerInventory] 사망 손실 판정 중 Item_ID '{stack.itemId}'를 찾지 못해 유지합니다.", this);
+                continue;
+            }
+
+            // TODO: ItemCategory.Armor가 추가되면 아래 보호 조건에
+            //       || item.Category == ItemCategory.Armor 를 추가한다.
+            // 현재 프로젝트에는 Armor 카테고리가 없으므로 Tool만 도구/방어구 보호 대상으로 취급한다.
+            bool keepOnDeath = item.Category == ItemCategory.Tool;
+            if (keepOnDeath) continue;
+
+            lostAmount += stack.amount;
+            stack.Clear();
+            changed = true;
+        }
+
+        return changed;
     }
 
     // 인벤토리 내에서 아이템 이동
@@ -271,6 +394,143 @@ public class PlayerInventory : MonoBehaviour
         return moved;
     }
 
+    /// <summary>
+    /// 클릭 이동용 API. 지정 슬롯에서 요청한 수량을 떼어 독립된 스택으로 반환한다.
+    /// UI가 ItemStack 참조를 직접 옮기지 않도록 데이터 변경과 알림을 여기서 함께 처리한다.
+    /// </summary>
+    public bool TryTakeSlot(SlotGroup group, int index, int amount, out ItemStack takenStack)
+    {
+        takenStack = null;
+
+        InventoryContainer container = GetContainer(group);
+        if (container == null || !container.IsValidIndex(index)) return false;
+        if (IsContainerSlotLocked(container, index)) return false;
+
+        ItemStack slot = container.slots[index];
+        if (slot == null || slot.IsEmpty || amount <= 0) return false;
+
+        int takenAmount = Mathf.Min(amount, slot.amount);
+        takenStack = new ItemStack { itemId = slot.itemId, amount = takenAmount };
+
+        slot.amount -= takenAmount;
+        if (slot.amount <= 0) slot.Clear();
+
+        NotifySlotChanged(group, index);
+        return true;
+    }
+
+    /// <summary>빈손 우클릭용. 홀수 스택은 플레이어가 더 많이 들도록 절반을 올림한다.</summary>
+    public bool TryTakeHalfSlot(SlotGroup group, int index, out ItemStack takenStack)
+    {
+        takenStack = null;
+
+        InventoryContainer container = GetContainer(group);
+        if (container == null || !container.IsValidIndex(index)) return false;
+
+        ItemStack slot = container.slots[index];
+        if (slot == null || slot.IsEmpty) return false;
+
+        int halfAmount = Mathf.CeilToInt(slot.amount * 0.5f);
+        return TryTakeSlot(group, index, halfAmount, out takenStack);
+    }
+
+    /// <summary>수량 팝업 표시용으로 슬롯 데이터의 복사본을 반환한다.</summary>
+    public bool TryGetSlotSnapshot(SlotGroup group, int index, out ItemStack snapshot)
+    {
+        snapshot = null;
+
+        InventoryContainer container = GetContainer(group);
+        if (container == null || !container.IsValidIndex(index)) return false;
+
+        ItemStack slot = container.slots[index];
+        if (slot == null || slot.IsEmpty) return false;
+
+        snapshot = new ItemStack { itemId = slot.itemId, amount = slot.amount };
+        return true;
+    }
+
+    public ItemData FindItemData(string itemId)
+    {
+        ItemCatalogManager catalog = ResolveCatalogManager();
+        return catalog != null ? catalog.FindItemData(itemId) : null;
+    }
+
+    /// <summary>
+    /// 커서가 들고 있는 스택 전체를 대상 슬롯에 놓는다. 빈 슬롯에는 이동하고,
+    /// 같은 아이템에는 MaxStack까지 병합하며, 다른 아이템이면 두 스택을 교환한다.
+    /// heldStack은 남은 수량 또는 교환되어 새로 들게 된 스택으로 갱신된다.
+    /// </summary>
+    public bool TryPlaceHeldStack(SlotGroup group, int index, ItemStack heldStack)
+    {
+        return TryPlaceHeldAmount(group, index, heldStack, heldStack != null ? heldStack.amount : 0, true);
+    }
+
+    /// <summary>
+    /// 커서 스택에서 지정 수량만 대상 슬롯에 놓는다. 우클릭은 amount=1, allowSwap=false로 사용한다.
+    /// 다른 아이템과의 교환은 전체 스택을 놓는 좌클릭에서만 허용한다.
+    /// </summary>
+    public bool TryPlaceHeldAmount(SlotGroup group, int index, ItemStack heldStack, int amount, bool allowSwap = false)
+    {
+        if (heldStack == null || heldStack.IsEmpty || amount <= 0) return false;
+
+        InventoryContainer container = GetContainer(group);
+        if (container == null || !container.IsValidIndex(index)) return false;
+        if (IsContainerSlotLocked(container, index)) return false;
+
+        ItemStack target = container.slots[index];
+        int requestedAmount = Mathf.Min(amount, heldStack.amount);
+
+        if (target.IsEmpty)
+        {
+            int placed = Mathf.Min(GetMaxStack(heldStack.itemId), requestedAmount);
+            target.Set(heldStack.itemId, placed);
+            heldStack.amount -= placed;
+            if (heldStack.amount <= 0) heldStack.Clear();
+
+            NotifySlotChanged(group, index);
+            return true;
+        }
+
+        if (target.itemId == heldStack.itemId)
+        {
+            int space = GetMaxStack(target.itemId) - target.amount;
+            if (space <= 0) return false;
+
+            int placed = Mathf.Min(space, requestedAmount);
+            target.amount += placed;
+            heldStack.amount -= placed;
+            if (heldStack.amount <= 0) heldStack.Clear();
+
+            NotifySlotChanged(group, index);
+            return true;
+        }
+
+        if (!allowSwap || requestedAmount != heldStack.amount) return false;
+
+        string displacedItemId = target.itemId;
+        int displacedAmount = target.amount;
+        target.Set(heldStack.itemId, heldStack.amount);
+        heldStack.Set(displacedItemId, displacedAmount);
+
+        NotifySlotChanged(group, index);
+        return true;
+    }
+
+    /// <summary>
+    /// 인벤토리를 닫을 때 커서에 남은 아이템을 손실 없이 되돌린다.
+    /// 원래 슬롯을 먼저 시도하고, 이후 일반 인벤토리와 사용 가능 퀵슬롯의 같은 스택/빈 슬롯을 찾는다.
+    /// </summary>
+    public bool TryReturnHeldStack(ItemStack heldStack, SlotGroup preferredGroup, int preferredIndex)
+    {
+        if (heldStack == null || heldStack.IsEmpty) return true;
+
+        TryPlaceWithoutSwap(preferredGroup, preferredIndex, heldStack);
+        TryPlaceWithoutSwap(inventory, SlotGroup.Inventory, heldStack);
+        TryPlaceWithoutSwap(quickSlots, SlotGroup.QuickSlot, heldStack);
+
+        return heldStack.IsEmpty;
+    }
+
     // 퀵슬롯 아이템 선택. 사용중이면 마지막 입력 기록
     public void SelectQuickSlot(int index)
     {
@@ -290,8 +550,13 @@ public class PlayerInventory : MonoBehaviour
     // 슬롯 변경 및 이벤트 호출
     private void ApplyQuickSlotSelection(int index)
     {
+        bool selectionChanged = selectedQuickSlotIndex != index;
         selectedQuickSlotIndex = index;
         OnSelectedQuickSlotChanged?.Invoke(index);
+        if (selectionChanged)
+        {
+            OnQuickSlotSelectionChanged?.Invoke(index);
+        }
     }
 
     // 퀵슬롯 아이템 확인
@@ -485,7 +750,7 @@ public class PlayerInventory : MonoBehaviour
 
         for (int i = 0; i < container.slots.Length; i++)
         {
-            if (skipLockedQuickSlot && IsLockedQuickSlot(container, i)) continue;
+            if (skipLockedQuickSlot && IsContainerSlotLocked(container, i)) continue;
 
             ItemStack slot = container.slots[i];
 
@@ -504,7 +769,7 @@ public class PlayerInventory : MonoBehaviour
 
         for (int i = 0; i < container.slots.Length; i++)
         {
-            if (IsLockedQuickSlot(container, i)) continue;
+            if (IsContainerSlotLocked(container, i)) continue;
 
             ItemStack slot = container.slots[i];
 
@@ -530,7 +795,7 @@ public class PlayerInventory : MonoBehaviour
 
         for (int i = 0; i < container.slots.Length; i++)
         {
-            if (IsLockedQuickSlot(container, i)) continue;
+            if (IsContainerSlotLocked(container, i)) continue;
 
             ItemStack slot = container.slots[i];
 
@@ -559,7 +824,7 @@ public class PlayerInventory : MonoBehaviour
 
         for (int i = 0; i < container.slots.Length; i++)
         {
-            if (IsLockedQuickSlot(container, i)) continue;
+            if (IsContainerSlotLocked(container, i)) continue;
 
             ItemStack slot = container.slots[i];
 
@@ -575,23 +840,115 @@ public class PlayerInventory : MonoBehaviour
         return remaining;
     }
 
-    // 잠긴 퀵슬롯 인덱스인지 확인
-    private bool IsLockedQuickSlot(InventoryContainer container, int index)
+    /// <summary>
+    /// [HDY 요청] 기존에는 퀵슬롯 사용중 잠금(IsLockedQuickSlot)만 검사했지만, 인벤토리 업그레이드로
+    /// "아직 언락되지 않은 인벤토리 칸" 잠금 개념이 추가되어 컨테이너별로 분기해서 검사하도록 일반화했다.
+    /// 창고(Storage)는 이 클래스가 다루지 않으므로(WarehouseInventory가 별도 처리) 여기 나타나지 않는다.
+    /// </summary>
+    private bool IsContainerSlotLocked(InventoryContainer container, int index)
     {
-        return container == quickSlots && IsQuickSlotLocked(index);
+        if (container == quickSlots) return IsQuickSlotLocked(index);
+        if (container == inventory) return IsInventorySlotLocked(index);
+        return false;
+    }
+
+    private InventoryContainer GetContainer(SlotGroup group)
+    {
+        if (group == SlotGroup.Inventory) return inventory;
+        if (group == SlotGroup.QuickSlot) return quickSlots;
+        return null;
+    }
+
+    private ItemCatalogManager ResolveCatalogManager()
+    {
+        if (catalogManager == null)
+        {
+            catalogManager = ItemCatalogManager.Resolve(null);
+        }
+
+        return catalogManager;
+    }
+
+    private int GetMaxStack(string itemId)
+    {
+        ItemCatalogManager catalog = ResolveCatalogManager();
+        ItemData itemData = catalog != null ? catalog.FindItemData(itemId) : null;
+        return itemData != null ? Mathf.Max(1, itemData.MaxStack) : 1;
+    }
+
+    private void NotifySlotChanged(SlotGroup group, int index)
+    {
+        if (group == SlotGroup.Inventory)
+        {
+            OnInventoryChanged?.Invoke();
+        }
+        else if (group == SlotGroup.QuickSlot)
+        {
+            OnQuickSlotChanged?.Invoke(index);
+            NotifySelectedQuickSlotIfChanged(index);
+        }
+    }
+
+    private void TryPlaceWithoutSwap(SlotGroup group, int index, ItemStack heldStack)
+    {
+        InventoryContainer container = GetContainer(group);
+        if (container == null || !container.IsValidIndex(index)) return;
+        if (IsContainerSlotLocked(container, index)) return;
+
+        ItemStack target = container.slots[index];
+        if (!target.IsEmpty && target.itemId != heldStack.itemId) return;
+
+        int space = target.IsEmpty ? GetMaxStack(heldStack.itemId) : GetMaxStack(target.itemId) - target.amount;
+        if (space <= 0) return;
+
+        int placed = Mathf.Min(space, heldStack.amount);
+        if (target.IsEmpty) target.Set(heldStack.itemId, placed);
+        else target.amount += placed;
+
+        heldStack.amount -= placed;
+        if (heldStack.amount <= 0) heldStack.Clear();
+        NotifySlotChanged(group, index);
+    }
+
+    private void TryPlaceWithoutSwap(InventoryContainer container, SlotGroup group, ItemStack heldStack)
+    {
+        if (container == null || container.slots == null || heldStack == null || heldStack.IsEmpty) return;
+
+        for (int i = 0; i < container.slots.Length && !heldStack.IsEmpty; i++)
+        {
+            ItemStack slot = container.slots[i];
+            if (!slot.IsEmpty && slot.itemId == heldStack.itemId)
+            {
+                TryPlaceWithoutSwap(group, i, heldStack);
+            }
+        }
+
+        for (int i = 0; i < container.slots.Length && !heldStack.IsEmpty; i++)
+        {
+            if (container.slots[i].IsEmpty)
+            {
+                TryPlaceWithoutSwap(group, i, heldStack);
+            }
+        }
     }
 
     /// <summary>
     /// [HDY 요청] 슬롯 이동/병합의 실제 규칙은 InventorySlotMoveHelper(공용)에 위임한다 - WarehouseUI의
-    /// 창고↔인벤토리 이동도 완전히 동일한 규칙을 써야 해서 로직을 한 곳으로 모았다. 여기서는 잠긴 퀵슬롯
-    /// 여부만 미리 걸러낸다(이 규칙은 PlayerInventory에만 있는 개념이라 공용 헬퍼가 알 필요 없음).
+    /// 창고↔인벤토리 이동도 완전히 동일한 규칙을 써야 해서 로직을 한 곳으로 모았다. 여기서는 잠긴 퀵슬롯/
+    /// 아직 언락되지 않은 인벤토리 칸 여부만 미리 걸러낸다(이 규칙들은 PlayerInventory에만 있는 개념이라
+    /// 공용 헬퍼가 알 필요 없음).
     /// </summary>
     private bool MoveSlot(InventoryContainer fromContainer, int fromIndex, InventoryContainer toContainer, int toIndex)
     {
-        if (IsLockedQuickSlot(fromContainer, fromIndex)) return false;
-        if (IsLockedQuickSlot(toContainer, toIndex)) return false;
+        if (IsContainerSlotLocked(fromContainer, fromIndex)) return false;
+        if (IsContainerSlotLocked(toContainer, toIndex)) return false;
 
-        return InventorySlotMoveHelper.MoveSlot(fromContainer, fromIndex, toContainer, toIndex, catalogManager);
+        return InventorySlotMoveHelper.MoveSlot(
+            fromContainer,
+            fromIndex,
+            toContainer,
+            toIndex,
+            ResolveCatalogManager());
     }
 
     // 모든 퀵슬롯 변화 알림
@@ -623,46 +980,11 @@ public class PlayerInventory : MonoBehaviour
         }
     }
 
-    [ContextMenu("테스트: 사과 10개 추가")]
-    public void TestAddAppleTenUnits()
-    {
-        // 1. 런타임/에디터 상에서 테스트용 item_apple 데이터(ScriptableObject)를 동적 생성
-        HDY.Item.ItemData appleItem = ScriptableObject.CreateInstance<HDY.Item.ItemData>();
-        appleItem.Item_ID = "item_apple";
-        appleItem.ItemName = "사과";
-        appleItem.MaxStack = 99;                 // 최대 스택 제한 설정
-        appleItem.Category = HDY.Item.ItemCategory.Food; // 카테고리를 Food로 설정
-
-        int amountToAdd = 10;
-        Debug.Log($"<color=yellow>[인벤토리 테스트]</color> '{appleItem.ItemName}({appleItem.Item_ID})'을 {amountToAdd}개 추가 시도합니다.");
-
-        // 2. 본체 클래스의 AddItem 함수를 직접 호출하여 연산 분기 가동
-        int remaining = AddItem(appleItem, amountToAdd);
-
-        // 3. 결과 판정 및 콘솔 로그 출력
-        int addedAmount = amountToAdd - remaining;
-        Debug.Log($"<color=yellow>[인벤토리 테스트]</color> 결과 정산 -> 입고 성공: {addedAmount}개 / 들어가지 못하고 남은 수량: {remaining}개");
-
-        if (remaining == 0)
+        public void PublishInventoryChanged()
         {
-            Debug.Log("<color=green><b>[테스트 성공]</b></color> 사과 10개가 지정된 우선순위 규칙에 따라 슬롯에 남김없이 완벽히 적재되었습니다!");
-        }
-        else
-        {
-            Debug.LogWarning($"<color=orange><b>[공간 부족]</b></color> 가방이나 퀵슬롯에 자리가 부족하여 사과 {remaining}개가 튕겨 나갔습니다.");
-        }
-
-        // 4. 에디터 멈춤 및 메모리 누수(Leak) 방지를 위한 동적 에셋 삭제 처리
-        // (Play 모드와 Edit 모드 상황을 모두 안전하게 대응합니다)
-        if (Application.isPlaying)
-        {
-            Destroy(appleItem);
-        }
-        else
-        {
-            DestroyImmediate(appleItem);
+            OnInventoryChanged?.Invoke();
+            NotifyAllQuickSlotsChanged(); 
         }
     }
-}
 
 }

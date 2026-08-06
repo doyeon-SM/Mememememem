@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: aa834ba98afac274f8eee27f34b67923, type: 3}
+  m_Name: Building_Kitchen_Table
+  m_EditorClassIdentifier: Assembly-CSharp::BuildingData
+  buildingId: building_kitchen_table
+  buildingName: "\uC8FC\uBC29"
+  buildingPrefab: {fileID: 9215367321915130356, guid: 2227e42307958044999a45ca71cae03f, type: 3}
+  buildingImage: {fileID: 673021399, guid: b4f5ab33523766944b408b85359c14c2, type: 3}
+  buildingType: 7
+  satisfaction: 10
+  requireBlueprint: blueprint_kitchen
+  width: 3
+  height: 2

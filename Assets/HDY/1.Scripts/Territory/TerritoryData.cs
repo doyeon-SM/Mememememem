@@ -89,6 +89,12 @@ namespace HDY.Territory
         public int RequiredExp => requiredExp[level-1];
 
         /// <summary>
+        /// 영지 레벨이 오를 때마다 발생(한 번의 AddExp 호출로 여러 레벨이 한꺼번에 올라도 최종 레벨로 1회만 통지).
+        /// HUD 버튼 잠금 해제처럼 "레벨에 따라 활성화되는" 것들이 이 이벤트만 구독하면 즉시 반응할 수 있다.
+        /// </summary>
+        public event Action<int> OnLevelChanged;
+
+        /// <summary>
         /// 영지 경험치를 획득한다. requiredExp를 넘기면 자동으로 레벨업 처리.
         /// TODO: 레벨업 시 requiredExp 증가 공식은 임시값(x1.2). 기획 확정 후 교체 필요.
         /// </summary>
@@ -99,12 +105,20 @@ namespace HDY.Territory
 
             currentExp += amount;
 
+            bool leveledUp = false;
+
             while (currentExp >= requiredExp[level-1])
             {                
                 currentExp -= requiredExp[level-1];
                 level++;
+                leveledUp = true;
                 //requiredExp = Mathf.RoundToInt(requiredExp * 1.2f);
                 Debug.Log($"[TerritoryData] 영지 레벨업! 현재 레벨: {level}");
+            }
+
+            if (leveledUp)
+            {
+                OnLevelChanged?.Invoke(level);
             }
         }
 

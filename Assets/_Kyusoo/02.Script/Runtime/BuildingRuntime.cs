@@ -1,15 +1,14 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 using MemSystem.Data;
 using HDY.Capture;
+using System.Linq;
 
 public class BuildingRuntime : MonoBehaviour
 {
     public BuildingData buildingData { get; private set; }
-
     public int currentLevel = 1;
     public int currentStorageCount;
     public int maxStorageCount;
-
     public int gridX;
     public int gridZ;
 
@@ -24,61 +23,116 @@ public class BuildingRuntime : MonoBehaviour
     {
         if (entry == null) return false;
 
-        // 1. ÀÏ¹İ »ı»ê ½Ã¼³ ½ºÄµ
+        // 1. ì¼ë°˜ ìƒì‚° ì‹œì„¤
         if (TryGetComponent<ProductionFacilityRuntime>(out var facilityRuntime))
         {
-            Debug.Log($"<color=cyan>[BuildingRuntime]</color> 'ProductionFacilityRuntime ÄÄÆ÷³ÍÆ® ¹ß°ß.");
-
             if (facilityRuntime.DeployedMemEntries.Contains(entry))
             {
-                Debug.Log($"<color=cyan>[BuildingRuntime]</color> 'ProductionFacilityRuntime ÄÄÆ÷³ÍÆ® ¹ß°ß.");
-
+                Debug.Log("<color=cyan>[BuildingRuntime]</color> ProductionFacilityRuntime ìŠ¬ë¡¯ í•´ì œ.");
                 facilityRuntime.RemoveMem(data);
                 entry.IsActive = false;
-
                 if (ProductionPanelUI.Instance != null && ProductionPanelUI.Instance.gameObject.activeSelf)
                 {
-                    Debug.Log("<color=lime>[BuildingRuntime -> UI]</color> ProductionPanelUI°¡ È°¼ºÈ­µÇ¾î ÀÖ¾î RefreshStaticUI()¸¦ ¿äÃ»ÇÕ´Ï´Ù.");
                     ProductionPanelUI.Instance.RefreshStaticUI();
                 }
-                else
-                {
-                    Debug.LogWarning("<color=orange>[BuildingRuntime -> UI]</color> ProductionPanelUI°¡ ²¨Á®ÀÖ°Å³ª ÀÎ½ºÅÏ½º°¡ Á¸ÀçÇÏÁö ¾Ê¾Æ UI ¸®ÇÁ·¹½Ã¸¦ °Ç³Ê¶İ´Ï´Ù.");
-                }
                 return true;
-            }
-            else
-            {
-                Debug.Log($"<color=cyan>[BuildingRuntime]</color> 'ProductionFacilityRuntime ÄÄÆ÷³ÍÆ® ¹ß°ß.");
             }
         }
 
-        // 2. °ø¹æ Á¦ÀÛ ½Ã¼³ ½ºÄµ
+        // 2. ì œì‘ëŒ€ ì‹œì„¤
         if (TryGetComponent<ProductionCraftRuntime>(out var craftRuntime))
         {
-            Debug.Log($"<color=cyan>[BuildingRuntime]</color> 'ProductionFacilityRuntime ÄÄÆ÷³ÍÆ® ¹ß°ß.");
-
             if (craftRuntime.DeployedMemEntries.Contains(entry))
             {
-                Debug.Log($"<color=cyan>[BuildingRuntime]</color> 'ProductionFacilityRuntime ÄÄÆ÷³ÍÆ® ¹ß°ß.");
-
+                Debug.Log("<color=cyan>[BuildingRuntime]</color> ProductionCraftRuntime ìŠ¬ë¡¯ í•´ì œ.");
                 craftRuntime.RemoveMem(data);
                 entry.IsActive = false;
-
                 if (CraftingPanelUI.Instance != null && CraftingPanelUI.Instance.gameObject.activeSelf)
                 {
-                    Debug.Log("<color=lime>[BuildingRuntime -> UI]</color> CraftingPanelUI°¡ È°¼ºÈ­µÇ¾î ÀÖ¾î RefreshStaticUI()¸¦ ¿äÃ»ÇÕ´Ï´Ù.");
                     CraftingPanelUI.Instance.RefreshStaticUI();
-                }
-                else
-                {
-                    Debug.LogWarning("<color=orange>[BuildingRuntime -> UI]</color> CraftingPanelUI°¡ ²¨Á®ÀÖ°Å³ª ÀÎ½ºÅÏ½º°¡ Á¸ÀçÇÏÁö ¾Ê¾Æ UI ¸®ÇÁ·¹½Ã¸¦ °Ç³Ê¶İ´Ï´Ù.");
                 }
                 return true;
             }
-            else
+        }
+
+        // 3. ëª©ì¥ ì‹œì„¤
+        if (TryGetComponent<RanchFacilityRuntime>(out var ranchRuntime))
+        {
+            var targetSlot = ranchRuntime.Slots.FirstOrDefault(s => s.deployedMemEntry == entry);
+            if (targetSlot != null && targetSlot.deployedMem != null)
             {
-                Debug.Log($"<color=cyan>[BuildingRuntime]</color> 'ProductionFacilityRuntime ÄÄÆ÷³ÍÆ® ¹ß°ß.");
+                Debug.Log("<color=cyan>[BuildingRuntime]</color> RanchFacilityRuntime ìŠ¬ë¡¯ í•´ì œ.");
+                ranchRuntime.RemoveMem(data);
+                entry.IsActive = false;
+                if (RanchPanelUI.Instance != null && RanchPanelUI.Instance.gameObject.activeSelf)
+                {
+                    RanchPanelUI.Instance.RefreshStaticUI();
+                }
+                return true;
+            }
+        }
+
+        // 4. ë°œì „ê¸° ì‹œì„¤
+        if (TryGetComponent<GeneratorRuntime>(out var genRuntime))
+        {
+            if (genRuntime.DeployedMemEntries.Contains(entry))
+            {
+                Debug.Log("<color=cyan>[BuildingRuntime]</color> GeneratorRuntime ìŠ¬ë¡¯ í•´ì œ.");
+                genRuntime.RemoveMem(data);
+                entry.IsActive = false;
+                if (GeneratorPanelUI.Instance != null && GeneratorPanelUI.Instance.gameObject.activeSelf)
+                {
+                    GeneratorPanelUI.Instance.RefreshStaticUI();
+                }
+                return true;
+            }
+        }
+
+        // 5. ìš´ì†¡ ì‹œì„¤
+        if (TryGetComponent<TransportRuntime>(out var transportRuntime))
+        {
+            if (transportRuntime.DeployedMemEntries.Contains(entry))
+            {
+                Debug.Log("<color=cyan>[BuildingRuntime]</color> TransportRuntimeì—ì„œ ë©¤ í•´ì œ.");
+                transportRuntime.RemoveMem(data);
+                entry.IsActive = false;
+                if (TransportPanelUI.Instance != null && TransportPanelUI.Instance.gameObject.activeSelf)
+                {
+                    TransportPanelUI.Instance.RefreshStaticUI();
+                }
+                return true;
+            }
+        }
+
+        // 6. ëª¨ë‹¥ë¶ˆ ì‹œì„¤
+        if (TryGetComponent<CampFireRuntime>(out var campFireRuntime))
+        {
+            if (campFireRuntime.DeployedMemEntries.Contains(entry))
+            {
+                Debug.Log("<color=cyan>[BuildingRuntime]</color> CampFireRuntimeì—ì„œ ë©¤ í•´ì œ.");
+                campFireRuntime.RemoveMem(data);
+                entry.IsActive = false;
+                if (CampFirePanelUI.Instance != null && CampFirePanelUI.Instance.gameObject.activeSelf)
+                {
+                    CampFirePanelUI.Instance.RefreshStaticUI();
+                }
+                return true;
+            }
+        }
+
+        // 7. ì£¼ë°© ì‹œì„¤
+        if (TryGetComponent<KitchenRuntime>(out var kitchenRuntime))
+        {
+            if (kitchenRuntime.DeployedMemEntries.Contains(entry))
+            {
+                Debug.Log("<color=cyan>[BuildingRuntime]</color> KitchenRuntimeì—ì„œ ë©¤ í•´ì œ.");
+                kitchenRuntime.RemoveMem(data);
+                entry.IsActive = false;
+                if (KitchenPanelUI.Instance != null && KitchenPanelUI.Instance.gameObject.activeSelf)
+                {
+                    KitchenPanelUI.Instance.RefreshStaticUI();
+                }
+                return true;
             }
         }
 

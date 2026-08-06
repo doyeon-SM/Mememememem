@@ -13,9 +13,8 @@ namespace KMS.Editor
     {
         private const string CanvasPrefabPath = "Assets/KMS/1.Scripts/InventoryDuped/Prefeb/Canvas_Root.prefab";
         private const string SlotPrefabPath = "Assets/KMS/1.Scripts/InventoryDuped/UI/ItemSlot.prefab";
-        private const string PlayerPrefabPath = "Assets/KMS/2.Prefabs/0712_Player_KMS.prefab";
+        private const string PlayerPrefabPath = "Assets/KMS/2.Prefabs/0720_Player_KMS.prefab";
         private const string TestScenePath = "Assets/KMS/0.Scenes/TestScene_KMS.unity";
-        private const string Test2ScenePath = "Assets/KMS/0.Scenes/Test2Scene_KMS.unity";
         private const int InventoryColumns = 10;
         private const int InventoryRows = 6;
         private const float SlotSize = 72f;
@@ -67,9 +66,9 @@ namespace KMS.Editor
         [MenuItem("KMS/Setup/Ensure Scene Inventory UI")]
         public static void EnsureSceneInventoryUi()
         {
-            EnsureSceneInventoryUi(Test2ScenePath);
+            EnsureSceneInventoryUi(TestScenePath);
             AssetDatabase.SaveAssets();
-            Debug.Log("[KMSInventoryHudSetup] Ensured inventory Canvas and EventSystem in Test2Scene_KMS.");
+            Debug.Log("[KMSInventoryHudSetup] Ensured inventory Canvas and EventSystem in TestScene_KMS.");
         }
 
         public static void EnsureSceneInventoryUiFromCommandLine()
@@ -138,27 +137,6 @@ namespace KMS.Editor
 
             Debug.Log("[KMSInventoryHudSetup] Scene validation passed: TestScene_KMS resolves the 60+10 slot layout.");
 
-            Scene test2Scene = EditorSceneManager.OpenScene(Test2ScenePath, OpenSceneMode.Single);
-            Require(test2Scene.IsValid() && test2Scene.isLoaded, "Test2Scene_KMS could not be loaded.");
-
-            PlayerInventory test2Inventory = Object.FindFirstObjectByType<PlayerInventory>(FindObjectsInactive.Include);
-            InventoryUI test2InventoryUi = Object.FindFirstObjectByType<InventoryUI>(FindObjectsInactive.Include);
-            EventSystem test2EventSystem = Object.FindFirstObjectByType<EventSystem>(FindObjectsInactive.Include);
-            Require(test2Inventory != null, "PlayerInventory is missing from Test2Scene_KMS.");
-            Require(test2InventoryUi != null, "InventoryUI is missing from Test2Scene_KMS.");
-            Require(test2EventSystem != null, "EventSystem is missing from Test2Scene_KMS.");
-            Require(test2EventSystem.GetComponent<InputSystemUIInputModule>() != null,
-                "InputSystemUIInputModule is missing from Test2Scene_KMS EventSystem.");
-            Require(test2Inventory.inventory.width == InventoryColumns && test2Inventory.inventory.height == InventoryRows,
-                $"Test2Scene_KMS player inventory is {test2Inventory.inventory.width}x{test2Inventory.inventory.height}, expected 10x6.");
-            Require(test2Inventory.quickSlots.width == InventoryColumns && test2Inventory.quickSlots.height == 1,
-                "Test2Scene_KMS quick slots are not 10x1.");
-            Require(test2InventoryUi.inventoryGrid.GetComponentsInChildren<InventorySlotUI>(true).Length == InventoryColumns * InventoryRows,
-                "Test2Scene_KMS does not resolve 60 inventory slots from Canvas_Root.");
-            Require(test2InventoryUi.quickSlotRoot.GetComponentsInChildren<InventorySlotUI>(true).Length == InventoryColumns,
-                "Test2Scene_KMS does not resolve 10 quick slots from Canvas_Root.");
-
-            Debug.Log("[KMSInventoryHudSetup] Scene validation passed: Test2Scene_KMS resolves the 60+10 player inventory and clickable UI.");
         }
 
         private static void EnsureSceneInventoryUi(string scenePath)

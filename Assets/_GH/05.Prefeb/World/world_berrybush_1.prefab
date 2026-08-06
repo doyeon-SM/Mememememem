@@ -1,0 +1,114 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1001 &8100000000000000001
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 1588993464513352060, guid: bea6b5a5f2a086b4ea587e9cd51e2db1, type: 3}
+      propertyPath: m_Name
+      value: world_berrybush_1
+      objectReference: {fileID: 0}
+    - target: {fileID: 2711908346154547003, guid: bea6b5a5f2a086b4ea587e9cd51e2db1, type: 3}
+      propertyPath: m_Size.x
+      value: 1.95
+      objectReference: {fileID: 0}
+    - target: {fileID: 2711908346154547003, guid: bea6b5a5f2a086b4ea587e9cd51e2db1, type: 3}
+      propertyPath: m_Size.z
+      value: 1.44
+      objectReference: {fileID: 0}
+    - target: {fileID: 3208532676320423958, guid: bea6b5a5f2a086b4ea587e9cd51e2db1, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 1.2
+      objectReference: {fileID: 0}
+    - target: {fileID: 3208532676320423958, guid: bea6b5a5f2a086b4ea587e9cd51e2db1, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 1.2
+      objectReference: {fileID: 0}
+    - target: {fileID: 3208532676320423958, guid: bea6b5a5f2a086b4ea587e9cd51e2db1, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3208532676320423958, guid: bea6b5a5f2a086b4ea587e9cd51e2db1, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3208532676320423958, guid: bea6b5a5f2a086b4ea587e9cd51e2db1, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 1588993464513352060, guid: bea6b5a5f2a086b4ea587e9cd51e2db1, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 8100000000000000004}
+  m_SourcePrefab: {fileID: 100100000, guid: bea6b5a5f2a086b4ea587e9cd51e2db1, type: 3}
+--- !u!4 &6696294565078757399 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 3208532676320423958, guid: bea6b5a5f2a086b4ea587e9cd51e2db1, type: 3}
+  m_PrefabInstance: {fileID: 8100000000000000001}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &7378521501929460093 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 1588993464513352060, guid: bea6b5a5f2a086b4ea587e9cd51e2db1, type: 3}
+  m_PrefabInstance: {fileID: 8100000000000000001}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &8100000000000000004
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7378521501929460093}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 474a6e4947e4d7e48a9f5af0776e8b68, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::WorldObject
+  displayName: "\uC5F4\uB9E4 \uB364\uBD88"
+  interactionPrompt: "\uCC44\uC9D1"
+  harvestWithInteractInput: 0
+  myType: 3
+  dropItems:
+  - itemId: item_berryseed
+  - itemId: item_berry
+  maxObjectHp: 1
+  currentObjectHp: 0
+  respawnTime: 30
+  needGrade: 0
+  treeFallPushSpeed: 1.2
+  treeFallAngularSpeed: 2.4
+  treeFallLandingGraceSeconds: 0.25
+  treeFallLandedAngle: 55
+  treeFallTimeoutSeconds: 5
+  resourceRenderers: []
+  resourceColliders: []
+  dropSpawnPoint: {fileID: 6696294565078757399}
+  groundLayer:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  dropSpawnHeight: 0.02
+  dropAreaOffset: {x: 0, y: 0, z: 0}
+  dropAreaSize: {x: 6, y: 6}
+  dropPositionAttempts: 12
+  dropClearanceRadius: 0.25
+  dropClearanceHeight: 0.9
+  maxGroundSlope: 50
+  launchDrops: 1
+  dropEjectPoint: {fileID: 0}
+  dropEjectLocalOffset: {x: 0, y: 0.8, z: 0}
+  itemFlightDuration: 0.55
+  itemFlightArcHeight: 0.85
+  itemSpinSpeed: 320
+  itemStartJitterRadius: 0.12
+  showDropSpawnGizmo: 1
+  dropSpawnGizmoColor: {r: 1, g: 0.72, b: 0.1, a: 0.9}
+  poolPrewarmCount: 0
+  autoReturnToPoolSeconds: 10
+  enableDebugAutoDrop: 0
+  debugAutoDropInterval: 2

@@ -1,9 +1,17 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
+using HDY.Item;
 using HDY.Territory;
+using KMS.InventoryDuped;
 using UnityEngine;
 using UnityEngine.SceneManagement;
-using UnityEngine.UIElements;
+using ToolkitButton = UnityEngine.UIElements.Button;
+using ToolkitLabel = UnityEngine.UIElements.Label;
+using ToolkitProgressBar = UnityEngine.UIElements.ProgressBar;
+using UIDocument = UnityEngine.UIElements.UIDocument;
+using VisualElement = UnityEngine.UIElements.VisualElement;
+using DisplayStyle = UnityEngine.UIElements.DisplayStyle;
 
 namespace KMS
 {
@@ -23,52 +31,57 @@ namespace KMS
 
         [Header("References")]
         [SerializeField] private PlayerStats stats;
+        [SerializeField] private KMSFoodEffectController foodEffects;
         [SerializeField] private PlayerInput playerInput;
-        [SerializeField] private UIDocument uiDocument;
+        [SerializeField] private KMSPlayerHudView hudView;
+        [SerializeField] private PlayerInventory inventory;
 
-        [Header("UI Element Names")]
+        [Header("Legacy UI Toolkit (0714)")]
+        [SerializeField] private UIDocument uiDocument;
         [SerializeField] private string healthBarName = "player-health-bar";
         [SerializeField] private string hungerBarName = "player-hunger-bar";
         [SerializeField] private string messageOverlayName = "message-overlay";
         [SerializeField] private string messageLabelName = "message-label";
+        [SerializeField] private string respawnButtonName = "respawn-button";
         [SerializeField] private string notificationContainerName = "notification-container";
         [SerializeField] private string throwGuideName = "throw-guide";
         [SerializeField] private string survivalStatusContainerName = "health-info-container";
         [SerializeField] private string inventoryButtonName = "inventory-button";
         [SerializeField] private string mapButtonName = "map-button";
-
-        [Header("Day/Night Clock")]
-        [SerializeField] private string clockHandName = "clock-hand";
-        [SerializeField] private string clockMarkerName = "clock-marker";
-        [SerializeField] private string clockPeriodLabelName = "clock-period-label";
-        [SerializeField, Range(0f, 1f)] private float previewCycleProgress = 0.2f;
-        [SerializeField] private bool playClockPreview;
-        [SerializeField, Min(1f)] private float previewCycleDurationSeconds = 20f;
+        [SerializeField] private string realTimeLabelName = "real-time-label";
+        [SerializeField] private string goldLabelName = "gold-label";
 
         [Header("Status Text")]
         [SerializeField] private TerritoryData territoryData;
         [SerializeField] private GameTimeManager gameTimeManager;
-        [SerializeField] private string realTimeLabelName = "real-time-label";
-        [SerializeField] private string goldLabelName = "gold-label";
         [SerializeField, Min(0.1f)] private float statusRefreshInterval = 0.25f;
 
         [Header("Notifications")]
         [SerializeField] private float notificationDuration = 2.5f;
 
-        private ProgressBar healthBar;
-        private ProgressBar hungerBar;
-        private VisualElement messageOverlay;
-        private Label messageLabel;
-        private VisualElement notificationContainer;
-        private VisualElement throwGuide;
-        private VisualElement survivalStatusContainer;
-        private Button inventoryButton;
-        private Button mapButton;
-        private VisualElement clockHand;
-        private VisualElement clockMarker;
-        private Label clockPeriodLabel;
-        private Label realTimeLabel;
-        private Label goldLabel;
+        [Header("Item Obtained Toasts")]
+        [Tooltip("각 아이템 획득 메시지가 완전히 보이는 시간(초)입니다.")]
+        [SerializeField, Min(0f)] private float itemObtainedToastDuration = 2.5f;
+        [Tooltip("메시지가 나타나고 사라질 때 사용하는 페이드 시간(초)입니다.")]
+        [SerializeField, Min(0f)] private float itemObtainedToastFadeDuration = 0.3f;
+        [Tooltip("우하단에 동시에 쌓일 수 있는 아이템 획득 메시지의 최대 개수입니다.")]
+        [SerializeField, Min(1)] private int maxVisibleItemObtainedToasts = 4;
+
+        private KMSPlayerHudView boundHudView;
+        private ToolkitProgressBar toolkitHealthBar;
+        private ToolkitProgressBar toolkitHungerBar;
+        private VisualElement toolkitMessageOverlay;
+        private ToolkitLabel toolkitMessageLabel;
+        private ToolkitButton toolkitRespawnButton;
+        private VisualElement toolkitNotificationContainer;
+        private VisualElement toolkitThrowGuide;
+        private VisualElement toolkitSurvivalStatus;
+        private ToolkitButton toolkitInventoryButton;
+        private ToolkitButton toolkitMapButton;
+        private ToolkitLabel toolkitRealTimeLabel;
+        private ToolkitLabel toolkitGoldLabel;
+        private VisualElement toolkitItemObtainedContainer;
+
         private KMS.InventoryDuped.InventoryUI inventoryUi;
         private WayPointUIToggle mapUiToggle;
         private bool disabledLegacyMapToggleInput;
@@ -78,39 +91,36 @@ namespace KMS
         private string lastDisplayedTime;
         private int lastDisplayedGold = int.MinValue;
         private bool hasDisplayedGold;
+        private readonly List<ToolkitItemObtainedToast> toolkitItemObtainedToasts = new List<ToolkitItemObtainedToast>();
 
-        private void Update()
+        private sealed class ToolkitItemObtainedToast
         {
-            EnsureGameTimeManager();
-
-            if (gameTimeManager != null && clockHand != null)
-            {
-                float dayLength = Mathf.Max(0.0001f, gameTimeManager.DayLengthSeconds);
-                ApplyDayCycleProgress(gameTimeManager.InGameTimeOfDaySeconds / dayLength);
-                return;
-            }
-
-            if (!playClockPreview || clockHand == null) return;
-
-            previewCycleProgress = Mathf.Repeat(
-                previewCycleProgress + Time.unscaledDeltaTime / Mathf.Max(1f, previewCycleDurationSeconds),
-                1f);
-            ApplyDayCycleProgress(previewCycleProgress);
+            public VisualElement root;
+            public Coroutine lifetimeRoutine;
         }
+
+        public bool UsesToolkitHud => uiDocument != null && uiDocument.enabled;
+        public event Action RespawnRequested;
 
         private void Reset()
         {
             stats = GetComponent<PlayerStats>();
+            foodEffects = GetComponent<KMSFoodEffectController>();
             playerInput = GetComponent<PlayerInput>();
+            inventory = GetComponent<PlayerInventory>();
             uiDocument = GetComponent<UIDocument>();
         }
 
         private void Awake()
         {
             if (stats == null) stats = GetComponent<PlayerStats>();
+            if (foodEffects == null)
+                foodEffects = stats != null ? stats.FoodEffects : GetComponent<KMSFoodEffectController>();
             if (playerInput == null) playerInput = GetComponent<PlayerInput>();
+            if (inventory == null) inventory = GetComponent<PlayerInventory>();
             if (uiDocument == null) uiDocument = GetComponent<UIDocument>();
             if (inventoryUi == null) inventoryUi = FindFirstObjectByType<KMS.InventoryDuped.InventoryUI>();
+            ResolveHudView();
             EnsureGameTimeManager();
         }
 
@@ -125,21 +135,22 @@ namespace KMS
                 stats.Died += HandleDied;
                 stats.Revived += HandleRevived;
             }
+            if (foodEffects != null) foodEffects.Changed += HandleFoodEffectsChanged;
 
-            if (playerInput != null)
-            {
-                playerInput.MapPressed += HandleMapPressed;
-            }
+            if (playerInput != null) playerInput.MapPressed += HandleMapPressed;
+            if (inventory != null) inventory.OnItemObtained += HandleItemObtained;
 
+            BindPresentation();
             if (hasStarted)
             {
+                Refresh();
                 StartStatusTextUpdates();
             }
         }
 
         private void Start()
         {
-            BindElements();
+            BindPresentation();
             Refresh();
             hasStarted = true;
             StartStatusTextUpdates();
@@ -147,11 +158,7 @@ namespace KMS
 
         private void OnDisable()
         {
-            if (territoryData != null)
-            {
-                cachedSessionGold = territoryData.Gold;
-            }
-
+            if (territoryData != null) cachedSessionGold = territoryData.Gold;
             SceneManager.activeSceneChanged -= HandleActiveSceneChanged;
 
             if (statusTextCoroutine != null)
@@ -160,21 +167,9 @@ namespace KMS
                 statusTextCoroutine = null;
             }
 
-            if (inventoryButton != null)
-            {
-                inventoryButton.clicked -= HandleInventoryButtonClicked;
-            }
-
-            if (mapButton != null)
-            {
-                mapButton.clicked -= HandleMapButtonClicked;
-            }
-
-            if (playerInput != null)
-            {
-                playerInput.MapPressed -= HandleMapPressed;
-            }
-
+            UnbindPresentation();
+            if (playerInput != null) playerInput.MapPressed -= HandleMapPressed;
+            if (inventory != null) inventory.OnItemObtained -= HandleItemObtained;
             RestoreLegacyMapToggleInput();
 
             if (stats != null)
@@ -184,162 +179,341 @@ namespace KMS
                 stats.Died -= HandleDied;
                 stats.Revived -= HandleRevived;
             }
+            if (foodEffects != null) foodEffects.Changed -= HandleFoodEffectsChanged;
         }
 
         public void ShowNotification(string message)
         {
-            if (notificationContainer == null) return;
-
-            Label label = new Label(message);
-            label.AddToClassList("notification");
-            notificationContainer.Add(label);
-
-            StartCoroutine(RemoveNotificationAfterDelay(label));
-        }
-
-        public void SetThrowGuideVisible(bool isVisible)
-        {
-            if (throwGuide != null)
+            if (UsesToolkitHud)
             {
-                throwGuide.style.display = isVisible ? DisplayStyle.Flex : DisplayStyle.None;
-            }
-        }
+                if (toolkitNotificationContainer == null) BindToolkitElements();
+                if (toolkitNotificationContainer == null) return;
 
-        public void SetSurvivalStatusVisible(bool isVisible)
-        {
-            isSurvivalStatusVisible = isVisible;
-
-            if (survivalStatusContainer == null)
-            {
-                BindElements();
+                ToolkitLabel label = new ToolkitLabel(message);
+                label.AddToClassList("notification");
+                toolkitNotificationContainer.Add(label);
+                StartCoroutine(RemoveToolkitNotificationAfterDelay(label));
+                return;
             }
 
-            if (survivalStatusContainer != null)
+            ResolveHudView();
+            hudView?.ShowNotification(message, notificationDuration);
+        }
+
+        public void SetThrowGuideVisible(bool visible)
+        {
+            if (UsesToolkitHud)
             {
-                survivalStatusContainer.style.display = isVisible ? DisplayStyle.Flex : DisplayStyle.None;
+                if (toolkitThrowGuide == null) BindToolkitElements();
+                if (toolkitThrowGuide != null)
+                    toolkitThrowGuide.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;
+                return;
             }
+
+            ResolveHudView();
+            hudView?.SetThrowGuideVisible(visible);
         }
 
-        /// <summary>
-        /// Updates the clock from a normalized full-day value: 0-0.5 is day, 0.5-1 is night.
-        /// Calling this hands control to the external time system and stops Inspector preview playback.
-        /// </summary>
-        public void SetDayCycleProgress(float normalizedProgress)
+        public void SetSurvivalStatusVisible(bool visible)
         {
-            playClockPreview = false;
-            previewCycleProgress = Mathf.Repeat(normalizedProgress, 1f);
-            ApplyDayCycleProgress(previewCycleProgress);
+            isSurvivalStatusVisible = visible;
+            if (UsesToolkitHud)
+            {
+                if (toolkitSurvivalStatus == null) BindToolkitElements();
+                if (toolkitSurvivalStatus != null)
+                    toolkitSurvivalStatus.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;
+                return;
+            }
+
+            ResolveHudView();
+            hudView?.SetSurvivalStatusVisible(visible);
         }
 
-        private void BindElements()
+        private void ResolveHudView()
         {
-            if (uiDocument == null || uiDocument.rootVisualElement == null) return;
+            if (hudView == null)
+                hudView = FindFirstObjectByType<KMSPlayerHudView>(FindObjectsInactive.Include);
+        }
+
+        private void BindPresentation()
+        {
+            UnbindPresentation();
+            ResolveHudView();
+            lastDisplayedTime = null;
+            hasDisplayedGold = false;
+
+            if (UsesToolkitHud)
+            {
+                if (hudView != null) hudView.gameObject.SetActive(false);
+                BindToolkitElements();
+                return;
+            }
+
+            if (hudView != null) hudView.gameObject.SetActive(true);
+            boundHudView = hudView;
+            if (boundHudView == null) return;
+
+            // Temporarily disabled so the HUD buttons can be tested with Inspector-assigned OnClick events.
+            // if (boundHudView.InventoryButton != null)
+            //     boundHudView.InventoryButton.onClick.AddListener(HandleInventoryButtonClicked);
+            // if (boundHudView.MapButton != null)
+            //     boundHudView.MapButton.onClick.AddListener(HandleMapButtonClicked);
+            if (boundHudView.RespawnButton != null)
+                boundHudView.RespawnButton.onClick.AddListener(HandleRespawnButtonClicked);
+            boundHudView.SetSurvivalStatusVisible(isSurvivalStatusVisible);
+        }
+
+        private void UnbindPresentation()
+        {
+            if (boundHudView != null)
+            {
+                if (boundHudView.InventoryButton != null)
+                    boundHudView.InventoryButton.onClick.RemoveListener(HandleInventoryButtonClicked);
+                if (boundHudView.MapButton != null)
+                    boundHudView.MapButton.onClick.RemoveListener(HandleMapButtonClicked);
+                if (boundHudView.RespawnButton != null)
+                    boundHudView.RespawnButton.onClick.RemoveListener(HandleRespawnButtonClicked);
+            }
+            boundHudView = null;
+            UnbindToolkitElements();
+        }
+
+        private void BindToolkitElements()
+        {
+            if (uiDocument == null || !uiDocument.enabled || uiDocument.rootVisualElement == null) return;
+            UnbindToolkitElements();
 
             VisualElement root = uiDocument.rootVisualElement;
-            if (inventoryButton != null)
-            {
-                inventoryButton.clicked -= HandleInventoryButtonClicked;
-            }
-            if (mapButton != null)
-            {
-                mapButton.clicked -= HandleMapButtonClicked;
-            }
+            toolkitHealthBar = UnityEngine.UIElements.UQueryExtensions.Q<ToolkitProgressBar>(root, healthBarName);
+            toolkitHungerBar = UnityEngine.UIElements.UQueryExtensions.Q<ToolkitProgressBar>(root, hungerBarName);
+            toolkitMessageOverlay = UnityEngine.UIElements.UQueryExtensions.Q<VisualElement>(root, messageOverlayName);
+            toolkitMessageLabel = UnityEngine.UIElements.UQueryExtensions.Q<ToolkitLabel>(root, messageLabelName);
+            toolkitRespawnButton = UnityEngine.UIElements.UQueryExtensions.Q<ToolkitButton>(root, respawnButtonName);
+            toolkitNotificationContainer = UnityEngine.UIElements.UQueryExtensions.Q<VisualElement>(root, notificationContainerName);
+            toolkitThrowGuide = UnityEngine.UIElements.UQueryExtensions.Q<VisualElement>(root, throwGuideName);
+            toolkitSurvivalStatus = UnityEngine.UIElements.UQueryExtensions.Q<VisualElement>(root, survivalStatusContainerName);
+            toolkitInventoryButton = UnityEngine.UIElements.UQueryExtensions.Q<ToolkitButton>(root, inventoryButtonName);
+            toolkitMapButton = UnityEngine.UIElements.UQueryExtensions.Q<ToolkitButton>(root, mapButtonName);
+            toolkitRealTimeLabel = UnityEngine.UIElements.UQueryExtensions.Q<ToolkitLabel>(root, realTimeLabelName);
+            toolkitGoldLabel = UnityEngine.UIElements.UQueryExtensions.Q<ToolkitLabel>(root, goldLabelName);
+            EnsureToolkitItemObtainedContainer(root);
 
-            healthBar = root.Q<ProgressBar>(healthBarName);
-            hungerBar = root.Q<ProgressBar>(hungerBarName)
-                ?? root.Q<ProgressBar>("player-hunger-bar");
-            messageOverlay = root.Q<VisualElement>(messageOverlayName);
-            messageLabel = root.Q<Label>(messageLabelName);
-            notificationContainer = root.Q<VisualElement>(notificationContainerName);
-            throwGuide = root.Q<VisualElement>(throwGuideName);
-            survivalStatusContainer = root.Q<VisualElement>(survivalStatusContainerName);
-            inventoryButton = root.Q<Button>(inventoryButtonName);
-            mapButton = root.Q<Button>(mapButtonName);
-            clockHand = root.Q<VisualElement>(clockHandName);
-            clockMarker = root.Q<VisualElement>(clockMarkerName);
-            clockPeriodLabel = root.Q<Label>(clockPeriodLabelName);
-            realTimeLabel = root.Q<Label>(realTimeLabelName);
-            goldLabel = root.Q<Label>(goldLabelName);
-
-            if (inventoryButton != null)
-            {
-                inventoryButton.clicked += HandleInventoryButtonClicked;
-            }
-            if (mapButton != null)
-            {
-                mapButton.clicked += HandleMapButtonClicked;
-            }
-
-            if (survivalStatusContainer != null)
-            {
-                survivalStatusContainer.style.display = isSurvivalStatusVisible ? DisplayStyle.Flex : DisplayStyle.None;
-            }
-
-            ApplyDayCycleProgress(previewCycleProgress);
+            // Temporarily disabled while testing non-runtime-bound HUD buttons.
+            // if (toolkitInventoryButton != null) toolkitInventoryButton.clicked += HandleInventoryButtonClicked;
+            // if (toolkitMapButton != null) toolkitMapButton.clicked += HandleMapButtonClicked;
+            if (toolkitRespawnButton != null) toolkitRespawnButton.clicked += HandleRespawnButtonClicked;
+            if (toolkitSurvivalStatus != null)
+                toolkitSurvivalStatus.style.display = isSurvivalStatusVisible ? DisplayStyle.Flex : DisplayStyle.None;
         }
 
-        private void ApplyDayCycleProgress(float normalizedProgress)
+        private void UnbindToolkitElements()
         {
-            bool isDay = normalizedProgress < 0.5f;
+            ClearToolkitItemObtainedToasts();
+            if (toolkitInventoryButton != null) toolkitInventoryButton.clicked -= HandleInventoryButtonClicked;
+            if (toolkitMapButton != null) toolkitMapButton.clicked -= HandleMapButtonClicked;
+            if (toolkitRespawnButton != null) toolkitRespawnButton.clicked -= HandleRespawnButtonClicked;
+            toolkitHealthBar = null;
+            toolkitHungerBar = null;
+            toolkitMessageOverlay = null;
+            toolkitMessageLabel = null;
+            toolkitRespawnButton = null;
+            toolkitNotificationContainer = null;
+            toolkitThrowGuide = null;
+            toolkitSurvivalStatus = null;
+            toolkitInventoryButton = null;
+            toolkitMapButton = null;
+            toolkitRealTimeLabel = null;
+            toolkitGoldLabel = null;
+            if (toolkitItemObtainedContainer != null && toolkitItemObtainedContainer.parent != null)
+                toolkitItemObtainedContainer.parent.Remove(toolkitItemObtainedContainer);
+            toolkitItemObtainedContainer = null;
+        }
 
-            if (clockHand != null)
+        private void HandleItemObtained(ItemData item, int amount)
+        {
+            if (item == null || amount <= 0) return;
+
+            if (UsesToolkitHud)
             {
-                clockHand.style.rotate = new Rotate(new Angle(normalizedProgress * 360f, AngleUnit.Degree));
+                if (toolkitItemObtainedContainer == null) BindToolkitElements();
+                ShowToolkitItemObtained(item, amount);
+                return;
             }
 
-            if (clockPeriodLabel != null)
+            ResolveHudView();
+            hudView?.ShowItemObtained(
+                item,
+                amount,
+                itemObtainedToastDuration,
+                itemObtainedToastFadeDuration,
+                maxVisibleItemObtainedToasts);
+        }
+
+        private void EnsureToolkitItemObtainedContainer(VisualElement root)
+        {
+            if (toolkitItemObtainedContainer != null || root == null) return;
+
+            toolkitItemObtainedContainer = new VisualElement { name = "kms-item-obtained-container" };
+            toolkitItemObtainedContainer.pickingMode = UnityEngine.UIElements.PickingMode.Ignore;
+            toolkitItemObtainedContainer.style.position = UnityEngine.UIElements.Position.Absolute;
+            toolkitItemObtainedContainer.style.right = 20f;
+            toolkitItemObtainedContainer.style.bottom = 142f;
+            toolkitItemObtainedContainer.style.width = 340f;
+            toolkitItemObtainedContainer.style.maxHeight = 280f;
+            toolkitItemObtainedContainer.style.flexDirection = UnityEngine.UIElements.FlexDirection.Column;
+            toolkitItemObtainedContainer.style.justifyContent = UnityEngine.UIElements.Justify.FlexEnd;
+            root.Add(toolkitItemObtainedContainer);
+        }
+
+        private void ShowToolkitItemObtained(ItemData item, int amount)
+        {
+            if (toolkitItemObtainedContainer == null) return;
+
+            toolkitItemObtainedToasts.RemoveAll(toast => toast == null || toast.root == null || toast.root.parent == null);
+            string itemId = string.IsNullOrEmpty(item.Item_ID) ? item.GetInstanceID().ToString() : item.Item_ID;
+            while (toolkitItemObtainedToasts.Count >= Mathf.Max(1, maxVisibleItemObtainedToasts))
             {
-                clockPeriodLabel.text = isDay ? "DAY" : "NIGHT";
-                clockPeriodLabel.style.color = isDay
-                    ? new Color(1f, 0.91f, 0.66f)
-                    : new Color(0.68f, 0.78f, 1f);
+                RemoveToolkitItemObtainedToast(toolkitItemObtainedToasts[0]);
             }
 
-            if (clockMarker != null)
+            VisualElement row = new VisualElement { name = $"item-obtained-{itemId}" };
+            row.pickingMode = UnityEngine.UIElements.PickingMode.Ignore;
+            row.style.height = 64f;
+            row.style.minHeight = 60f;
+            row.style.marginTop = 4f;
+            row.style.paddingLeft = 10f;
+            row.style.paddingRight = 12f;
+            row.style.paddingTop = 8f;
+            row.style.paddingBottom = 8f;
+            row.style.flexDirection = UnityEngine.UIElements.FlexDirection.Row;
+            row.style.alignItems = UnityEngine.UIElements.Align.Center;
+            row.style.backgroundColor = new Color(22f / 255f, 22f / 255f, 24f / 255f, 235f / 255f);
+            row.style.borderTopLeftRadius = 8f;
+            row.style.borderTopRightRadius = 8f;
+            row.style.borderBottomLeftRadius = 8f;
+            row.style.borderBottomRightRadius = 8f;
+            row.style.opacity = 0f;
+
+            VisualElement icon = new VisualElement { name = "icon" };
+            icon.pickingMode = UnityEngine.UIElements.PickingMode.Ignore;
+            icon.style.width = 44f;
+            icon.style.height = 44f;
+            icon.style.minWidth = 44f;
+            icon.style.marginRight = 10f;
+            icon.style.backgroundColor = item.ItemIcon != null
+                ? Color.clear
+                : new Color(60f / 255f, 60f / 255f, 64f / 255f, 1f);
+            if (item.ItemIcon != null)
             {
-                clockMarker.EnableInClassList("clock-marker--day", isDay);
-                clockMarker.EnableInClassList("clock-marker--night", !isDay);
+                icon.style.backgroundImage = new UnityEngine.UIElements.StyleBackground(item.ItemIcon);
+                icon.style.unityBackgroundScaleMode = ScaleMode.ScaleToFit;
+            }
+            else
+            {
+                ToolkitLabel placeholder = new ToolkitLabel("?");
+                placeholder.pickingMode = UnityEngine.UIElements.PickingMode.Ignore;
+                placeholder.style.unityTextAlign = TextAnchor.MiddleCenter;
+                placeholder.style.fontSize = 20f;
+                placeholder.style.color = Color.white;
+                placeholder.style.flexGrow = 1f;
+                icon.Add(placeholder);
+            }
+
+            ToolkitLabel nameLabel = new ToolkitLabel(!string.IsNullOrEmpty(item.ItemName) ? item.ItemName : item.Item_ID);
+            nameLabel.pickingMode = UnityEngine.UIElements.PickingMode.Ignore;
+            nameLabel.style.flexGrow = 1f;
+            nameLabel.style.fontSize = 18f;
+            nameLabel.style.color = new Color(240f / 255f, 240f / 255f, 240f / 255f, 1f);
+            nameLabel.style.unityTextAlign = TextAnchor.MiddleLeft;
+
+            ToolkitLabel amountLabel = new ToolkitLabel($"X{amount}");
+            amountLabel.pickingMode = UnityEngine.UIElements.PickingMode.Ignore;
+            amountLabel.style.width = 54f;
+            amountLabel.style.fontSize = 18f;
+            amountLabel.style.color = new Color(1f, 222f / 255f, 120f / 255f, 1f);
+            amountLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
+            amountLabel.style.unityTextAlign = TextAnchor.MiddleRight;
+
+            row.Add(icon);
+            row.Add(nameLabel);
+            row.Add(amountLabel);
+            toolkitItemObtainedContainer.Add(row);
+
+            ToolkitItemObtainedToast toast = new ToolkitItemObtainedToast { root = row };
+            toolkitItemObtainedToasts.Add(toast);
+            toast.lifetimeRoutine = StartCoroutine(RunToolkitItemObtainedLifetime(toast));
+        }
+
+        private IEnumerator RunToolkitItemObtainedLifetime(ToolkitItemObtainedToast toast)
+        {
+            float elapsed = 0f;
+            float fadeInDuration = Mathf.Min(0.16f, Mathf.Max(0f, itemObtainedToastFadeDuration));
+            toast.root.style.opacity = fadeInDuration > 0f ? 0f : 1f;
+            while (elapsed < fadeInDuration && toast.root != null && toast.root.parent != null)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                toast.root.style.opacity = Mathf.Clamp01(elapsed / fadeInDuration);
+                yield return null;
+            }
+
+            yield return new WaitForSecondsRealtime(Mathf.Max(0f, itemObtainedToastDuration));
+            if (toast.root == null || toast.root.parent == null) yield break;
+
+            elapsed = 0f;
+            float fadeOutDuration = Mathf.Max(0f, itemObtainedToastFadeDuration);
+            while (elapsed < fadeOutDuration && toast.root.parent != null)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                toast.root.style.opacity = 1f - Mathf.Clamp01(elapsed / fadeOutDuration);
+                yield return null;
+            }
+            RemoveToolkitItemObtainedToast(toast, false);
+        }
+
+        private void RemoveToolkitItemObtainedToast(ToolkitItemObtainedToast toast, bool stopRoutine = true)
+        {
+            if (toast == null) return;
+            if (stopRoutine && toast.lifetimeRoutine != null) StopCoroutine(toast.lifetimeRoutine);
+            toolkitItemObtainedToasts.Remove(toast);
+            if (toast.root != null && toast.root.parent != null) toast.root.parent.Remove(toast.root);
+        }
+
+        private void ClearToolkitItemObtainedToasts()
+        {
+            for (int i = toolkitItemObtainedToasts.Count - 1; i >= 0; i--)
+            {
+                RemoveToolkitItemObtainedToast(toolkitItemObtainedToasts[i]);
             }
         }
 
         private void HandleInventoryButtonClicked()
         {
-            if (inventoryUi == null)
-            {
-                inventoryUi = FindFirstObjectByType<KMS.InventoryDuped.InventoryUI>();
-            }
-
+            if (stats != null && !stats.IsAlive) return;
+            if (inventoryUi == null) inventoryUi = FindFirstObjectByType<KMS.InventoryDuped.InventoryUI>();
             inventoryUi?.Toggle();
         }
 
         private void HandleMapPressed()
         {
-            TogglePreviewMap();
+            if (stats == null || stats.IsAlive)
+                SceneUIManager.TryToggleManagedUI("Map");
         }
 
         private void HandleMapButtonClicked()
         {
-            OpenPreviewMap();
+            if (stats == null || stats.IsAlive) OpenPreviewMap();
         }
+
+        private void HandleRespawnButtonClicked() => RespawnRequested?.Invoke();
 
         private void OpenPreviewMap()
         {
-            if (!TryResolveMapUiToggle()) return;
-
-            //mapUiToggle.Open(WayPointMapOpenMode.PreviewOnly);
-
-            mapUiToggle.TogglePreviewMap();
+            if (TryResolveMapUiToggle()) mapUiToggle.TogglePreviewMap();
         }
 
         private void TogglePreviewMap()
         {
-            if (!TryResolveMapUiToggle()) return;
-
-            mapUiToggle.TogglePreviewMap();
-/*            if (WayPointManager.Instance != null)
-            {
-                WayPointManager.Instance.TogglePreviewMap();
-            }*/
+            if (TryResolveMapUiToggle()) mapUiToggle.TogglePreviewMap();
         }
 
         private bool TryResolveMapUiToggle()
@@ -350,37 +524,26 @@ namespace KMS
                 return false;
             }
 
+            if (mapUiToggle == null) mapUiToggle = WayPointManager.Instance.GetComponent<WayPointUIToggle>();
             if (mapUiToggle == null)
-            {
-                mapUiToggle = WayPointManager.Instance.GetComponent<WayPointUIToggle>();
-            }
-
-            if (mapUiToggle == null)
-            {
                 mapUiToggle = FindFirstObjectByType<WayPointUIToggle>(FindObjectsInactive.Include);
-            }
-
             if (mapUiToggle == null)
             {
                 Debug.LogWarning("[PlayerHUD] WayPointUIToggle을 찾지 못해 지도를 열 수 없습니다.", this);
                 return false;
             }
 
-            // KMS의 MapPressed가 M 입력을 담당하는 동안 기존 컴포넌트의 M 폴링을 꺼서
-            // 같은 프레임에 Open 직후 Toggle로 다시 닫히는 중복 입력을 막는다.
             if (mapUiToggle.enabled)
             {
                 mapUiToggle.enabled = false;
                 disabledLegacyMapToggleInput = true;
             }
-
             return true;
         }
 
         private void RestoreLegacyMapToggleInput()
         {
             if (!disabledLegacyMapToggleInput || mapUiToggle == null) return;
-
             mapUiToggle.enabled = true;
             disabledLegacyMapToggleInput = false;
         }
@@ -388,18 +551,13 @@ namespace KMS
         private void Refresh()
         {
             if (stats == null) return;
-
             HandleHealthChanged(stats.CurrentHealth, stats.MaxHealth);
             HandleHungerChanged(stats.CurrentHunger, stats.MaxHunger);
         }
 
         private void StartStatusTextUpdates()
         {
-            if (statusTextCoroutine != null)
-            {
-                StopCoroutine(statusTextCoroutine);
-            }
-
+            if (statusTextCoroutine != null) StopCoroutine(statusTextCoroutine);
             RefreshStatusTexts();
             statusTextCoroutine = StartCoroutine(RefreshStatusTextsRoutine());
         }
@@ -407,7 +565,6 @@ namespace KMS
         private IEnumerator RefreshStatusTextsRoutine()
         {
             WaitForSecondsRealtime wait = new WaitForSecondsRealtime(Mathf.Max(0.1f, statusRefreshInterval));
-
             while (true)
             {
                 yield return wait;
@@ -418,34 +575,31 @@ namespace KMS
         private void RefreshStatusTexts()
         {
             EnsureGameTimeManager();
-
-            DateTime currentRealTime = gameTimeManager != null
-                ? gameTimeManager.CurrentRealTimeKst
-                : DateTime.Now;
-            string currentTime = currentRealTime.ToString("HH:mm:ss");
-            if (realTimeLabel != null && currentTime != lastDisplayedTime)
+            string currentTime = gameTimeManager != null
+                ? gameTimeManager.GetRealTimeText()
+                : $"{DateTime.Now.Hour:00}시 {DateTime.Now.Minute:00}분";
+            if (currentTime != lastDisplayedTime)
             {
                 lastDisplayedTime = currentTime;
-                realTimeLabel.text = $"현재 시간 {currentTime}";
+                if (UsesToolkitHud)
+                {
+                    if (toolkitRealTimeLabel != null) toolkitRealTimeLabel.text = currentTime;
+                }
+                else
+                {
+                    ResolveHudView();
+                    hudView?.SetRealTime(currentTime);
+                }
             }
 
-            if (territoryData == null)
-            {
-                territoryData = FindFirstObjectByType<TerritoryData>();
-            }
-
-            if (territoryData != null)
-            {
-                SynchronizeGoldSource();
-            }
-
+            if (territoryData == null) territoryData = FindFirstObjectByType<TerritoryData>();
+            if (territoryData != null) SynchronizeGoldSource();
             SetGoldText(cachedSessionGold);
         }
 
         private void SynchronizeGoldSource()
         {
             int sourceId = territoryData.GetInstanceID();
-
             if (!hasConnectedGoldSource)
             {
                 cachedSessionGold = territoryData.Gold;
@@ -457,25 +611,27 @@ namespace KMS
             if (connectedGoldSourceId != sourceId)
             {
                 int difference = cachedSessionGold - territoryData.Gold;
-                if (difference != 0)
-                {
-                    territoryData.AddGold(difference);
-                }
-
+                if (difference != 0) territoryData.AddGold(difference);
                 connectedGoldSourceId = sourceId;
             }
-
             cachedSessionGold = territoryData.Gold;
         }
 
         private void HandleActiveSceneChanged(Scene previousScene, Scene nextScene)
         {
+            UnbindPresentation();
+            hudView = null;
+            inventoryUi = null;
+            mapUiToggle = null;
             territoryData = null;
             gameTimeManager = null;
+            ResolveHudView();
+            BindPresentation();
             EnsureGameTimeManager();
 
             if (hasStarted)
             {
+                Refresh();
                 RefreshStatusTexts();
             }
         }
@@ -483,14 +639,9 @@ namespace KMS
         private void EnsureGameTimeManager()
         {
             if (gameTimeManager != null) return;
-
             gameTimeManager = FindFirstObjectByType<GameTimeManager>();
             if (gameTimeManager != null) return;
-
-            if (territoryData == null)
-            {
-                territoryData = FindFirstObjectByType<TerritoryData>();
-            }
+            if (territoryData == null) territoryData = FindFirstObjectByType<TerritoryData>();
 
             GameObject timeSystemObject;
             if (territoryData != null)
@@ -504,78 +655,107 @@ namespace KMS
             }
 
             gameTimeManager = timeSystemObject.GetComponent<GameTimeManager>();
-            if (gameTimeManager == null)
-            {
-                gameTimeManager = timeSystemObject.AddComponent<GameTimeManager>();
-            }
+            if (gameTimeManager == null) gameTimeManager = timeSystemObject.AddComponent<GameTimeManager>();
         }
 
         private void SetGoldText(int gold)
         {
-            if (goldLabel == null || (hasDisplayedGold && gold == lastDisplayedGold)) return;
-
+            if (hasDisplayedGold && gold == lastDisplayedGold) return;
             lastDisplayedGold = gold;
             hasDisplayedGold = true;
-            goldLabel.text = $"보유 골드 {gold:N0}";
+            string value = $"{gold}";
+            if (UsesToolkitHud)
+            {
+                if (toolkitGoldLabel != null) toolkitGoldLabel.text = value;
+            }
+            else
+            {
+                ResolveHudView();
+                hudView?.SetGold(value);
+            }
         }
 
         private void HandleHealthChanged(float current, float max)
         {
-            SetProgress(healthBar, current, max, "Health");
+            if (UsesToolkitHud)
+            {
+                if (toolkitHealthBar == null) BindToolkitElements();
+                SetToolkitProgress(toolkitHealthBar, current, max, "Health");
+            }
+            else
+            {
+                ResolveHudView();
+                hudView?.SetHealth(current, max);
+            }
         }
 
         private void HandleHungerChanged(float current, float max)
         {
-            SetProgress(hungerBar, current, max, "Hunger");
+            if (UsesToolkitHud)
+            {
+                if (toolkitHungerBar == null) BindToolkitElements();
+                SetToolkitProgress(toolkitHungerBar, current, max, "Hunger");
+            }
+            else
+            {
+                ResolveHudView();
+                hudView?.SetHunger(current, max, foodEffects);
+            }
+        }
+
+        private void HandleFoodEffectsChanged()
+        {
+            if (stats == null) return;
+            HandleHungerChanged(stats.CurrentHunger, stats.MaxHunger);
         }
 
         private void HandleDied()
         {
-            if (messageOverlay != null)
+            if (UsesToolkitHud)
             {
-                messageOverlay.style.display = DisplayStyle.Flex;
+                if (toolkitMessageOverlay != null)
+                {
+                    toolkitMessageOverlay.style.display = DisplayStyle.Flex;
+                    toolkitMessageOverlay.BringToFront();
+                }
+                toolkitRespawnButton?.SetEnabled(true);
+                if (toolkitMessageLabel != null) toolkitMessageLabel.text = "사망했습니다";
             }
-
-            if (messageLabel != null)
+            else
             {
-                messageLabel.text = "Defeated";
+                ResolveHudView();
+                hudView?.SetDefeatOverlayVisible(true, "사망했습니다");
             }
-
-            ShowNotification("You were defeated.");
         }
 
         private void HandleRevived()
         {
-            if (messageOverlay != null)
+            if (UsesToolkitHud)
             {
-                messageOverlay.style.display = DisplayStyle.None;
+                toolkitRespawnButton?.SetEnabled(false);
+                if (toolkitMessageOverlay != null) toolkitMessageOverlay.style.display = DisplayStyle.None;
+                if (toolkitMessageLabel != null) toolkitMessageLabel.text = string.Empty;
             }
-
-            if (messageLabel != null)
+            else
             {
-                messageLabel.text = string.Empty;
+                ResolveHudView();
+                hudView?.SetDefeatOverlayVisible(false, string.Empty);
             }
-
-            ShowNotification("Revived.");
+            ShowNotification("리스폰했습니다.");
         }
 
-        private void SetProgress(ProgressBar bar, float current, float max, string label)
+        private static void SetToolkitProgress(ToolkitProgressBar bar, float current, float max, string label)
         {
             if (bar == null) return;
-
             float percent = max > 0f ? current / max : 0f;
             bar.value = Mathf.Clamp01(percent) * 100f;
             bar.title = $"{label} {Mathf.CeilToInt(current)} / {Mathf.CeilToInt(max)}";
         }
 
-        private IEnumerator RemoveNotificationAfterDelay(VisualElement element)
+        private IEnumerator RemoveToolkitNotificationAfterDelay(VisualElement element)
         {
             yield return new WaitForSeconds(notificationDuration);
-
-            if (element != null && element.parent != null)
-            {
-                element.parent.Remove(element);
-            }
+            if (element != null && element.parent != null) element.parent.Remove(element);
         }
     }
 }

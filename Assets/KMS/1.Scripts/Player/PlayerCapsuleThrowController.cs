@@ -1,3 +1,4 @@
+using KMS.Audio;
 using KMS.InventoryDuped;
 using UnityEngine;
 
@@ -14,7 +15,7 @@ namespace KMS
         [SerializeField] private PlayerHUD hud;
         [SerializeField] private PlayerCameraController cameraController;
         [SerializeField] private CapsuleTrajectoryPreview trajectoryPreview;
-        [SerializeField] private PlayerHeldItemSpriteController heldItemSprite;
+        [SerializeField] private PlayerHeldItemModelController heldItemModel;
         [SerializeField] private Animator animator;
         [SerializeField] private Transform throwOrigin;
         [SerializeField] private GameObject capsulePrefab;
@@ -27,7 +28,19 @@ namespace KMS
         [SerializeField, Min(1f)] private float aimDistance = 30f;
         [SerializeField] private LayerMask aimLayers = ~0;
         [SerializeField] private float fallbackReleaseNormalizedTime = 0.2f;
-        [SerializeField, Min(0f)] private float aimRotationSpeed = 720f;
+        [SerializeField] private float aimRotationSpeed = 720f;
+
+        // [HDY 요청 - 이동 잠금 영구 고착 방지] OnCapsuleThrowFinished 애니메이션 이벤트는
+        // Throw_Go 클립에 정상적으로 심어져 있지만(KMS_DodoAnimator.controller 확인 완료), 프레임
+        // 드랍으로 이벤트 타이밍이 씹히거나, exitTime 기반 전환으로 애니메이터는 이미 Locomotion으로
+        // 돌아갔는데 이 C# state만 Throwing에 멈춰있는 경우 등, 이벤트가 어떤 이유로든 오지 않으면
+        // RestoreMovement()가 영원히 호출되지 않아 플레이어가 그 자리에서 굳어버리는 문제가 있었다.
+        // 캡슐 발사(OnCapsuleRelease) 쪽은 Update()에 애니메이터 상태 기반 폴백이 있었지만, 종료
+        // 쪽에는 아무 안전장치가 없었다. throwStateTimer로 Throwing 상태 지속 시간을 재서, 클립
+        // 길이보다 충분히 긴 maxThrowDuration을 넘기면 애니메이터 상태와 무관하게 강제로
+        // FinishThrowFromAnimationEvent()를 호출해 이동 잠금이 영구히 풀리지 않는 사고를 막는다.
+        [SerializeField, Min(0.5f)] private float maxThrowDuration = 2.5f;
+        private float throwStateTimer;
 
         private static readonly int ThrowPrepareHash = Animator.StringToHash("ThrowPrepare");
         private static readonly int ThrowReadyHash = Animator.StringToHash("ThrowReady");
@@ -36,7 +49,6 @@ namespace KMS
         private ThrowState state;
         private float holdTime;
         private bool capsuleReleased;
-        private bool previousMovementEnabled = true;
         private Vector3 lockedThrowTarget;
         private bool hasLockedThrowTarget;
 
@@ -57,7 +69,7 @@ namespace KMS
             if (hud == null) hud = GetComponent<PlayerHUD>();
             if (cameraController == null) cameraController = GetComponent<PlayerCameraController>();
             if (trajectoryPreview == null) trajectoryPreview = GetComponent<CapsuleTrajectoryPreview>();
-            if (heldItemSprite == null) heldItemSprite = GetComponent<PlayerHeldItemSpriteController>();
+            if (heldItemModel == null) heldItemModel = GetComponent<PlayerHeldItemModelController>();
             if (movement != null && movement.Animator != null) animator = movement.Animator;
             else if (animator == null) animator = GetComponentInChildren<Animator>();
 
@@ -120,13 +132,26 @@ namespace KMS
                     if (hud != null) hud.SetThrowGuideVisible(true);
                 }
             }
-            else if (state == ThrowState.Throwing && !capsuleReleased && animator != null)
+            else if (state == ThrowState.Throwing)
             {
-                AnimatorStateInfo info = animator.GetCurrentAnimatorStateInfo(0);
-                if (info.IsName("Throw_Go") && info.normalizedTime >= fallbackReleaseNormalizedTime)
+                throwStateTimer += Time.deltaTime;
+
+                if (!capsuleReleased && animator != null)
                 {
-                    Debug.LogWarning("[CapsuleThrow] Throw_Go Animation Event가 호출되지 않아 fallback 시점에 캡슐을 발사합니다.");
-                    ReleaseCapsuleFromAnimationEvent();
+                    AnimatorStateInfo info = animator.GetCurrentAnimatorStateInfo(0);
+                    if (info.IsName("Throw_Go") && info.normalizedTime >= fallbackReleaseNormalizedTime)
+                    {
+                        Debug.LogWarning("[CapsuleThrow] Throw_Go Animation Event가 호출되지 않아 fallback 시점에 캡슐을 발사합니다.");
+                        ReleaseCapsuleFromAnimationEvent();
+                    }
+                }
+
+                // [HDY 요청 - 이동 잠금 영구 고착 방지] 종료 이벤트가 끝내 오지 않아도 일정 시간 후
+                // 강제로 던지기를 종료시켜 RestoreMovement()가 반드시 호출되도록 한다.
+                if (throwStateTimer >= maxThrowDuration)
+                {
+                    Debug.LogWarning("[CapsuleThrow] OnCapsuleThrowFinished Animation Event가 호출되지 않아 안전장치로 던지기를 강제 종료(이동 잠금 해제)합니다.");
+                    FinishThrowFromAnimationEvent();
                 }
             }
         }
@@ -167,6 +192,7 @@ namespace KMS
             if (state != ThrowState.Ready) return;
 
             state = ThrowState.Throwing;
+            throwStateTimer = 0f;
             RotateTowardsCamera(true);
             lockedThrowTarget = ResolveAimTarget();
             hasLockedThrowTarget = true;
@@ -209,12 +235,19 @@ namespace KMS
                 return;
             }
 
+            KMSAudioService.PlayAt(GameSfxId.ToolSwing, transform.position);
             body.isKinematic = false;
             body.linearVelocity = CalculateInitialVelocity(origin, lockedThrowTarget);
             IgnorePlayerCollisions(capsule);
             capsuleReleased = true;
             inventory.CommitQuickSlotUse();
-            if (heldItemSprite != null) heldItemSprite.SetThrowVisualSuppressed(true);
+            if (heldItemModel != null) heldItemModel.SetThrowVisualSuppressed(true);
+        }
+
+        /// <summary>사망 등 외부 상태 전환에서 진행 중인 투척을 안전하게 취소한다.</summary>
+        public void CancelActiveThrow()
+        {
+            CancelThrow(false);
         }
 
         public void FinishThrowFromAnimationEvent()
@@ -223,7 +256,7 @@ namespace KMS
             if (!capsuleReleased) ReleaseCapsuleFromAnimationEvent();
 
             inventory.EndQuickSlotUse();
-            if (heldItemSprite != null) heldItemSprite.SetThrowVisualSuppressed(false);
+            if (heldItemModel != null) heldItemModel.SetThrowVisualSuppressed(false);
             RestoreMovement();
             state = ThrowState.Idle;
             hasLockedThrowTarget = false;
@@ -309,14 +342,12 @@ namespace KMS
 
         private void LockMovement()
         {
-            if (movement == null) return;
-            previousMovementEnabled = movement.IsMovementEnabled;
-            movement.IsMovementEnabled = false;
+            if (movement != null) movement.SetMovementBlocked(this, true);
         }
 
         private void RestoreMovement()
         {
-            if (movement != null) movement.IsMovementEnabled = previousMovementEnabled;
+            if (movement != null) movement.SetMovementBlocked(this, false);
         }
 
         private void CancelThrow(bool blendToLocomotion)
@@ -332,7 +363,7 @@ namespace KMS
             if (hud != null) hud.SetThrowGuideVisible(false);
             if (trajectoryPreview != null) trajectoryPreview.Hide();
             if (cameraController != null) cameraController.SetAimZoom(false);
-            if (heldItemSprite != null) heldItemSprite.SetThrowVisualSuppressed(false);
+            if (heldItemModel != null) heldItemModel.SetThrowVisualSuppressed(false);
             if (animator != null)
             {
                 animator.SetBool(ThrowReadyHash, false);
@@ -344,6 +375,7 @@ namespace KMS
             RestoreMovement();
             state = ThrowState.Idle;
             holdTime = 0f;
+            throwStateTimer = 0f;
             capsuleReleased = false;
             hasLockedThrowTarget = false;
         }

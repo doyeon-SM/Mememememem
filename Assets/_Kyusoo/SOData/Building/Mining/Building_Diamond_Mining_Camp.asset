@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: aa834ba98afac274f8eee27f34b67923, type: 3}
+  m_Name: Building_Diamond_Mining_Camp
+  m_EditorClassIdentifier: Assembly-CSharp::BuildingData
+  buildingId: building_diamond_mining_camp
+  buildingName: "\uB2E4\uC774\uC544\uBAAC\uB4DC \uCC44\uC11D\uC7A5"
+  buildingPrefab: {fileID: 7385531186990820842, guid: 54136a947d27c3a499bd3b7853050e43, type: 3}
+  buildingImage: {fileID: -1669437947, guid: 6a3d6e5b5ddf6824f849cdbc43a34b54, type: 3}
+  buildingType: 2
+  satisfaction: 10
+  requireBlueprint: blueprint_diamond_quarry
+  width: 2
+  height: 2

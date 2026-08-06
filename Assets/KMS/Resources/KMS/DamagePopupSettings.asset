@@ -1,0 +1,36 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e8fd7a5b86470494dbfc8d960de61f12, type: 3}
+  m_Name: DamagePopupSettings
+  m_EditorClassIdentifier: Assembly-CSharp::KMS.Effects.DamageNumbers.KMSDamagePopupSettings
+  preferDamageNumbersPro: 1
+  damageNumbersProResourcesPath: KMSLocal/MemDamageNumber
+  minimumHeightOffset: 1.55
+  rendererTopPadding: 0.2
+  spawnJitter: 0.08
+  lifetime: 1.05
+  riseDistance: 0.75
+  sideDrift: 0.16
+  fadeStart: 0.55
+  baseScale: 1
+  spawnScale: 0.7
+  overshootScale: 1.18
+  referenceOrthographicSize: 5
+  fontSize: 5
+  normalColor: {r: 1, g: 0.72, b: 0.22, a: 1}
+  largeDamageColor: {r: 1, g: 0.2, b: 0.12, a: 1}
+  outlineColor: {r: 0.08, g: 0.025, b: 0.015, a: 1}
+  outlineWidth: 0.22
+  largeDamageThreshold: 10
+  maximumDamageScale: 1.45
+  prewarmCount: 12
+  retainedPoolSize: 48

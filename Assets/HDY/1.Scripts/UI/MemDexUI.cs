@@ -4,6 +4,7 @@ using System.Linq;
 using UnityEngine;
 using MemSystem.Data;
 using HDY.Mem;
+using HDY.Capture;
 
 namespace HDY.UI
 {
@@ -26,6 +27,14 @@ namespace HDY.UI
     /// [Mem스탯/티어 표시] MemStorageUI와 동일한 개념 - 정렬 기준이 스탯/티어면 그 아이콘+값을, 아니면(MemId
     /// 또는 정렬 전) 감춘다. 아이콘 Sprite 필드는 MemStorageUI와 별개로 이 컨트롤러에 따로 있다(같은 스프라이트를
     /// 인스펙터에서 한 번 더 연결해야 함).
+    ///
+    /// [HDY 요청 - 최초 포획 정보] MemDexRecordManager에서 각 멤 종의 최초 포획 기록을 조회해서 두 군데에 반영한다:
+    /// 1) 그리드 슬롯(MemDexSlotUI) - 발견 여부를 isDiscoveredProvider로 넘겨 미발견 종은 아이콘을 검게 틴트.
+    /// 2) 정보 패널(MemStorageUI_Info) - 슬롯 클릭 시 최초 포획 시각(날짜+시간)을 함께 넘겨 표시한다.
+    ///    이 최초 포획 정보 줄은 도감에서만 보이도록 MemStorageUI_Info.ShowInfo(MemData, long?) 오버로드로만
+    ///    전달한다 - 창고(MemStorageUI)가 쓰는 ShowInfo(entry, data) 오버로드는 건드리지 않는다.
+    /// 새로운 멤이 최초로 포획되어 MemDexRecordManager.OnFirstCaptureRecorded가 발행되면, 도감이 열려있는
+    /// 동안이라도 그리드를 다시 그려 실루엣이 바로 풀리도록 구독해둔다.
     /// </summary>
     public class MemDexUI : MonoBehaviour
     {
@@ -33,6 +42,8 @@ namespace HDY.UI
         [SerializeField] private MemCatalogManager catalogManager;
         [Tooltip("등급별 탐험 스탯 범위(최소~최대) 조회용. 탐험 기준 정렬 시 등급의 explorationMax(최댓값)를 사용한다.")]
         [SerializeField] private MemTierTable tierTable;
+        [Tooltip("각 멤 종의 최초 포획 기록(발견 여부/최초 포획 시각) 조회용. 비어두면 MemDexRecordManager.Instance로 자동 보정한다.")]
+        [SerializeField] private MemDexRecordManager dexRecordManager;
 
         [Header("하위 UI (그리드 / 정보 패널 / 정렬 버튼)")]
         [SerializeField] private MemDexUI_Grid grid;
@@ -60,27 +71,41 @@ namespace HDY.UI
         private void Awake()
         {
             if (catalogManager == null) catalogManager = MemCatalogManager.Instance;
+            dexRecordManager = MemDexRecordManager.Resolve(dexRecordManager);
 
             if (catalogManager == null) Debug.LogWarning("[MemDexUI] catalogManager가 비어있습니다. 도감 데이터를 읽어올 수 없습니다.", this);
+            if (dexRecordManager == null) Debug.LogWarning("[MemDexUI] dexRecordManager가 비어있습니다. 최초 포획(실루엣/정보) 표시가 동작하지 않습니다.", this);
             if (tierTable == null) Debug.LogWarning("[MemDexUI] tierTable이 비어있습니다. 탐험 기준 정렬이 MemData.explorationStat으로 대체됩니다.", this);
             if (grid == null) Debug.LogWarning("[MemDexUI] grid가 비어있습니다.", this);
             if (info == null) Debug.LogWarning("[MemDexUI] info가 비어있습니다.", this);
             if (sort == null) Debug.LogWarning("[MemDexUI] sort가 비어있습니다. 정렬 버튼이 동작하지 않습니다.", this);
 
-            if (grid != null)
-            {
-                grid.OnSlotClicked += HandleSlotClicked;
-            }
-
-            if (sort != null)
-            {
-                sort.OnSortRequested += HandleSortRequested;
-            }
         }
 
         private void OnEnable()
         {
             if (catalogManager == null) catalogManager = MemCatalogManager.Instance;
+            dexRecordManager = MemDexRecordManager.Resolve(dexRecordManager);
+
+            if (grid != null)
+            {
+                grid.OnSlotClicked -= HandleSlotClicked;
+                grid.OnSlotClicked += HandleSlotClicked;
+            }
+
+            if (sort != null)
+            {
+                sort.OnSortRequested -= HandleSortRequested;
+                sort.OnSortRequested += HandleSortRequested;
+            }
+
+            // [HDY 요청 - 최초 포획 정보] 도감이 열려있는 동안 새로 발견되는 멤이 생기면(예: 도감을 백그라운드에
+            // 둔 채 포획) 실루엣이 바로 풀리도록 그리드를 다시 그린다.
+            if (dexRecordManager != null)
+            {
+                dexRecordManager.OnFirstCaptureRecorded -= HandleFirstCaptureRecorded;
+                dexRecordManager.OnFirstCaptureRecorded += HandleFirstCaptureRecorded;
+            }
 
             RefreshGrid();
         }
@@ -96,6 +121,11 @@ namespace HDY.UI
             {
                 sort.OnSortRequested -= HandleSortRequested;
             }
+
+            if (dexRecordManager != null)
+            {
+                dexRecordManager.OnFirstCaptureRecorded -= HandleFirstCaptureRecorded;
+            }
         }
 
         private void HandleSlotClicked(MemData data)
@@ -104,7 +134,16 @@ namespace HDY.UI
 
             if (info != null)
             {
-                info.ShowInfo(data);
+                // [HDY 요청 - 최초 포획 정보, 도감에서만 표시] 발견된 종이면 최초 포획 시각을 함께 넘겨서
+                // 정보 패널에 표시한다. ShowInfo(MemData, long?) 오버로드는 도감 전용이라 창고 쪽
+                // ShowInfo(entry, data)에는 영향이 없다.
+                long? firstCapturedTimestamp = null;
+                if (dexRecordManager != null && dexRecordManager.TryGetFirstCaptureInfo(data.memId, out var record))
+                {
+                    firstCapturedTimestamp = record.FirstCapturedTimestamp;
+                }
+
+                info.ShowInfo(data, firstCapturedTimestamp);
             }
         }
 
@@ -114,6 +153,13 @@ namespace HDY.UI
             Debug.Log($"[MemDexUI] 정렬 요청 수신: {criteria}");
 
             activeSortCriteria = criteria;
+            RefreshGrid();
+        }
+
+        /// <summary>새로운 멤 종이 최초로 발견될 때 호출된다(MemDexRecordManager.OnFirstCaptureRecorded). 그리드를 다시 그려 실루엣을 갱신한다.</summary>
+        private void HandleFirstCaptureRecorded(string memId, long firstCapturedTimestamp)
+        {
+            Debug.Log($"[MemDexUI] 최초 포획 알림 수신: MemId={memId} - 그리드 갱신");
             RefreshGrid();
         }
 
@@ -142,7 +188,18 @@ namespace HDY.UI
                 orderedData = MemSortHelper.SortEntries(sortableItems, activeSortCriteria.Value, memDataLookup);
             }
 
-            grid.Populate(orderedData, BuildStatDisplayProvider());
+            grid.Populate(orderedData, BuildStatDisplayProvider(), IsDiscovered);
+        }
+
+        /// <summary>
+        /// [HDY 요청 - 최초 포획 실루엣] 이 멤 종이 최초 포획 기록이 있는지(도감에 발견되었는지) 여부.
+        /// dexRecordManager가 없으면 안전한 기본값으로 전부 발견된 것으로 처리한다(전부 까맣게 가려버리는
+        /// 것을 피하기 위함).
+        /// </summary>
+        private bool IsDiscovered(MemData data)
+        {
+            if (dexRecordManager == null || data == null) return true;
+            return dexRecordManager.IsDiscovered(data.memId);
         }
 
         /// <summary>

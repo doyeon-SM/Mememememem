@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b5f8635e311146c2a0615b518f1f1714, type: 3}
+  m_Name: WayPointStage_DawnIsland
+  m_EditorClassIdentifier: Assembly-CSharp::WayPointStageDefinition
+  id: dawn_island_stage
+  displayName: "\uC5EC\uBA85\uC12C"
+  maps:
+  - {fileID: 11400000, guid: 998808f35b3ba4b4ba4524769475b42b, type: 2}
+  - {fileID: 11400000, guid: 0191426a15940084ab1e6cde2a9089e5, type: 2}
+  defaultMap: {fileID: 11400000, guid: 998808f35b3ba4b4ba4524769475b42b, type: 2}
+  unlockedOnStart: 1
+  requiredCompletedMaps: []

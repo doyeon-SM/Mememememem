@@ -1,3 +1,4 @@
+using KMS.Audio;
 using UnityEngine;
 
 namespace KMS
@@ -5,10 +6,12 @@ namespace KMS
     public class PlayerAnimationEvents : MonoBehaviour
     {
         private PlayerCapsuleThrowController capsuleThrowController;
+        private KMS.Harvesting.PlayerHarvestController harvestController;
 
         private void Awake()
         {
             capsuleThrowController = GetComponentInParent<PlayerCapsuleThrowController>();
+            harvestController = GetComponentInParent<KMS.Harvesting.PlayerHarvestController>();
         }
 
         public void OnCapsuleRelease()
@@ -31,19 +34,46 @@ namespace KMS
             capsuleThrowController?.FinishThrowFromAnimationEvent();
         }
 
+        public void OnToolImpact(AnimationEvent animationEvent)
+        {
+            if (!ShouldProcess(animationEvent)) return;
+
+            if (harvestController == null)
+            {
+                harvestController = GetComponentInParent<KMS.Harvesting.PlayerHarvestController>();
+            }
+
+            harvestController?.ResolvePendingToolImpact();
+        }
+
         public void OnFootstepWalk(AnimationEvent animationEvent)
         {
-            // TODO: �߼Ҹ� ���� �� ���⼭ ó��
+            if (ShouldProcess(animationEvent))
+            {
+                KMSAudioService.PlayAt(GameSfxId.FootstepWalk, transform.position);
+            }
         }
 
         public void OnFootstepRun(AnimationEvent animationEvent)
         {
-            // TODO: �޸��� �߼Ҹ� ���� �� ���⼭ ó��
+            if (ShouldProcess(animationEvent))
+            {
+                KMSAudioService.PlayAt(GameSfxId.FootstepRun, transform.position);
+            }
         }
 
         public void OnLand(AnimationEvent animationEvent)
         {
-            // TODO: ���� �Ҹ� ���� �� ���⼭ ó��
+            if (ShouldProcess(animationEvent))
+            {
+                KMSAudioService.PlayAt(GameSfxId.Land, transform.position);
+            }
+        }
+
+        private static bool ShouldProcess(AnimationEvent animationEvent)
+        {
+            return animationEvent == null
+                || animationEvent.animatorClipInfo.weight >= 0.5f;
         }
     }
 }

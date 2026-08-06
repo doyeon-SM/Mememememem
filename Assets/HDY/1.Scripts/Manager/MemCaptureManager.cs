@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using MemSystem.Data;
 using MemSystem.Events;
+using HDY.Mem;
 using PikachuMem = MemSystem.Core.Mem;
 
 namespace HDY.Capture
@@ -25,6 +26,20 @@ namespace HDY.Capture
         /// <summary>이 멤이 활성화(예: 영지에 배치되어 근무 중) 상태인지 여부. 기본값 false.</summary>
         public bool IsActive;
 
+        /// <summary>
+        /// [HDY 요청 - 영지 배고픔 시스템] 현재 배고픔. 포획 시 해당 멤의 MaxHunger로 가득 채워 초기화되며,
+        /// 시설에서 근무 중일 때 분당 MemData.consumption만큼 줄어들고, 0이 되면 밥통에서 급식을 시도한다
+        /// (TotalHungerManager/ConsumeFoodSystem 참고).
+        /// </summary>
+        public int CurrentHunger;
+
+        /// <summary>
+        /// [HDY 요청 - 영지 배고픔 시스템] 밥통에 먹일 음식이 부족해 이 멤이 배치된 시설(또는 슬롯)이
+        /// 배고픔으로 인해 정지된 상태인지 여부. 다음 급식에 성공하면 false로 돌아가며 그 시설/슬롯만
+        /// 재가동된다(다른 멤/시설에는 영향 없음).
+        /// </summary>
+        public bool IsStarving;
+
         /// <summary>이 항목이 빈 칸(멤 없음)인지 여부.</summary>
         public bool IsEmpty => KeyId == EmptyKeyId;
 
@@ -36,7 +51,9 @@ namespace HDY.Capture
                 KeyId = EmptyKeyId,
                 MemId = null,
                 ExplorationStat = 0,
-                IsActive = false
+                IsActive = false,
+                CurrentHunger = 0,
+                IsStarving = false
             };
         }
     }
@@ -73,6 +90,12 @@ namespace HDY.Capture
     ///
     /// [정렬] 이 클래스는 정렬 기준(멤 ID/등급/스탯 등)을 전혀 알지 못한다. 실제 비교/정렬 판단은 카탈로그(MemData)에
     /// 접근 가능한 상위(MemStorageUI)가 하고, 이 클래스는 ApplySortedOrder로 "정렬된 결과를 그대로 적용"만 담당한다.
+    ///
+    /// [HDY 요청 - 창고에서 완전 삭제(방출)] TryDiscardEntry로 비활성 멤을 창고에서 완전히 삭제(빈 칸으로
+    /// 되돌림)할 수 있다. 활성 멤을 배치 해제하는 것(entry.IsActive만 false로 되돌리는 것 - MemStorageUI가
+    /// 처리)과는 별개의 기능이다 - 이쪽은 항목 자체를 목록에서 지운다. 삭제 후에도 OnCapturedMemsChanged를
+    /// 그대로 발행하므로, 그리드 자동 갱신과 저장 시스템(있다면 이 이벤트를 구독해 저장을 트리거) 모두 기존과
+    /// 동일한 경로로 반응한다 - 별도의 새 이벤트를 만들 필요가 없었다.
     ///
     /// 파일 저장 등 영속화 로직은 다음 단계에서 추가 예정.
     /// 씬에 배치되어 DontDestroyOnLoad로 유지되는 파괴불가 싱글톤.
@@ -142,7 +165,7 @@ namespace HDY.Capture
 
         public IReadOnlyList<CapturedMemEntry> CapturedMems => capturedMems;
 
-        /// <summary>목록에 새 멤이 저장되거나 위치/순서가 바뀔 때마다 발행. UI 등에서 이 이벤트를 구독해 갱신하면 된다.</summary>
+        /// <summary>목록에 새 멤이 저장되거나 위치/순서가 바뀌거나 삭제될 때마다 발행. UI/저장 시스템 등에서 이 이벤트를 구독해 갱신하면 된다.</summary>
         public event Action OnCapturedMemsChanged;
 
         /// <summary>
@@ -220,6 +243,18 @@ namespace HDY.Capture
             return true;
         }
 
+        /// <summary>
+        /// [HDY 요청 - 영지 배고픔 시스템] memId로 MemData를 찾아 MaxHunger를 반환한다. 카탈로그에서
+        /// 찾지 못하면 0(안전값)을 반환한다.
+        /// </summary>
+        private int ResolveMaxHunger(string memId)
+        {
+            if (string.IsNullOrEmpty(memId) || MemCatalogManager.Instance == null) return 0;
+
+            var memData = MemCatalogManager.Instance.FindMemData(memId);
+            return memData != null ? memData.maxHunger : 0;
+        }
+
         private void HandleMemCaptured(PikachuMem mem, MemSnapshot snapshot)
         {
             int emptyIndex = FindFirstEmptyIndex();
@@ -231,15 +266,20 @@ namespace HDY.Capture
                 return;
             }
 
+            // [HDY 요청 - 영지 배고픔 시스템] 포획 즉시 배고픔을 MaxHunger로 가득 채워서 시작한다.
+            int initialHunger = ResolveMaxHunger(snapshot.memId);
+
             capturedMems[emptyIndex] = new CapturedMemEntry
             {
                 KeyId = Guid.NewGuid().ToString(),
                 MemId = snapshot.memId,
                 ExplorationStat = snapshot.explorationStat,
-                IsActive = false
+                IsActive = false,
+                CurrentHunger = initialHunger,
+                IsStarving = false
             };
 
-            Debug.Log($"[MemCaptureManager] 포획 데이터 저장: index={emptyIndex} / MemId={snapshot.memId} / Exploration={snapshot.explorationStat}");
+            Debug.Log($"[MemCaptureManager] 포획 데이터 저장: index={emptyIndex} / MemId={snapshot.memId} / Exploration={snapshot.explorationStat} / CurrentHunger={initialHunger}");
 
             OnCapturedMemsChanged?.Invoke();
         }
@@ -304,32 +344,80 @@ namespace HDY.Capture
             OnCapturedMemsChanged?.Invoke();
         }
 
+        /// <summary>
+        /// [HDY 요청 - 창고에서 완전 삭제(방출)] 지정한 항목을 창고에서 완전히 지우고 빈 칸으로 되돌린다.
+        /// entry는 참조로 목록에서 위치를 찾는다(CapturedMemEntry는 참조 타입이라, UI가 들고 있는 entry와
+        /// 목록 안의 항목이 항상 같은 객체를 가리킨다). 활성 멤을 배치 해제하는 것(entry.IsActive만 되돌리는
+        /// 것)과는 별개다 - 이 메서드는 항목 자체를 지운다. 목록에서 찾지 못했거나 이미 빈 칸이면 false.
+        /// 성공하면 다른 변경 메서드들과 동일하게 OnCapturedMemsChanged를 발행한다(그리드 자동 갱신 +
+        /// 저장 시스템이 있다면 이 이벤트로 저장 트리거).
+        /// </summary>
+        public bool TryDiscardEntry(CapturedMemEntry entry)
+        {
+            if (entry == null || entry.IsEmpty) return false;
 
+            int index = capturedMems.IndexOf(entry);
+            if (index < 0)
+            {
+                Debug.LogWarning($"[MemCaptureManager] TryDiscardEntry 실패: MemId={entry.MemId} 항목을 목록에서 찾지 못했습니다.");
+                return false;
+            }
+
+            Debug.Log($"[MemCaptureManager] 창고에서 멤 방출: index={index}, MemId={entry.MemId}");
+
+            capturedMems[index] = CapturedMemEntry.CreateEmpty();
+
+            OnCapturedMemsChanged?.Invoke();
+            return true;
+        }
 
         /// <summary>
         /// 해당 코드는 테스트함수며, 혹시나 커밋실수를 하여 저장될경우 꼭 제거부탁드립니다.
+        /// 지정된 전체 테스트 멤 목록을 창고에 일괄 주입합니다.
         /// </summary>
-        [ContextMenu("Function: Add Test Mem")]
-        public void AddTestMemForDebug()
+        [ContextMenu("Function: Add All Test Mems")]
+        public void AddAllTestMemsForDebug()
         {
-            int emptyIndex = FindFirstEmptyIndex();
-            if (emptyIndex < 0)
+            string[] testMemIds = new string[]
             {
-                Debug.LogWarning("[MemCaptureManager Test] 창고가 가득 차서 테스트 멤을 추가할 수 없습니다!");
-                return;
-            }
-
-            capturedMems[emptyIndex] = new CapturedMemEntry
-            {
-                KeyId = Guid.NewGuid().ToString(),
-                MemId = "Mem_Rare_01",
-                ExplorationStat = UnityEngine.Random.Range(20, 101),
-                IsActive = false
+            "Mem_Rare_01", "Mem_Rare_01_A", "Mem_Rare_01_N",
+            "Mem_Rare_02", "Mem_Rare_02_A", "Mem_Rare_02_N",
+            "Mem_Rare_03", "Mem_Rare_03_A", "Mem_Rare_03_N",
+            "Mem_Rare_04", "Mem_Rare_04_A", "Mem_Rare_04_N",
+            "Mem_Rare_05", "Mem_Rare_05_A", "Mem_Rare_05_N",
+            "Mem_Rare_06", "Mem_Rare_06_A", "Mem_Rare_06_N",
+            "Mem_Epic_01", "Mem_Epic_01_A", "Mem_Epic_01_N",
+            "Mem_Epic_02", "Mem_Epic_02_A", "Mem_Epic_02_N",
+            "Mem_Epic_03", "Mem_Epic_04"
             };
 
-            Debug.Log($"<color=cyan>[Test] 테스트 멤 주입 성공!</color> Index: {emptyIndex} | MemId: {capturedMems[emptyIndex].MemId} | 스탯: {capturedMems[emptyIndex].ExplorationStat}");
+            int addedCount = 0;
 
-            OnCapturedMemsChanged?.Invoke();
+            foreach (string memId in testMemIds)
+            {
+                int emptyIndex = FindFirstEmptyIndex();
+                if (emptyIndex < 0)
+                {
+                    Debug.LogWarning($"[MemCaptureManager Test] 창고가 가득 차서 더 이상 테스트 멤을 추가할 수 없습니다! (추가 완료: {addedCount}/{testMemIds.Length})");
+                    break;
+                }
+
+                capturedMems[emptyIndex] = new CapturedMemEntry
+                {
+                    KeyId = Guid.NewGuid().ToString(),
+                    MemId = memId,
+                    ExplorationStat = UnityEngine.Random.Range(20, 101),
+                    IsActive = false
+                };
+
+                Debug.Log($"<color=cyan>[Test] 테스트 멤 주입 성공!</color> Index: {emptyIndex} | MemId: {memId} | 스탯: {capturedMems[emptyIndex].ExplorationStat}");
+                addedCount++;
+            }
+
+            if (addedCount > 0)
+            {
+                OnCapturedMemsChanged?.Invoke();
+            }
         }
     }
 }

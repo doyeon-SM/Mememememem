@@ -23,6 +23,31 @@ namespace MemSystem.Movement
         // 설정값
         // =================================================================
 
+        /// <summary>기본 정지 거리(배회/추격 간격 조율용). 시설 진입 시에만 MoveTo에서 좁힙니다.</summary>
+        private const float DefaultStoppingDistance = 0.5f;
+
+        /// <summary>
+        /// 생산 시설이 설치된 그리드 칸에 부여하는 NavMesh Area 인덱스.
+        /// (TerritoryTestNavMeshBaker가 시설 칸을 이 Area로 굽습니다.)
+        ///
+        /// [제어 방식 — areaMask 제외가 아니라 "이동 비용"]
+        /// 예전엔 순찰 멤의 areaMask에서 이 Area를 빼서 물리적으로 못 밟게 했는데,
+        /// 시설 칸이 걸어다니는 바닥 한가운데 있다 보니 멤이 옆을 스칠 때 잠깐 그 칸에 올라서고,
+        /// 그 순간 Agent 위치가 "유효하지 않은 Area"가 되어 밖으로 밀려나며 스윽 미끄러졌습니다.
+        /// → 지금은 areaMask에는 항상 포함시키되(위치가 무효가 되는 일 자체를 없앰),
+        ///   순찰 멤에게만 높은 이동 비용을 매겨 경로가 시설 칸을 우회하게 합니다.
+        ///   결과는 같고(순찰은 시설을 가로지르지 않음) 밀림/떨림은 생기지 않습니다.
+        /// </summary>
+        public const int FacilityNavMeshArea = 3;
+
+        /// <summary>FacilityNavMeshArea의 비트마스크.</summary>
+        public static int FacilityAreaMask => 1 << FacilityNavMeshArea;
+
+        /// <summary>
+        /// 순찰 멤에게 매기는 시설 칸 이동 비용. 1칸(1m)을 지나는 값이 우회 거리보다 훨씬 크도록 잡습니다.
+        /// </summary>
+        private const float FacilityAvoidCost = 20f;
+
         [Header("이동 속도 설정")]
         [Tooltip("배회 시 이동 속도")]
         [SerializeField] private float walkSpeed = 1.0f;
@@ -56,10 +81,39 @@ namespace MemSystem.Movement
         private enum MovementMode { None, Wander, Chase, Flee }
         private MovementMode currentMode = MovementMode.None;
 
+        /// <summary>이 멤이 시설 칸에서 작업해도 되는지(배치된 작업 멤만 true).</summary>
+        private bool facilityAreaAllowed;
+
+        /// <summary>
+        /// 이 멤이 "목적지로 삼아도 되는" Area 마스크.
+        /// 시설 칸을 밟는 것 자체는 막지 않지만(밀림 방지), 목적지로 고르지는 않게 합니다.
+        /// </summary>
+        private int DestinationAreaMask => facilityAreaAllowed
+            ? NavMesh.AllAreas
+            : (NavMesh.AllAreas & ~FacilityAreaMask);
+
+        /// <summary>영지 배회 경계. SetWanderBounds()로 설정, ClearWanderBounds()로 해제.</summary>
+        private bool hasBounds = false;
+        private Bounds wanderBounds;
+
         public float FleeDistance => fleeDistance;
 
         /// <summary>NavMeshAgent의 현재 실제 이동 속도 (m/s). 애니메이션 동기화에 사용합니다.</summary>
         public float CurrentSpeed => agent != null && agent.isOnNavMesh ? agent.velocity.magnitude : 0f;
+
+        /// <summary>[디버그] NavMeshAgent가 현재 NavMesh 위에 있는지. 배회가 안 될 때 진단용.</summary>
+        public bool IsOnNavMesh => agent != null && agent.isOnNavMesh;
+
+        /// <summary>[디버그] NavMeshAgent 상태 요약 문자열 (테스트/진단용).</summary>
+        public string DebugAgentStatus()
+        {
+            if (agent == null) return "agent=null";
+            if (!agent.isOnNavMesh)
+                return $"onNavMesh=FALSE ⚠ (pos={transform.position}) — 스폰 위치가 NavMesh 밖입니다";
+            return $"onNavMesh=true, pathStatus={agent.pathStatus}, hasPath={agent.hasPath}, " +
+                   $"pathPending={agent.pathPending}, remain={agent.remainingDistance:F2}, " +
+                   $"vel={agent.velocity.magnitude:F2}, isStopped={agent.isStopped}";
+        }
 
         // =================================================================
         // Unity Lifecycle
@@ -71,14 +125,22 @@ namespace MemSystem.Movement
             
             // 초기 세팅
             agent.speed = walkSpeed;
-            agent.stoppingDistance = 0.5f;
+            agent.stoppingDistance = DefaultStoppingDistance;
             agent.autoBraking = true;
+
+            // 기본값: 순찰 멤은 시설 칸을 "비싸게" 여겨 우회한다(막지는 않음 → 밀림/떨림 없음).
+            // 배치된 작업 멤만 FacilityWorkState에서 SetFacilityAreaAllowed(true)로 비용을 정상화.
+            SetFacilityAreaAllowed(false);
         }
 
         private void OnEnable()
         {
             // 컴포넌트 활성화 시 (풀에서 꺼내질 때 등) 타이머 랜덤화
             RandomizeStaggerOffset();
+
+            // 풀 재사용 대비: 직전 사용에서 시설 근무 중이었을 수 있으므로 기본(시설 칸 우회)으로 되돌린다.
+            // 실제 비용 반영은 NavMesh에 배치되는 Warp 시점에 일어난다.
+            facilityAreaAllowed = false;
         }
 
         private void Update()
@@ -106,40 +168,104 @@ namespace MemSystem.Movement
 
             currentMode = MovementMode.None;
             agent.isStopped = true;
+            agent.stoppingDistance = DefaultStoppingDistance; // 시설 접근용으로 좁혔던 값 복구
             agent.ResetPath(); // 진행 중인 경로 초기화
         }
 
         /// <summary>
-        /// 지정된 위치로 NavMeshAgent를 즉시 이동시킵니다. (스폰/풀링 재사용 시 안전)
+        /// 에이전트가 NavMesh 밖(시설 카빙 구멍/여백 등)에 놓였으면 가장 가까운 NavMesh 지점으로
+        /// 복귀시킵니다. 배회 중 시설 칸이 카빙돼 갇히는 경우를 자가 복구합니다.
+        /// 이미 위에 있거나 복구에 성공하면 true.
         /// </summary>
-        public void Warp(Vector3 position)
+        public bool TryRecoverToNavMesh(float searchRadius = 3f)
         {
-            if (agent != null && agent.isActiveAndEnabled)
+            if (agent == null || !agent.isActiveAndEnabled) return false;
+            if (agent.isOnNavMesh) return true;
+
+            if (NavMesh.SamplePosition(transform.position, out NavMeshHit hit, searchRadius, NavMesh.AllAreas) &&
+                agent.Warp(hit.position))
             {
-                agent.Warp(position);
+                ApplyFacilityAreaCost();
+                return true;
             }
-            else
+
+            return false;
+        }
+
+        /// <summary>
+        /// 지정된 위치로 NavMeshAgent를 즉시 이동시킵니다. (스폰/풀링 재사용 시 안전)
+        ///
+        /// 요청 위치가 NavMesh에서 살짝 벗어나 있으면 가장 가까운 NavMesh 지점으로 보정합니다.
+        /// 보정 없이 그냥 Warp하면 실패해도 티가 나지 않고, NavMesh 밖에 놓인 멤은
+        /// 이후 모든 이동 명령(ChaseTo/Stop/MoveTo)이 무시되어 제자리에 굳습니다.
+        /// </summary>
+        /// <param name="position">배치할 위치</param>
+        /// <param name="sampleRadius">NavMesh 보정 탐색 반경</param>
+        /// <returns>NavMesh 위에 정상적으로 배치되었으면 true</returns>
+        public bool Warp(Vector3 position, float sampleRadius = 5f)
+        {
+            if (agent == null || !agent.isActiveAndEnabled)
             {
                 transform.position = position;
+                return false;
             }
+
+            // NavMesh 위의 유효 지점으로 보정한 뒤 워프.
+            // 순찰 멤은 시설 칸을 목적지로 삼지 않으므로, 스폰/복귀 지점도 시설 칸을 피해 잡는다.
+            Vector3 target = position;
+            if (NavMesh.SamplePosition(position, out NavMeshHit hit, sampleRadius, DestinationAreaMask))
+                target = hit.position;
+
+            if (agent.Warp(target) && agent.isOnNavMesh)
+            {
+                // 이제서야 NavMesh 위에 올라섰으므로, 미뤄뒀던 시설 칸 비용을 반영한다.
+                ApplyFacilityAreaCost();
+                return true;
+            }
+
+            Debug.LogWarning(
+                $"[MemMovement] {name} NavMesh 배치 실패 — 요청 위치 {position} 기준 반경 {sampleRadius}m 안에 " +
+                $"NavMesh가 없습니다. 스폰 지점/NavMesh 베이크를 확인하세요.", this);
+            return false;
         }
 
         /// <summary>
         /// 랜덤한 위치로 배회를 시작합니다.
+        /// SetWanderBounds()로 경계가 설정된 경우, 그 영역 안에서만 목적지를 선택합니다.
         /// </summary>
         public void Wander()
         {
-            if (agent == null || !agent.isOnNavMesh) return;
+            if (agent == null) return;
+
+            // 시설 카빙 등으로 NavMesh 밖(구멍 안)에 갇혔으면 먼저 복귀를 시도한다.
+            // (복귀 못 하면 이번 프레임은 대기 — 다음 호출에서 재시도)
+            if (!agent.isOnNavMesh && !TryRecoverToNavMesh()) return;
 
             currentMode = MovementMode.Wander;
             agent.speed = walkSpeed;
+            agent.stoppingDistance = DefaultStoppingDistance;
             agent.isStopped = false;
 
-            // 랜덤 목적지 계산
-            Vector3 randomDirection = Random.insideUnitSphere * wanderRadius;
-            randomDirection += transform.position;
-            
-            if (NavMesh.SamplePosition(randomDirection, out NavMeshHit hit, wanderRadius, NavMesh.AllAreas))
+            // 랜덤 목적지 계산 (경계 설정 여부에 따라 분기)
+            Vector3 candidatePos;
+            if (hasBounds)
+            {
+                // 경계 영역 안의 랜덤 점을 골라 NavMesh 위 유효 위치 탐색
+                candidatePos = new Vector3(
+                    Random.Range(wanderBounds.min.x, wanderBounds.max.x),
+                    transform.position.y,
+                    Random.Range(wanderBounds.min.z, wanderBounds.max.z)
+                );
+            }
+            else
+            {
+                // 기존 방식: 현재 위치 기준 wanderRadius 반경
+                Vector3 randomDirection = Random.insideUnitSphere * wanderRadius;
+                candidatePos = randomDirection + transform.position;
+            }
+
+            // 이 멤이 갈 수 있는 Area(순찰이면 시설 칸 제외) 안에서만 목적지를 고른다.
+            if (NavMesh.SamplePosition(candidatePos, out NavMeshHit hit, wanderRadius, DestinationAreaMask))
             {
                 agent.SetDestination(hit.position);
             }
@@ -148,6 +274,85 @@ namespace MemSystem.Movement
                 // NavMesh 위가 아니면 현재 위치 유지 (Stuck 방지용 타이머가 다시 처리함)
                 agent.SetDestination(transform.position);
             }
+        }
+
+        // =================================================================
+        // 시설 칸(Area) 통행 제어
+        // =================================================================
+
+        /// <summary>
+        /// 이 멤이 시설 칸(FacilityNavMeshArea)을 밟을 수 있는지 설정합니다.
+        /// 배치된 작업 멤은 true(칸 진입 허용), 순찰 멤은 false(진입 차단).
+        /// </summary>
+        public void SetFacilityAreaAllowed(bool allowed)
+        {
+            facilityAreaAllowed = allowed;
+
+            if (agent == null) return;
+
+            // Area는 항상 통행 가능하게 둔다. 막아버리면 칸을 살짝 스칠 때 위치가 무효가 되어
+            // Agent가 멤을 밖으로 밀어낸다(=스윽 미끄러지는 현상).
+            agent.areaMask = NavMesh.AllAreas;
+
+            // 대신 비용으로 우회시킨다. 작업 멤은 정상 비용이라 칸 안으로 곧장 들어간다.
+            ApplyFacilityAreaCost();
+        }
+
+        /// <summary>
+        /// 시설 칸 이동 비용을 Agent에 반영합니다.
+        ///
+        /// SetAreaCost는 "NavMesh 위에 배치된 활성 Agent"에서만 호출할 수 있습니다.
+        /// 풀 생성 직후(Awake)나 비활성 상태에서는 아직 배치 전이라 호출하면 에러가 나므로,
+        /// 그때는 조용히 넘어가고 NavMesh에 올라선 시점(Warp 성공)에 다시 반영합니다.
+        /// </summary>
+        private void ApplyFacilityAreaCost()
+        {
+            if (agent == null || !agent.isActiveAndEnabled || !agent.isOnNavMesh) return;
+
+            agent.SetAreaCost(FacilityNavMeshArea, facilityAreaAllowed ? 1f : FacilityAvoidCost);
+        }
+
+        /// <summary>
+        /// 영지 배회 경계를 설정합니다.
+        /// 이후 Wander() 호출 시 이 Bounds 안에서만 목적지를 선택합니다.
+        /// </summary>
+        /// <param name="bounds">배회를 제한할 영역 (Box Collider 등에서 가져오세요)</param>
+        public void SetWanderBounds(Bounds bounds)
+        {
+            hasBounds   = true;
+            wanderBounds = bounds;
+        }
+
+        /// <summary>
+        /// 영지 배회 경계를 해제합니다. 이후 Wander()는 기본 wanderRadius 방식으로 동작합니다.
+        /// </summary>
+        public void ClearWanderBounds()
+        {
+            hasBounds = false;
+        }
+
+        /// <summary>
+        /// 지정한 위치로 걷기 속도로 이동합니다. (일회성 — 지속 추적 아님)
+        /// 시설 근처로 걸어가 작업할 때 사용합니다.
+        /// </summary>
+        /// <param name="destination">이동 목표 지점.</param>
+        /// <param name="stopDistance">
+        /// 목표에서 이만큼 앞에서 정지합니다. 음수면 기본값(DefaultStoppingDistance)을 사용합니다.
+        /// 시설 칸 "안"까지 들어가야 할 때는 0에 가까운 값을 넘기세요.
+        /// </param>
+        public void MoveTo(Vector3 destination, float stopDistance = -1f)
+        {
+            if (agent == null || !agent.isOnNavMesh) return;
+
+            currentMode = MovementMode.None; // Update의 지속 재추적 로직이 개입하지 않도록
+            agent.speed = walkSpeed;
+            agent.stoppingDistance = stopDistance < 0f ? DefaultStoppingDistance : stopDistance;
+            agent.isStopped = false;
+
+            if (NavMesh.SamplePosition(destination, out NavMeshHit hit, 3f, DestinationAreaMask))
+                agent.SetDestination(hit.position);
+            else
+                agent.SetDestination(destination);
         }
 
         /// <summary>
@@ -169,6 +374,7 @@ namespace MemSystem.Movement
             currentMode = MovementMode.Chase;
             chaseTarget = target;
             agent.speed = runSpeed;
+            agent.stoppingDistance = DefaultStoppingDistance;
             agent.isStopped = false;
 
             RandomizeStaggerOffset();
@@ -189,6 +395,7 @@ namespace MemSystem.Movement
             currentMode = MovementMode.Flee;
             fleeSourcePosition = sourcePos;
             agent.speed = runSpeed;
+            agent.stoppingDistance = DefaultStoppingDistance;
             agent.isStopped = false;
 
             RandomizeStaggerOffset();
