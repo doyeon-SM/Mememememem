@@ -156,6 +156,47 @@ public class WayPointMapButtonView : MonoBehaviour
         {
             button = GetComponentInChildren<Button>(true);
         }
+
+        ConfigureRaycastTargets();
+    }
+
+    // 실제 클릭은 FillBG (1)의 Button만 받게 하고 나머지 장식 Graphic은
+    // 포인터를 가로채지 않도록 한다. 버튼의 형제 순서가 바뀐 기존 런타임
+    // 인스턴스도 프리팹의 원래 순서(가장 앞에 렌더링)로 복구한다.
+    private void ConfigureRaycastTargets()
+    {
+        if (fillBackground != null)
+        {
+            fillBackground.raycastTarget = false;
+        }
+
+        if (outline != null)
+        {
+            outline.raycastTarget = false;
+        }
+
+        if (stageNameText != null)
+        {
+            stageNameText.raycastTarget = false;
+        }
+
+        if (stageIcon != null)
+        {
+            stageIcon.raycastTarget = false;
+        }
+
+        if (lockOverlay == null)
+        {
+            return;
+        }
+
+        lockOverlay.raycastTarget = true;
+        lockOverlay.transform.SetAsLastSibling();
+
+        if (button != null)
+        {
+            button.targetGraphic = lockOverlay;
+        }
     }
 
     private static T FindDirectChildComponent<T>(Transform root, string childName)

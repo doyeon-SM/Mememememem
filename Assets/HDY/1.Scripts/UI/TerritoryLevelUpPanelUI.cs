@@ -27,9 +27,9 @@ namespace HDY.UI
     /// [이미지] iconImage는 코드에서 스프라이트를 바꾸지 않는다 - 인스펙터에 미리 설정해둔 단일
     /// 고정 이미지를 그대로 사용한다(레벨 공통 이미지 1개, 요청하신 방식).
     ///
-    /// [사운드 - 임시 재사용] KMS Audio 시스템(KMSAudioService.Play2D)을 그대로 사용하되, 레벨업
-    /// 전용 GameSfxId가 아직 없어서 우선 GameSfxId.CaptureSuccess를 임시로 재사용한다. 이후 KMS쪽에
-    /// 레벨업 전용 사운드가 크로스팀으로 추가되면 아래 Show()의 Play2D 호출 한 줄만 교체하면 된다.
+    /// [사운드 - HDY 요청] KMS Audio 시스템(KMSAudioService.Play2D)의 영지 레벨업 전용 GameSfxId인
+    /// GameSfxId.TerritoryLevelUp을 재생한다. 예전에는 전용 ID가 없어 GameSfxId.CaptureSuccess를
+    /// 임시로 재사용했으나, KMS 쪽에 전용 ID가 크로스팀으로 추가되어 이 줄만 교체했다.
     ///
     /// [참조 확보 - EnsureReferences 패턴] territoryData는 Awake뿐 아니라 OnEnable에서도 다시 확보를
     /// 시도한다(TerritoryData.Resolve(existing) - 이미 있으면 그대로, 없으면 싱글톤 Instance, 그래도
@@ -126,8 +126,8 @@ namespace HDY.UI
 
             SetVisible(true);
 
-            // KMS Audio 재사용 - 레벨업 전용 사운드가 생기면 GameSfxId.CaptureSuccess만 교체.
-            KMSAudioService.Play2D(GameSfxId.CaptureSuccess);
+            // [HDY 요청 - 사운드] 영지 레벨업 전용 효과음.
+            KMSAudioService.Play2D(GameSfxId.TerritoryLevelUp);
 
             if (autoHideRoutine != null)
             {

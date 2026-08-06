@@ -199,7 +199,7 @@ public static class KMSPlayerUguiHudMigration
         SetRect((RectTransform)inventoryButton.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(105f, -36f), new Vector2(90f, 50f));
         SetRect((RectTransform)mapButton.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(202f, -36f), new Vector2(90f, 50f));
 
-        goldText = CreateText("GoldText", panel.rectTransform, "Gold: 0 ", 14f, TextAlignmentOptions.MidlineRight, Color.white, FontStyles.Bold);
+        goldText = CreateText("GoldText", panel.rectTransform, "0", 14f, TextAlignmentOptions.MidlineRight, Color.white, FontStyles.Bold);
         SetRect(goldText.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(8f, -92f), new Vector2(284f, 20f));
     }
 
