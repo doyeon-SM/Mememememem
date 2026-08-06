@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using GH.Loading;
 using KMS.InventoryDuped;
 using KMS.Harvesting;
 using UnityEngine;
@@ -47,7 +48,9 @@ namespace KMS
 
         private Vector3 deathPosition;
         private Vector3 respawnPosition;
+        private Vector3 sceneSpawnPosition;
         private Coroutine invulnerabilityCoroutine;
+        private LoadingManager subscribedLoadingManager;
 
         private void Reset()
         {
@@ -57,16 +60,24 @@ namespace KMS
         private void Awake()
         {
             ResolveReferences();
+            sceneSpawnPosition = transform.position;
         }
 
         private void OnEnable()
         {
             if (stats != null) stats.Died += HandleDied;
             if (hud != null) hud.RespawnRequested += Respawn;
+            BindLoadingManager();
         }
 
         private void Start()
         {
+            // Scene objects have their authored spawn position by Start. If the loading
+            // flow moves the player afterward, HandleLoadingCompleted records that actual
+            // scene-entry position instead.
+            sceneSpawnPosition = transform.position;
+            BindLoadingManager();
+
             // 저장 데이터 복원 등으로 이미 HP가 0인 상태에서 시작한 경우도 동일한 흐름으로 처리한다.
             if (stats != null && !stats.IsAlive) HandleDied();
         }
@@ -75,6 +86,7 @@ namespace KMS
         {
             if (stats != null) stats.Died -= HandleDied;
             if (hud != null) hud.RespawnRequested -= Respawn;
+            UnbindLoadingManager();
 
             if (invulnerabilityCoroutine != null)
             {
@@ -83,6 +95,34 @@ namespace KMS
             }
 
             if (stats != null) stats.SetInvulnerable(false);
+        }
+
+        private void BindLoadingManager()
+        {
+            LoadingManager manager = LoadingManager.Instance;
+            if (subscribedLoadingManager == manager) return;
+
+            UnbindLoadingManager();
+            subscribedLoadingManager = manager;
+            if (subscribedLoadingManager != null)
+            {
+                subscribedLoadingManager.LoadingCompleted += HandleLoadingCompleted;
+            }
+        }
+
+        private void UnbindLoadingManager()
+        {
+            if (subscribedLoadingManager != null)
+            {
+                subscribedLoadingManager.LoadingCompleted -= HandleLoadingCompleted;
+                subscribedLoadingManager = null;
+            }
+        }
+
+        private void HandleLoadingCompleted()
+        {
+            // Raised after LoadingManager places the player at the destination waypoint.
+            sceneSpawnPosition = transform.position;
         }
 
         private void ResolveReferences()
@@ -203,11 +243,11 @@ namespace KMS
         private Vector3 ResolveNearestActiveWayPointPosition(Vector3 origin)
         {
             WayPointManager manager = WayPointManager.Instance;
-            if (manager == null) return deathPosition;
+            if (manager == null) return sceneSpawnPosition;
 
             bool found = false;
             float nearestSqrDistance = float.PositiveInfinity;
-            Vector3 nearestPosition = deathPosition;
+            Vector3 nearestPosition = sceneSpawnPosition;
 
             foreach (WayPointRunTime state in manager.GetAllStates())
             {
@@ -226,7 +266,7 @@ namespace KMS
             if (!found)
             {
                 Debug.LogWarning(
-                    "[PlayerDeath] No active waypoint stone exists in the current scene. Falling back to the death position.",
+                    "[PlayerDeath] No active waypoint stone exists in the current scene. Falling back to the scene spawn position.",
                     this);
             }
 
