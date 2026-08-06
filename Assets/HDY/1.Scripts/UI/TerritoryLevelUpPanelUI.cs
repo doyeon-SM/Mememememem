@@ -24,12 +24,22 @@ namespace HDY.UI
     /// 동일한 문제라, 그 해결 방식을 그대로 가져와 CanvasGroup으로 화면 표시/입력만 껐다 켠다 - 오브젝트
     /// 자체는 항상 활성 상태로 유지되어 OnEnable의 구독이 끊기지 않는다.
     ///
+    /// [버그 수정 - 씬 입장 시 오작동 방지] _Kyusoo의 TerritoryRecordData.ApplyData()(세이브 데이터를
+    /// 씬에 적용하는 코드, 영지 씬에 들어올 때마다 실행됨)가 복원된 레벨 값으로 다른 UI(HUD 등)를 강제로
+    /// 갱신시키기 위해, 리플렉션으로 TerritoryData.OnLevelChanged를 저장/복원 시점마다 직접 재호출한다
+    /// (levelEvent?.DynamicInvoke(liveTerritoryData.Level)). 이 신호는 "진짜 레벨업"이 아니라 "복원
+    /// 알림"이라 실제로 레벨이 오르지 않았는데도 이 패널이 반응해서, 씬에 들어올 때마다 레벨업 팝업이
+    /// 뜨는 문제가 있었다. 저장/복원 로직(다른 팀 파일)은 건드리지 않고, 이 컴포넌트가 이번 활성화
+    /// 사이클에서 "처음 받는" OnLevelChanged 신호만 방어적으로 무시하는 방식으로 고쳤다 - 씬에 들어와
+    /// 구독을 걸자마자 오는 신호가 바로 그 복원 신호이기 때문이다. 그 이후에 오는 신호부터는 정상적으로
+    /// 진짜 레벨업으로 간주해 팝업을 띄운다(같은 씬에 머무는 동안 실제로 레벨업이 여러 번 일어나도 전부
+    /// 정상 반응 - 무시하는 건 재활성화 직후 딱 한 번뿐).
+    ///
     /// [이미지] iconImage는 코드에서 스프라이트를 바꾸지 않는다 - 인스펙터에 미리 설정해둔 단일
     /// 고정 이미지를 그대로 사용한다(레벨 공통 이미지 1개, 요청하신 방식).
     ///
     /// [사운드 - HDY 요청] KMS Audio 시스템(KMSAudioService.Play2D)의 영지 레벨업 전용 GameSfxId인
-    /// GameSfxId.TerritoryLevelUp을 재생한다. 예전에는 전용 ID가 없어 GameSfxId.CaptureSuccess를
-    /// 임시로 재사용했으나, KMS 쪽에 전용 ID가 크로스팀으로 추가되어 이 줄만 교체했다.
+    /// GameSfxId.TerritoryLevelUp을 재생한다.
     ///
     /// [참조 확보 - EnsureReferences 패턴] territoryData는 Awake뿐 아니라 OnEnable에서도 다시 확보를
     /// 시도한다(TerritoryData.Resolve(existing) - 이미 있으면 그대로, 없으면 싱글톤 Instance, 그래도
@@ -53,6 +63,10 @@ namespace HDY.UI
 
         private Coroutine autoHideRoutine;
         private CanvasGroup canvasGroup;
+
+        // [버그 수정 - 씬 입장 시 오작동 방지] 이번 활성화 사이클에서 OnLevelChanged를 아직 한 번도
+        // 받지 못했으면 true. 첫 신호는 세이브 복원 알림일 가능성이 높아 무시하고, 그 다음부터 반응한다.
+        private bool awaitingFirstLevelSignal;
 
         private void Awake()
         {
@@ -82,8 +96,13 @@ namespace HDY.UI
         {
             EnsureReferences();
 
+            // [버그 수정 - 씬 입장 시 오작동 방지] 다시 활성화될 때마다(=씬에 들어올 때마다) 리셋한다.
+            // 이번에 구독을 걸고 나서 처음 오는 OnLevelChanged 한 번은 무시한다.
+            awaitingFirstLevelSignal = true;
+
             if (territoryData != null)
             {
+                territoryData.OnLevelChanged -= HandleLevelChanged; // 중복 구독 방지
                 territoryData.OnLevelChanged += HandleLevelChanged;
             }
         }
@@ -113,6 +132,17 @@ namespace HDY.UI
 
         private void HandleLevelChanged(int level)
         {
+            // [버그 수정 - 씬 입장 시 오작동 방지] _Kyusoo의 TerritoryRecordData.ApplyData()가 세이브
+            // 데이터를 씬에 적용할 때마다(영지 씬에 들어올 때마다) 복원된 레벨로 이 이벤트를 리플렉션으로
+            // 강제 재호출한다 - 진짜 레벨업이 아니라 "복원 알림"이다. 이번 활성화 사이클에서 처음 받는
+            // 신호가 바로 그 복원 알림일 가능성이 높으므로, 팝업을 띄우지 않고 조용히 넘어간다.
+            // 그 다음부터 오는 신호는 실제 레벨업으로 간주해 정상적으로 팝업을 띄운다.
+            if (awaitingFirstLevelSignal)
+            {
+                awaitingFirstLevelSignal = false;
+                return;
+            }
+
             Show(level);
         }
 
