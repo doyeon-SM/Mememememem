@@ -36,7 +36,10 @@ public sealed class WorldItemPickupAttractor : MonoBehaviour
     private readonly List<Light> visualLights = new List<Light>(2);
     private readonly List<float> lightBaseIntensities = new List<float>(2);
     private readonly List<float> lightBaseRanges = new List<float>(2);
-    private readonly MaterialPropertyBlock propertyBlock = new MaterialPropertyBlock();
+    // MaterialPropertyBlock은 UnityEngine.Object가 아닌 네이티브 리소스 래퍼라서
+    // 에디터 핫 리로드/도메인 리로드 설정에 따라 기존 컴포넌트의 필드가 null로
+    // 복원될 수 있습니다. 사용 시점에 다시 만들 수 있도록 readonly로 두지 않습니다.
+    private MaterialPropertyBlock propertyBlock;
     private Vector3 pickupStartPosition;
     private Vector3 pickupStartScale;
     private float pickupStartDistance;
@@ -67,6 +70,7 @@ public sealed class WorldItemPickupAttractor : MonoBehaviour
 
     private void Awake()
     {
+        EnsurePropertyBlock();
         Bind(GetComponent<WorldItem>());
     }
 
@@ -313,6 +317,8 @@ public sealed class WorldItemPickupAttractor : MonoBehaviour
         strength = Mathf.Clamp01(strength);
         transform.localScale = pickupStartScale * Mathf.Lerp(endVisualScale, 1f, strength);
 
+        MaterialPropertyBlock block = EnsurePropertyBlock();
+
         if (visualRenderers.Count > 0)
         {
             for (int i = 0; i < visualRenderers.Count; i++)
@@ -329,11 +335,11 @@ public sealed class WorldItemPickupAttractor : MonoBehaviour
                     baseColor.g * strength,
                     baseColor.b * strength,
                     baseColor.a * strength);
-                propertyBlock.Clear();
-                renderer.GetPropertyBlock(propertyBlock);
-                propertyBlock.SetColor("_BaseColor", fadedColor);
-                propertyBlock.SetColor("_Color", fadedColor);
-                renderer.SetPropertyBlock(propertyBlock);
+                block.Clear();
+                renderer.GetPropertyBlock(block);
+                block.SetColor("_BaseColor", fadedColor);
+                block.SetColor("_Color", fadedColor);
+                renderer.SetPropertyBlock(block);
             }
         }
 
@@ -360,6 +366,16 @@ public sealed class WorldItemPickupAttractor : MonoBehaviour
         }
 
         FadeLights(strength);
+    }
+
+    private MaterialPropertyBlock EnsurePropertyBlock()
+    {
+        if (propertyBlock == null)
+        {
+            propertyBlock = new MaterialPropertyBlock();
+        }
+
+        return propertyBlock;
     }
 
     private void FadeLights(float strength)
