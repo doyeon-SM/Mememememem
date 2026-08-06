@@ -54,14 +54,14 @@ namespace GH.World
         [SerializeField] private Color dayFarFogColor =
             new Color(0.539f, 0.716f, 0.839f, 1f);
         [Min(0f)]
-        [SerializeField] private float dayFogStartDistance = 65f;
+        [SerializeField] private float dayFogStartDistance = 55f;
         [Min(0.01f)]
-        [SerializeField] private float dayFogEndDistance = 520f;
+        [SerializeField] private float dayFogEndDistance = 420f;
         [Range(0f, 1f)]
-        [SerializeField] private float dayFogMaxOpacity = 0.88f;
+        [SerializeField] private float dayFogMaxOpacity = 1f;
         [Tooltip("Values below 1 make daytime fog build up earlier in the middle distance.")]
         [Range(0.4f, 1.5f)]
-        [SerializeField] private float dayFogDistancePower = 0.78f;
+        [SerializeField] private float dayFogDistancePower = 0.65f;
 
         [Header("Night Fog")]
         [Tooltip("Color entering the nighttime fog.")]
@@ -74,14 +74,14 @@ namespace GH.World
         [SerializeField] private Color nightFarFogColor =
             new Color(0.0343f, 0.0666f, 0.159f, 1f);
         [Min(0f)]
-        [SerializeField] private float nightFogStartDistance = 50f;
+        [SerializeField] private float nightFogStartDistance = 40f;
         [Min(0.01f)]
-        [SerializeField] private float nightFogEndDistance = 400f;
+        [SerializeField] private float nightFogEndDistance = 300f;
         [Range(0f, 1f)]
-        [SerializeField] private float nightFogMaxOpacity = 0.92f;
+        [SerializeField] private float nightFogMaxOpacity = 1f;
         [Tooltip("Values below 1 make nighttime fog build up earlier in the middle distance.")]
         [Range(0.4f, 1.5f)]
-        [SerializeField] private float nightFogDistancePower = 0.72f;
+        [SerializeField] private float nightFogDistancePower = 0.55f;
 
         [Header("Gradient Shape")]
         [Tooltip("Normalized fog distance where the middle color is strongest.")]

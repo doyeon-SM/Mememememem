@@ -104,12 +104,21 @@ Shader "Hidden/GH/Distance Gradient Fog"
                     }
                 #endif
 
-                float eyeDepth = LinearEyeDepth(rawDepth, _ZBufferParams);
+                // World-space distance keeps the fog boundary spherical around
+                // the camera. LinearEyeDepth alone measures only view-space Z,
+                // which made geometry near the screen edges receive less fog.
+                float3 sceneWorldPosition = ComputeWorldSpacePosition(
+                    uv,
+                    rawDepth,
+                    UNITY_MATRIX_I_VP);
+                float sceneDistance = distance(
+                    sceneWorldPosition,
+                    _WorldSpaceCameraPos);
                 float fogRange = max(
                     0.01,
                     _GHFogEndDistance - _GHFogStartDistance);
                 float fogDistance = saturate(
-                    (eyeDepth - _GHFogStartDistance) / fogRange);
+                    (sceneDistance - _GHFogStartDistance) / fogRange);
                 fogDistance = pow(
                     max(fogDistance, 0.00001),
                     clamp(_GHFogDistancePower, 0.4, 1.5));

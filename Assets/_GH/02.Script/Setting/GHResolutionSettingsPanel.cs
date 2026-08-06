@@ -26,17 +26,20 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
     {
         [Min(0f)] public float detailDistance;
         [Min(0f)] public float treeDistance;
+        [Min(0)] public int maxMeshTrees;
         [Range(0f, 100f)] public float detailDensityPercent;
         [Min(0)] public int activeRange;
 
         public TerrainQualityPreset(
             float newDetailDistance,
             float newTreeDistance,
+            int newMaxMeshTrees,
             float newDetailDensityPercent,
             int newActiveRange)
         {
             detailDistance = newDetailDistance;
             treeDistance = newTreeDistance;
+            maxMeshTrees = newMaxMeshTrees;
             detailDensityPercent = newDetailDensityPercent;
             activeRange = newActiveRange;
         }
@@ -45,6 +48,7 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
         {
             detailDistance = Mathf.Max(0f, detailDistance);
             treeDistance = Mathf.Max(0f, treeDistance);
+            maxMeshTrees = Mathf.Max(0, maxMeshTrees);
             detailDensityPercent = Mathf.Clamp(detailDensityPercent, 0f, 100f);
             activeRange = Mathf.Max(0, activeRange);
         }
@@ -60,6 +64,7 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
     private const string TerrainQualityPreferenceKey = "GH.Graphics.TerrainQuality";
     private const string DetailDistancePreferenceKey = "GH.Graphics.DetailDistance";
     private const string TreeDistancePreferenceKey = "GH.Graphics.TreeDistance";
+    private const string MaxMeshTreesPreferenceKey = "GH.Graphics.MaxMeshTrees";
     private const string DetailDensityPreferenceKey = "GH.Graphics.DetailDensity";
     private const string ChunkActiveRangePreferenceKey = "GH.Graphics.ChunkActiveRange";
     private const int DefaultResolutionWidth = 1920;
@@ -90,13 +95,13 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
     [Header("Terrain And Chunk Quality Presets")]
     [InspectorName("하")]
     [SerializeField] private TerrainQualityPreset lowTerrainQuality =
-        new TerrainQualityPreset(75f, 100f, 50f, 1);
+        new TerrainQualityPreset(75f, 100f, 400, 50f, 1);
     [InspectorName("중")]
     [SerializeField] private TerrainQualityPreset mediumTerrainQuality =
-        new TerrainQualityPreset(125f, 175f, 75f, 1);
+        new TerrainQualityPreset(125f, 175f, 750, 75f, 1);
     [InspectorName("상")]
     [SerializeField] private TerrainQualityPreset highTerrainQuality =
-        new TerrainQualityPreset(225f, 325f, 100f, 2);
+        new TerrainQualityPreset(225f, 325f, 1250, 100f, 2);
 
     [Header("Generated UI References")]
     [SerializeField] private RectTransform runtimeUiRoot;
@@ -1204,12 +1209,14 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
         ApplyTerrainAndChunkValues(
             preset.detailDistance,
             preset.treeDistance,
+            preset.maxMeshTrees,
             preset.detailDensityPercent,
             preset.activeRange);
 
         PlayerPrefs.SetInt(TerrainQualityPreferenceKey, selectedTerrainQualityIndex);
         PlayerPrefs.SetFloat(DetailDistancePreferenceKey, preset.detailDistance);
         PlayerPrefs.SetFloat(TreeDistancePreferenceKey, preset.treeDistance);
+        PlayerPrefs.SetInt(MaxMeshTreesPreferenceKey, preset.maxMeshTrees);
         PlayerPrefs.SetFloat(DetailDensityPreferenceKey, preset.detailDensityPercent);
         PlayerPrefs.SetInt(ChunkActiveRangePreferenceKey, preset.activeRange);
     }
@@ -1230,6 +1237,7 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
     private static void ApplyTerrainAndChunkValues(
         float detailDistance,
         float treeDistance,
+        int maxMeshTrees,
         float detailDensityPercent,
         int activeRange)
     {
@@ -1248,8 +1256,13 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
 
             terrain.detailObjectDistance = Mathf.Max(0f, detailDistance);
             terrain.treeDistance = Mathf.Max(0f, treeDistance);
+            terrain.treeMaximumFullLODCount = Mathf.Max(0, maxMeshTrees);
             terrain.detailObjectDensity = density;
         }
+
+        // Terrain Tree Distance와 카메라의 Tree 레이어 컬링 거리를 항상
+        // 동일하게 유지해 높은 프리셋이 카메라 컬링에 다시 잘리지 않게 한다.
+        TreeDistanceCulling.ApplyTreeDistanceToAll(treeDistance);
 
         WorldChunkManager[] chunkManagers = FindObjectsByType<WorldChunkManager>(
             FindObjectsInactive.Include,
@@ -1271,12 +1284,26 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
             || !PlayerPrefs.HasKey(DetailDensityPreferenceKey)
             || !PlayerPrefs.HasKey(ChunkActiveRangePreferenceKey))
         {
+            // 최초 실행은 UI의 기본 선택인 '중' 프리셋을 적용한다.
+            ApplyTerrainAndChunkValues(125f, 175f, 750, 75f, 1);
             return;
         }
+
+        int terrainQualityIndex = Mathf.Clamp(
+            PlayerPrefs.GetInt(TerrainQualityPreferenceKey, 1),
+            0,
+            2);
+        int defaultMaxMeshTrees = terrainQualityIndex switch
+        {
+            0 => 400,
+            2 => 1250,
+            _ => 750
+        };
 
         ApplyTerrainAndChunkValues(
             PlayerPrefs.GetFloat(DetailDistancePreferenceKey),
             PlayerPrefs.GetFloat(TreeDistancePreferenceKey),
+            PlayerPrefs.GetInt(MaxMeshTreesPreferenceKey, defaultMaxMeshTrees),
             PlayerPrefs.GetFloat(DetailDensityPreferenceKey),
             PlayerPrefs.GetInt(ChunkActiveRangePreferenceKey));
     }
@@ -1560,17 +1587,17 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
     {
         if (lowTerrainQuality == null)
         {
-            lowTerrainQuality = new TerrainQualityPreset(75f, 100f, 50f, 1);
+            lowTerrainQuality = new TerrainQualityPreset(75f, 100f, 400, 50f, 1);
         }
 
         if (mediumTerrainQuality == null)
         {
-            mediumTerrainQuality = new TerrainQualityPreset(125f, 175f, 75f, 1);
+            mediumTerrainQuality = new TerrainQualityPreset(125f, 175f, 750, 75f, 1);
         }
 
         if (highTerrainQuality == null)
         {
-            highTerrainQuality = new TerrainQualityPreset(225f, 325f, 100f, 2);
+            highTerrainQuality = new TerrainQualityPreset(225f, 325f, 1250, 100f, 2);
         }
 
         lowTerrainQuality.ClampValues();
