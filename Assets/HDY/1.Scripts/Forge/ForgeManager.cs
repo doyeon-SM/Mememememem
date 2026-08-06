@@ -1,6 +1,7 @@
 using HDY.Item;
 using HDY.Territory;
 using HDY.Upgrade;
+using KMS.Audio;
 using KMS.InventoryDuped;
 using System.Collections.Generic;
 using UnityEngine;
@@ -121,6 +122,11 @@ namespace HDY.Forge
     /// 강화 개체(ForgeInstanceData) 생성/갱신을 담당한다.
     /// ForgeUI는 강화칸에 참조된 도구 1개(ItemStack, 실제로는 인벤토리/창고에 그대로 있는 원본 참조)를
     /// 넘겨 이 매니저를 호출하기만 하면 된다 - 슬롯을 옮기지 않고 그 자리에서 itemId만 갱신한다.
+    ///
+    /// [HDY 요청 - 사운드] 강화/승급 성공·실패와 연마·전승(둘 다 실패 개념이 없어 항상 성공 사운드) 모두
+    /// KMS의 KMSAudioService.Play2D(GameSfxId.ForgeEnhanceSuccess / ForgeEnhanceFailure)를 그대로
+    /// 재사용한다 - 요청상 승급/연마/전승은 강화와 "같은 성공 효과음"을 쓰면 되므로 별도 ID를 새로 만들지
+    /// 않았다.
     /// </summary>
     public class ForgeManager : MonoBehaviour
     {
@@ -383,6 +389,9 @@ namespace HDY.Forge
 
             ApplyInstanceToSlot(stack, instance);
 
+            // [HDY 요청 - 사운드] 강화 성공/실패 효과음.
+            KMSAudioService.Play2D(success ? GameSfxId.ForgeEnhanceSuccess : GameSfxId.ForgeEnhanceFailure);
+
             return new ForgeAttemptOutcome(
                 true,
                 success ? ForgeAttemptResult.Success : ForgeAttemptResult.Failure,
@@ -458,6 +467,9 @@ namespace HDY.Forge
             }
 
             ApplyInstanceToSlot(stack, instance);
+
+            // [HDY 요청 - 사운드] 승급도 강화와 같은 성공/실패 효과음을 재사용한다.
+            KMSAudioService.Play2D(success ? GameSfxId.ForgeEnhanceSuccess : GameSfxId.ForgeEnhanceFailure);
 
             return new ForgeAttemptOutcome(
                 true,
@@ -724,6 +736,10 @@ namespace HDY.Forge
             // 연마 정보 저장을 위한 이벤트 발행
             NotifyForgeDataChanged();
 
+            // [HDY 요청 - 사운드] 연마는 실패 개념이 없어(재료/골드만 충분하면 항상 진행) 강화 성공과
+            // 같은 효과음을 재생한다.
+            KMSAudioService.Play2D(GameSfxId.ForgeEnhanceSuccess);
+
             return new RefinementOutcome(true, RefinementFailReason.None, instance.RefinementSlots);
         }
 
@@ -793,6 +809,10 @@ namespace HDY.Forge
 
             // 전승시 이벤트 발행을 통해 데이터 저장
             NotifyForgeDataChanged();
+
+            // [HDY 요청 - 사운드] 전승도 실패 개념이 없어(조건 통과 시 항상 성공) 강화 성공과 같은
+            // 효과음을 재생한다.
+            KMSAudioService.Play2D(GameSfxId.ForgeEnhanceSuccess);
 
             return InheritanceOutcome.Success;
         }

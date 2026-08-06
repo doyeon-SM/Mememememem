@@ -5,6 +5,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using HDY.Territory;
+using KMS.Audio;
 
 using KmsPlayerInventory = KMS.InventoryDuped.PlayerInventory;
 
@@ -55,6 +56,8 @@ namespace HDY.Tutorial
     /// Instantiate한다(EnsureTutorialPanelSpawned 참고). 프리팹 내부의 TutorialDialogueUI/
     /// TutorialHighlightUI는 이미 자기 자신의 OnEnable에서 이 매니저에 스스로 등록하는 패턴이라,
     /// 이 매니저는 "심는 것"만 담당하면 되고 별도의 UI 연결 코드는 필요 없다.
+    ///
+    /// [사운드 - HDY 요청] 스텝(=퀘스트) 완료 시 KMSAudioService.Play2D(GameSfxId.QuestComplete)를 재생한다.
     /// </summary>
     public class TutorialManager : MonoBehaviour
     {
@@ -537,6 +540,9 @@ namespace HDY.Tutorial
             currentObjectiveProgressDebug.Clear();
 
             Debug.Log($"<color=lime>[TutorialManager]</color> 스텝 완료: {step.stepId}");
+
+            // [HDY 요청 - 사운드] 퀘스트(튜토리얼 스텝) 완료 효과음.
+            KMSAudioService.Play2D(GameSfxId.QuestComplete);
 
             TryActivateNextPendingStep();
         }
