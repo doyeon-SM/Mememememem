@@ -10025,6 +10025,10 @@ PrefabInstance:
       value: World1_Chest_15
       objectReference: {fileID: 0}
     - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
+      propertyPath: dropItem.Array.size
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
       propertyPath: dropItem.Array.data[0].itemId
       value: item_sandwich
       objectReference: {fileID: 0}
@@ -10033,12 +10037,20 @@ PrefabInstance:
       value: item_irongemstone
       objectReference: {fileID: 0}
     - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
+      propertyPath: dropItem.Array.data[2].itemId
+      value: tool_shabby_capsule
+      objectReference: {fileID: 0}
+    - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
       propertyPath: dropItem.Array.data[0].dropCount
       value: 5
       objectReference: {fileID: 0}
     - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
       propertyPath: dropItem.Array.data[1].dropCount
       value: 7
+      objectReference: {fileID: 0}
+    - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
+      propertyPath: dropItem.Array.data[2].dropCount
+      value: 4
       objectReference: {fileID: 0}
     - target: {fileID: 6200720779110778461, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
       propertyPath: m_LocalPosition.x
@@ -11476,6 +11488,10 @@ PrefabInstance:
       value: World1_Chest_10
       objectReference: {fileID: 0}
     - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
+      propertyPath: dropItem.Array.size
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
       propertyPath: dropItem.Array.data[0].itemId
       value: item_berry
       objectReference: {fileID: 0}
@@ -11484,12 +11500,20 @@ PrefabInstance:
       value: item_woodplank
       objectReference: {fileID: 0}
     - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
+      propertyPath: dropItem.Array.data[2].itemId
+      value: tool_shabby_capsule
+      objectReference: {fileID: 0}
+    - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
       propertyPath: dropItem.Array.data[0].dropCount
       value: 5
       objectReference: {fileID: 0}
     - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
       propertyPath: dropItem.Array.data[1].dropCount
       value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
+      propertyPath: dropItem.Array.data[2].dropCount
+      value: 2
       objectReference: {fileID: 0}
     - target: {fileID: 6200720779110778461, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
       propertyPath: m_LocalPosition.x
@@ -16441,6 +16465,10 @@ PrefabInstance:
       value: World1_Chest_3
       objectReference: {fileID: 0}
     - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
+      propertyPath: dropItem.Array.size
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
       propertyPath: dropItem.Array.data[0].itemId
       value: item_salad
       objectReference: {fileID: 0}
@@ -16449,12 +16477,20 @@ PrefabInstance:
       value: item_wood
       objectReference: {fileID: 0}
     - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
+      propertyPath: dropItem.Array.data[2].itemId
+      value: tool_shabby_capsule
+      objectReference: {fileID: 0}
+    - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
       propertyPath: dropItem.Array.data[0].dropCount
       value: 5
       objectReference: {fileID: 0}
     - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
       propertyPath: dropItem.Array.data[1].dropCount
       value: 10
+      objectReference: {fileID: 0}
+    - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
+      propertyPath: dropItem.Array.data[2].dropCount
+      value: 2
       objectReference: {fileID: 0}
     - target: {fileID: 6200720779110778461, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
       propertyPath: m_LocalPosition.x
@@ -22619,6 +22655,10 @@ PrefabInstance:
       value: World1_Chest_1
       objectReference: {fileID: 0}
     - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
+      propertyPath: dropItem.Array.size
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
       propertyPath: dropItem.Array.data[0].itemId
       value: item_berry
       objectReference: {fileID: 0}
@@ -22627,12 +22667,20 @@ PrefabInstance:
       value: item_wood
       objectReference: {fileID: 0}
     - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
+      propertyPath: dropItem.Array.data[2].itemId
+      value: tool_shabby_capsule
+      objectReference: {fileID: 0}
+    - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
       propertyPath: dropItem.Array.data[0].dropCount
       value: 10
       objectReference: {fileID: 0}
     - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
       propertyPath: dropItem.Array.data[1].dropCount
       value: 5
+      objectReference: {fileID: 0}
+    - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
+      propertyPath: dropItem.Array.data[2].dropCount
+      value: 2
       objectReference: {fileID: 0}
     - target: {fileID: 6200720779110778461, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
       propertyPath: m_LocalPosition.x
@@ -42926,6 +42974,10 @@ PrefabInstance:
       value: World1_Chest_13
       objectReference: {fileID: 0}
     - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
+      propertyPath: dropItem.Array.size
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
       propertyPath: dropItem.Array.data[0].itemId
       value: item_baseblueprint
       objectReference: {fileID: 0}
@@ -42934,12 +42986,20 @@ PrefabInstance:
       value: item_wood
       objectReference: {fileID: 0}
     - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
+      propertyPath: dropItem.Array.data[2].itemId
+      value: tool_shabby_capsule
+      objectReference: {fileID: 0}
+    - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
       propertyPath: dropItem.Array.data[0].dropCount
       value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
       propertyPath: dropItem.Array.data[1].dropCount
       value: 7
+      objectReference: {fileID: 0}
+    - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
+      propertyPath: dropItem.Array.data[2].dropCount
+      value: 2
       objectReference: {fileID: 0}
     - target: {fileID: 6200720779110778461, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
       propertyPath: m_LocalPosition.x
@@ -44534,6 +44594,10 @@ PrefabInstance:
       value: World1_Chest_20
       objectReference: {fileID: 0}
     - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
+      propertyPath: dropItem.Array.size
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
       propertyPath: dropItem.Array.data[0].itemId
       value: item_baseblueprint
       objectReference: {fileID: 0}
@@ -44542,12 +44606,20 @@ PrefabInstance:
       value: item_iron
       objectReference: {fileID: 0}
     - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
+      propertyPath: dropItem.Array.data[2].itemId
+      value: tool_shabby_capsule
+      objectReference: {fileID: 0}
+    - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
       propertyPath: dropItem.Array.data[0].dropCount
       value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
       propertyPath: dropItem.Array.data[1].dropCount
       value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
+      propertyPath: dropItem.Array.data[2].dropCount
+      value: 2
       objectReference: {fileID: 0}
     - target: {fileID: 6200720779110778461, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
       propertyPath: m_LocalScale.x

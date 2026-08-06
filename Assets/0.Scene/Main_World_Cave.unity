@@ -15155,7 +15155,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
       propertyPath: dropItem.Array.size
-      value: 2
+      value: 3
       objectReference: {fileID: 0}
     - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
       propertyPath: dropItem.Array.data[0].itemId
@@ -15164,6 +15164,10 @@ PrefabInstance:
     - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
       propertyPath: dropItem.Array.data[1].itemId
       value: item_irongemstone
+      objectReference: {fileID: 0}
+    - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
+      propertyPath: dropItem.Array.data[2].itemId
+      value: tool_shabby_capsule
       objectReference: {fileID: 0}
     - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
       propertyPath: dropItem.Array.data[0].maxDrop
@@ -15188,6 +15192,10 @@ PrefabInstance:
     - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
       propertyPath: dropItem.Array.data[1].dropCount
       value: 7
+      objectReference: {fileID: 0}
+    - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
+      propertyPath: dropItem.Array.data[2].dropCount
+      value: 4
       objectReference: {fileID: 0}
     - target: {fileID: 6200720779110778461, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
       propertyPath: m_LocalPosition.x
@@ -15443,7 +15451,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
       propertyPath: dropItem.Array.size
-      value: 2
+      value: 3
       objectReference: {fileID: 0}
     - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
       propertyPath: dropItem.Array.data[0].itemId
@@ -15454,12 +15462,20 @@ PrefabInstance:
       value: item_diamond
       objectReference: {fileID: 0}
     - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
+      propertyPath: dropItem.Array.data[2].itemId
+      value: tool_shabby_capsule
+      objectReference: {fileID: 0}
+    - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
       propertyPath: dropItem.Array.data[0].dropCount
       value: 5
       objectReference: {fileID: 0}
     - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
       propertyPath: dropItem.Array.data[1].dropCount
       value: 10
+      objectReference: {fileID: 0}
+    - target: {fileID: 1140000000000000001, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
+      propertyPath: dropItem.Array.data[2].dropCount
+      value: 4
       objectReference: {fileID: 0}
     - target: {fileID: 6200720779110778461, guid: c44e8b6a6da120f48a45c78d6eb0e3c5, type: 3}
       propertyPath: m_LocalPosition.x
