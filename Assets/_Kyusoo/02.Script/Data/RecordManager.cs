@@ -105,8 +105,11 @@ public class RecordManager : MonoBehaviour
             waypointInfo = new List<WaypointInfo>(),
             chestInfo = new List<ChestInfo>(),
             forgeInstanceDataList = new List<ForgeInstanceData>(),
-            hasSavedPlayerPos = false,
-            lastPlayerPos = null
+            playerPosDataList = new List<ScenePlayerPosData>
+            {
+                new ScenePlayerPosData { sceneName = "Main_World_3", lastPlayerPos = null, hasSavedPlayerPos = false },
+                new ScenePlayerPosData { sceneName = "Main_World_Cave", lastPlayerPos = null, hasSavedPlayerPos = false }
+            },
         };
 
         // 1. 인벤토리 기본 구조 (10x6 = 60 슬롯)
@@ -142,7 +145,7 @@ public class RecordManager : MonoBehaviour
         // 5. 시간 및 플레이어 스탯 기본값
         data.timeData = new GameTimeSaveData
         {
-            elapsedTime = 0f,
+            elapsedTime = 300f,
             lastSaveRealTimeKst = DateTime.UtcNow.ToString("o")
         };
 
@@ -160,7 +163,12 @@ public class RecordManager : MonoBehaviour
     public void SaveAllData()
     {
         if (IsLoadingData || IsSceneUnloading) return;
-
+        string currentScene = SceneManager.GetActiveScene().name.ToLower();
+        if (currentScene.Contains("title"))
+        {
+            Debug.LogWarning("<color=yellow>[RecordManager]</color> ⚠️ 타이틀 씬에서는 세이브 파일 덮어쓰기를 방지합니다.");
+            return;
+        }
         List<IRecord> subRecords = FindObjectsByType<MonoBehaviour>(FindObjectsInactive.Include, FindObjectsSortMode.None)
                                       .OfType<IRecord>()
                                       .ToList();
@@ -336,7 +344,7 @@ public class RecordManager : MonoBehaviour
                 StartCoroutine(SpawnWarehouseWanderersWithDelayRoutine());
             }
 
-            ResynchronizeLoadedSceneState(subRecords, saveData);
+            //ResynchronizeLoadedSceneState(subRecords, saveData);
 
             Debug.Log($"<color=lime>[RecordManager]</color> {sceneType} 환경 맞춤 데이터 완벽 복구 및 정산 완료!");
         }

@@ -212,7 +212,7 @@ public class TotalHungerManager : MonoBehaviour
         var productionFacilities = FindObjectsByType<ProductionFacilityRuntime>(FindObjectsSortMode.None);
         foreach (var facility in productionFacilities)
         {
-            if (facility == null || !facility.isProducing) continue;
+            if (facility == null || facility.DeployedMems == null || facility.DeployedMems.Count == 0) continue;
             ProcessFacilityMems(facility.DeployedMems, facility.DeployedMemEntries,
                 facility.StopWorkDueToStarvation, facility.CheckProductionCondition);
         }
@@ -221,7 +221,7 @@ public class TotalHungerManager : MonoBehaviour
         var craftingFacilities = FindObjectsByType<ProductionCraftRuntime>(FindObjectsSortMode.None);
         foreach (var craft in craftingFacilities)
         {
-            if (craft == null || !craft.isProducing) continue;
+            if (craft == null || craft.DeployedMems == null || craft.DeployedMems.Count == 0) continue;
             ProcessFacilityMems(craft.DeployedMems, craft.DeployedMemEntries,
                 craft.StopWorkDueToStarvation, craft.ResumeWorkAfterStarvation);
         }
@@ -230,7 +230,7 @@ public class TotalHungerManager : MonoBehaviour
         var generators = FindObjectsByType<GeneratorRuntime>(FindObjectsSortMode.None);
         foreach (var gen in generators)
         {
-            if (gen == null || !gen.isPowerGenerating) continue;
+            if (gen == null || gen.DeployedMems == null || gen.DeployedMems.Count == 0) continue;
             ProcessFacilityMems(gen.DeployedMems, gen.DeployedMemEntries,
                 gen.StopWorkDueToStarvation, gen.CheckPowerCondition);
         }
@@ -239,12 +239,12 @@ public class TotalHungerManager : MonoBehaviour
         var transportFacilities = FindObjectsByType<TransportRuntime>(FindObjectsSortMode.None);
         foreach (var trans in transportFacilities)
         {
-            if (trans == null || !trans.isWorking) continue;
+            if (trans == null || trans.DeployedMems == null || trans.DeployedMems.Count == 0) continue;
             ProcessFacilityMems(trans.DeployedMems, trans.DeployedMemEntries,
                 trans.StopWorkDueToStarvation, trans.CheckProductionCondition);
         }
 
-        // 5. 목장 시설 - 슬롯 단위로 개별 처리(다른 슬롯에 영향 없음, 슬롯당 멤 1마리라 순서 문제 없음)
+        // 5. 목장 시설
         var ranches = FindObjectsByType<RanchFacilityRuntime>(FindObjectsSortMode.None);
         foreach (var ranch in ranches)
         {
@@ -252,7 +252,7 @@ public class TotalHungerManager : MonoBehaviour
 
             foreach (var slot in ranch.Slots)
             {
-                if (slot == null || !slot.isUnlocked || !slot.isProducing) continue;
+                if (slot == null || !slot.isUnlocked) continue;
                 if (slot.deployedMem == null || slot.deployedMemEntry == null) continue;
 
                 bool changed = UpdateMemHunger(slot.deployedMem, slot.deployedMemEntry);
@@ -267,7 +267,7 @@ public class TotalHungerManager : MonoBehaviour
         var campFires = FindObjectsByType<CampFireRuntime>(FindObjectsSortMode.None);
         foreach (var cf in campFires)
         {
-            if (cf == null || !cf.isCooking) continue;
+            if (cf == null || cf.DeployedMems == null || cf.DeployedMems.Count == 0) continue;
             ProcessFacilityMems(cf.DeployedMems, cf.DeployedMemEntries,
                 cf.StopWorkDueToStarvation, cf.ResumeWorkAfterStarvation);
         }
@@ -276,7 +276,7 @@ public class TotalHungerManager : MonoBehaviour
         var kitchens = FindObjectsByType<KitchenRuntime>(FindObjectsSortMode.None);
         foreach (var k in kitchens)
         {
-            if (k == null || !k.isCooking) continue;
+            if (k == null || k.DeployedMems == null || k.DeployedMems.Count == 0) continue;
             ProcessFacilityMems(k.DeployedMems, k.DeployedMemEntries,
                 k.StopWorkDueToStarvation, k.ResumeWorkAfterStarvation);
         }
@@ -316,7 +316,7 @@ public class TotalHungerManager : MonoBehaviour
 
         // 이번 틱에 어떤 멤도 굶는 상태가 바뀌지 않았으면(계속 정상이거나 계속 굶는 중) 시설 상태를
         // 다시 건드릴 필요가 없다 - 이미 맞는 상태로 가동/정지 중이다.
-        if (!anyChanged) return;
+        //if (!anyChanged) return;
 
         if (anyStillStarving)
         {

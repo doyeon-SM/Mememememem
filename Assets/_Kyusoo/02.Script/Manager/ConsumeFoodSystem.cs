@@ -152,6 +152,8 @@ public class ConsumeFoodSystem : MonoBehaviour
     public void OnRightToLeftMove()
     {
         RefreshLegacyStarvationFlag();
+
+        TotalHungerManager.Instance?.ProcessPerMinuteConsumption();
     }
 
     /// <summary>플레이어가 음식을 창고(밥통)에서 가방으로 옮겼을 때 호출된다. 표시값만 갱신한다 - 이제

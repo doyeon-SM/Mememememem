@@ -1,10 +1,11 @@
 ﻿using System;
 using System.IO;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
 /// <summary>
-/// 탐험 씬(Main_World2 등)에서 플레이어(CharacterController)의 위치 좌표를 저장 및 복구
+/// 지정된 씬(Main_World_3, Main_World_Cave 등)별 플레이어(CharacterController) 위치 좌표를 저장 및 복구
 /// </summary>
 public class PlayerPosRecordData : MonoBehaviour, IRecord
 {
@@ -12,21 +13,13 @@ public class PlayerPosRecordData : MonoBehaviour, IRecord
     private bool hasValidKnownPosition = false;
     private CharacterController cachedController;
 
-    //private void OnEnable()
-    //{
-    //    // 씬 전환 감지 이벤트 등록
-    //    SceneManager.activeSceneChanged += OnActiveSceneChanged;
-    //}
-
-    //private void OnDisable()
-    //{
-    //    SceneManager.activeSceneChanged -= OnActiveSceneChanged;
-    //}
+    // 🌟 위치 저장 대상 씬 목록 (Territory는 제외)
+    private readonly List<string> targetScenes = new List<string> { "Main_World_3", "Main_World_Cave" };
 
     private void Update()
     {
-        // 탐험 씬일 때 플레이어의 좌표를 실시간 추적 및 캐싱
-        if (IsExplorationScene())
+        // 위치 저장 대상 씬일 때만 플레이어 좌표 실시간 추적
+        if (IsValidTargetScene(SceneManager.GetActiveScene().name))
         {
             if (cachedController == null)
             {
@@ -41,36 +34,35 @@ public class PlayerPosRecordData : MonoBehaviour, IRecord
         }
     }
 
-    ///// <summary>
-    ///// 씬이 변경되는 순간 호출 (이전 씬이 탐험 씬이었다면 캐싱된 위치 저장)
-    ///// </summary>
-    //private void OnActiveSceneChanged(Scene current, Scene next)
-    //{
-    //    if (current.name.ToLower().Contains("main_world") && hasValidKnownPosition)
-    //    {
-    //        SaveDataWithCachedPosition(RecordManager.Instance?.SaveFilePath);
-    //        cachedController = null;
-    //        hasValidKnownPosition = false;
-    //    }
-    //}
-
     private void OnApplicationQuit()
     {
-        if (IsExplorationScene() && hasValidKnownPosition)
+        // 앱 종료 시점에 저장 대상 씬이면 위치 저장 수행
+        if (IsValidTargetScene(SceneManager.GetActiveScene().name) && hasValidKnownPosition)
         {
-            SaveDataWithCachedPosition(RecordManager.Instance?.SaveFilePath);
+            SaveData(RecordManager.Instance?.SaveFilePath);
         }
     }
 
     public void InitDefaultData(ref SaveData saveData)
     {
-        saveData.lastPlayerPos = null;
-        saveData.hasSavedPlayerPos = false;
+        saveData.playerPosDataList = new List<ScenePlayerPosData>();
+
+        foreach (string sceneName in targetScenes)
+        {
+            saveData.playerPosDataList.Add(new ScenePlayerPosData
+            {
+                sceneName = sceneName,
+                lastPlayerPos = null,
+                hasSavedPlayerPos = false
+            });
+        }
     }
 
     public void SaveData(string saveFilePath)
     {
-        if (string.IsNullOrEmpty(saveFilePath) || !IsExplorationScene()) return;
+        string currentSceneName = SceneManager.GetActiveScene().name;
+
+        if (string.IsNullOrEmpty(saveFilePath) || !IsValidTargetScene(currentSceneName)) return;
 
         if (cachedController == null)
         {
@@ -83,36 +75,52 @@ public class PlayerPosRecordData : MonoBehaviour, IRecord
             hasValidKnownPosition = true;
         }
 
-        if (hasValidKnownPosition)
-        {
-            SaveDataWithCachedPosition(saveFilePath);
-        }
-    }
-
-    private void SaveDataWithCachedPosition(string saveFilePath)
-    {
-        if (string.IsNullOrEmpty(saveFilePath)) return;
+        if (!hasValidKnownPosition) return;
 
         SaveData currentData = RecordManager.Instance?.ReadRawSaveFileOnly();
         if (currentData == null) currentData = new SaveData();
 
-        currentData.lastPlayerPos = new Vector3Data(lastKnownPosition);
-        currentData.hasSavedPlayerPos = true;
+        if (currentData.playerPosDataList == null)
+        {
+            currentData.playerPosDataList = new List<ScenePlayerPosData>();
+        }
+
+        ScenePlayerPosData targetPosData = currentData.playerPosDataList.Find(
+            x => string.Equals(x.sceneName, currentSceneName, StringComparison.OrdinalIgnoreCase));
+
+        if (targetPosData == null)
+        {
+            targetPosData = new ScenePlayerPosData { sceneName = currentSceneName };
+            currentData.playerPosDataList.Add(targetPosData);
+        }
+
+        targetPosData.lastPlayerPos = new Vector3Data(lastKnownPosition);
+        targetPosData.hasSavedPlayerPos = true;
         currentData.lastSaveTime = DateTime.UtcNow.ToString("o");
 
         File.WriteAllText(saveFilePath, JsonUtility.ToJson(currentData, true));
-        Debug.Log($"<color=lime>[PlayerPosRecordData]</color> 📍 탐험 씬 플레이어 좌표 저장 완료: {lastKnownPosition}");
+        Debug.Log($"<color=lime>[PlayerPosRecordData]</color> 📍 [{currentSceneName}] 플레이어 좌표 저장 완료: {lastKnownPosition}");
     }
 
     public void ApplyData(SaveData saveData, SceneType sceneType)
     {
-        if (sceneType != SceneType.Exploration) return;
-        if (saveData == null || !saveData.hasSavedPlayerPos || saveData.lastPlayerPos == null) return;
+        if (saveData == null || saveData.playerPosDataList == null) return;
+
+        string currentSceneName = SceneManager.GetActiveScene().name;
+
+        ScenePlayerPosData targetPosData = saveData.playerPosDataList.Find(
+            x => string.Equals(x.sceneName, currentSceneName, StringComparison.OrdinalIgnoreCase));
+
+        if (targetPosData == null || !targetPosData.hasSavedPlayerPos || targetPosData.lastPlayerPos == null)
+        {
+            Debug.Log($"[PlayerPosRecordData] [{currentSceneName}] 저장된 위치 데이터가 없어 좌표 복구를 건너땁니다.");
+            return;
+        }
 
         CharacterController controller = FindFirstObjectByType<CharacterController>();
         if (controller != null)
         {
-            Vector3 targetPosition = saveData.lastPlayerPos.ToVector3();
+            Vector3 targetPosition = targetPosData.lastPlayerPos.ToVector3();
 
             controller.enabled = false;
             controller.transform.position = targetPosition;
@@ -122,15 +130,24 @@ public class PlayerPosRecordData : MonoBehaviour, IRecord
             hasValidKnownPosition = true;
             cachedController = controller;
 
-        }
-        else
-        {
+            Debug.Log($"<color=cyan>[PlayerPosRecordData]</color> 📍 [{currentSceneName}] 플레이어 위치 복구 완료: {targetPosition}");
         }
     }
 
-    private bool IsExplorationScene()
+    /// <summary>
+    /// 저장 대상 씬(Main_World_3, Main_World_Cave 등)인지 검사 (Territory 등은 false)
+    /// </summary>
+    private bool IsValidTargetScene(string sceneName)
     {
-        string sceneName = SceneManager.GetActiveScene().name.ToLower();
-        return sceneName.Contains("main_world");
+        if (string.IsNullOrEmpty(sceneName)) return false;
+
+        foreach (string target in targetScenes)
+        {
+            if (string.Equals(sceneName, target, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 }
