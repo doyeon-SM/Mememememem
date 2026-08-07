@@ -1,6 +1,7 @@
 ﻿using System;
 using UnityEngine;
 using UnityEngine.UI;
+using DG.Tweening;
 using GH.Loading;
 
 public class TitleMenuUI : MonoBehaviour
@@ -42,29 +43,44 @@ public class TitleMenuUI : MonoBehaviour
 
     private void BindButtonEvents()
     {
-        if (gameStartButton != null)
-        {
-            gameStartButton.onClick.RemoveAllListeners();
-            gameStartButton.onClick.AddListener(OnClickGameStart);
-        }
+        BindButton(gameStartButton, OnClickGameStart);
+        BindButton(newGameButton, OnClickNewGame);
+        BindButton(continueGameButton, OnClickContinue);
+        BindButton(resetButton, OnClickResetFirstLaunch);
+    }
 
-        if (newGameButton != null)
-        {
-            newGameButton.onClick.RemoveAllListeners();
-            newGameButton.onClick.AddListener(OnClickNewGame);
-        }
+    /// <summary>
+    /// 버튼 공통 바인딩 및 DOTween 클릭 팝업 연출 적용
+    /// </summary>
+    private void BindButton(Button button, Action action)
+    {
+        if (button == null) return;
 
-        if (continueGameButton != null)
-        {
-            continueGameButton.onClick.RemoveAllListeners();
-            continueGameButton.onClick.AddListener(OnClickContinue);
-        }
+        button.onClick.RemoveAllListeners();
+        button.onClick.AddListener(() => PlayButtonAnimationAndExecute(button, action));
+    }
 
-        if (resetButton != null)
+    /// <summary>
+    /// 버튼이 눌릴 때 꾹 눌렸다가 탄성 있게 튀어오르는 연출 후 액션 실행
+    /// </summary>
+    private void PlayButtonAnimationAndExecute(Button targetButton, Action action)
+    {
+        if (targetButton == null) return;
+
+        targetButton.interactable = false;
+
+        targetButton.transform.DOKill();
+
+        
+        Sequence seq = DOTween.Sequence().SetUpdate(true);
+        seq.Append(targetButton.transform.DOScale(0.9f, 0.08f).SetEase(Ease.OutQuad));   // 살짝 작아짐
+        seq.Append(targetButton.transform.DOScale(1.05f, 0.12f).SetEase(Ease.OutBack)); // 커지며 튀어오름
+        seq.Append(targetButton.transform.DOScale(1f, 0.08f).SetEase(Ease.OutQuad));     // 기본 크기로 복귀
+        seq.OnComplete(() =>
         {
-            resetButton.onClick.RemoveAllListeners();
-            resetButton.onClick.AddListener(OnClickResetFirstLaunch);
-        }
+            targetButton.interactable = true;
+            action?.Invoke(); 
+        });
     }
 
     public void OnClickGameStart()
