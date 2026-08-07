@@ -28,11 +28,12 @@ public static class ProductionCalculator
     }
 
     /// <summary>
-    /// 일반 시설(생산, 목장 등)의 레벨당 최대 멤 배치 수 (1레벨당 1슬롯, 최대 5개)
+    /// 일반 시설(생산, 목장 등)의 레벨당 최대 멤 배치 수 (1레벨 1개, 레벨업 시 +2개, 최대 5개)
     /// </summary>
     public static int GetMaxMemCount(int facilityLevel)
     {
-        return Mathf.Max(2, facilityLevel * 2);
+        int count = 1 + (facilityLevel - 1) * 2;
+        return Mathf.Clamp(count, 1, 5);
     }
 
     /// <summary>
