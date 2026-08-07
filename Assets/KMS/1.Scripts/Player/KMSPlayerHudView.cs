@@ -337,11 +337,16 @@ namespace KMS
             if (label != null) label.text = $"{Mathf.CeilToInt(current)}/{Mathf.CeilToInt(max)}";
         }
 
+        // [HDY 요청 - KMS 승인 - 음식 큐 통합] KMSFoodEffectController가 효과 없는(포만감만) 음식과
+        // 효과 있는 음식을 하나의 큐(FoodSegments)로 통합했다. 위치 계산(cursor)은 큐의 모든 세그먼트에
+        // 대해 실제 취식 순서 그대로 진행해야 뒤 세그먼트 위치가 정확하지만, 화면에 색 오버레이를 그리는
+        // 것은 기존과 동일하게 실제 게임플레이 효과가 있는 세그먼트만으로 유지한다(효과 없는 세그먼트는
+        // 오버레이 없이 기본 배고픔 바 색 그대로 노출된다).
         private void RenderHungerEffectSegments(
             KMSFoodEffectController foodEffects,
             float maxHunger)
         {
-            int requiredCount = foodEffects != null ? foodEffects.EffectSegments.Count : 0;
+            int requiredCount = foodEffects != null ? foodEffects.FoodSegments.Count : 0;
             EnsureHungerEffectSegmentCount(requiredCount);
 
             float cursor = 0f;
@@ -356,7 +361,7 @@ namespace KMS
                     continue;
                 }
 
-                KMSFoodEffectSegment segment = foodEffects.EffectSegments[i];
+                KMSFoodEffectSegment segment = foodEffects.FoodSegments[i];
                 if (segment == null || segment.RemainingSatiety <= 0f)
                 {
                     image.gameObject.SetActive(false);
@@ -366,6 +371,13 @@ namespace KMS
                 float start = Mathf.Clamp01(cursor / maxHunger);
                 cursor += segment.RemainingSatiety;
                 float end = Mathf.Clamp01(cursor / maxHunger);
+
+                if (segment.Effects.Count == 0)
+                {
+                    // 효과 없는(포만감만) 세그먼트: cursor는 이미 전진했으므로 뒤 세그먼트 위치는 정확하다.
+                    image.gameObject.SetActive(false);
+                    continue;
+                }
 
                 RectTransform rect = image.rectTransform;
                 rect.anchorMin = new Vector2(start, 0f);

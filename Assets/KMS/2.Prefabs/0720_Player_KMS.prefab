@@ -2942,8 +2942,8 @@ MonoBehaviour:
   rotationTransform: {fileID: 9028560332686509555}
   animator: {fileID: 1914156871709254916}
   directionMode: 2
-  moveSpeed: 4
-  sprintSpeed: 6
+  moveSpeed: 5
+  sprintSpeed: 8
   acceleration: 18
   deceleration: 22
   rotationSmoothTime: 0.08
@@ -2961,9 +2961,9 @@ MonoBehaviour:
     m_Bits: 247
   groundedOffset: -0.12
   groundedRadius: 0.28
-  moveHungerCostPerSecond: 0.1
-  jumpHungerCost: 0.8
-  sprintHungerCostPerSecond: 0.6
+  moveHungerCostPerSecond: 0
+  jumpHungerCost: 1
+  sprintHungerCostPerSecond: 0.25
   externalForceDecay: 8
   ladderClimbSpeed: 3
   ladderSlideDownSpeed: 1.2
@@ -3138,9 +3138,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::KMS.PlayerHungerHealthRecovery
   stats: {fileID: 4191295553828768883}
   recoveryDelayAfterDamage: 1
-  recoveryInterval: 1
-  healthPerTick: 5
-  hungerCostPerTick: 5
+  recoveryInterval: 4
+  healthPerTick: 20
+  hungerCostPerTick: 10
   logRecovery: 0
 --- !u!114 &5163941127334908272
 MonoBehaviour:
@@ -3174,6 +3174,7 @@ MonoBehaviour:
     m_Bits: 4294967295
   fallbackReleaseNormalizedTime: 0.2
   aimRotationSpeed: 720
+  maxThrowDuration: 2.5
 --- !u!114 &8642937105823619041
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3363,8 +3364,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::KMS.KMSFoodEffectController
   stats: {fileID: 4191295553828768883}
-  normalSatiety: 0
-  effectSegments: []
+  segments: []
 --- !u!114 &6812409213719045063
 MonoBehaviour:
   m_ObjectHideFlags: 0
