@@ -974,8 +974,8 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 1740903593062605000}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 1, y: 0}
-  m_AnchorMax: {x: 1, y: 1}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 15, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
@@ -1624,7 +1624,7 @@ RectTransform:
   m_Father: {fileID: 3870532705337960764}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 1, y: 1}
+  m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
@@ -3165,8 +3165,8 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 9179545799511018212}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 1, y: 0}
-  m_AnchorMax: {x: 1, y: 1}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 15, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
@@ -3845,8 +3845,8 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 2786719243390452408}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 1, y: 0}
-  m_AnchorMax: {x: 1, y: 1}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 15, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
@@ -4496,7 +4496,7 @@ RectTransform:
   m_Father: {fileID: 1623504268255866182}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 1, y: 1}
+  m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
@@ -6007,22 +6007,22 @@ MonoBehaviour:
   textColor: {r: 0.95, g: 0.98, b: 1, a: 1}
   lowTerrainQuality:
     detailDistance: 75
-    treeDistance: 100
-    maxMeshTrees: 400
+    treeDistance: 175
+    maxMeshTrees: 1000
     detailDensityPercent: 50
     activeRange: 1
   mediumTerrainQuality:
-    detailDistance: 125
-    treeDistance: 175
-    maxMeshTrees: 750
-    detailDensityPercent: 75
-    activeRange: 1
-  highTerrainQuality:
     detailDistance: 225
     treeDistance: 325
-    maxMeshTrees: 1250
-    detailDensityPercent: 100
+    maxMeshTrees: 2000
+    detailDensityPercent: 75
     activeRange: 2
+  highTerrainQuality:
+    detailDistance: 375
+    treeDistance: 475
+    maxMeshTrees: 3000
+    detailDensityPercent: 100
+    activeRange: 3
   runtimeUiRoot: {fileID: 6961394401694589904}
   previousButton: {fileID: 6834627444687670488}
   nextButton: {fileID: 6977226134878859043}
@@ -6300,7 +6300,7 @@ RectTransform:
   m_Father: {fileID: 3331288808564651057}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 1, y: 1}
+  m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
