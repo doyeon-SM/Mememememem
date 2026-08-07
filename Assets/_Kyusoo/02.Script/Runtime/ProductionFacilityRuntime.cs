@@ -6,6 +6,7 @@ using HDY.Recipe;
 using MemSystem.Data;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 public class ProductionFacilityRuntime : MonoBehaviour
@@ -139,13 +140,15 @@ public class ProductionFacilityRuntime : MonoBehaviour
             }
         }
 
-        if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
+        bool isAnyMemStarving = DeployedMemEntries.Any(e => e != null && (e.IsStarving || e.CurrentHunger <= 0));
+
+        if (!isAnyMemStarving)
         {
             SetProducingActive(true);
         }
         else
         {
-            isProducing = false;
+            SetProducingActive(false);
         }
     }
 

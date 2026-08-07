@@ -349,4 +349,99 @@ public class TotalHungerManager : MonoBehaviour
 
         return wasStarving != entry.IsStarving;
     }
+
+    public void RetryStarvingMemsFeeding()
+    {
+        if (ConsumeFoodSystem.Instance == null) return;
+
+        var productionFacilities = FindObjectsByType<ProductionFacilityRuntime>(FindObjectsSortMode.None);
+        foreach (var facility in productionFacilities)
+        {
+            if (facility == null) continue;
+            RetryFeedingForFacility(facility.DeployedMems, facility.DeployedMemEntries, facility.CheckProductionCondition);
+        }
+
+        var craftingFacilities = FindObjectsByType<ProductionCraftRuntime>(FindObjectsSortMode.None);
+        foreach (var craft in craftingFacilities)
+        {
+            if (craft == null) continue;
+            RetryFeedingForFacility(craft.DeployedMems, craft.DeployedMemEntries, craft.ResumeWorkAfterStarvation);
+        }
+
+        var generators = FindObjectsByType<GeneratorRuntime>(FindObjectsSortMode.None);
+        foreach (var gen in generators)
+        {
+            if (gen == null) continue;
+            RetryFeedingForFacility(gen.DeployedMems, gen.DeployedMemEntries, gen.CheckPowerCondition);
+        }
+
+        var transportFacilities = FindObjectsByType<TransportRuntime>(FindObjectsSortMode.None);
+        foreach (var trans in transportFacilities)
+        {
+            if (trans == null) continue;
+            RetryFeedingForFacility(trans.DeployedMems, trans.DeployedMemEntries, trans.CheckProductionCondition);
+        }
+
+        var ranches = FindObjectsByType<RanchFacilityRuntime>(FindObjectsSortMode.None);
+        foreach (var ranch in ranches)
+        {
+            if (ranch == null || ranch.Slots == null) continue;
+            foreach (var slot in ranch.Slots)
+            {
+                if (slot != null && slot.isUnlocked && slot.deployedMem != null && slot.deployedMemEntry != null && slot.deployedMemEntry.IsStarving)
+                {
+                    bool fed = ConsumeFoodSystem.Instance.TryFeedMem(slot.deployedMemEntry, slot.deployedMem.maxHunger);
+                    if (fed)
+                    {
+                        slot.deployedMemEntry.IsStarving = false;
+                        ranch.SetSlotStarvationState(slot.deployedMemEntry, false);
+                    }
+                }
+            }
+        }
+
+        var campFires = FindObjectsByType<CampFireRuntime>(FindObjectsSortMode.None);
+        foreach (var cf in campFires)
+        {
+            if (cf == null) continue;
+            RetryFeedingForFacility(cf.DeployedMems, cf.DeployedMemEntries, cf.ResumeWorkAfterStarvation);
+        }
+
+        var kitchens = FindObjectsByType<KitchenRuntime>(FindObjectsSortMode.None);
+        foreach (var k in kitchens)
+        {
+            if (k == null) continue;
+            RetryFeedingForFacility(k.DeployedMems, k.DeployedMemEntries, k.ResumeWorkAfterStarvation);
+        }
+    }
+
+    private void RetryFeedingForFacility(List<MemData> mems, List<CapturedMemEntry> entries, Action resumeCallback)
+    {
+        if (mems == null || entries == null) return;
+
+        int count = Mathf.Min(mems.Count, entries.Count);
+        bool anyResumed = false;
+
+        for (int i = 0; i < count; i++)
+        {
+            MemData mem = mems[i];
+            CapturedMemEntry entry = entries[i];
+
+            if (mem != null && entry != null && entry.IsStarving)
+            {
+                bool fed = ConsumeFoodSystem.Instance != null && ConsumeFoodSystem.Instance.TryFeedMem(entry, mem.maxHunger);
+                if (fed)
+                {
+                    entry.IsStarving = false;
+                    anyResumed = true;
+                }
+            }
+        }
+
+        if (anyResumed)
+        {
+            resumeCallback?.Invoke();
+        }
+    }
 }
+

@@ -7,6 +7,7 @@ using KMS.InventoryDuped;
 using MemSystem.Data;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 public class CampFireRuntime : MonoBehaviour
@@ -121,7 +122,9 @@ public class CampFireRuntime : MonoBehaviour
 
         totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, addMems);
 
-        if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
+        bool isAnyMemStarving = DeployedMemEntries.Any(e => e != null && (e.IsStarving || e.CurrentHunger <= 0));
+
+        if (!isAnyMemStarving)
         {
             SetCookingActive(true);
         }

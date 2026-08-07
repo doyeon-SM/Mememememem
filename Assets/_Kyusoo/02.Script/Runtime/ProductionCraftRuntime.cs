@@ -7,6 +7,7 @@ using KMS.InventoryDuped;
 using MemSystem.Data;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 public class ProductionCraftRuntime : MonoBehaviour
@@ -157,13 +158,15 @@ public class ProductionCraftRuntime : MonoBehaviour
             totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, addMems);
             currentProgressTime = totalRequiredTime * currentProgressPercent;
 
-            if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
+            bool isAnyMemStarving = DeployedMemEntries.Any(e => e != null && (e.IsStarving || e.CurrentHunger <= 0));
+
+            if (!isAnyMemStarving)
             {
                 SetProducingActive(true);
             }
             else
             {
-                isProducing = false;
+                SetProducingActive(false);
             }
         }
     }
