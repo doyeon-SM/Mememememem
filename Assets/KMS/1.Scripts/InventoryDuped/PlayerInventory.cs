@@ -17,18 +17,27 @@ public class ItemStack
     public string itemId;
     public int amount;
 
+    // [HDY 요청 - KMS 크로스 승인 - 내구도] 아이템 개체별 "현재" 내구도. ItemData.MaxDurability(카탈로그
+    // 기준값)와 달리 이건 슬롯(개체) 단위 값이다. -1 = 내구도 없는 아이템이거나 아직 초기화되지 않음
+    // (구버전 세이브 등). -1인데 실제로는 내구도가 있는 아이템이면, 처음 사용/조회되는 시점에 최대
+    // 내구도로 보정된다(DamageQuickSlotToolDurability 참고). MaxStack이 1인 아이템에만 의미가 있다 -
+    // 스택되는 아이템은 슬롯 하나가 여러 개체를 대표하므로 개별 내구도를 표현할 수 없다.
+    public int durability = -1;
+
     public bool IsEmpty => string.IsNullOrEmpty(itemId) || amount <= 0;
 
-    public void Set(string newItemId, int newAmount)
+    public void Set(string newItemId, int newAmount, int newDurability = -1)
     {
         itemId = newItemId;
         amount = newAmount;
+        durability = newDurability;
     }
 
     public void Clear()
     {
         itemId = null;
         amount = 0;
+        durability = -1;
     }
 }
 
@@ -195,7 +204,11 @@ public class PlayerInventory : MonoBehaviour
                 continue;
             }
 
-            target.slots[i].Set(data.slots[i].itemId, data.slots[i].amount);
+            // [HDY 요청 - KMS 크로스 승인 - 내구도] durability도 함께 복원한다. 필드가 없던 구버전
+            // 세이브는 역직렬화 시 ItemStack.durability가 기본값 -1로 남으므로, 여기서는 그 값을
+            // 그대로 넘기고(내구도 있는 아이템인지는 이 시점에 알 수 없음) 실제 최대치 보정은 처음
+            // 조회/사용되는 시점(DamageQuickSlotToolDurability 등)에 이루어진다.
+            target.slots[i].Set(data.slots[i].itemId, data.slots[i].amount, data.slots[i].durability);
         }
 
         if (savedCount > target.slots.Length)
@@ -410,7 +423,8 @@ public class PlayerInventory : MonoBehaviour
         if (slot == null || slot.IsEmpty || amount <= 0) return false;
 
         int takenAmount = Mathf.Min(amount, slot.amount);
-        takenStack = new ItemStack { itemId = slot.itemId, amount = takenAmount };
+        // [HDY 요청 - KMS 크로스 승인 - 내구도] 슬롯에서 떼어낸 새 스택에도 durability를 그대로 복사한다.
+        takenStack = new ItemStack { itemId = slot.itemId, amount = takenAmount, durability = slot.durability };
 
         slot.amount -= takenAmount;
         if (slot.amount <= 0) slot.Clear();
@@ -445,7 +459,8 @@ public class PlayerInventory : MonoBehaviour
         ItemStack slot = container.slots[index];
         if (slot == null || slot.IsEmpty) return false;
 
-        snapshot = new ItemStack { itemId = slot.itemId, amount = slot.amount };
+        // [HDY 요청 - KMS 크로스 승인 - 내구도] 스냅샷에도 durability를 그대로 복사한다(툴팁 등에서 사용 가능).
+        snapshot = new ItemStack { itemId = slot.itemId, amount = slot.amount, durability = slot.durability };
         return true;
     }
 
@@ -483,7 +498,8 @@ public class PlayerInventory : MonoBehaviour
         if (target.IsEmpty)
         {
             int placed = Mathf.Min(GetMaxStack(heldStack.itemId), requestedAmount);
-            target.Set(heldStack.itemId, placed);
+            // [HDY 요청 - KMS 크로스 승인 - 내구도] 빈 슬롯에 놓을 때 durability를 함께 넘긴다.
+            target.Set(heldStack.itemId, placed, heldStack.durability);
             heldStack.amount -= placed;
             if (heldStack.amount <= 0) heldStack.Clear();
 
@@ -509,8 +525,10 @@ public class PlayerInventory : MonoBehaviour
 
         string displacedItemId = target.itemId;
         int displacedAmount = target.amount;
-        target.Set(heldStack.itemId, heldStack.amount);
-        heldStack.Set(displacedItemId, displacedAmount);
+        // [HDY 요청 - KMS 크로스 승인 - 내구도] 교환 시 양쪽 durability를 서로 맞바꾼다.
+        int displacedDurability = target.durability;
+        target.Set(heldStack.itemId, heldStack.amount, heldStack.durability);
+        heldStack.Set(displacedItemId, displacedAmount, displacedDurability);
 
         NotifySlotChanged(group, index);
         return true;
@@ -713,6 +731,34 @@ public class PlayerInventory : MonoBehaviour
         return true;
     }
 
+    /// <summary>
+    /// [HDY 요청 - KMS 크로스 승인 - 내구도] 지정한 퀵슬롯 도구의 내구도를 1 감소시킨다.
+    /// expectedItemId가 현재 슬롯 내용과 일치하지 않으면(그 사이 슬롯이 바뀐 경우 등, 레이스 방지) 무시한다.
+    /// durability가 아직 초기화되지 않았으면(-1, 구버전 세이브 등) 먼저 maxDurability로 보정한 뒤 감소시킨다.
+    /// 감소 후 0 이하가 되면 도구가 파손되어 슬롯에서 사라진다(자동 소멸).
+    /// </summary>
+    public bool DamageQuickSlotToolDurability(int quickSlotIndex, string expectedItemId, int maxDurability)
+    {
+        if (!quickSlots.IsValidIndex(quickSlotIndex)) return false;
+
+        ItemStack slot = quickSlots.slots[quickSlotIndex];
+        if (slot == null || slot.IsEmpty || slot.itemId != expectedItemId) return false;
+
+        if (slot.durability < 0) slot.durability = maxDurability;
+
+        slot.durability = Mathf.Max(0, slot.durability - 1);
+
+        if (slot.durability <= 0)
+        {
+            slot.Clear();
+        }
+
+        OnQuickSlotChanged?.Invoke(quickSlotIndex);
+        NotifySelectedQuickSlotIfChanged(quickSlotIndex);
+
+        return true;
+    }
+
     // ID가 일치하는 아이템의 전체 수량 확인 (인벤토리 + 퀵슬롯)
     public int GetItemAmount(string itemId)
     {
@@ -822,6 +868,10 @@ public class PlayerInventory : MonoBehaviour
         int remaining = amount;
         int maxStack = Mathf.Max(1, item.MaxStack);
 
+        // [HDY 요청 - KMS 크로스 승인 - 내구도] 내구도가 있는 아이템(MaxDurability > 0)이면 새로 생기는
+        // 개체를 항상 최대 내구도로 초기화한다. 내구도 없는 일반 아이템은 -1(미사용) 그대로 둔다.
+        int initialDurability = item.MaxDurability > 0 ? item.MaxDurability : -1;
+
         for (int i = 0; i < container.slots.Length; i++)
         {
             if (IsContainerSlotLocked(container, i)) continue;
@@ -831,7 +881,7 @@ public class PlayerInventory : MonoBehaviour
             if (!slot.IsEmpty) continue;
 
             int added = Mathf.Min(maxStack, remaining);
-            slot.Set(item.Item_ID, added);
+            slot.Set(item.Item_ID, added, initialDurability);
             remaining -= added;
 
             if (remaining <= 0) break;
@@ -902,7 +952,8 @@ public class PlayerInventory : MonoBehaviour
         if (space <= 0) return;
 
         int placed = Mathf.Min(space, heldStack.amount);
-        if (target.IsEmpty) target.Set(heldStack.itemId, placed);
+        // [HDY 요청 - KMS 크로스 승인 - 내구도] 빈 슬롯에 놓을 때 durability를 함께 넘긴다.
+        if (target.IsEmpty) target.Set(heldStack.itemId, placed, heldStack.durability);
         else target.amount += placed;
 
         heldStack.amount -= placed;

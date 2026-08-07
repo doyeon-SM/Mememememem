@@ -64,11 +64,25 @@ namespace KMS.Harvesting
         private bool isPrimaryActionHeld;
         private ItemData pendingToolItem;
         private bool hasPendingToolImpact;
+        // [HDY 요청 - KMS 크로스 승인 - 내구도] UseTool() 시점에 사용 중이던 퀵슬롯 인덱스를 함께 기억해둔다.
+        // ResolvePendingToolImpact()는 Animation Event로 한 박자 늦게 호출되므로, 그 사이 선택된 퀵슬롯이
+        // 바뀌었을 가능성을 대비해 durability 감소 시 실제로 그 인덱스의 아이템인지(itemId 일치) 다시 확인한다.
+        private int pendingToolSlotIndex = -1;
         private readonly RaycastHit[] harvestHits = new RaycastHit[MaxHarvestHits];
         private static readonly int SlashHash = Animator.StringToHash("Slash");
 
         public float BaseToolUseCooldown => baseToolUseCooldown;
-        public float EffectiveToolUseCooldown => ResolveEffectiveToolUseCooldown();
+
+        /// <summary>현재 쿨다운 배율까지 반영한 실제 도구 사용 간격. 별도 private 헬퍼로 분리하지 않고
+        /// 이 프로퍼티 안에서 직접 계산한다(중복 메서드처럼 보이는 것을 피하기 위함).</summary>
+        public float EffectiveToolUseCooldown
+        {
+            get
+            {
+                float cooldownMultiplier = Mathf.Max(0f, ResolveToolCooldownMultiplier());
+                return Mathf.Max(minimumToolUseCooldown, baseToolUseCooldown * cooldownMultiplier);
+            }
+        }
 
         private void Reset()
         {
@@ -202,7 +216,7 @@ namespace KMS.Harvesting
         {
             if (selectedItem == null || cameraTransform == null || cooldownTimer > 0f) return;
 
-            float effectiveToolUseCooldown = ResolveEffectiveToolUseCooldown();
+            float effectiveToolUseCooldown = EffectiveToolUseCooldown;
 
             if (toolAnimationController != null)
             {
@@ -215,6 +229,8 @@ namespace KMS.Harvesting
             }
 
             pendingToolItem = selectedItem;
+            // [HDY 요청 - KMS 크로스 승인 - 내구도] 지금 사용한 도구가 어느 퀵슬롯에서 나온 것인지 기억해둔다.
+            pendingToolSlotIndex = inventory != null ? inventory.selectedQuickSlotIndex : -1;
             hasPendingToolImpact = true;
             cooldownTimer = effectiveToolUseCooldown;
         }
@@ -231,6 +247,7 @@ namespace KMS.Harvesting
 
             // Consume first so duplicate Animation Events can never apply damage twice.
             ItemData selectedItem = pendingToolItem;
+            int toolSlotIndex = pendingToolSlotIndex;
             ClearPendingToolImpact();
             bool isMemMeleeAttempt = selectedItem.Item_ID == memMeleeItemId;
 
@@ -276,6 +293,15 @@ namespace KMS.Harvesting
                 }
 
                 memTarget.TakeDamage(Mathf.Max(1, selectedItem.Value));
+
+                // [HDY 요청 - KMS 크로스 승인 - 내구도] 멤이 실제로 타격되어 데미지가 들어간 시점에만
+                // 내구도를 1 감소시킨다. 클럽뿐 아니라 MaxDurability가 설정된 모든 도구에 동일하게
+                // 적용되도록 일반화했다(하드코딩 아님). 나무/돌 채집이나 빗나간 스윙은 대상이 아니다.
+                if (selectedItem.MaxDurability > 0 && inventory != null)
+                {
+                    inventory.DamageQuickSlotToolDurability(toolSlotIndex, selectedItem.Item_ID, selectedItem.MaxDurability);
+                }
+
                 if (memHitDustPool != null)
                 {
                     memHitDustPool.Play(hit.point, hit.normal);
@@ -324,6 +350,7 @@ namespace KMS.Harvesting
         private void ClearPendingToolImpact()
         {
             pendingToolItem = null;
+            pendingToolSlotIndex = -1;
             hasPendingToolImpact = false;
         }
 
@@ -445,14 +472,6 @@ namespace KMS.Harvesting
             minimumToolUseCooldown = Mathf.Max(0.05f, minimumToolUseCooldown);
             baseToolUseCooldown = Mathf.Max(minimumToolUseCooldown, baseToolUseCooldown);
             fallbackToolDamage = Mathf.Max(1, fallbackToolDamage);
-        }
-
-        private float ResolveEffectiveToolUseCooldown()
-        {
-            float cooldownMultiplier = Mathf.Max(0f, ResolveToolCooldownMultiplier());
-            return Mathf.Max(
-                minimumToolUseCooldown,
-                baseToolUseCooldown * cooldownMultiplier);
         }
 
         private float ResolveToolCooldownMultiplier()
