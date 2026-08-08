@@ -32,6 +32,14 @@ namespace HDY.Item
         [Tooltip("설계도(BluePrint) 등 크기가 있는 아이템의 가로x세로 크기 문자열 (예: \"2x2\"). 없으면 빈 문자열.")]
         public string Size;
 
+        // [HDY 요청 - KMS 크로스 승인] 몽둥이 등 도구 내구도 시스템 추가.
+        [Header("내구도")]
+        [Tooltip("0이면 내구도 없음(소모되지 않는 일반 아이템). 시트의 Durability 컬럼과 매핑된다. " +
+                 "이 값은 \"최대\" 내구도(카탈로그 기준값)이며, 아이템 개체별 \"현재\" 내구도는 " +
+                 "KMS.InventoryDuped.ItemStack.durability에 슬롯 단위로 저장된다. " +
+                 "도구가 멤을 타격해 데미지를 입힐 때마다 1씩 감소한다(PlayerHarvestController 참고).")]
+        public int MaxDurability;
+
         [Header("섭취 효과 (UseAction == Eat 일 때만 사용)")]
         public List<ItemEffect> EatEffects = new List<ItemEffect>();
     }

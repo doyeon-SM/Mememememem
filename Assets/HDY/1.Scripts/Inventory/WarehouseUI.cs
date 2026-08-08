@@ -65,6 +65,12 @@ namespace HDY.Inventory
     /// HideItemTooltip()/RefreshAll() 호출을 그대로 두면 두 번째 오픈부터 내용물이 갱신되지 않으므로,
     /// hasCompletedInitialSetup 플래그로 "최초 셋업 이후"를 판별해서 OnEnable에서도 동일하게 다시
     /// 갱신하도록 했다(MemStorageUI_Grid.OnEnable의 재갱신 패턴과 동일한 접근).
+    ///
+    /// [HDY 요청 - KMS 크로스 승인 - 내구도] Ctrl+클릭 일괄 이동(CollectAndFill)은 원래 같은 Item_ID를
+    /// 수량으로만 합산했다가 목적지에 다시 나눠 채우는 방식이라, 내구도 아이템(예: 몽둥이)이 여기를 지나가면
+    /// 슬롯별 "현재" 내구도 정보가 사라진다(새 스택으로 재생성되며 durability가 초기화됨). 이를 막기 위해
+    /// 내구도 아이템은 CollectAndFillDurabilityItem으로 분기해서 슬롯 단위(개별 durability 보존)로 하나씩
+    /// InventorySlotMoveHelper.MoveSlot을 통해 옮긴다(병합이 불가능하므로 빈 칸으로만 이동).
     /// </summary>
     public class WarehouseUI : MonoBehaviour, IInventorySlotOwner, IInventorySlotClickOwner
     {
@@ -508,10 +514,22 @@ namespace HDY.Inventory
         /// <summary>
         /// sourceContainers 전체에서 itemId와 일치하는 수량을 모두 모아, destinationContainers를 순서대로
         /// 낮은 index부터 채운다(병합 우선, 그다음 빈 칸). 다 못 채우면 나머지는 원래 있던 자리들에 그대로 남긴다.
+        ///
+        /// [HDY 요청 - KMS 크로스 승인 - 내구도] 내구도 아이템(MaxDurability > 0)은 슬롯마다 서로 다른
+        /// "현재" 내구도를 가지므로, 아래의 수량 합산-재분배 방식(FillDestinationWithAmount/
+        /// RemoveAmountFromSources)을 타면 durability가 사라진다. 그래서 내구도 아이템은 여기서 걸러내
+        /// CollectAndFillDurabilityItem으로 분기한다.
         /// </summary>
         private void CollectAndFill(InventoryContainer[] sourceContainers, string itemId, InventoryContainer[] destinationContainers)
         {
             if (string.IsNullOrEmpty(itemId)) return;
+
+            var itemData = catalogManager != null ? catalogManager.FindItemData(itemId) : null;
+            if (itemData != null && itemData.MaxDurability > 0)
+            {
+                CollectAndFillDurabilityItem(sourceContainers, itemId, destinationContainers);
+                return;
+            }
 
             int totalAvailable = 0;
             foreach (var src in sourceContainers)
@@ -540,6 +558,60 @@ namespace HDY.Inventory
 
             warehouseInventory.PublishWarehouseChanged();
             playerInventory.PublishInventoryChanged();
+        }
+
+        /// <summary>
+        /// [HDY 요청 - KMS 크로스 승인 - 내구도] 내구도 아이템 전용 Ctrl+클릭 처리. 수량을 합산하지 않고
+        /// sourceContainers를 훑으며 일치하는 슬롯을 하나씩 찾아, destinationContainers의 빈 칸으로
+        /// InventorySlotMoveHelper.MoveSlot을 통해 그대로 옮긴다(개별 durability 보존). MaxStack=1이라
+        /// 병합은 애초에 불가능하므로 빈 칸만 찾는다.
+        /// </summary>
+        private void CollectAndFillDurabilityItem(InventoryContainer[] sourceContainers, string itemId, InventoryContainer[] destinationContainers)
+        {
+            bool anyMoved = false;
+
+            foreach (var src in sourceContainers)
+            {
+                if (src?.slots == null) continue;
+
+                for (int i = 0; i < src.slots.Length; i++)
+                {
+                    ItemStack slot = src.slots[i];
+                    if (slot == null || slot.IsEmpty || slot.itemId != itemId) continue;
+
+                    foreach (var destination in destinationContainers)
+                    {
+                        if (destination?.slots == null) continue;
+
+                        int targetIndex = FindEmptyDestinationIndex(destination);
+                        if (targetIndex < 0) continue;
+
+                        if (InventorySlotMoveHelper.MoveSlot(src, i, destination, targetIndex, catalogManager))
+                        {
+                            anyMoved = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (!anyMoved) return;
+
+            warehouseInventory.PublishWarehouseChanged();
+            playerInventory.PublishInventoryChanged();
+        }
+
+        /// <summary>목적지 컨테이너에서 잠기지 않은 가장 낮은 index의 빈 칸을 찾는다. 없으면 -1.
+        /// 내구도 아이템은 MaxStack=1이라 병합이 불가능하므로(FindBestDestinationIndex와 달리) 빈 칸만 찾는다.</summary>
+        private int FindEmptyDestinationIndex(InventoryContainer container)
+        {
+            for (int i = 0; i < container.slots.Length; i++)
+            {
+                if (IsDestinationIndexLocked(container, i)) continue;
+                if (container.slots[i].IsEmpty) return i;
+            }
+
+            return -1;
         }
 
         /// <summary>destination을 낮은 index부터(병합 우선 -&gt; 빈 칸) amount만큼 채운다. 채우지 못한 나머지를 반환한다.
