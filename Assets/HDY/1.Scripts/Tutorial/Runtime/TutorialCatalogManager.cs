@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
@@ -19,7 +20,11 @@ namespace HDY.Tutorial
     /// - Dialogue_Lines: 대사 여러 줄을 세미콜론(;)으로 구분. 예) "대사1;대사2;대사3"
     /// - Objectives: "목표키:표시이름:목표수량" 형식을 세미콜론으로 여러 개 나열.
     ///   예) "item_iron:철 주괴:1;item_woodplank:나무판자:1"
-    /// - Rewards: "아이템ID:수량" 형식을 세미콜론으로 여러 개 나열. 예) "item_baseblueprint:1"
+    /// - Rewards: "아이템ID:수량" 또는 "아이템ID:수량:refined" 형식을 세미콜론으로 여러 개 나열.
+    ///   예) "item_baseblueprint:1;tool_shabby_axe:1:refined". 특수 아이템ID "gold"는 인벤토리가 아니라
+    ///   TerritoryData.AddGold로 지급된다(예: "gold:100"). "refined"를 붙이면 지급 직후
+    ///   PlayerDefaultItemTest와 동일한 고정 연마(Rare/DamageIncrease/1)가 강제 적용된다
+    ///   (TutorialManager.GrantRewards 참고).
     /// - Highlight_Key: TutorialUIHighlightTarget에 등록된 UI 요소의 키. 비워두면 강조 없음(단, 시야
     ///   감지 트리거로 활성화된 스텝은 이 값이 비어있어도 감지된 월드 오브젝트를 자동으로 강조한다)
     ///
@@ -164,7 +169,12 @@ namespace HDY.Tutorial
             return objectives;
         }
 
-        /// <summary>"item_baseblueprint:1" 형식을 파싱한다.</summary>
+        /// <summary>
+        /// "item_baseblueprint:1" 또는 "tool_shabby_axe:1:refined" 형식을 파싱한다. 세 번째 값이
+        /// "refined"(대소문자 무관)이면 applyFixedToolRefinement를 켠다. "gold:100"처럼 itemId가 "gold"인
+        /// 항목도 이 메서드에서는 그냥 평범한 보상 항목으로 파싱되고, 실제 분기 처리는
+        /// TutorialManager.GrantRewards에서 한다.
+        /// </summary>
         private static List<TutorialRewardEntry> ParseRewards(string raw)
         {
             var rewards = new List<TutorialRewardEntry>();
@@ -175,14 +185,22 @@ namespace HDY.Tutorial
                 if (string.IsNullOrWhiteSpace(entry)) continue;
 
                 var parts = entry.Split(':');
-                if (parts.Length != 2) continue;
+                if (parts.Length != 2 && parts.Length != 3) continue;
 
                 if (!int.TryParse(parts[1].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var amount))
                 {
                     continue;
                 }
 
-                rewards.Add(new TutorialRewardEntry { itemId = parts[0].Trim(), amount = amount });
+                bool refined = parts.Length == 3 &&
+                    string.Equals(parts[2].Trim(), "refined", StringComparison.OrdinalIgnoreCase);
+
+                rewards.Add(new TutorialRewardEntry
+                {
+                    itemId = parts[0].Trim(),
+                    amount = amount,
+                    applyFixedToolRefinement = refined
+                });
             }
             return rewards;
         }

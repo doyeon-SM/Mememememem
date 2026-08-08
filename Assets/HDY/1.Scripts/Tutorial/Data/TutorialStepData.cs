@@ -37,7 +37,15 @@ namespace HDY.Tutorial
         public int targetAmount = 1;
     }
 
-    /// <summary>스텝 완료 시 지급할 보상 하나.</summary>
+    /// <summary>
+    /// 스텝 완료 시 지급할 보상 하나.
+    ///
+    /// [HDY 요청 - 골드/고정 연마 보상] itemId가 정확히 "gold"이면 인벤토리 지급이 아니라
+    /// TutorialManager.GrantRewards가 TerritoryData.AddGold(amount)를 호출한다(amount = 지급할 골드 수치).
+    /// applyFixedToolRefinement를 켜면, 지급 직후 그 자리에 놓인 스택에 PlayerDefaultItemTest와 동일한
+    /// 고정 연마(Rare/DamageIncrease/데미지/1)를 ForgeManager.TryAssignFixedRefinement로 강제 적용한다
+    /// (대장간 대상이 아닌 아이템이면 조용히 무시됨). CSV에서는 "아이템ID:수량:refined"로 표시한다.
+    /// </summary>
     [Serializable]
     public class TutorialRewardEntry
     {
@@ -45,6 +53,10 @@ namespace HDY.Tutorial
 
         [Min(1)]
         public int amount = 1;
+
+        [Tooltip("체크하면 지급 직후 이 아이템에 고정 연마(Rare/DamageIncrease/1)를 강제로 적용합니다. " +
+                 "대장간 대상이 아닌 아이템(예: 몽둥이)이면 체크해도 조용히 무시됩니다.")]
+        public bool applyFixedToolRefinement;
     }
 
     /// <summary>

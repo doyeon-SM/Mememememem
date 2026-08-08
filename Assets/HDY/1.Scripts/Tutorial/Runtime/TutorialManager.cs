@@ -1,13 +1,18 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
+using HDY.Forge;
 using HDY.Territory;
 using KMS.Audio;
+using KMS.InventoryDuped;
 
 using KmsPlayerInventory = KMS.InventoryDuped.PlayerInventory;
+using KmsPlayerInput = KMS.PlayerInput;
 
 namespace HDY.Tutorial
 {
@@ -63,6 +68,18 @@ namespace HDY.Tutorial
     {
         private const string TerritoryLevelObjectiveKey = "territory_level";
 
+        // [HDY 요청 - 골드 보상] Rewards CSV에서 itemId가 정확히 이 값이면 인벤토리가 아니라
+        // TerritoryData.AddGold(amount)로 지급한다.
+        private const string GoldRewardItemId = "gold";
+
+        // [HDY 요청 - 고정 연마 보상] PlayerDefaultItemTest가 게임 시작 시 초기 도구에 적용하는 것과
+        // 완전히 동일한 고정 값(Rare 등급 / 데미지 +1 한 줄). Rewards CSV에서 "refined" 접미사가 붙은
+        // 항목에 지급 직후 그대로 재사용한다.
+        private const CommonClass FixedRefinementGrade = CommonClass.Rare;
+        private const string FixedRefinementOptionType = "DamageIncrease";
+        private const string FixedRefinementDisplayName = "데미지";
+        private const float FixedRefinementValue = 1f;
+
         /// <summary>할당된 목표가 없을 때(스텝 시작 전/모든 스텝 완료 후 등) HUD 텍스트에 대신 표시할 대기 문구.</summary>
         private const string NoObjectiveText = "편지 기다리기";
 
@@ -92,16 +109,36 @@ namespace HDY.Tutorial
         [Header("영지 레벨 참조 (비어있으면 자동 탐색)")]
         [SerializeField] private TerritoryData territoryData;
 
+        // [HDY 요청 - F키(공통 상호작용키) 대사 넘기기] static Instance/Resolve 헬퍼가 없는 KMS.PlayerInput을
+        // 직접 찾아 보관한다. 씬 전환 시 HandleSceneLoaded가 null로 비우고 EnsureReferences가 다시 채운다.
+        private KmsPlayerInput playerInput;
+
+        [Header("월드 하이라이트 / 시야감지 공용 카메라 (비어있으면 Camera.main)")]
+        [Tooltip("TutorialSightDetector와 TutorialHighlightUI가 각자 Camera.main에 따로 의존하다 서로 다른\n" +
+                 "카메라를 참조하게 되는 문제를 막기 위해, 여기 한 곳에 지정해두면 둘 다 이 카메라를 우선 쓴다.\n" +
+                 "비워두면 지금까지처럼 각자 Camera.main으로 폴백한다.")]
+        [SerializeField] private Camera worldCamera;
+
         [Header("튜토리얼 패널 프리팹 (씬이 로드될 때마다 자동으로 Instantiate됨)")]
         [Tooltip("P_TutorialRoot 프리팹. 비어있으면 자동 스폰을 건너뛴다(기존처럼 씬에 수동 배치해도 됨).")]
         [SerializeField] private GameObject tutorialPanelPrefab;
 
         [Header("디버그 - 진행 상태 (Play 모드 중 Inspector에서 실시간 확인용)")]
+        // [HDY 요청 - Main_World_3 진입 시 진행 리셋 버그 수정] 예전엔 SerializeField였는데, 이 오브젝트가
+        // TutorialManager.prefab의 PrefabInstance + DontDestroyOnLoad 조합이라, 씬 전환 시점에 에디터가
+        // "프리팹 원본과 달라진 값"을 재확인하는 과정에서 순수 런타임 상태값인 이 필드를 프리팹 원본 값
+        // (-1)으로 되돌려버리는 것으로 추정되는 현상이 있었다(Title에서 ctrl_guide가 대기 상태로 잘
+        // 잡혔는데, Main_World_3 진입 시점엔 -1로 리셋되어 튜토리얼이 시작되지 않는 버그). Inspector에서
+        // 편집할 값이 아니라 순수 실행 중 상태 추적용이라 SerializeField일 필요가 없어서 제거한다.
+        // [HDY 요청 - 진단용] currentStepIndex가 어디서 바뀌는지 스택 트레이스와 함께 100% 확정하려고
+        // 임시로 프로퍼티로 바꿔서 변경될 때마다 무조건 로그를 찍는다. 원인 확정되면 다시 평범한 필드로
+        // 되돌릴 예정.
+        // [HDY 요청] 진행 중인 스텝 인덱스. Inspector에서 실행 중 값을 확인할 수 있도록 노출해둔다.
         [SerializeField] private int currentStepIndex = -1;
-        [SerializeField] private string currentStepId;
-        [SerializeField] private bool currentStepAwaitingTrigger;
-        [SerializeField] private List<string> completedStepIds = new List<string>();
-        [SerializeField] private List<ObjectiveProgressDebugEntry> currentObjectiveProgressDebug = new List<ObjectiveProgressDebugEntry>();
+        private bool currentStepAwaitingTrigger;
+        private string currentStepId;
+        private List<string> completedStepIds = new List<string>(); // [HDY 요청] 순수 런타임 상태값 - 위와 동일한 이유로 SerializeField 제거
+        private List<ObjectiveProgressDebugEntry> currentObjectiveProgressDebug = new List<ObjectiveProgressDebugEntry>(); // [HDY 요청] 순수 런타임 상태값(디버그 표시용) - 위와 동일한 이유로 SerializeField 제거
 
         /// <summary>Inspector에 목표 진행 상황을 보여주기 위한 디버그 전용 표시 구조체. 값을 직접 수정해도 반영되지 않는다.</summary>
         [Serializable]
@@ -134,6 +171,12 @@ namespace HDY.Tutorial
         /// <summary>이번 씬에 자동으로 심어둔 튜토리얼 패널 인스턴스(중복 스폰 방지용 추적).</summary>
         private GameObject spawnedTutorialPanel;
 
+        /// <summary>[HDY 요청 - 영지 방문 시 진행 막힘 수정] EnsureTutorialPanelSpawned 재시도 코루틴 추적(중복 시작 방지).</summary>
+        private Coroutine spawnPanelRetryCoroutine;
+
+        /// <summary>[HDY 요청 - 이상한 Canvas에 붙는 문제 수정] UIManager가 없는 씬에서 만든 전용 폴백 Canvas(씬마다 새로 만듦).</summary>
+        private Canvas fallbackCanvas;
+
         /// <summary>
         /// [KKS] 튜토리얼 저장 진행을 위한 이벤트 발행.
         /// </summary>
@@ -143,7 +186,7 @@ namespace HDY.Tutorial
         {
             if (Instance != null && Instance != this)
             {
-                Debug.LogWarning("[TutorialManager] 씬에 TutorialManager가 이미 있어 중복 오브젝트를 파괴합니다.", this);
+                Debug.LogWarning($"[TutorialManager] 씬에 TutorialManager가 이미 있어 중복 오브젝트를 파괴합니다. (이 인스턴스={GetInstanceID()}, 기존={Instance.GetInstanceID()})", this);
                 Destroy(gameObject);
                 return;
             }
@@ -157,12 +200,19 @@ namespace HDY.Tutorial
             SceneManager.sceneLoaded += HandleSceneLoaded;
             EnsureReferences();
             SubscribeTerritoryLevel();
+            SubscribeInteractInput();
         }
 
         private void OnDisable()
         {
             SceneManager.sceneLoaded -= HandleSceneLoaded;
             UnsubscribeTerritoryLevel();
+            UnsubscribeInteractInput();
+
+            // [HDY 요청 - 영지 방문 시 진행 막힘 수정] OnDisable 시점에 Unity가 이 오브젝트의 코루틴을
+            // 이미 전부 멈추므로 StopCoroutine은 불필요하지만, 참조만은 비워둬야 다음에 다시 활성화됐을 때
+            // "이미 재시도 중"이라는 낡은 가드에 막히지 않는다.
+            spawnPanelRetryCoroutine = null;
         }
 
         private void Start()
@@ -180,6 +230,14 @@ namespace HDY.Tutorial
         {
             territoryData = TerritoryData.Resolve(territoryData);
             tutorialCatalog = TutorialCatalogManager.Resolve(tutorialCatalog);
+
+            // [HDY 요청 - F키(공통 상호작용키) 대사 넘기기] PlayerInput에는 static Instance/Resolve
+            // 헬퍼가 없어서 직접 찾는다. 씬 전환으로 플레이어 인스턴스가 바뀌면 HandleSceneLoaded가
+            // playerInput을 null로 비워두므로, 여기서 다시 채워진다.
+            if (playerInput == null)
+            {
+                playerInput = FindFirstObjectByType<KmsPlayerInput>();
+            }
         }
 
         private void SubscribeTerritoryLevel()
@@ -203,11 +261,50 @@ namespace HDY.Tutorial
             SetTerritoryLevelObjectiveProgress(newLevel);
         }
 
+        // =====================================================================
+        // F키(공통 상호작용키)로 대사 넘기기
+        // =====================================================================
+        //
+        // [HDY 요청] 영지에서는 대화창의 "다음" 버튼 클릭으로 자연스럽게 넘어가지만, 탐험 중에는
+        // 마우스 커서가 기본적으로 잠겨있어(Alt로 풀어야 클릭 가능) 클릭이 불편하다. 그래서 탐험/영지
+        // 공통으로 쓰는 상호작용키(F, KMS.PlayerInput.InteractPressed - Chest/WayPointStone이 쓰는 것과
+        // 동일한 경로)로도 AdvanceDialogue()를 호출할 수 있게 한다. 클릭은 그대로 유지되고 F가 추가되는
+        // 것뿐이다. AdvanceDialogue()는 대사가 없거나 트리거 대기 중이면 스스로 아무것도 하지 않으므로,
+        // 별도 조건 체크 없이 그대로 연결해도 안전하다.
+
+        private void SubscribeInteractInput()
+        {
+            EnsureReferences();
+            if (playerInput == null) return;
+
+            playerInput.InteractPressed -= HandleInteractPressed; // 중복 구독 방지
+            playerInput.InteractPressed += HandleInteractPressed;
+        }
+
+        private void UnsubscribeInteractInput()
+        {
+            if (playerInput == null) return;
+            playerInput.InteractPressed -= HandleInteractPressed;
+        }
+
+        private void HandleInteractPressed()
+        {
+            AdvanceDialogue();
+        }
+
         private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
         {
             spawnedTutorialPanel = null; // 이전 씬 인스턴스는 씬 전환과 함께 이미 파괴됨 - 참조만 정리
+            fallbackCanvas = null; // [HDY 요청 - 이상한 Canvas에 붙는 문제 수정] 이전 씬의 폴백 Canvas도 마찬가지
             EnsureTutorialPanelSpawned();
             NotifyTriggerFired(TutorialTriggerType.SceneEnter, scene.name);
+
+            // [HDY 요청 - F키 대사 넘기기] 이전 씬의 PlayerInput 인스턴스도 씬 전환과 함께 파괴됐을 수
+            // 있으므로 참조를 비우고, EnsureReferences로 새로 찾은 뒤 다시 구독한다.
+            UnsubscribeInteractInput();
+            playerInput = null;
+            EnsureReferences();
+            SubscribeInteractInput();
         }
 
         /// <summary>
@@ -227,7 +324,15 @@ namespace HDY.Tutorial
             Transform parent = ResolveTutorialPanelParent();
             if (parent == null)
             {
-                Debug.LogWarning("[TutorialManager] 튜토리얼 패널을 배치할 UI 루트(UIManager.UIRoot)를 찾지 못했습니다.", this);
+                // [HDY 요청 - 영지 방문 시 진행 막힘 수정] 씬 로드 시점에 UIManager.Instance가 아직 준비되지
+                // 않았을 수 있다(다른 오브젝트 초기화 순서에 따라 미묘하게 달라짐). 예전에는 여기서 경고만
+                // 남기고 끝나서, 스텝은 내부적으로 활성화됐는데 화면엔 대화창이 아예 안 떠서 플레이어에게는
+                // "막힌 것"처럼 보이는 문제가 있었다. 이제는 잠깐 대기했다가 자동으로 재시도한다.
+                Debug.LogWarning("[TutorialManager] 튜토리얼 패널을 배치할 UI 루트(UIManager.UIRoot)를 찾지 못했습니다. 잠시 후 다시 시도합니다.", this);
+                if (spawnPanelRetryCoroutine == null)
+                {
+                    spawnPanelRetryCoroutine = StartCoroutine(RetryEnsureTutorialPanelSpawned());
+                }
                 return;
             }
 
@@ -237,9 +342,44 @@ namespace HDY.Tutorial
             t.localRotation = Quaternion.identity;
             t.localScale = Vector3.one;
             t.SetAsLastSibling(); // Canvas 맨 아래(자식 목록 마지막) = 화면 맨 위에 그려짐
+
+            Debug.Log("<color=lime>[TutorialManager]</color> 튜토리얼 패널 스폰 완료.");
+        }
+
+        /// <summary>
+        /// [HDY 요청 - 영지 방문 시 진행 막힘 수정] EnsureTutorialPanelSpawned가 UI 루트를 못 찾아
+        /// 실패했을 때 짧은 간격으로 재시도한다. 성공하면(spawnedTutorialPanel이 채워지면) 자연히 멈추고,
+        /// 일정 시간 넘게 계속 실패하면 포기하고 에러 로그를 남긴다(도연님이 UIManager 배치를 확인할 수 있게).
+        /// </summary>
+        private IEnumerator RetryEnsureTutorialPanelSpawned()
+        {
+            const float retryInterval = 0.2f;
+            const float giveUpAfterSeconds = 5f;
+            float elapsed = 0f;
+
+            while (spawnedTutorialPanel == null && elapsed < giveUpAfterSeconds)
+            {
+                yield return new WaitForSeconds(retryInterval);
+                elapsed += retryInterval;
+                EnsureTutorialPanelSpawned();
+            }
+
+            if (spawnedTutorialPanel == null)
+            {
+                Debug.LogError(
+                    $"[TutorialManager] {giveUpAfterSeconds}초 동안 튜토리얼 패널을 스폰하지 못해 재시도를 중단합니다. " +
+                    "UIManager가 이 씬에 배치되어 있는지 확인해주세요.",
+                    this);
+            }
+
+            spawnPanelRetryCoroutine = null;
         }
 
         /// <summary>UIManager.UIRoot를 우선 사용하고, 그 씬에 UIManager가 없으면 씬에서 Canvas를 하나 찾아 대신 쓴다.</summary>
+        // [HDY 요청 - Canvas_Main] 탐험 씬들(Main_World_3 등)은 공통으로 "Canvas_Main"이라는 이름의
+        // 캐릭터 Canvas를 쓴다. UIManager 다음으로 이 이름을 최우선으로 찾는다.
+        private const string ExplorationCanvasName = "Canvas_Main";
+
         private Transform ResolveTutorialPanelParent()
         {
             if (HDY.UI.UIManager.Instance != null && HDY.UI.UIManager.Instance.UIRoot != null)
@@ -247,8 +387,109 @@ namespace HDY.Tutorial
                 return HDY.UI.UIManager.Instance.UIRoot;
             }
 
-            var canvas = FindFirstObjectByType<Canvas>();
-            return canvas != null ? canvas.transform : null;
+            // [HDY 요청 - Canvas_Main] UIManager가 없는 씬(탐험)에서는 씬마다 공통으로 쓰는
+            // "Canvas_Main"을 이름으로 직접 찾아 최우선으로 쓴다.
+            var canvasMain = FindCanvasByName(ExplorationCanvasName);
+            if (canvasMain != null) return canvasMain.transform;
+
+            // [HDY 요청 - 이상한 Canvas에 붙는 문제 수정, 2차] Canvas_Main도 없는 씬(알려지지 않은 씬)에서는
+            // 예전엔 전용 Canvas를 새로 만들어 아주 높은 sortingOrder를 줬는데, 그러면
+            // GH.Loading.LoadingManager.FindActiveSceneCanvas()가 "활성 씬에서 sortingOrder가 가장 높은
+            // 루트 캔버스"를 자기 로딩 화면용으로 가져다 쓰는 로직과 정확히 충돌해서, 게임 자체의 로딩
+            // 화면이 이 캔버스에 붙어버리는 부작용이 있었다(그 캔버스는 영구 오브젝트가 아니라서 씬 전환
+            // 때 로딩 화면째로 파괴돼버림). 그래서 새로 만들기 전에, LoadingManager와 완전히 동일한
+            // 기준(활성 씬의 루트 캔버스 중 WorldSpace가 아니고 sortingOrder가 가장 높은 것)으로 기존
+            // 캔버스를 먼저 찾아 재사용한다.
+            var existing = FindBestExistingRootCanvas();
+            if (existing != null) return existing.transform;
+
+            return ResolveOrCreateFallbackCanvas().transform;
+        }
+
+        /// <summary>[HDY 요청 - Canvas_Main] 활성 씬에서 정확히 이 이름을 가진 Canvas를 찾는다(비활성 포함).</summary>
+        private Canvas FindCanvasByName(string canvasName)
+        {
+            if (string.IsNullOrEmpty(canvasName)) return null;
+
+            Scene activeScene = SceneManager.GetActiveScene();
+            Canvas[] canvases = FindObjectsByType<Canvas>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+
+            foreach (var canvas in canvases)
+            {
+                if (canvas != null
+                    && canvas.gameObject.scene == activeScene
+                    && string.Equals(canvas.gameObject.name, canvasName, StringComparison.Ordinal))
+                {
+                    return canvas;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// [HDY 요청 - 이상한 Canvas에 붙는 문제 수정, 2차] GH.Loading.LoadingManager.FindActiveSceneCanvas()와
+        /// 동일한 기준으로 활성 씬의 "가장 적합한" 루트 캔버스를 찾는다. 일부러 그쪽 로직을 그대로 따라해서,
+        /// 로딩 화면이 붙는 캔버스와 튜토리얼 패널이 붙는 캔버스가 항상 일치하도록 맞춘다.
+        /// </summary>
+        private Canvas FindBestExistingRootCanvas()
+        {
+            Scene activeScene = SceneManager.GetActiveScene();
+            Canvas[] canvases = FindObjectsByType<Canvas>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+
+            Canvas best = null;
+            foreach (var canvas in canvases)
+            {
+                if (canvas == null
+                    || canvas.gameObject.scene != activeScene
+                    || !canvas.gameObject.activeInHierarchy
+                    || !canvas.isRootCanvas
+                    || canvas.renderMode == RenderMode.WorldSpace)
+                {
+                    continue;
+                }
+
+                if (best == null || canvas.sortingOrder > best.sortingOrder)
+                {
+                    best = canvas;
+                }
+            }
+
+            return best;
+        }
+
+        /// <summary>
+        /// [HDY 요청 - 이상한 Canvas에 붙는 문제 수정] UIManager가 없는 씬에서 튜토리얼 패널을 위한
+        /// 전용 Canvas를 하나 만든다. ScreenSpaceOverlay + 매우 높은 sortingOrder로 그 씬의 다른 UI보다
+        /// 항상 위에 그려지도록 한다. 씬이 바뀌면(HandleSceneLoaded) 참조를 비워서, 다음 씬에서 다시
+        /// 필요할 때 새로 만든다 - 이전 씬의 Canvas는 씬 언로드와 함께 자동으로 파괴되므로 별도 정리는
+        /// 필요 없다.
+        /// </summary>
+        /// <summary>
+        /// [HDY 요청 - 이상한 Canvas에 붙는 문제 수정] FindBestExistingRootCanvas()로도 못 찾았을 때만
+        /// (그 씬에 캔버스가 정말 하나도 없는 극단적인 경우) 쓰는 최후 수단. sortingOrder를 예전처럼 거의
+        /// 최댓값으로 주지 않는다 - 이 씬에 캔버스가 정말 하나도 없다면 LoadingManager도 어차피 캔버스를
+        /// 못 찾아 자기 쪽에서 에러를 내는 상황이라 값 자체는 크게 안 중요하지만, 혹시 이후에 다른 캔버스가
+        /// 늦게 생기더라도 그쪽과 무리하게 경쟁하지 않도록 적당히 낮은 값만 준다.
+        /// </summary>
+        private Canvas ResolveOrCreateFallbackCanvas()
+        {
+            if (fallbackCanvas != null) return fallbackCanvas;
+
+            var go = new GameObject("TutorialFallbackCanvas", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+            fallbackCanvas = go.GetComponent<Canvas>();
+            fallbackCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            fallbackCanvas.sortingOrder = 1; // 기본값(0)보다만 살짝 위 - 다른 시스템의 "최상단 캔버스" 탐색과 무리하게 경쟁하지 않는다
+
+            var scaler = go.GetComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920f, 1080f);
+
+            Debug.LogWarning(
+                $"[TutorialManager] 이 씬({SceneManager.GetActiveScene().name})에서 재사용할 캔버스를 찾지 못해 튜토리얼 전용 폴백 Canvas를 새로 만들었습니다.",
+                this);
+
+            return fallbackCanvas;
         }
 
         // =====================================================================
@@ -365,6 +606,20 @@ namespace HDY.Tutorial
         public void SetPendingHighlightTarget(Transform target)
         {
             pendingHighlightTarget = target;
+        }
+
+        /// <summary>
+        /// [HDY 요청 - 카메라 참조 통합] TutorialSightDetector와 TutorialHighlightUI가 공통으로 쓰는
+        /// 카메라 조회 지점. worldCamera가 Inspector에 지정돼 있으면 그걸 우선 쓰고, 없으면
+        /// Camera.main으로 폴백한다(폴백 결과도 worldCamera에 캐싱해서 이후 호출부터는 재조회 없이 재사용).
+        /// 이전에는 두 컴포넌트가 각자 독립적으로 Camera.main을 조회해서, 씬에 카메라가 여러 개거나
+        /// 초기화 타이밍이 어긋나면 서로 다른 카메라를 참조하게 될 수 있었다(감지는 되는데 하이라이트만
+        /// 안 보이는 버그의 유력한 원인) - 이제는 한 곳에서만 조회해서 항상 같은 카메라를 쓰도록 한다.
+        /// </summary>
+        public Camera ResolveWorldCamera()
+        {
+            if (worldCamera == null) worldCamera = Camera.main;
+            return worldCamera;
         }
 
         /// <summary>
@@ -553,9 +808,17 @@ namespace HDY.Tutorial
             // [HDY 요청 - 사운드] 퀘스트(튜토리얼 스텝) 완료 효과음.
             KMSAudioService.Play2D(GameSfxId.QuestComplete);
 
-            OnTutorialProgressChanged?.Invoke();
-
+            // [HDY 요청 - 저장 시점 버그 수정] 예전엔 여기서 바로 OnTutorialProgressChanged를 쐈는데,
+            // 그러면 currentStepIndex가 아직 "방금 완료한 스텝"을 가리키는 채로 저장이 이뤄져버렸다
+            // (TryActivateNextPendingStep이 다음 스텝으로 넘어가기 전이라). 다음 스텝이 즉시 활성화되지
+            // 않고 트리거를 기다리는 상태로 남으면(예: SceneEnter, ObjectSighted 등) 그 뒤로 아무도 다시
+            // 저장을 안 해서, 저장 파일엔 계속 "방금 완료한 스텝"이 currentStepIndex로 남아있었다 -
+            // 불러오면 이미 끝난 스텝을 다시 보여주는 버그였다(예: 7번을 완료하고 8번 대기 중에 종료하면
+            // 재시작 시 7번부터 다시 시작). 그래서 TryActivateNextPendingStep을 먼저 호출해 실제로 다음
+            // 상태가 확정된 뒤에 저장 이벤트를 쏘도록 순서를 바꿨다.
             TryActivateNextPendingStep();
+
+            OnTutorialProgressChanged?.Invoke();
         }
 
         private bool IsCurrentStepObjectivesComplete()
@@ -572,25 +835,103 @@ namespace HDY.Tutorial
         }
 
         /// <summary>
-        /// 완료 보상을 지급한다. WorldObject/Chest/ProductionCraftRuntime이 이미 쓰고 있는 것과 동일한
-        /// PlayerInventory.AddItem(itemId, amount) 공용 API를 그대로 사용한다(크로스팀 파일 수정 없음).
+        /// 완료 보상을 지급한다. 기본은 WorldObject/Chest/ProductionCraftRuntime이 이미 쓰고 있는 것과
+        /// 동일한 PlayerInventory.AddItem(itemId, amount) 공용 API를 그대로 사용한다(크로스팀 파일 수정
+        /// 없음). 두 가지 특수 케이스가 있다:
+        /// - itemId == "gold": 인벤토리 대신 TerritoryData.AddGold(amount)로 지급한다.
+        /// - reward.applyFixedToolRefinement == true: 지급 직후 그 자리에 놓인 스택에
+        ///   PlayerDefaultItemTest와 동일한 고정 연마(Rare/DamageIncrease/1)를 강제로 적용한다.
         /// </summary>
         private void GrantRewards(TutorialStepData step)
         {
             if (step.rewards == null || step.rewards.Count == 0) return;
 
             var inventory = FindFirstObjectByType<KmsPlayerInventory>();
-            if (inventory == null)
-            {
-                Debug.LogWarning("[TutorialManager] PlayerInventory를 찾지 못해 보상을 지급하지 못했습니다.");
-                return;
-            }
 
             foreach (var reward in step.rewards)
             {
                 if (string.IsNullOrEmpty(reward.itemId) || reward.amount <= 0) continue;
-                inventory.AddItem(reward.itemId, reward.amount);
+
+                // [HDY 요청 - 골드 보상] 인벤토리가 아니라 영지 골드로 지급한다.
+                if (string.Equals(reward.itemId, GoldRewardItemId, StringComparison.OrdinalIgnoreCase))
+                {
+                    EnsureReferences();
+                    if (territoryData != null)
+                    {
+                        territoryData.AddGold(reward.amount);
+                    }
+                    else
+                    {
+                        Debug.LogWarning("[TutorialManager] TerritoryData를 찾지 못해 골드 보상을 지급하지 못했습니다.");
+                    }
+                    continue;
+                }
+
+                if (inventory == null)
+                {
+                    Debug.LogWarning("[TutorialManager] PlayerInventory를 찾지 못해 보상을 지급하지 못했습니다.");
+                    continue;
+                }
+
+                int remaining = inventory.AddItem(reward.itemId, reward.amount);
+                int granted = reward.amount - remaining;
+
+                // [HDY 요청 - 고정 연마 보상] PlayerDefaultItemTest와 동일한 방식으로, 지급 직후 그 자리에
+                // 놓인 스택을 찾아 ForgeManager로 고정 연마를 강제로 채운다.
+                if (granted > 0 && reward.applyFixedToolRefinement)
+                {
+                    ApplyFixedToolRefinementReward(inventory, reward.itemId);
+                }
             }
+        }
+
+        /// <summary>
+        /// [HDY 요청 - 고정 연마 보상] PlayerDefaultItemTest.ApplyFixedToolRefinement와 동일한 로직 -
+        /// 방금 지급되어 인벤토리/퀵슬롯 어딘가에 놓인 이 itemId의 스택을 찾아 ForgeManager를 통해
+        /// Rare/DamageIncrease/1 연마를 정확히 1칸만 강제로 채운다. 대장간 대상이 아닌 아이템(예: 몽둥이)이면
+        /// ForgeManager가 조용히 false를 반환하며 무시한다.
+        /// </summary>
+        private void ApplyFixedToolRefinementReward(KmsPlayerInventory inventory, string itemId)
+        {
+            if (ForgeManager.Instance == null)
+            {
+                Debug.LogWarning($"[TutorialManager] ForgeManager를 찾을 수 없어 {itemId}에 고정 연마를 적용하지 못했습니다.");
+                return;
+            }
+
+            ItemStack stack = FindLiveStackByItemId(inventory, itemId);
+            if (stack == null)
+            {
+                Debug.LogWarning($"[TutorialManager] 지급 직후 {itemId} 스택을 인벤토리에서 찾지 못해 고정 연마를 적용하지 못했습니다.");
+                return;
+            }
+
+            ForgeManager.Instance.TryAssignFixedRefinement(
+                stack, FixedRefinementGrade, FixedRefinementOptionType, FixedRefinementDisplayName, FixedRefinementValue);
+        }
+
+        /// <summary>inventory.inventory / inventory.quickSlots를 훑어 itemId가 일치하는 첫 라이브 스택을 찾는다.</summary>
+        private static ItemStack FindLiveStackByItemId(KmsPlayerInventory inventory, string itemId)
+        {
+            ItemStack found = FindLiveStackInContainer(inventory.inventory, itemId);
+            if (found != null) return found;
+
+            return FindLiveStackInContainer(inventory.quickSlots, itemId);
+        }
+
+        private static ItemStack FindLiveStackInContainer(InventoryContainer container, string itemId)
+        {
+            if (container == null || container.slots == null) return null;
+
+            foreach (ItemStack stack in container.slots)
+            {
+                if (stack != null && !stack.IsEmpty && stack.itemId == itemId)
+                {
+                    return stack;
+                }
+            }
+
+            return null;
         }
 
         // =====================================================================
@@ -602,8 +943,18 @@ namespace HDY.Tutorial
             if (dialogueUI == null) return;
 
             var current = GetCurrentStep();
-            if (current == null || currentStepAwaitingTrigger) return;
-            if (current.dialogueLines == null || currentDialogueLineIndex >= current.dialogueLines.Count) return;
+
+            // [HDY 요청 - 방어 코드] 보여줄 대사가 없는 모든 경우(아직 첫 스텝이 시작되기 전, 트리거
+            // 대기 중, 대사를 다 넘긴 뒤)에 명시적으로 Hide()를 호출한다. RefreshHighlightPresentation은
+            // 이미 이렇게 하고 있었는데 이 메서드만 그냥 return해서, 패널이 스폰 직후 기본 상태(보임 +
+            // 클릭 차단)로 남아있는 문제가 있었다 - 특히 Title씬처럼 첫 스텝이 아직 시작 전인 상태에서
+            // 패널만 먼저 스폰되면 화면 클릭이 막혀버렸다.
+            if (current == null || currentStepAwaitingTrigger ||
+                current.dialogueLines == null || currentDialogueLineIndex >= current.dialogueLines.Count)
+            {
+                dialogueUI.Hide();
+                return;
+            }
 
             dialogueUI.ShowLine(current.dialogueLines[currentDialogueLineIndex].text);
         }
@@ -722,10 +1073,25 @@ namespace HDY.Tutorial
             pendingHighlightTarget = null;
             pendingHighlightUITarget = null;
 
-            RefreshObjectiveProgressDebugList(GetCurrentStep());
-            RefreshDialoguePresentation();
-            RefreshObjectivePresentation();
-            RefreshHighlightPresentation();
+            // [HDY 요청 - Main_World_3 진입 시 튜토리얼이 시작되지 않는 버그 수정] TutorialRecordData가
+            // (Kyusoo 저장/불러오기 연동) 씬 로드 때마다 이 메서드를 호출한다. 새 게임이라 세이브에
+            // 튜토리얼 진행도가 없으면 snapshot.currentStepIndex == -1이라, 여기서 그대로 두면 Title에서
+            // Start()가 대기시켜둔 첫 스텝이 "아무 스텝도 없음"으로 덮어써진 채 아무도 다시
+            // TryActivateNextPendingStep을 불러주지 않아 튜토리얼이 영원히 멈춘다. 그래서 진행도가
+            // "한 번도 시작 안 함"(-1)일 때만 여기서 이어서 첫 스텝을 대기시킨다 - 이미 진행 중이던
+            // 세이브를 불러온 경우(0 이상)는 복원된 상태를 그대로 유지해야 하므로 건드리지 않는다(다시
+            // 부르면 복원된 스텝을 건너뛰고 다음 스텝으로 넘어가버림).
+            if (currentStepIndex < 0)
+            {
+                TryActivateNextPendingStep();
+            }
+            else
+            {
+                RefreshObjectiveProgressDebugList(GetCurrentStep());
+                RefreshDialoguePresentation();
+                RefreshObjectivePresentation();
+                RefreshHighlightPresentation();
+            }
         }
 
         // =====================================================================
