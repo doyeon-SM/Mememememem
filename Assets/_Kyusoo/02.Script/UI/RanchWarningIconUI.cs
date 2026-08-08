@@ -16,17 +16,13 @@ public class RanchWarningIconUI : MonoBehaviour, IPointerEnterHandler, IPointerE
         gameObject.SetActive(false);
     }
 
-    /// <summary>
-    /// 개별 멤의 허기 상태 실시간 감지
-    /// </summary>
     public void UpdateWarningStatus(CapturedMemEntry entry)
     {
         currentMemEntry = entry;
 
-        // 허기량이 0 이하이거나 IsStarving인 경우만 배고픔으로 판단
+        // 허기량이 0 이하이거나 IsStarving이 true인 경우만 배고픔으로 판단
         bool isStarving = currentMemEntry != null && (currentMemEntry.IsStarving || currentMemEntry.CurrentHunger <= 0);
 
-        // 🌟 요구사항 5번: 허기량이 0이 된 경우 경고 아이콘 등장
         if (isStarving)
         {
             if (!isIconShowing)
@@ -39,13 +35,11 @@ public class RanchWarningIconUI : MonoBehaviour, IPointerEnterHandler, IPointerE
                 transform.DOScale(Vector3.one, 0.35f).SetEase(Ease.OutBack);
             }
 
-            // 호버링 중인 동안 실시간으로 밥통 상태 반영해서 툴팁 갱신
             if (isHovered)
             {
                 UpdateTooltipState();
             }
         }
-        // 🌟 요구사항 4번: 허기 회복 / 정상 가동 중일 때는 둘 다 즉시 사라짐!
         else
         {
             if (isIconShowing)

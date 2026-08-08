@@ -44,9 +44,31 @@ public class RanchPanelUI : MonoBehaviour
         InitializeSlotIndexes();
     }
 
+    private void OnEnable()
+    {
+        if (ConsumeFoodSystem.Instance != null)
+        {
+            ConsumeFoodSystem.Instance.OnFoodAmountChanged += HandleFoodAmountChanged;
+        }
+        RefreshStaticUI();
+    }
+
     private void OnDisable()
     {
+        if (ConsumeFoodSystem.Instance != null)
+        {
+            ConsumeFoodSystem.Instance.OnFoodAmountChanged -= HandleFoodAmountChanged;
+        }
         StopDotsAnimation();
+    }
+
+    private void HandleFoodAmountChanged(int currentSatiety, int maxSatiety)
+    {
+        if (targetFacility != null)
+        {
+            targetFacility.CheckAllSlotsProductionCondition();
+            RefreshStaticUI();
+        }
     }
 
     private void InitializeSlotIndexes()

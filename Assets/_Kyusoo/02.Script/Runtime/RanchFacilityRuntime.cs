@@ -195,23 +195,36 @@ public class RanchFacilityRuntime : MonoBehaviour
         for (int i = 0; i < slots.Count; i++)
         {
             RanchSlotRuntime slot = slots[i];
-            if (!slot.isUnlocked || !slot.isProducing || slot.deployedMem == null) continue;
 
-            if (slot.currentStorageCount >= RanchSlotRuntime.maxStorage)
+            // 1. 미해금 슬롯이거나 배치된 멤이 없으면 중지
+            if (!slot.isUnlocked || slot.deployedMem == null)
             {
                 slot.isProducing = false;
                 continue;
             }
 
-            anyProducing = true;
-            slot.currentProgressTime += Time.deltaTime;
+            // 2. 🌟 멤의 기아 상태 및 저장고 가득 참 여부를 실시간으로 평가
+            bool isStarving = slot.deployedMemEntry != null && (slot.deployedMemEntry.IsStarving || slot.deployedMemEntry.CurrentHunger <= 0);
+            bool isStorageFull = slot.currentStorageCount >= RanchSlotRuntime.maxStorage;
 
+            if (isStarving || isStorageFull || string.IsNullOrEmpty(slot.craftingItemId))
+            {
+                slot.isProducing = false;
+                continue;
+            }
+
+            // 3. 모든 조건을 충족하면 생산 진행
+            slot.isProducing = true;
+            anyProducing = true;
+
+            slot.currentProgressTime += Time.deltaTime;
             if (slot.currentProgressTime >= slot.totalRequiredTime)
             {
                 CompleteSlotProduction(slot);
             }
         }
-        isProducing = anyProducing;
+
+        UpdateOverallProducingState();
     }
 
     private void CompleteSlotProduction(RanchSlotRuntime slot)

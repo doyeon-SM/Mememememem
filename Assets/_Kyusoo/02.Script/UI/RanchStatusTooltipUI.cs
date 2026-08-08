@@ -4,7 +4,18 @@ using UnityEngine;
 
 public class RanchStatusTooltipUI : MonoBehaviour
 {
-    public static RanchStatusTooltipUI Instance { get; private set; }
+    private static RanchStatusTooltipUI instance;
+    public static RanchStatusTooltipUI Instance
+    {
+        get
+        {
+            if (instance == null)
+            {
+                instance = FindFirstObjectByType<RanchStatusTooltipUI>(FindObjectsInactive.Include);
+            }
+            return instance;
+        }
+    }
 
     [SerializeField] private TextMeshProUGUI statusText;
     [SerializeField] private CanvasGroup canvasGroup;
@@ -15,40 +26,30 @@ public class RanchStatusTooltipUI : MonoBehaviour
 
     private void Awake()
     {
-        if (Instance == null) Instance = this;
-        else Destroy(gameObject);
+        if (instance == null) instance = this;
+        else if (instance != this) Destroy(gameObject);
 
-        // 🌟 툴팁이 마우스 레이캐스트를 가로채서 호버링이 풀리는 현상 방지
-        if (canvasGroup != null)
-        {
-            canvasGroup.blocksRaycasts = false;
-            canvasGroup.interactable = false;
-        }
+        if (canvasGroup == null) canvasGroup = GetComponent<CanvasGroup>();
 
         HideTooltip();
     }
 
-    /// <summary>
-    /// 🌟 요구사항 5번: 밥통 상태에 따라 툴팁 실시간 출력
-    /// </summary>
     public void ShowTooltip(bool hasFood, Vector3 targetWorldPos)
     {
-        // 아이콘 위쪽 40px 위치에 배치
+        // 툴팁 위치 이동 (아이콘 위쪽 40px)
         transform.position = targetWorldPos + new Vector3(0f, 40f, 0f);
 
         if (canvasGroup != null)
         {
             canvasGroup.alpha = 1f;
             canvasGroup.blocksRaycasts = false;
+            canvasGroup.interactable = false;
         }
-        gameObject.SetActive(true);
 
-        // 밥통에 음식이 있으면 "음식 보충중 . . ."
         if (hasFood)
         {
             StartDotsAnimation("음식 보충중", Color.white);
         }
-        // 밥통에 음식이 없으면 "식량이 부족합니다"
         else
         {
             StopDotsAnimation();
@@ -95,8 +96,12 @@ public class RanchStatusTooltipUI : MonoBehaviour
     public void HideTooltip()
     {
         StopDotsAnimation();
-        if (canvasGroup != null) canvasGroup.alpha = 0f;
-        gameObject.SetActive(false);
+        if (canvasGroup != null)
+        {
+            canvasGroup.alpha = 0f;
+            canvasGroup.blocksRaycasts = false;
+            canvasGroup.interactable = false;
+        }
     }
 
     private void OnDisable()
