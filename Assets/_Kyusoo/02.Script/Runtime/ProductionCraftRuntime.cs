@@ -3,6 +3,7 @@ using HDY.Inventory;
 using HDY.Item;
 using HDY.Mem;
 using HDY.Recipe;
+using KMS.Audio;
 using KMS.InventoryDuped;
 using MemSystem.Data;
 using System;
@@ -258,6 +259,8 @@ public class ProductionCraftRuntime : MonoBehaviour
         remainingQuantity--;
         currentProgressTime = 0f;
 
+        KMS.Audio.KMSAudioService.Play2D(GameSfxId.CraftingComplete);
+
         if (remainingQuantity > 0)
         {
             RecipeData recipe = FindRecipeDataInCatalog(currentCraftingItem);
@@ -379,6 +382,8 @@ public class ProductionCraftRuntime : MonoBehaviour
 
         if (isProducing && buildingData != null)
         {
+            KMS.Audio.KMSAudioService.Play2D(GameSfxId.Crafting);
+
             FacilityStarted?.Invoke(buildingData.buildingType, addMems, MemPositions);
         }
     }

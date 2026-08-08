@@ -3,6 +3,7 @@ using HDY.Cook;
 using HDY.Inventory;
 using HDY.Item;
 using HDY.Mem;
+using KMS.Audio;
 using KMS.InventoryDuped;
 using MemSystem.Data;
 using System;
@@ -260,6 +261,8 @@ public class CampFireRuntime : MonoBehaviour
         remainingQuantity--;
         currentProgressTime = 0f;
 
+        KMS.Audio.KMSAudioService.Play2D(GameSfxId.CookingComplete);
+
         if (remainingQuantity > 0)
         {
             CookRecipeData recipe = FindCookRecipeDataInCatalog(currentCookingItem);
@@ -392,6 +395,8 @@ public class CampFireRuntime : MonoBehaviour
 
         if (isCooking && buildingData != null)
         {
+            KMS.Audio.KMSAudioService.Play2D(GameSfxId.CampFire);
+
             FacilityStarted?.Invoke(buildingData.buildingType, addMems, MemPositions);
         }
     }

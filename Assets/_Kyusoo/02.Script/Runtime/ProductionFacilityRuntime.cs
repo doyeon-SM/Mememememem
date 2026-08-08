@@ -3,6 +3,7 @@ using HDY.Inventory;
 using HDY.Item;
 using HDY.Mem;
 using HDY.Recipe;
+using KMS.Audio;
 using MemSystem.Data;
 using System;
 using System.Collections.Generic;
@@ -263,6 +264,24 @@ public class ProductionFacilityRuntime : MonoBehaviour
         isProducing = value;
         if (isProducing && buildingData != null)
         {
+            string objName = gameObject.name;
+            if (objName.Contains("Logging"))
+            {
+                KMS.Audio.KMSAudioService.Play2D(GameSfxId.Logging);
+            }
+            else if (objName.Contains("Mining"))
+            {
+                KMS.Audio.KMSAudioService.Play2D(GameSfxId.Mining);
+            }
+            else if (objName.Contains("Berry"))
+            {
+                KMS.Audio.KMSAudioService.Play2D(GameSfxId.Farm);
+            }
+            else if (objName.Contains("Wheat"))
+            {
+                KMS.Audio.KMSAudioService.Play2D(GameSfxId.WheatFarm);
+            }
+
             FacilityStarted?.Invoke(buildingData.buildingType, addMems, MemPositions);
         }
     }

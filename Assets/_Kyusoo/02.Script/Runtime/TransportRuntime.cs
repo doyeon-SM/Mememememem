@@ -1,6 +1,7 @@
 ﻿using HDY.Capture;
 using HDY.Item;
 using HDY.Mem;
+using KMS.Audio;
 using MemSystem.Data;
 using System;
 using System.Collections;
@@ -283,6 +284,8 @@ public class TransportRuntime : MonoBehaviour
         isWorking = value;
         if (isWorking && buildingData != null)
         {
+            KMS.Audio.KMSAudioService.Play2D(GameSfxId.Transport);
+
             FacilityStarted?.Invoke(buildingData.buildingType, addMems, MemPositions);
         }
     }

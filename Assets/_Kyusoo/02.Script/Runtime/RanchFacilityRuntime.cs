@@ -2,6 +2,7 @@ using HDY.Capture;
 using HDY.Inventory;
 using HDY.Item;
 using HDY.Mem;
+using KMS.Audio;
 using MemSystem.Data;
 using System;
 using System.Collections.Generic;
@@ -457,6 +458,8 @@ public class RanchFacilityRuntime : MonoBehaviour
 
             if (isProducing && buildingData != null)
             {
+                KMS.Audio.KMSAudioService.Play2D(GameSfxId.Ranch);
+
                 FacilityStarted?.Invoke(buildingData.buildingType, activeMems, MemPositions);
             }
             else if (!isProducing && buildingData != null)

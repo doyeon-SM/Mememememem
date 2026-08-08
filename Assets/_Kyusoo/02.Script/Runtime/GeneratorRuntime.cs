@@ -1,6 +1,7 @@
 ﻿using HDY.Capture;
 using HDY.Item;
 using HDY.Mem;
+using KMS.Audio;
 using KMS.InventoryDuped;
 using MemSystem.Data;
 using System;
@@ -244,6 +245,8 @@ public class GeneratorRuntime : MonoBehaviour
 
         if (isPowerGenerating && buildingData != null)
         {
+            KMS.Audio.KMSAudioService.Play2D(GameSfxId.Generator);
+
             FacilityStarted?.Invoke(buildingData.buildingType, addMems, MemPositions);
         }
     }
