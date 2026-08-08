@@ -134,6 +134,11 @@ namespace HDY.Tutorial
         /// <summary>이번 씬에 자동으로 심어둔 튜토리얼 패널 인스턴스(중복 스폰 방지용 추적).</summary>
         private GameObject spawnedTutorialPanel;
 
+        /// <summary>
+        /// [KKS] 튜토리얼 저장 진행을 위한 이벤트 발행.
+        /// </summary>
+        public event Action OnTutorialProgressChanged;
+
         private void Awake()
         {
             if (Instance != null && Instance != this)
@@ -344,6 +349,8 @@ namespace HDY.Tutorial
 
             RefreshObjectivePresentation();
 
+            OnTutorialProgressChanged?.Invoke();
+
             if (IsCurrentStepObjectivesComplete())
             {
                 CompleteCurrentStep();
@@ -518,6 +525,8 @@ namespace HDY.Tutorial
             RefreshObjectivePresentation();
             RefreshHighlightPresentation();
 
+            OnTutorialProgressChanged?.Invoke();
+
             if (IsCurrentStepObjectivesComplete())
             {
                 CompleteCurrentStep();
@@ -543,6 +552,8 @@ namespace HDY.Tutorial
 
             // [HDY 요청 - 사운드] 퀘스트(튜토리얼 스텝) 완료 효과음.
             KMSAudioService.Play2D(GameSfxId.QuestComplete);
+
+            OnTutorialProgressChanged?.Invoke();
 
             TryActivateNextPendingStep();
         }

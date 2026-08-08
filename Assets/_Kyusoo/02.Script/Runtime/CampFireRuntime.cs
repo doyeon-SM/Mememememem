@@ -3,10 +3,12 @@ using HDY.Cook;
 using HDY.Inventory;
 using HDY.Item;
 using HDY.Mem;
+using KMS.Audio;
 using KMS.InventoryDuped;
 using MemSystem.Data;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 public class CampFireRuntime : MonoBehaviour
@@ -121,7 +123,9 @@ public class CampFireRuntime : MonoBehaviour
 
         totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, addMems);
 
-        if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
+        bool isAnyMemStarving = DeployedMemEntries.Any(e => e != null && (e.IsStarving || e.CurrentHunger <= 0));
+
+        if (!isAnyMemStarving)
         {
             SetCookingActive(true);
         }
@@ -257,6 +261,8 @@ public class CampFireRuntime : MonoBehaviour
         remainingQuantity--;
         currentProgressTime = 0f;
 
+        KMS.Audio.KMSAudioService.Play2D(GameSfxId.CookingComplete);
+
         if (remainingQuantity > 0)
         {
             CookRecipeData recipe = FindCookRecipeDataInCatalog(currentCookingItem);
@@ -389,6 +395,8 @@ public class CampFireRuntime : MonoBehaviour
 
         if (isCooking && buildingData != null)
         {
+            KMS.Audio.KMSAudioService.Play2D(GameSfxId.CampFire);
+
             FacilityStarted?.Invoke(buildingData.buildingType, addMems, MemPositions);
         }
     }

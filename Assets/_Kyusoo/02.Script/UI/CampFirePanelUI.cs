@@ -65,7 +65,7 @@ public class CampFirePanelUI : MonoBehaviour
     [SerializeField] private GameObject bottomCookingModeObject;
     [SerializeField] private Slider progressBar;
     [SerializeField] private TextMeshProUGUI durationText;
-    [SerializeField] private TextMeshProUGUI cookingStatusText; // 🌟 상태 및 애니메이션 텍스트
+    [SerializeField] private TextMeshProUGUI cookingStatusText;
     [SerializeField] private Button cancelBtn;
     [SerializeField] private Button getBtn;
 
@@ -81,9 +81,9 @@ public class CampFirePanelUI : MonoBehaviour
     private bool isUpdatingQuantitySystem = false;
     private Coroutine errorFeedbackCoroutine;
 
-    // 🌟 DOTween 애니메이션 관련 변수
     private Sequence dotsSequence;
     private bool isAnimatingDots = false;
+    private string currentStatusPrefix = "";
 
     private void Awake()
     {
@@ -130,27 +130,53 @@ public class CampFirePanelUI : MonoBehaviour
         UpdateStorageText();
     }
 
-    /// <summary>
-    /// 🌟 상태 텍스트 갱신 및 중지 사유 처리
-    /// </summary>
+    private bool IsAllDeployedMemsStarving()
+    {
+        if (targetFacility == null || targetFacility.DeployedMemEntries == null || targetFacility.DeployedMemEntries.Count == 0)
+            return false;
+
+        return targetFacility.DeployedMemEntries.All(e => e != null && (e.IsStarving || e.CurrentHunger <= 0));
+    }
+
     private void UpdateCookingStatusUI()
     {
         if (targetFacility == null) return;
 
-        bool isStarving = ConsumeFoodSystem.Instance != null && ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation;
+        bool isNoMem = targetFacility.DeployedMems.Count == 0 || targetFacility.DeployedMemEntries.Count == 0;
+        bool isAllStarving = !isNoMem && IsAllDeployedMemsStarving();
+        int currentSatiety = ConsumeFoodSystem.Instance != null ? ConsumeFoodSystem.Instance.CurrentSatiety : 0;
 
-        if (isStarving)
+        // 1. 멤 미배치
+        if (isNoMem)
         {
             StopDotsAnimation();
             if (cookingStatusText != null)
             {
-                cookingStatusText.color = Color.red;
-                cookingStatusText.text = "식량이 부족합니다";
+                cookingStatusText.color = Color.white;
+                cookingStatusText.text = "멤을 배치해야 합니다";
             }
         }
+        // 2. 가동 중지 (배치된 멤 모두 허기량 0)
+        else if (isAllStarving)
+        {
+            if (currentSatiety > 0)
+            {
+                StartDotsAnimation("음식 보충중");
+            }
+            else
+            {
+                StopDotsAnimation();
+                if (cookingStatusText != null)
+                {
+                    cookingStatusText.color = Color.red;
+                    cookingStatusText.text = "식량이 부족합니다";
+                }
+            }
+        }
+        // 3. 정상 요리 중
         else if (targetFacility.isCooking)
         {
-            StartDotsAnimation();
+            StartDotsAnimation("요리중");
         }
         else
         {
@@ -163,24 +189,24 @@ public class CampFirePanelUI : MonoBehaviour
         }
     }
 
-    private void StartDotsAnimation()
+    private void StartDotsAnimation(string customPrefix = "요리중")
     {
-        if (isAnimatingDots) return;
+        string prefix = string.IsNullOrEmpty(customPrefix) ? "요리중" : customPrefix;
+
+        if (isAnimatingDots && currentStatusPrefix == prefix) return;
+
+        currentStatusPrefix = prefix;
         isAnimatingDots = true;
 
         if (dotsSequence != null) dotsSequence.Kill();
-
-        if (cookingStatusText != null)
-        {
-            cookingStatusText.color = Color.white;
-        }
+        if (cookingStatusText != null) cookingStatusText.color = Color.white;
 
         dotsSequence = DOTween.Sequence();
-        dotsSequence.AppendCallback(() => { SetCookingStatusText("요리중 ."); })
+        dotsSequence.AppendCallback(() => { SetCookingStatusText($"{currentStatusPrefix} ."); })
                     .AppendInterval(0.4f)
-                    .AppendCallback(() => { SetCookingStatusText("요리중 .."); })
+                    .AppendCallback(() => { SetCookingStatusText($"{currentStatusPrefix} .."); })
                     .AppendInterval(0.4f)
-                    .AppendCallback(() => { SetCookingStatusText("요리중 ..."); })
+                    .AppendCallback(() => { SetCookingStatusText($"{currentStatusPrefix} ..."); })
                     .AppendInterval(0.4f)
                     .SetLoops(-1, LoopType.Restart);
     }
@@ -198,6 +224,7 @@ public class CampFirePanelUI : MonoBehaviour
         if (!isAnimatingDots && dotsSequence == null) return;
 
         isAnimatingDots = false;
+        currentStatusPrefix = "";
         if (dotsSequence != null)
         {
             dotsSequence.Kill();
@@ -430,7 +457,6 @@ public class CampFirePanelUI : MonoBehaviour
     {
         if (recipeGridParent == null) return;
 
-        // 기존 슬롯 UI 오브젝트 초기화
         foreach (Transform child in recipeGridParent) Destroy(child.gameObject);
 
         if (targetFacility == null || targetFacility.cookingFacilityData == null)

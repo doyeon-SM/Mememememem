@@ -65,8 +65,8 @@ public class KitchenPanelUI : MonoBehaviour
     [Header("하단 - Cooking_Mode")]
     [SerializeField] private GameObject bottomCookingModeObject;
     [SerializeField] private Slider progressBar;
-    [SerializeField] private TextMeshProUGUI durationText; // 🌟 순수 퍼센티지(0% ~ 100%)만 노출
-    [SerializeField] private TextMeshProUGUI cookingStatusText; // 🌟 하단 Cooking_Mode/Cooking_Status [TMP] 연결
+    [SerializeField] private TextMeshProUGUI durationText;
+    [SerializeField] private TextMeshProUGUI cookingStatusText;
     [SerializeField] private Button cancelBtn;
     [SerializeField] private Button getBtn;
 
@@ -82,9 +82,9 @@ public class KitchenPanelUI : MonoBehaviour
     private bool isUpdatingQuantitySystem = false;
     private Coroutine errorFeedbackCoroutine;
 
-    // DOTween 루프 제어 변수
     private Sequence dotsSequence;
     private bool isAnimatingDots = false;
+    private string currentStatusPrefix = "";
 
     private void Awake()
     {
@@ -119,16 +119,9 @@ public class KitchenPanelUI : MonoBehaviour
         {
             float progressNormalized = targetFacility.currentProgressTime / targetFacility.totalRequiredTime;
 
-            // 1. 프로그레스 바 슬라이더 값 갱신
             if (progressBar != null) progressBar.value = progressNormalized;
+            if (durationText != null) durationText.text = $"{Mathf.Clamp(progressNormalized * 100f, 0f, 100f):F0}%";
 
-            // 2. durationText는 순수 퍼센티지(0% ~ 100%)만 표시
-            if (durationText != null)
-            {
-                durationText.text = $"{Mathf.Clamp(progressNormalized * 100f, 0f, 100f):F0}%";
-            }
-
-            // 3. Cooking_Status 텍스트 상태 및 DOTween 애니메이션 분기 제어
             UpdateCookingStatusUI();
         }
 
@@ -139,15 +132,51 @@ public class KitchenPanelUI : MonoBehaviour
         UpdateStorageText();
     }
 
-    /// <summary>
-    /// Cooking_Status 텍스트 분기 처리 (요리 중 애니메이션 VS 전력 부족)
-    /// </summary>
+    private bool IsAllDeployedMemsStarving()
+    {
+        if (targetFacility == null || targetFacility.DeployedMemEntries == null || targetFacility.DeployedMemEntries.Count == 0)
+            return false;
+
+        return targetFacility.DeployedMemEntries.All(e => e != null && (e.IsStarving || e.CurrentHunger <= 0));
+    }
+
     private void UpdateCookingStatusUI()
     {
         if (targetFacility == null) return;
 
-        // 전력이 부족하여 일시 정지된 경우
-        if (targetFacility.isPowerPaused)
+        bool isNoMem = targetFacility.DeployedMems.Count == 0 || targetFacility.DeployedMemEntries.Count == 0;
+        bool isAllStarving = !isNoMem && IsAllDeployedMemsStarving();
+        int currentSatiety = ConsumeFoodSystem.Instance != null ? ConsumeFoodSystem.Instance.CurrentSatiety : 0;
+
+        // 1. 멤 미배치
+        if (isNoMem)
+        {
+            StopDotsAnimation();
+            if (cookingStatusText != null)
+            {
+                cookingStatusText.color = Color.white;
+                cookingStatusText.text = "멤을 배치해야 합니다";
+            }
+        }
+        // 2. 가동 중지 (배치된 멤 모두 허기량 0)
+        else if (isAllStarving)
+        {
+            if (currentSatiety > 0)
+            {
+                StartDotsAnimation("음식 보충중");
+            }
+            else
+            {
+                StopDotsAnimation();
+                if (cookingStatusText != null)
+                {
+                    cookingStatusText.color = Color.red;
+                    cookingStatusText.text = "식량이 부족합니다";
+                }
+            }
+        }
+        // 3. 전기 부족 예외 처리
+        else if (targetFacility.isPowerPaused)
         {
             StopDotsAnimation();
 
@@ -157,10 +186,10 @@ public class KitchenPanelUI : MonoBehaviour
                 cookingStatusText.text = "전기가 부족합니다";
             }
         }
-        // 전력과 멤 상태가 문제없이 정상 요리 중인 경우
+        // 4. 정상 요리 진행 중
         else if (targetFacility.isCooking)
         {
-            StartDotsAnimation();
+            StartDotsAnimation("요리중");
         }
         else
         {
@@ -174,25 +203,24 @@ public class KitchenPanelUI : MonoBehaviour
         }
     }
 
-    private void StartDotsAnimation()
+    private void StartDotsAnimation(string customPrefix = "요리중")
     {
-        if (isAnimatingDots) return;
+        string prefix = string.IsNullOrEmpty(customPrefix) ? "요리중" : customPrefix;
+
+        if (isAnimatingDots && currentStatusPrefix == prefix) return;
+
+        currentStatusPrefix = prefix;
         isAnimatingDots = true;
 
         if (dotsSequence != null) dotsSequence.Kill();
+        if (cookingStatusText != null) cookingStatusText.color = Color.white;
 
-        if (cookingStatusText != null)
-        {
-            cookingStatusText.color = Color.white;
-        }
-
-        // "요리중 ." -> "요리중 .." -> "요리중 ..." 루프 애니메이션
         dotsSequence = DOTween.Sequence();
-        dotsSequence.AppendCallback(() => { SetCookingStatusText("요리중 ."); })
+        dotsSequence.AppendCallback(() => { SetCookingStatusText($"{currentStatusPrefix} ."); })
                     .AppendInterval(0.4f)
-                    .AppendCallback(() => { SetCookingStatusText("요리중 .."); })
+                    .AppendCallback(() => { SetCookingStatusText($"{currentStatusPrefix} .."); })
                     .AppendInterval(0.4f)
-                    .AppendCallback(() => { SetCookingStatusText("요리중 ..."); })
+                    .AppendCallback(() => { SetCookingStatusText($"{currentStatusPrefix} ..."); })
                     .AppendInterval(0.4f)
                     .SetLoops(-1, LoopType.Restart);
     }
@@ -210,6 +238,7 @@ public class KitchenPanelUI : MonoBehaviour
         if (!isAnimatingDots && dotsSequence == null) return;
 
         isAnimatingDots = false;
+        currentStatusPrefix = "";
         if (dotsSequence != null)
         {
             dotsSequence.Kill();

@@ -3,10 +3,12 @@ using HDY.Cook;
 using HDY.Inventory;
 using HDY.Item;
 using HDY.Mem;
+using KMS.Audio;
 using KMS.InventoryDuped;
 using MemSystem.Data;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 public class KitchenRuntime : MonoBehaviour
@@ -239,7 +241,9 @@ public class KitchenRuntime : MonoBehaviour
             totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, addMems);
             currentProgressTime = totalRequiredTime * currentProgressPercent;
 
-            if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
+            bool isAnyMemStarving = DeployedMemEntries.Any(e => e != null && (e.IsStarving || e.CurrentHunger <= 0));
+
+            if (!isAnyMemStarving)
             {
                 SetCookingActive(true);
             }
@@ -336,6 +340,8 @@ public class KitchenRuntime : MonoBehaviour
         currentStorageCount++;
         remainingQuantity--;
         currentProgressTime = 0f;
+
+        KMS.Audio.KMSAudioService.Play2D(GameSfxId.CookingComplete);
 
         if (remainingQuantity > 0)
         {
@@ -473,6 +479,8 @@ public class KitchenRuntime : MonoBehaviour
 
         if (isCooking && buildingData != null)
         {
+            KMS.Audio.KMSAudioService.Play2D(GameSfxId.Kitchen);
+
             FacilityStarted?.Invoke(buildingData.buildingType, addMems, MemPositions);
         }
     }
