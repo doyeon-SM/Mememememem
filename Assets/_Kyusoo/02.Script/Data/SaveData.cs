@@ -1,6 +1,7 @@
 using HDY.Capture;
 using HDY.Forge;
 using HDY.Tutorial;
+using KMS.Persistence;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -58,6 +59,8 @@ public class PlayerInfo
     public float maxHunger = 100f;
     public float currentHealth = 100f;
     public float currentHunger = 100f;
+
+    public KMSFoodEffectStateSaveData foodEffects;
 }
 
 [Serializable]
