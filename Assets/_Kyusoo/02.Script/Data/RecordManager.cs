@@ -491,7 +491,12 @@ public class RecordManager : MonoBehaviour
         {
             foreach (var slot in container.slots)
             {
-                data.slots.Add(new ItemStackData { itemId = slot != null ? slot.itemId : "", amount = slot != null ? slot.amount : 0 });
+                data.slots.Add(new ItemStackData
+                {
+                    itemId = slot != null ? slot.itemId : "",
+                    amount = slot != null ? slot.amount : 0,
+                    durability = slot != null ? slot.durability : -1
+                });
             }
         }
         return data;
@@ -519,7 +524,7 @@ public class RecordManager : MonoBehaviour
 
             if (i < source.slots.Count && source.slots[i] != null && !string.IsNullOrEmpty(source.slots[i].itemId) && source.slots[i].amount > 0)
             {
-                target.slots[i].Set(source.slots[i].itemId, source.slots[i].amount);
+                target.slots[i].Set(source.slots[i].itemId, source.slots[i].amount, source.slots[i].durability);
             }
             else
             {

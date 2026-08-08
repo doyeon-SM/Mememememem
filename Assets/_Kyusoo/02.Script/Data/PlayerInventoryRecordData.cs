@@ -27,6 +27,7 @@ public class PlayerInventoryRecord : MonoBehaviour, IRecord
             liveInventory.OnInventoryChanged += OnInventoryDataChangedHandler;
             liveInventory.OnInventorySlotCountChanged += OnInventoryDataChangedHandler;
             liveInventory.OnSelectedQuickSlotChanged += OnQuickSlotSelectionChangedHandler;
+            liveInventory.OnQuickSlotChanged += OnQuickSlotDataChangedHandler;
         }
     }
 
@@ -37,6 +38,7 @@ public class PlayerInventoryRecord : MonoBehaviour, IRecord
             liveInventory.OnInventoryChanged -= OnInventoryDataChangedHandler;
             liveInventory.OnInventorySlotCountChanged -= OnInventoryDataChangedHandler;
             liveInventory.OnSelectedQuickSlotChanged -= OnQuickSlotSelectionChangedHandler;
+            liveInventory.OnQuickSlotChanged -= OnQuickSlotDataChangedHandler;
             liveInventory = null;
         }
     }
@@ -51,6 +53,15 @@ public class PlayerInventoryRecord : MonoBehaviour, IRecord
     }
 
     private void OnQuickSlotSelectionChangedHandler(int selectedIndex)
+    {
+        if (RecordManager.IsLoadingData) return;
+        if (RecordManager.Instance != null)
+        {
+            SaveData(RecordManager.Instance.SaveFilePath);
+        }
+    }
+
+    private void OnQuickSlotDataChangedHandler(int slotIndex)
     {
         if (RecordManager.IsLoadingData) return;
         if (RecordManager.Instance != null)
