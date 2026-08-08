@@ -233,11 +233,6 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: fce50fffdc2f5104dbd41bbe8411b0e3, type: 3}
---- !u!4 &253079095 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: 4433755589377664949, guid: 53fe7a91540f916499e0ff75d72049e0, type: 3}
-  m_PrefabInstance: {fileID: 1509692129}
-  m_PrefabAsset: {fileID: 0}
 --- !u!1 &391439073
 GameObject:
   m_ObjectHideFlags: 0
@@ -1472,10 +1467,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
-    m_AddedGameObjects:
-    - targetCorrespondingSourceObject: {fileID: 4433755589377664949, guid: 53fe7a91540f916499e0ff75d72049e0, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 2008650649}
+    m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 53fe7a91540f916499e0ff75d72049e0, type: 3}
 --- !u!1 &1683921670
@@ -1890,52 +1882,6 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: bcbc9372b45773944a77f7063994d66f, type: 3}
---- !u!1 &2008650648
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 2008650649}
-  - component: {fileID: 2008650650}
-  m_Layer: 0
-  m_Name: GameObject
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &2008650649
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2008650648}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 253079095}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &2008650650
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2008650648}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 3af614e8d6f68e141a16965221c703f8, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::CustomCursor
-  cursorTexture: {fileID: 2800000, guid: c38e0ba5fe88299428062848359d5f40, type: 3}
-  hotspot: {x: 17, y: 0}
 --- !u!1 &2008795606
 GameObject:
   m_ObjectHideFlags: 0
