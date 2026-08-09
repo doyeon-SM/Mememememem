@@ -24,16 +24,28 @@ namespace HDY.UI
     /// 동일한 문제라, 그 해결 방식을 그대로 가져와 CanvasGroup으로 화면 표시/입력만 껐다 켠다 - 오브젝트
     /// 자체는 항상 활성 상태로 유지되어 OnEnable의 구독이 끊기지 않는다.
     ///
-    /// [버그 수정 - 씬 입장 시 오작동 방지] _Kyusoo의 TerritoryRecordData.ApplyData()(세이브 데이터를
-    /// 씬에 적용하는 코드, 영지 씬에 들어올 때마다 실행됨)가 복원된 레벨 값으로 다른 UI(HUD 등)를 강제로
-    /// 갱신시키기 위해, 리플렉션으로 TerritoryData.OnLevelChanged를 저장/복원 시점마다 직접 재호출한다
-    /// (levelEvent?.DynamicInvoke(liveTerritoryData.Level)). 이 신호는 "진짜 레벨업"이 아니라 "복원
-    /// 알림"이라 실제로 레벨이 오르지 않았는데도 이 패널이 반응해서, 씬에 들어올 때마다 레벨업 팝업이
-    /// 뜨는 문제가 있었다. 저장/복원 로직(다른 팀 파일)은 건드리지 않고, 이 컴포넌트가 이번 활성화
-    /// 사이클에서 "처음 받는" OnLevelChanged 신호만 방어적으로 무시하는 방식으로 고쳤다 - 씬에 들어와
-    /// 구독을 걸자마자 오는 신호가 바로 그 복원 신호이기 때문이다. 그 이후에 오는 신호부터는 정상적으로
-    /// 진짜 레벨업으로 간주해 팝업을 띄운다(같은 씬에 머무는 동안 실제로 레벨업이 여러 번 일어나도 전부
-    /// 정상 반응 - 무시하는 건 재활성화 직후 딱 한 번뿐).
+    /// [버그 수정 - 씬 입장 시 오작동 방지, 값 비교 방식] _Kyusoo의 TerritoryRecordData.ApplyData()
+    /// (세이브 데이터를 씬에 적용하는 코드, 영지 씬에 들어올 때마다 실행됨)가 복원된 레벨 값으로 다른
+    /// UI(HUD 등)를 강제로 갱신시키기 위해, 리플렉션으로 TerritoryData.OnLevelChanged를 저장/복원
+    /// 시점마다 직접 재호출한다(levelEvent?.DynamicInvoke(liveTerritoryData.Level)). 이 신호는 "진짜
+    /// 레벨업"이 아니라 "복원 알림"이라, 그대로 두면 씬에 들어올 때마다 레벨업 팝업이 뜨는 문제가
+    /// 있었다.
+    ///
+    /// [1차 수정(폐기) - "활성화 후 첫 신호는 무조건 무시"] 처음엔 OnEnable 이후 처음 받는
+    /// OnLevelChanged 신호를 "복원 알림일 가능성이 높다"고 보고 무조건 한 번 무시하는 방식으로
+    /// 고쳤었다. 그런데 이 가정이 항상 맞지는 않았다 - 씬에 들어오자마자(혹은 복원 알림이 오기 전에)
+    /// 진짜 레벨업이 먼저 일어나는 경우, 그 "진짜" 신호가 활성화 후 첫 신호가 되어버려서 똑같이
+    /// 무시당했다(레벨업은 실제로 일어났는데 팝업이 안 뜨는 새 버그로 이어짐).
+    ///
+    /// [2차 수정(현재) - 마지막으로 안 레벨 값과 비교] 타이밍을 추측하는 대신, "이번에 받은 레벨 값이
+    /// 우리가 마지막으로 알고 있던 레벨보다 실제로 더 높은가"로 판단한다. OnEnable 시점에
+    /// territoryData.Level을 lastKnownLevel로 캐시해두고, HandleLevelChanged(level)에서:
+    /// - level이 lastKnownLevel 이하면 -> 값이 실제로 오르지 않은 것(=복원 알림 또는 중복 신호)이므로
+    ///   팝업 없이 조용히 무시한다.
+    /// - level이 lastKnownLevel보다 크면 -> 진짜 레벨업이므로 그 신호가 활성화 후 몇 번째로 오든
+    ///   상관없이 정상적으로 팝업을 띄운다.
+    /// 두 경우 모두 lastKnownLevel은 이번에 받은 level로 갱신해서, 다음 신호와 비교할 기준을 최신으로
+    /// 유지한다.
     ///
     /// [이미지] iconImage는 코드에서 스프라이트를 바꾸지 않는다 - 인스펙터에 미리 설정해둔 단일
     /// 고정 이미지를 그대로 사용한다(레벨 공통 이미지 1개, 요청하신 방식).
@@ -64,9 +76,10 @@ namespace HDY.UI
         private Coroutine autoHideRoutine;
         private CanvasGroup canvasGroup;
 
-        // [버그 수정 - 씬 입장 시 오작동 방지] 이번 활성화 사이클에서 OnLevelChanged를 아직 한 번도
-        // 받지 못했으면 true. 첫 신호는 세이브 복원 알림일 가능성이 높아 무시하고, 그 다음부터 반응한다.
-        private bool awaitingFirstLevelSignal;
+        // [버그 수정 - 씬 입장 시 오작동 방지, 값 비교 방식] 마지막으로 알고 있던 레벨. OnEnable에서
+        // territoryData.Level로 초기화하고, HandleLevelChanged에서 매번 최신값으로 갱신한다. 새로
+        // 받은 level이 이 값보다 커야만 "진짜 레벨업"으로 간주해 팝업을 띄운다.
+        private int lastKnownLevel;
 
         private void Awake()
         {
@@ -96,9 +109,10 @@ namespace HDY.UI
         {
             EnsureReferences();
 
-            // [버그 수정 - 씬 입장 시 오작동 방지] 다시 활성화될 때마다(=씬에 들어올 때마다) 리셋한다.
-            // 이번에 구독을 걸고 나서 처음 오는 OnLevelChanged 한 번은 무시한다.
-            awaitingFirstLevelSignal = true;
+            // [버그 수정 - 씬 입장 시 오작동 방지, 값 비교 방식] 다시 활성화될 때마다(=씬에 들어올
+            // 때마다) 지금 시점의 실제 레벨을 기준선으로 다시 잡는다. 이후 들어오는 신호는 이 값보다
+            // 큰 경우에만 "진짜 레벨업"으로 취급한다.
+            lastKnownLevel = territoryData != null ? territoryData.Level : 0;
 
             if (territoryData != null)
             {
@@ -132,17 +146,16 @@ namespace HDY.UI
 
         private void HandleLevelChanged(int level)
         {
-            // [버그 수정 - 씬 입장 시 오작동 방지] _Kyusoo의 TerritoryRecordData.ApplyData()가 세이브
-            // 데이터를 씬에 적용할 때마다(영지 씬에 들어올 때마다) 복원된 레벨로 이 이벤트를 리플렉션으로
-            // 강제 재호출한다 - 진짜 레벨업이 아니라 "복원 알림"이다. 이번 활성화 사이클에서 처음 받는
-            // 신호가 바로 그 복원 알림일 가능성이 높으므로, 팝업을 띄우지 않고 조용히 넘어간다.
-            // 그 다음부터 오는 신호는 실제 레벨업으로 간주해 정상적으로 팝업을 띄운다.
-            if (awaitingFirstLevelSignal)
+            // [버그 수정 - 씬 입장 시 오작동 방지, 값 비교 방식] 값이 실제로 오르지 않았다면(복원
+            // 알림, 혹은 같은 레벨을 다시 알려주는 중복 신호) 팝업 없이 조용히 넘어간다. 기준선은 항상
+            // 최신으로 갱신해둔다.
+            if (level <= lastKnownLevel)
             {
-                awaitingFirstLevelSignal = false;
+                lastKnownLevel = level;
                 return;
             }
 
+            lastKnownLevel = level;
             Show(level);
         }
 

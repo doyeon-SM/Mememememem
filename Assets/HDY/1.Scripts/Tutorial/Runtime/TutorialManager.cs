@@ -153,11 +153,15 @@ namespace HDY.Tutorial
         // 실제 진행 계산에 쓰는 내부 상태(목표 키 -> 현재 수량). Inspector 디버그 리스트는 이 값을 그대로 반영만 한다.
         private readonly Dictionary<string, int> objectiveProgress = new Dictionary<string, int>();
 
-        // 등록된 프레젠테이션(대화창/HUD 목표 텍스트/하이라이트). GameTimeTextBinder와 동일하게, UI 쪽이
+        // 등록된 프레젠테이션(대화창/HUD 목표 텍스트/하이라이트/보상 미리보기). GameTimeTextBinder와 동일하게, UI 쪽이
         // 스스로 OnEnable/OnDisable에서 등록/해제하므로 씬이 바뀌어도 새 씬의 UI가 자동으로 재연결된다.
         private TutorialDialogueUI dialogueUI;
         private TutorialHighlightUI highlightUI;
         private readonly List<TMP_Text> objectiveTexts = new List<TMP_Text>();
+
+        // [HDY 요청 - 보상 미리보기 UI] 등록돼 있지 않으면(프리팹 미배치) 보상이 있는 스텝도 기존처럼
+        // 미리보기 없이 곧바로 완료된다 - CompleteCurrentStep 참고.
+        private TutorialRewardPreviewUI rewardPreviewUI;
 
         // TutorialUIHighlightTarget들이 등록한 "키 -> UI RectTransform" 목록.
         private readonly Dictionary<string, RectTransform> uiHighlightTargets = new Dictionary<string, RectTransform>();
@@ -287,8 +291,22 @@ namespace HDY.Tutorial
             playerInput.InteractPressed -= HandleInteractPressed;
         }
 
+        /// <summary>
+        /// [HDY 요청 - 탐험 중 F키로 보상 확인] 탐험 중에는 마우스 커서가 잠겨있어 보상 미리보기
+        /// 팝업의 확인 버튼을 클릭할 수 없다. 그래서 보상 팝업이 확인을 기다리는 중이면(rewardPreviewUI.
+        /// IsAwaitingConfirm) F 입력을 그 팝업의 확인으로 대신 위임하고, 대사 넘기기(AdvanceDialogue)는
+        /// 시도하지 않는다 - 그렇지 않으면 대사가 이미 끝난 스텝에서 F를 누를 때마다
+        /// CompleteCurrentStep이 재진입해 팝업이 계속 다시 그려지는 문제가 있었다. 팝업이 없는
+        /// 평소(대부분의 스텝)에는 지금까지처럼 곧바로 AdvanceDialogue()로 넘어간다.
+        /// </summary>
         private void HandleInteractPressed()
         {
+            if (rewardPreviewUI != null && rewardPreviewUI.IsAwaitingConfirm)
+            {
+                rewardPreviewUI.Confirm();
+                return;
+            }
+
             AdvanceDialogue();
         }
 
@@ -344,6 +362,23 @@ namespace HDY.Tutorial
             t.SetAsLastSibling(); // Canvas 맨 아래(자식 목록 마지막) = 화면 맨 위에 그려짐
 
             Debug.Log("<color=lime>[TutorialManager]</color> 튜토리얼 패널 스폰 완료.");
+        }
+
+        /// <summary>
+        /// [HDY 요청 - 영지 HUD 패널에 가려지는 문제 수정] UIManager.HandleHudButtonClicked는 상점/창고/
+        /// 도감 등 HUD 패널을 열 때마다 그 패널을 uiRoot(P_UIRoot)의 맨 마지막 자식으로 옮긴다(항상
+        /// 최상단에 그려지게 하려고). 튜토리얼 패널도 같은 uiRoot 밑에 스폰되는데, 스폰 시점에만 한 번
+        /// 맨 뒤로 보내고 끝이라, 그 이후에 플레이어가 HUD 패널을 하나라도 열면(영지에서 특히 자주
+        /// 발생 - 여러 스텝이 상점/창고 등을 열어보라고 안내함) 그 패널이 튜토리얼 패널보다 나중
+        /// 자식이 되어 위에 그려져 버렸다. 그래서 튜토리얼 UI를 보여주기 직전마다 다시 맨 뒤로 보내
+        /// 항상 최상단을 유지한다.
+        /// </summary>
+        private void EnsureTutorialPanelOnTop()
+        {
+            if (spawnedTutorialPanel != null)
+            {
+                spawnedTutorialPanel.transform.SetAsLastSibling();
+            }
         }
 
         /// <summary>
@@ -533,6 +568,21 @@ namespace HDY.Tutorial
             if (highlightUI == ui) highlightUI = null;
         }
 
+        /// <summary>
+        /// [HDY 요청 - 보상 미리보기 UI] TutorialRewardPreviewUI가 OnEnable에서 자기 자신을 등록할 때
+        /// 호출한다. 보상이 있는 스텝을 완료할 때 이 UI가 등록돼 있으면 즉시 지급하지 않고 먼저
+        /// 보상 목록을 보여준다(CompleteCurrentStep 참고).
+        /// </summary>
+        public void RegisterRewardPreviewUI(TutorialRewardPreviewUI ui)
+        {
+            rewardPreviewUI = ui;
+        }
+
+        public void UnregisterRewardPreviewUI(TutorialRewardPreviewUI ui)
+        {
+            if (rewardPreviewUI == ui) rewardPreviewUI = null;
+        }
+
         /// <summary>TutorialUIHighlightTarget이 OnEnable에서 자기 자신(키+RectTransform)을 등록할 때 호출한다.</summary>
         public void RegisterUIHighlightTarget(string key, RectTransform rect)
         {
@@ -606,6 +656,17 @@ namespace HDY.Tutorial
         public void SetPendingHighlightTarget(Transform target)
         {
             pendingHighlightTarget = target;
+        }
+
+        /// <summary>
+        /// [HDY 요청 - 조기 소모 방지] 지금 대기 중인(트리거를 기다리는) 스텝이 있다면 그 트리거
+        /// 종류를, 없으면 null을 반환한다. TutorialSightDetector가 매 스캔마다 "지금 상관없는
+        /// 카테고리까지 미리 스캔해서 나중에 필요할 때 다시 감지되지 않는" 문제를 피하려고 참고하는 값.
+        /// </summary>
+        public TutorialTriggerType? GetPendingStepTriggerType()
+        {
+            var pending = GetPendingStep();
+            return pending?.triggerType;
         }
 
         /// <summary>
@@ -714,6 +775,10 @@ namespace HDY.Tutorial
             pendingHighlightUITarget = null;
             RefreshHighlightPresentation();
 
+            // [HDY 요청 - 대기 힌트] 대기 상태로 넘어가는 즉시 새 스텝의 Waiting_Hint를 HUD에 반영한다.
+            // 이 호출이 없으면 트리거를 기다리는 동안 이전 스텝의 목표 텍스트가 그대로 남아있을 수 있었다.
+            RefreshObjectivePresentation();
+
             if (IsTriggerAlreadySatisfied(next))
             {
                 ActivateStep(next);
@@ -755,6 +820,11 @@ namespace HDY.Tutorial
             currentStepAwaitingTrigger = false;
             currentDialogueLineIndex = 0;
 
+            // [HDY 요청 - 영지 HUD 패널에 가려지는 문제 수정] 상점/창고 등 HUD 패널을 열 때마다 그 쪽이
+            // uiRoot 맨 뒤로 옮겨가 버려서, 스폰 시점에만 맨 뒤로 보내고 끝이면 튜토리얼 패널이 그 뒤에
+            // 묻힐 수 있었다. 새 스텝을 보여주기 직전마다 다시 맨 뒤로 보내 항상 최상단을 유지한다.
+            EnsureTutorialPanelOnTop();
+
             // highlightKey가 지정된 스텝이면 UI 하이라이트 레지스트리에서 찾아 강조 대상으로 쓴다.
             // 시야 감지로 이미 pendingHighlightTarget(월드 오브젝트)가 채워져 있는 스텝은 highlightKey를
             // 따로 안 쓰는 게 일반적이라 서로 충돌하지 않는다.
@@ -788,9 +858,34 @@ namespace HDY.Tutorial
             }
         }
 
+        /// <summary>
+        /// 스텝 완료 진입점. 보상이 있고(step.rewards.Count > 0) 보상 미리보기 UI가 등록돼 있으면
+        /// 곧바로 지급하지 않고 그 UI에 목록을 먼저 보여준 뒤, 확인 버튼 콜백에서 FinalizeStepCompletion을
+        /// 호출한다. 보상이 없거나 UI가 없으면(프리팹 미배치) 기존처럼 즉시 완료 처리한다.
+        /// </summary>
         private void CompleteCurrentStep()
         {
             var step = GetCurrentStep();
+            if (step == null) return;
+
+            // [HDY 요청 - 보상 미리보기 UI] 확인 버튼을 누를 때까지 실제 완료(지급 + 다음 스텝 진행)를 미룬다.
+            if (step.rewards != null && step.rewards.Count > 0 && rewardPreviewUI != null)
+            {
+                EnsureTutorialPanelOnTop(); // 위와 동일한 이유 - 보상 팝업도 다른 HUD 패널에 가려지지 않도록
+                rewardPreviewUI.Show(step.questTitle, step.rewards, () => FinalizeStepCompletion(step));
+                return;
+            }
+
+            FinalizeStepCompletion(step);
+        }
+
+        /// <summary>
+        /// 실제 완료 처리(보상 지급 + 완료 기록 + 다음 스텝 진행). 이전에는 CompleteCurrentStep이 이 전부를
+        /// 곧바로 수행했는데, 보상 미리보기 UI의 확인 버튼 콜백에서도 같은 로직이 필요해져 분리했다 -
+        /// 동작 자체는 이전과 동일하다.
+        /// </summary>
+        private void FinalizeStepCompletion(TutorialStepData step)
+        {
             if (step == null) return;
 
             GrantRewards(step);
@@ -1003,7 +1098,16 @@ namespace HDY.Tutorial
         private string BuildObjectiveDisplayText()
         {
             var current = GetCurrentStep();
-            if (current == null || currentStepAwaitingTrigger || current.objectives == null || current.objectives.Count == 0)
+
+            // [HDY 요청 - 대기 힌트] 트리거를 기다리는 중(대사 없음)이면 그 스텝의 Waiting_Hint가 있을 때
+            // 그 문구를 보여주고(예: "멤 찾기"), 없으면 기존처럼 공용 대기 문구를 보여준다.
+            if (currentStepAwaitingTrigger)
+            {
+                var pending = GetPendingStep();
+                return !string.IsNullOrEmpty(pending?.waitingHintText) ? pending.waitingHintText : NoObjectiveText;
+            }
+
+            if (current == null || current.objectives == null || current.objectives.Count == 0)
             {
                 // 할당된 목표가 없을 때(스텝 시작 전/완료 후 등) HUD가 빈 텍스트 대신 대기 문구를 보여준다.
                 return NoObjectiveText;
