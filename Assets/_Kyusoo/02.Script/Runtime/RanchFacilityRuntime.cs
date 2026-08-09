@@ -5,6 +5,7 @@ using HDY.Mem;
 using KMS.Audio;
 using MemSystem.Data;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -57,6 +58,8 @@ public class RanchFacilityRuntime : MonoBehaviour
 
     [Header("목장 슬롯 (5개)")]
     [SerializeField] private List<RanchSlotRuntime> slots = new List<RanchSlotRuntime>();
+
+    private Coroutine soundRoutine;
     public IReadOnlyList<RanchSlotRuntime> Slots => slots;
 
     public bool isProducing = false;
@@ -262,7 +265,6 @@ public class RanchFacilityRuntime : MonoBehaviour
                 continue;
             }
 
-            // 🌟 해당 슬롯 멤의 허기 상태 체크 (IsStarving 또는 CurrentHunger <= 0)
             if (slot.deployedMemEntry != null && (slot.deployedMemEntry.IsStarving || slot.deployedMemEntry.CurrentHunger <= 0))
             {
                 slot.isProducing = false;
@@ -469,16 +471,35 @@ public class RanchFacilityRuntime : MonoBehaviour
             List<MemData> activeMems = new List<MemData>();
             foreach (var s in slots) if (s.deployedMem != null) activeMems.Add(s.deployedMem);
 
-            if (isProducing && buildingData != null)
+            if (isProducing)
             {
-                KMS.Audio.KMSAudioService.Play2D(GameSfxId.Ranch);
+                if (soundRoutine != null) StopCoroutine(soundRoutine);
+                soundRoutine = StartCoroutine(FacilitySoundRoutine());
 
-                FacilityStarted?.Invoke(buildingData.buildingType, activeMems, MemPositions);
+                if (buildingData != null)
+                    FacilityStarted?.Invoke(buildingData.buildingType, activeMems, MemPositions);
             }
-            else if (!isProducing && buildingData != null)
+            else
             {
-                FacilityStopped?.Invoke(buildingData.buildingType, activeMems, FacilityStopReason.CompleteCrafting, MemPositions);
+                if (soundRoutine != null)
+                {
+                    StopCoroutine(soundRoutine);
+                    soundRoutine = null;
+                }
+
+                KMSAudioService.StopSfx(GameSfxId.Ranch);
+
+                if (buildingData != null)
+                    FacilityStopped?.Invoke(buildingData.buildingType, activeMems, FacilityStopReason.CompleteCrafting, MemPositions);
             }
+        }
+    }
+    private IEnumerator FacilitySoundRoutine()
+    {
+        while (isProducing)
+        {
+            KMSAudioService.PlayAt(GameSfxId.Ranch, transform.position);
+            yield return new WaitForSeconds(2.0f);
         }
     }
 

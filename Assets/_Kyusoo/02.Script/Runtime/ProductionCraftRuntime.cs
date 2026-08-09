@@ -7,6 +7,7 @@ using KMS.Audio;
 using KMS.InventoryDuped;
 using MemSystem.Data;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
@@ -34,6 +35,7 @@ public class ProductionCraftRuntime : MonoBehaviour
     [SerializeField] private List<MemData> addMems = new List<MemData>();
     [SerializeField] private List<CapturedMemEntry> addMemEntries = new List<CapturedMemEntry>();
 
+    private Coroutine soundRoutine;
     public List<MemData> DeployedMems => addMems;
     public List<CapturedMemEntry> DeployedMemEntries => addMemEntries;
 
@@ -90,7 +92,11 @@ public class ProductionCraftRuntime : MonoBehaviour
 
     private void Update()
     {
-        if (!isProducing) return;
+        if (!isProducing) 
+        {
+            SetProducingActive(false);
+            return; 
+        }
 
         if (currentStorageCount >= maxStorageCount)
         {
@@ -141,7 +147,7 @@ public class ProductionCraftRuntime : MonoBehaviour
     {
         if (addMems.Count == 0)
         {
-            isProducing = false;
+            SetProducingActive(false);
             currentProgressTime = 0f;
             currentCraftingItem = null;
             remainingQuantity = 0;
@@ -161,14 +167,7 @@ public class ProductionCraftRuntime : MonoBehaviour
 
             bool isAnyMemStarving = DeployedMemEntries.Any(e => e != null && (e.IsStarving || e.CurrentHunger <= 0));
 
-            if (!isAnyMemStarving)
-            {
-                SetProducingActive(true);
-            }
-            else
-            {
-                SetProducingActive(false);
-            }
+            SetProducingActive(!isAnyMemStarving);
         }
     }
 
@@ -239,6 +238,10 @@ public class ProductionCraftRuntime : MonoBehaviour
             {
                 MemAdded?.Invoke(buildingData.buildingType, removedMem, false, MemPositions);
             }
+        }
+        if(addMemEntries.Count == 0)
+        {
+            SetProducingActive(false);
         }
     }
 
@@ -377,21 +380,44 @@ public class ProductionCraftRuntime : MonoBehaviour
 
     private void SetProducingActive(bool value)
     {
-        if (isProducing == value) return;
+        if (isProducing == value && (value && soundRoutine != null)) return;
         isProducing = value;
 
-        if (isProducing && buildingData != null)
+        if (isProducing)
         {
-            KMS.Audio.KMSAudioService.Play2D(GameSfxId.Crafting);
+            if (soundRoutine != null) StopCoroutine(soundRoutine);
+            soundRoutine = StartCoroutine(FacilitySoundRoutine());
 
-            FacilityStarted?.Invoke(buildingData.buildingType, addMems, MemPositions);
+            if (buildingData != null)
+                FacilityStarted?.Invoke(buildingData.buildingType, addMems, MemPositions);
+        }
+        else
+        {
+            if (soundRoutine != null)
+            {
+                StopCoroutine(soundRoutine);
+                soundRoutine = null;
+            }
+
+            KMSAudioService.StopSfx(GameSfxId.Crafting);
+
+            if (buildingData != null)
+                FacilityStopped?.Invoke(buildingData.buildingType, addMems, FacilityStopReason.CancelCrafting, MemPositions);
+        }
+    }
+    private IEnumerator FacilitySoundRoutine()
+    {
+        while (isProducing)
+        {
+            KMSAudioService.PlayAt(GameSfxId.Crafting, transform.position);
+            yield return new WaitForSeconds(2.0f);
         }
     }
 
     public void StopWorkDueToStarvation()
     {
         if (!isProducing) return;
-        isProducing = false;
+        SetProducingActive(false);
 
         if (buildingData != null)
         {

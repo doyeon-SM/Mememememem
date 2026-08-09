@@ -5,6 +5,7 @@ using KMS.Audio;
 using KMS.InventoryDuped;
 using MemSystem.Data;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
@@ -30,6 +31,7 @@ public class GeneratorRuntime : MonoBehaviour
     [SerializeField] private List<MemData> addMems = new List<MemData>();
     [SerializeField] private List<CapturedMemEntry> addMemEntries = new List<CapturedMemEntry>();
 
+    private Coroutine soundRoutine;
     public List<MemData> DeployedMems => addMems;
     public List<CapturedMemEntry> DeployedMemEntries => addMemEntries;
 
@@ -132,17 +134,8 @@ public class GeneratorRuntime : MonoBehaviour
         totalPowerRequiredTime = ProductionCalculator.CalculatePowerGenerationTime(basePowerGenerationTime, addMems[0]);
         currentPowerProgressTime = totalPowerRequiredTime * currentProgressPercent;
 
-        // 🌟 추천 수정 방식: 배치된 멤 중 한 마리라도 IsStarving 상태인지 직접 확인
         bool isAnyMemStarving = DeployedMemEntries.Any(e => e != null && (e.IsStarving || e.CurrentHunger <= 0));
-
-        if (!isAnyMemStarving)
-        {
-            SetPowerGeneratingActive(true);
-        }
-        else
-        {
-            isPowerGenerating = false;
-        }
+        SetPowerGeneratingActive(!isAnyMemStarving);
     }
 
     public bool TryAddMem(MemData targetMem, CapturedMemEntry targetEntry)
@@ -213,6 +206,11 @@ public class GeneratorRuntime : MonoBehaviour
                 MemAdded?.Invoke(buildingData.buildingType, removedMem, false, MemPositions);
             }
         }
+
+        if(addMemEntries.Count == 0)
+        {
+            SetPowerGeneratingActive(false);
+        }
     }
 
     public void RemoveMem(MemData targetMem)
@@ -240,21 +238,45 @@ public class GeneratorRuntime : MonoBehaviour
 
     private void SetPowerGeneratingActive(bool value)
     {
-        if (isPowerGenerating == value) return;
+        if (isPowerGenerating == value && (value && soundRoutine != null)) return;
         isPowerGenerating = value;
 
-        if (isPowerGenerating && buildingData != null)
+        if (isPowerGenerating)
         {
-            KMS.Audio.KMSAudioService.Play2D(GameSfxId.Generator);
+            if (soundRoutine != null) StopCoroutine(soundRoutine);
+            soundRoutine = StartCoroutine(FacilitySoundRoutine());
 
-            FacilityStarted?.Invoke(buildingData.buildingType, addMems, MemPositions);
+            if (buildingData != null)
+                FacilityStarted?.Invoke(buildingData.buildingType, addMems, MemPositions);
+        }
+        else
+        {
+            if (soundRoutine != null)
+            {
+                StopCoroutine(soundRoutine);
+                soundRoutine = null;
+            }
+
+            KMSAudioService.StopSfx(GameSfxId.Generator);
+
+            if (buildingData != null)
+                FacilityStopped?.Invoke(buildingData.buildingType, addMems, FacilityStopReason.CancelCrafting, MemPositions);
+        }
+    }
+
+    private IEnumerator FacilitySoundRoutine()
+    {
+        while (isPowerGenerating)
+        {
+            KMSAudioService.PlayAt(GameSfxId.Generator, transform.position);
+            yield return new WaitForSeconds(2.0f);
         }
     }
 
     public void StopWorkDueToStarvation()
     {
         if (!isPowerGenerating) return;
-        isPowerGenerating = false;
+        SetPowerGeneratingActive(false);
 
         if (buildingData != null)
         {

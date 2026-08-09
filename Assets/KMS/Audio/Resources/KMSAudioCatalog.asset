@@ -22,6 +22,7 @@ MonoBehaviour:
     SpatialBlend: 1
     Cooldown: 0.08
     MaxVoices: 2
+    Loop: 0
     Output: {fileID: 0}
   - Id: 1
     Clips:
@@ -32,6 +33,7 @@ MonoBehaviour:
     SpatialBlend: 1
     Cooldown: 0
     MaxVoices: 4
+    Loop: 0
     Output: {fileID: 0}
   - Id: 2
     Clips:
@@ -42,6 +44,7 @@ MonoBehaviour:
     SpatialBlend: 1
     Cooldown: 0
     MaxVoices: 4
+    Loop: 0
     Output: {fileID: 0}
   - Id: 3
     Clips:
@@ -52,6 +55,7 @@ MonoBehaviour:
     SpatialBlend: 1
     Cooldown: 0
     MaxVoices: 4
+    Loop: 0
     Output: {fileID: 0}
   - Id: 4
     Clips:
@@ -62,6 +66,7 @@ MonoBehaviour:
     SpatialBlend: 1
     Cooldown: 0
     MaxVoices: 4
+    Loop: 0
     Output: {fileID: 0}
   - Id: 5
     Clips:
@@ -72,6 +77,7 @@ MonoBehaviour:
     SpatialBlend: 1
     Cooldown: 0.08
     MaxVoices: 2
+    Loop: 0
     Output: {fileID: 0}
   - Id: 6
     Clips:
@@ -82,6 +88,7 @@ MonoBehaviour:
     SpatialBlend: 1
     Cooldown: 0.06
     MaxVoices: 2
+    Loop: 0
     Output: {fileID: 0}
   - Id: 7
     Clips: []
@@ -91,6 +98,7 @@ MonoBehaviour:
     SpatialBlend: 1
     Cooldown: 0
     MaxVoices: 4
+    Loop: 0
     Output: {fileID: 0}
   - Id: 8
     Clips: []
@@ -100,6 +108,7 @@ MonoBehaviour:
     SpatialBlend: 1
     Cooldown: 0
     MaxVoices: 4
+    Loop: 0
     Output: {fileID: 0}
   - Id: 9
     Clips:
@@ -110,6 +119,7 @@ MonoBehaviour:
     SpatialBlend: 1
     Cooldown: 0
     MaxVoices: 4
+    Loop: 0
     Output: {fileID: 0}
   - Id: 10
     Clips:
@@ -120,6 +130,7 @@ MonoBehaviour:
     SpatialBlend: 1
     Cooldown: 0
     MaxVoices: 4
+    Loop: 0
     Output: {fileID: 0}
   - Id: 11
     Clips:
@@ -130,6 +141,7 @@ MonoBehaviour:
     SpatialBlend: 0
     Cooldown: 0.04
     MaxVoices: 2
+    Loop: 0
     Output: {fileID: 0}
   - Id: 12
     Clips: []
@@ -139,6 +151,7 @@ MonoBehaviour:
     SpatialBlend: 0
     Cooldown: 0.04
     MaxVoices: 2
+    Loop: 0
     Output: {fileID: 0}
   - Id: 13
     Clips:
@@ -149,6 +162,7 @@ MonoBehaviour:
     SpatialBlend: 0
     Cooldown: 0.1
     MaxVoices: 1
+    Loop: 0
     Output: {fileID: 0}
   - Id: 14
     Clips:
@@ -159,6 +173,7 @@ MonoBehaviour:
     SpatialBlend: 1
     Cooldown: 0
     MaxVoices: 4
+    Loop: 0
     Output: {fileID: 0}
   - Id: 15
     Clips:
@@ -169,6 +184,7 @@ MonoBehaviour:
     SpatialBlend: 0
     Cooldown: 0.03
     MaxVoices: 2
+    Loop: 0
     Output: {fileID: 0}
   - Id: 16
     Clips:
@@ -179,6 +195,7 @@ MonoBehaviour:
     SpatialBlend: 0
     Cooldown: 0.05
     MaxVoices: 2
+    Loop: 0
     Output: {fileID: 0}
   - Id: 17
     Clips:
@@ -189,6 +206,7 @@ MonoBehaviour:
     SpatialBlend: 0
     Cooldown: 0.05
     MaxVoices: 2
+    Loop: 0
     Output: {fileID: 0}
   - Id: 18
     Clips:
@@ -199,6 +217,7 @@ MonoBehaviour:
     SpatialBlend: 0
     Cooldown: 0.05
     MaxVoices: 1
+    Loop: 0
     Output: {fileID: 0}
   - Id: 19
     Clips:
@@ -209,6 +228,7 @@ MonoBehaviour:
     SpatialBlend: 0
     Cooldown: 0.05
     MaxVoices: 1
+    Loop: 0
     Output: {fileID: 0}
   - Id: 20
     Clips:
@@ -219,6 +239,7 @@ MonoBehaviour:
     SpatialBlend: 0
     Cooldown: 0.05
     MaxVoices: 1
+    Loop: 0
     Output: {fileID: 0}
   - Id: 21
     Clips:
@@ -229,6 +250,7 @@ MonoBehaviour:
     SpatialBlend: 0
     Cooldown: 0.05
     MaxVoices: 1
+    Loop: 0
     Output: {fileID: 0}
   - Id: 22
     Clips:
@@ -239,58 +261,151 @@ MonoBehaviour:
     SpatialBlend: 0
     Cooldown: 0.05
     MaxVoices: 1
+    Loop: 0
     Output: {fileID: 0}
   - Id: 23
     Clips:
     - {fileID: 8300000, guid: 302b3806a548b8a4a8dec57c9d087387, type: 3}
-    Volume: 1
+    Volume: 0.3
     PitchMin: 0.96
     PitchMax: 1.04
-    SpatialBlend: 1
+    SpatialBlend: 0
     Cooldown: 0
     MaxVoices: 4
+    Loop: 0
     Output: {fileID: 0}
   - Id: 24
     Clips:
     - {fileID: 8300000, guid: 38bb5ce2e0bf1e5468dc6ac5f9772107, type: 3}
-    Volume: 1
+    Volume: 0.3
     PitchMin: 0.96
     PitchMax: 1.04
-    SpatialBlend: 1
+    SpatialBlend: 0
     Cooldown: 0
     MaxVoices: 4
+    Loop: 0
     Output: {fileID: 0}
   - Id: 25
     Clips:
     - {fileID: 8300000, guid: 6b409e3130edba44e9dc307bd2368b8c, type: 3}
-    Volume: 1
+    Volume: 0.15
     PitchMin: 0.96
     PitchMax: 1.04
-    SpatialBlend: 1
-    Cooldown: 0
-    MaxVoices: 4
+    SpatialBlend: 0
+    Cooldown: 2
+    MaxVoices: 1
+    Loop: 0
     Output: {fileID: 0}
   - Id: 26
     Clips:
     - {fileID: 8300000, guid: 86032c8bbcaec5542be516f2ef882c0b, type: 3}
-    Volume: 1
+    Volume: 0.15
     PitchMin: 0.96
     PitchMax: 1.04
-    SpatialBlend: 1
-    Cooldown: 0
-    MaxVoices: 4
+    SpatialBlend: 0
+    Cooldown: 1
+    MaxVoices: 1
+    Loop: 0
     Output: {fileID: 0}
   - Id: 27
     Clips:
     - {fileID: 8300000, guid: 5f1de43b3a62d6c4dbdde695c09477df, type: 3}
-    Volume: 1
+    Volume: 0.15
     PitchMin: 0.96
     PitchMax: 1.04
-    SpatialBlend: 1
-    Cooldown: 0
-    MaxVoices: 4
+    SpatialBlend: 0
+    Cooldown: 2
+    MaxVoices: 1
+    Loop: 0
     Output: {fileID: 0}
   - Id: 28
+    Clips: []
+    Volume: 0.15
+    PitchMin: 0.96
+    PitchMax: 1.04
+    SpatialBlend: 0
+    Cooldown: 2
+    MaxVoices: 1
+    Loop: 0
+    Output: {fileID: 0}
+  - Id: 29
+    Clips:
+    - {fileID: 8300000, guid: 3a48004dec6e5b04fb05b7b1da63b302, type: 3}
+    Volume: 0.15
+    PitchMin: 0.96
+    PitchMax: 1.04
+    SpatialBlend: 0
+    Cooldown: 2
+    MaxVoices: 1
+    Loop: 0
+    Output: {fileID: 0}
+  - Id: 30
+    Clips:
+    - {fileID: 8300000, guid: 4de0c91cef479c4499fa251b78aea065, type: 3}
+    Volume: 0.15
+    PitchMin: 0.96
+    PitchMax: 1.04
+    SpatialBlend: 0
+    Cooldown: 2
+    MaxVoices: 1
+    Loop: 0
+    Output: {fileID: 0}
+  - Id: 31
+    Clips:
+    - {fileID: 8300000, guid: cce05eef63940b44c915625f41398158, type: 3}
+    Volume: 0.15
+    PitchMin: 0.96
+    PitchMax: 1.04
+    SpatialBlend: 0
+    Cooldown: 2
+    MaxVoices: 1
+    Loop: 0
+    Output: {fileID: 0}
+  - Id: 32
+    Clips:
+    - {fileID: 8300000, guid: ec61bb729a5653342961676aef28a760, type: 3}
+    Volume: 0.15
+    PitchMin: 0.96
+    PitchMax: 1.04
+    SpatialBlend: 0
+    Cooldown: 2
+    MaxVoices: 1
+    Loop: 0
+    Output: {fileID: 0}
+  - Id: 33
+    Clips:
+    - {fileID: 8300000, guid: 90be776816ba56d46b43126291ac7bd1, type: 3}
+    Volume: 0.15
+    PitchMin: 0.96
+    PitchMax: 1.04
+    SpatialBlend: 0
+    Cooldown: 2
+    MaxVoices: 1
+    Loop: 0
+    Output: {fileID: 0}
+  - Id: 34
+    Clips:
+    - {fileID: 8300000, guid: 9d427da0992dbe044b686e3e19b056fa, type: 3}
+    Volume: 0.15
+    PitchMin: 0.96
+    PitchMax: 1.04
+    SpatialBlend: 0
+    Cooldown: 2
+    MaxVoices: 1
+    Loop: 0
+    Output: {fileID: 0}
+  - Id: 35
+    Clips:
+    - {fileID: 8300000, guid: 66d2b44c44b555c44b4f35d9606f0c13, type: 3}
+    Volume: 0.15
+    PitchMin: 0.96
+    PitchMax: 1.04
+    SpatialBlend: 0
+    Cooldown: 2
+    MaxVoices: 1
+    Loop: 0
+    Output: {fileID: 0}
+  - Id: 36
     Clips: []
     Volume: 1
     PitchMin: 0.96
@@ -298,76 +413,17 @@ MonoBehaviour:
     SpatialBlend: 1
     Cooldown: 0
     MaxVoices: 4
+    Loop: 0
     Output: {fileID: 0}
-  - Id: 29
-    Clips:
-    - {fileID: 8300000, guid: 3a48004dec6e5b04fb05b7b1da63b302, type: 3}
+  - Id: 37
+    Clips: []
     Volume: 1
     PitchMin: 0.96
     PitchMax: 1.04
     SpatialBlend: 1
     Cooldown: 0
     MaxVoices: 4
-    Output: {fileID: 0}
-  - Id: 30
-    Clips:
-    - {fileID: 8300000, guid: 4de0c91cef479c4499fa251b78aea065, type: 3}
-    Volume: 1
-    PitchMin: 0.96
-    PitchMax: 1.04
-    SpatialBlend: 1
-    Cooldown: 0
-    MaxVoices: 4
-    Output: {fileID: 0}
-  - Id: 31
-    Clips:
-    - {fileID: 8300000, guid: cce05eef63940b44c915625f41398158, type: 3}
-    Volume: 1
-    PitchMin: 0.96
-    PitchMax: 1.04
-    SpatialBlend: 1
-    Cooldown: 0
-    MaxVoices: 4
-    Output: {fileID: 0}
-  - Id: 32
-    Clips:
-    - {fileID: 8300000, guid: ec61bb729a5653342961676aef28a760, type: 3}
-    Volume: 1
-    PitchMin: 0.96
-    PitchMax: 1.04
-    SpatialBlend: 1
-    Cooldown: 0
-    MaxVoices: 4
-    Output: {fileID: 0}
-  - Id: 33
-    Clips:
-    - {fileID: 8300000, guid: 90be776816ba56d46b43126291ac7bd1, type: 3}
-    Volume: 1
-    PitchMin: 0.96
-    PitchMax: 1.04
-    SpatialBlend: 1
-    Cooldown: 0
-    MaxVoices: 4
-    Output: {fileID: 0}
-  - Id: 34
-    Clips:
-    - {fileID: 8300000, guid: 9d427da0992dbe044b686e3e19b056fa, type: 3}
-    Volume: 1
-    PitchMin: 0.96
-    PitchMax: 1.04
-    SpatialBlend: 1
-    Cooldown: 0
-    MaxVoices: 4
-    Output: {fileID: 0}
-  - Id: 35
-    Clips:
-    - {fileID: 8300000, guid: 66d2b44c44b555c44b4f35d9606f0c13, type: 3}
-    Volume: 1
-    PitchMin: 0.96
-    PitchMax: 1.04
-    SpatialBlend: 1
-    Cooldown: 0
-    MaxVoices: 4
+    Loop: 0
     Output: {fileID: 0}
   sceneMusic:
   - SceneName: Territory

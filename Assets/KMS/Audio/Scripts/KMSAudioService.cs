@@ -247,7 +247,7 @@ namespace KMS.Audio
                 Mathf.Max(cue.PitchMin, cue.PitchMax));
             source.spatialBlend = force2D ? 0f : cue.SpatialBlend;
             source.transform.position = position;
-            source.loop = false;
+            source.loop = cue.Loop;
             sourceCueIds[source] = id;
             lastPlayTimes[id] = now;
             source.Play();
@@ -471,6 +471,31 @@ namespace KMS.Audio
             }
 
             musicFadeRoutine = null;
+        }
+        
+        public static void StopSfx(GameSfxId id)
+        {
+            KMSAudioService service = EnsureInstance();
+            if (service == null) return;
+            service.StopCue(id);
+        }
+
+        private void StopCue(GameSfxId id)
+        {
+            for (int i = 0; i < sfxSources.Count; i++)
+            {
+                AudioSource source = sfxSources[i];
+                if (source.isPlaying && sourceCueIds.TryGetValue(source, out GameSfxId playingId) && playingId == id)
+                {
+                    source.Stop();
+                    source.loop = false; 
+                }
+            }
+
+            if (lastPlayTimes.ContainsKey(id))
+            {
+                lastPlayTimes[id] = 0f;
+            }
         }
     }
 }
