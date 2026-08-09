@@ -30,7 +30,22 @@ namespace KMS.Audio
         ForgeEnhanceFailure,
         TerritoryLevelUp,
         GoddessStatueUnlock,
-        QuestComplete
+        QuestComplete,
+        CraftingComplete,
+        CookingComplete,
+        Logging,
+        Mining,
+        Crafting,
+        Cooking,
+        CampFire,
+        Kitchen,
+        Ranch,
+        Transport,
+        Generator,
+        Farm,
+        WheatFarm,
+        Wind,
+        Bird
     }
 
     [Serializable]
@@ -44,6 +59,7 @@ namespace KMS.Audio
         [Range(0f, 1f)] public float SpatialBlend = 1f;
         [Min(0f)] public float Cooldown;
         [Min(1)] public int MaxVoices = 4;
+        public bool Loop = false;
         public AudioMixerGroup Output;
 
         [NonSerialized] private int lastClipIndex = -1;

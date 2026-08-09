@@ -1,6 +1,8 @@
 ﻿using HDY.Capture;
 using HDY.Upgrade;
 using MemSystem.Data;
+using System.Collections.Generic;
+using System.Linq;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -29,6 +31,7 @@ public class RanchPanelUI : MonoBehaviour
 
     private Sequence dotsSequence;
     private bool isAnimatingDots = false;
+    private string currentStatusPrefix = "";
 
     private void Awake()
     {
@@ -41,9 +44,31 @@ public class RanchPanelUI : MonoBehaviour
         InitializeSlotIndexes();
     }
 
+    private void OnEnable()
+    {
+        if (ConsumeFoodSystem.Instance != null)
+        {
+            ConsumeFoodSystem.Instance.OnFoodAmountChanged += HandleFoodAmountChanged;
+        }
+        RefreshStaticUI();
+    }
+
     private void OnDisable()
     {
+        if (ConsumeFoodSystem.Instance != null)
+        {
+            ConsumeFoodSystem.Instance.OnFoodAmountChanged -= HandleFoodAmountChanged;
+        }
         StopDotsAnimation();
+    }
+
+    private void HandleFoodAmountChanged(int currentSatiety, int maxSatiety)
+    {
+        if (targetFacility != null)
+        {
+            targetFacility.CheckAllSlotsProductionCondition();
+            RefreshStaticUI();
+        }
     }
 
     private void InitializeSlotIndexes()
@@ -57,10 +82,37 @@ public class RanchPanelUI : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// 해금된 슬롯 중 멤이 배치된 데이터가 1개라도 있는지 확인
+    /// </summary>
+    private bool HasAnyMemDeployed()
+    {
+        if (targetFacility == null || targetFacility.Slots == null) return false;
+        return targetFacility.Slots.Any(s => s != null && s.isUnlocked && s.deployedMemEntry != null);
+    }
+
+    /// <summary>
+    /// 배치된 모든 멤의 배고픔량이 0 이하(또는 IsStarving)인지 검사
+    /// </summary>
+    private bool IsAllDeployedMemsStarving()
+    {
+        if (targetFacility == null || targetFacility.Slots == null) return false;
+
+        var deployedEntries = targetFacility.Slots
+            .Where(s => s != null && s.isUnlocked && s.deployedMemEntry != null)
+            .Select(s => s.deployedMemEntry)
+            .ToList();
+
+        if (deployedEntries.Count == 0) return false;
+
+        return deployedEntries.All(e => e != null && (e.IsStarving || e.CurrentHunger <= 0));
+    }
+
     private void Update()
     {
         if (targetFacility == null) return;
 
+        // 1. 개별 슬롯 진행도 & WarningIcon 상태 실시간 전달
         for (int i = 0; i < productionSlots.Length; i++)
         {
             if (i < targetFacility.Slots.Count && productionSlots[i] != null)
@@ -74,53 +126,65 @@ public class RanchPanelUI : MonoBehaviour
             collectAllBtn.interactable = targetFacility.HasAnyCollectableItem();
         }
 
-        UpdateOverallStatusUI();
-    }
+        // 🌟 2. ProductionPanelUI와 100% 동일한 분기 로직 적용
+        bool isNoMem = !HasAnyMemDeployed();
+        bool isAllStarving = !isNoMem && IsAllDeployedMemsStarving();
+        int currentSatiety = ConsumeFoodSystem.Instance != null ? ConsumeFoodSystem.Instance.CurrentSatiety : 0;
 
-    private void UpdateOverallStatusUI()
-    {
-        if (targetFacility == null) return;
-
-        bool isStarving = ConsumeFoodSystem.Instance != null && ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation;
-
-        if (isStarving)
-        {
-            StopDotsAnimation();
-            if (overallStatusText != null)
-            {
-                overallStatusText.color = Color.red;
-                overallStatusText.text = "식량이 부족합니다";
-            }
-        }
-        else if (targetFacility.isProducing)
-        {
-            StartDotsAnimation();
-        }
-        else
+        // 2-1. 멤 미배치
+        if (isNoMem)
         {
             StopDotsAnimation();
             if (overallStatusText != null)
             {
                 overallStatusText.color = Color.white;
-                overallStatusText.text = "생산 대기 중";
+                overallStatusText.text = "멤을 배치하세요!";
             }
+        }
+        // 2-2. 가동 중지 (배치된 멤 모두 허기량 0)
+        else if (isAllStarving)
+        {
+            // 🌟 밥통에 음식을 채워 넣은 경우 (급식 진행/대기)
+            if (currentSatiety > 0)
+            {
+                StartDotsAnimation("음식 보충중");
+            }
+            // 🌟 밥통에 음식도 완전히 없는 경우
+            else
+            {
+                StopDotsAnimation();
+                if (overallStatusText != null)
+                {
+                    overallStatusText.color = Color.red;
+                    overallStatusText.text = "식량이 부족합니다";
+                }
+            }
+        }
+        // 2-3. 정상 생산 진행 중
+        else
+        {
+            StartDotsAnimation("생산중");
         }
     }
 
-    private void StartDotsAnimation()
+    private void StartDotsAnimation(string customPrefix = "생산중")
     {
-        if (isAnimatingDots) return;
+        string prefix = string.IsNullOrEmpty(customPrefix) ? "생산중" : customPrefix;
+
+        if (isAnimatingDots && currentStatusPrefix == prefix) return;
+
+        currentStatusPrefix = prefix;
         isAnimatingDots = true;
 
         if (dotsSequence != null) dotsSequence.Kill();
         if (overallStatusText != null) overallStatusText.color = Color.white;
 
         dotsSequence = DOTween.Sequence();
-        dotsSequence.AppendCallback(() => { SetStatusText("생산중 ."); })
+        dotsSequence.AppendCallback(() => { SetStatusText($"{currentStatusPrefix} ."); })
                     .AppendInterval(0.4f)
-                    .AppendCallback(() => { SetStatusText("생산중 .."); })
+                    .AppendCallback(() => { SetStatusText($"{currentStatusPrefix} .."); })
                     .AppendInterval(0.4f)
-                    .AppendCallback(() => { SetStatusText("생산중 ..."); })
+                    .AppendCallback(() => { SetStatusText($"{currentStatusPrefix} ..."); })
                     .AppendInterval(0.4f)
                     .SetLoops(-1, LoopType.Restart);
     }
@@ -135,6 +199,7 @@ public class RanchPanelUI : MonoBehaviour
         if (!isAnimatingDots && dotsSequence == null) return;
 
         isAnimatingDots = false;
+        currentStatusPrefix = "";
         if (dotsSequence != null)
         {
             dotsSequence.Kill();
@@ -197,8 +262,6 @@ public class RanchPanelUI : MonoBehaviour
                 levelUpBtnText.text = isMax ? "Lv.Max" : "레벨업";
             }
         }
-
-        UpdateOverallStatusUI();
     }
 
     private void OnClickLevelUp()

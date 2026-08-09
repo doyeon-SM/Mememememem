@@ -2,6 +2,8 @@
 using HDY.Item;
 using HDY.Upgrade;
 using MemSystem.Data;
+using System.Collections.Generic;
+using System.Linq; // 🌟 LINQ 추가
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -15,7 +17,7 @@ public class TransportPanelUI : MonoBehaviour
     [SerializeField] private TextMeshProUGUI buildingName;
     [SerializeField] private TextMeshProUGUI buildingLevel;
     [SerializeField] private Button levelUpBtn;
-    [SerializeField] private TextMeshProUGUI levelUpBtnText; // 버튼 내 텍스트 참조
+    [SerializeField] private TextMeshProUGUI levelUpBtnText;
 
     [Header("중앙 - 멤 슬롯 (최대 3개)")]
     [SerializeField] private MemSlotUI[] memSlots = new MemSlotUI[3];
@@ -103,7 +105,6 @@ public class TransportPanelUI : MonoBehaviour
             memSlots[i].RefreshStatus(isUnlocked, placedMemData, placedEntryData);
         }
 
-        // 운송 시설은 3레벨이 최대 레벨임
         if (levelUpBtn != null)
         {
             bool isMax = targetFacility.currentLevel >= 3;
@@ -123,11 +124,66 @@ public class TransportPanelUI : MonoBehaviour
         UpdateDynamicUI();
     }
 
+    /// <summary>
+    /// 🌟 배치된 모든 멤의 배고픔량이 0 이하인지 검사
+    /// </summary>
+    private bool IsAllDeployedMemsStarving()
+    {
+        if (targetFacility == null || targetFacility.DeployedMemEntries == null || targetFacility.DeployedMemEntries.Count == 0)
+            return false;
+
+        return targetFacility.DeployedMemEntries.All(e => e != null && (e.IsStarving || e.CurrentHunger <= 0));
+    }
+
+    /// <summary>
+    /// 🌟 실시간 상태 텍스트 및 UI 갱신 (식량 상태 분기 연동)
+    /// </summary>
     private void UpdateDynamicUI()
     {
         if (targetFacility == null) return;
 
-        if (targetFacility.isWorking && targetFacility.totalRequiredTime > 0f)
+        bool isNoMem = targetFacility.DeployedMems.Count == 0 || targetFacility.DeployedMemEntries.Count == 0;
+        bool isAllStarving = !isNoMem && IsAllDeployedMemsStarving();
+        int currentSatiety = ConsumeFoodSystem.Instance != null ? ConsumeFoodSystem.Instance.CurrentSatiety : 0;
+
+        // 1. 멤 미배치
+        if (isNoMem)
+        {
+            StopDotsAnimation();
+            if (statusText != null)
+            {
+                statusText.color = Color.white;
+                statusText.text = "멤을 배치하세요!";
+            }
+            if (progressBar != null) progressBar.value = 0f;
+            if (percentText != null) percentText.text = "0%";
+            if (durationText != null) durationText.text = "운반 대기 중";
+        }
+        // 2. 가동 중지 (배치된 멤 모두 허기량 0)
+        else if (isAllStarving)
+        {
+            if (progressBar != null) progressBar.value = 0f;
+            if (percentText != null) percentText.text = "0%";
+            if (durationText != null) durationText.text = "운반 대기 중";
+
+            // 2-1. 굶고 있지만 음식창고에 음식을 채워 넣은 경우 (급식 진행/대기)
+            if (currentSatiety > 0)
+            {
+                StartDotsAnimation("음식 보충중");
+            }
+            // 2-2. 창고에 음식도 완전히 없는 경우
+            else
+            {
+                StopDotsAnimation();
+                if (statusText != null)
+                {
+                    statusText.color = Color.red;
+                    statusText.text = "식량이 부족합니다";
+                }
+            }
+        }
+        // 3. 정상 운송 진행 중 (기존 Transport 시설 전용 연출 유지)
+        else if (targetFacility.isWorking && targetFacility.totalRequiredTime > 0f)
         {
             float progressNormalized = targetFacility.currentProgressTime / targetFacility.totalRequiredTime;
             float percent = Mathf.Clamp(progressNormalized * 100f, 0f, 100f);
@@ -149,7 +205,11 @@ public class TransportPanelUI : MonoBehaviour
             else if (percent >= 100f || targetFacility.currentProgressTime >= targetFacility.totalRequiredTime)
             {
                 StopDotsAnimation();
-                if (statusText != null) statusText.text = "운반 대기중";
+                if (statusText != null)
+                {
+                    statusText.color = Color.white;
+                    statusText.text = "운반 대기중";
+                }
             }
             else
             {
@@ -163,11 +223,15 @@ public class TransportPanelUI : MonoBehaviour
 
             if (durationText != null)
             {
-                durationText.text = "운반 대기 중";
+                durationText.text = "운반 대기중";
             }
 
             StopDotsAnimation();
-            if (statusText != null) statusText.text = "운반 대기중";
+            if (statusText != null)
+            {
+                statusText.color = Color.white;
+                statusText.text = "운반 대기중";
+            }
         }
     }
 
@@ -179,6 +243,7 @@ public class TransportPanelUI : MonoBehaviour
         isAnimatingDots = true;
 
         if (dotsSequence != null) dotsSequence.Kill();
+        if (statusText != null) statusText.color = Color.white; 
 
         dotsSequence = DOTween.Sequence();
         dotsSequence.AppendCallback(() => { if (statusText != null) statusText.text = $"{currentStatusPrefix} ."; })

@@ -3,10 +3,13 @@ using HDY.Cook;
 using HDY.Inventory;
 using HDY.Item;
 using HDY.Mem;
+using KMS.Audio;
 using KMS.InventoryDuped;
 using MemSystem.Data;
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 public class CampFireRuntime : MonoBehaviour
@@ -29,6 +32,8 @@ public class CampFireRuntime : MonoBehaviour
     [Header("요리 완료 데이터")]
     public int currentStorageCount = 0;
     public int maxStorageCount = 10;
+
+    private Coroutine soundRoutine;
 
     [Header("시설에 배치된 멤 정보 (최대 1마리)")]
     [SerializeField] private List<MemData> addMems = new List<MemData>();
@@ -91,7 +96,11 @@ public class CampFireRuntime : MonoBehaviour
 
     private void Update()
     {
-        if (!isCooking) return;
+        if (!isCooking)
+        {
+            SetCookingActive(false);
+            return;
+        }
 
         if (currentStorageCount >= maxStorageCount)
         {
@@ -121,13 +130,15 @@ public class CampFireRuntime : MonoBehaviour
 
         totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, addMems);
 
-        if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
+        bool isAnyMemStarving = DeployedMemEntries.Any(e => e != null && (e.IsStarving || e.CurrentHunger <= 0));
+
+        if (!isAnyMemStarving)
         {
             SetCookingActive(true);
         }
         else
         {
-            isCooking = false;
+            SetCookingActive(false);
         }
     }
 
@@ -159,14 +170,9 @@ public class CampFireRuntime : MonoBehaviour
             totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, addMems);
             currentProgressTime = totalRequiredTime * currentProgressPercent;
 
-            if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
-            {
-                SetCookingActive(true);
-            }
-            else
-            {
-                isCooking = false;
-            }
+            bool isAnyMemStarving = DeployedMemEntries.Any(e => e != null && (e.IsStarving || e.CurrentHunger <= 0));
+
+            SetCookingActive(!isAnyMemStarving);
         }
     }
 
@@ -238,6 +244,10 @@ public class CampFireRuntime : MonoBehaviour
                 MemAdded?.Invoke(buildingData.buildingType, removedMem, false, MemPositions);
             }
         }
+        if(addMems.Count == 0)
+        {
+           SetCookingActive(false);
+        }
     }
 
     public void RemoveMem(MemData targetMem)
@@ -256,6 +266,8 @@ public class CampFireRuntime : MonoBehaviour
         currentStorageCount++;
         remainingQuantity--;
         currentProgressTime = 0f;
+
+        KMS.Audio.KMSAudioService.Play2D(GameSfxId.CookingComplete);
 
         if (remainingQuantity > 0)
         {
@@ -384,19 +396,45 @@ public class CampFireRuntime : MonoBehaviour
 
     private void SetCookingActive(bool value)
     {
-        if (isCooking == value) return;
+        if (isCooking == value && (value && soundRoutine != null)) return;
         isCooking = value;
 
-        if (isCooking && buildingData != null)
+        if (isCooking)
         {
-            FacilityStarted?.Invoke(buildingData.buildingType, addMems, MemPositions);
+            if (soundRoutine != null) StopCoroutine(soundRoutine);
+            soundRoutine = StartCoroutine(FacilitySoundRoutine());
+
+            if (buildingData != null)
+                FacilityStarted?.Invoke(buildingData.buildingType, addMems, MemPositions);
+        }
+        else
+        {
+            if (soundRoutine != null)
+            {
+                StopCoroutine(soundRoutine);
+                soundRoutine = null;
+            }
+
+            KMSAudioService.StopSfx(GameSfxId.CampFire);
+
+            if (buildingData != null)
+                FacilityStopped?.Invoke(buildingData.buildingType, addMems, FacilityStopReason.CancelCrafting, MemPositions);
+        }
+    }
+
+    private IEnumerator FacilitySoundRoutine()
+    {
+        while (isCooking)
+        {
+            KMSAudioService.PlayAt(GameSfxId.CampFire, transform.position);
+            yield return new WaitForSeconds(2.0f);
         }
     }
 
     public void StopWorkDueToStarvation()
     {
         if (!isCooking) return;
-        isCooking = false;
+        SetCookingActive(false);
 
         if (buildingData != null)
         {

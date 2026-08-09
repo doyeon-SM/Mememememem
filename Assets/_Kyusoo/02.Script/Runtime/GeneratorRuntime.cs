@@ -1,11 +1,14 @@
-﻿using System;
-using System.Collections.Generic;
-using UnityEngine;
-using HDY.Capture;
+﻿using HDY.Capture;
 using HDY.Item;
 using HDY.Mem;
-using MemSystem.Data;
+using KMS.Audio;
 using KMS.InventoryDuped;
+using MemSystem.Data;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using UnityEngine;
 
 public class GeneratorRuntime : MonoBehaviour
 {
@@ -28,6 +31,7 @@ public class GeneratorRuntime : MonoBehaviour
     [SerializeField] private List<MemData> addMems = new List<MemData>();
     [SerializeField] private List<CapturedMemEntry> addMemEntries = new List<CapturedMemEntry>();
 
+    private Coroutine soundRoutine;
     public List<MemData> DeployedMems => addMems;
     public List<CapturedMemEntry> DeployedMemEntries => addMemEntries;
 
@@ -130,14 +134,8 @@ public class GeneratorRuntime : MonoBehaviour
         totalPowerRequiredTime = ProductionCalculator.CalculatePowerGenerationTime(basePowerGenerationTime, addMems[0]);
         currentPowerProgressTime = totalPowerRequiredTime * currentProgressPercent;
 
-        if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
-        {
-            SetPowerGeneratingActive(true);
-        }
-        else
-        {
-            isPowerGenerating = false;
-        }
+        bool isAnyMemStarving = DeployedMemEntries.Any(e => e != null && (e.IsStarving || e.CurrentHunger <= 0));
+        SetPowerGeneratingActive(!isAnyMemStarving);
     }
 
     public bool TryAddMem(MemData targetMem, CapturedMemEntry targetEntry)
@@ -208,6 +206,11 @@ public class GeneratorRuntime : MonoBehaviour
                 MemAdded?.Invoke(buildingData.buildingType, removedMem, false, MemPositions);
             }
         }
+
+        if(addMemEntries.Count == 0)
+        {
+            SetPowerGeneratingActive(false);
+        }
     }
 
     public void RemoveMem(MemData targetMem)
@@ -235,19 +238,45 @@ public class GeneratorRuntime : MonoBehaviour
 
     private void SetPowerGeneratingActive(bool value)
     {
-        if (isPowerGenerating == value) return;
+        if (isPowerGenerating == value && (value && soundRoutine != null)) return;
         isPowerGenerating = value;
 
-        if (isPowerGenerating && buildingData != null)
+        if (isPowerGenerating)
         {
-            FacilityStarted?.Invoke(buildingData.buildingType, addMems, MemPositions);
+            if (soundRoutine != null) StopCoroutine(soundRoutine);
+            soundRoutine = StartCoroutine(FacilitySoundRoutine());
+
+            if (buildingData != null)
+                FacilityStarted?.Invoke(buildingData.buildingType, addMems, MemPositions);
+        }
+        else
+        {
+            if (soundRoutine != null)
+            {
+                StopCoroutine(soundRoutine);
+                soundRoutine = null;
+            }
+
+            KMSAudioService.StopSfx(GameSfxId.Generator);
+
+            if (buildingData != null)
+                FacilityStopped?.Invoke(buildingData.buildingType, addMems, FacilityStopReason.CancelCrafting, MemPositions);
+        }
+    }
+
+    private IEnumerator FacilitySoundRoutine()
+    {
+        while (isPowerGenerating)
+        {
+            KMSAudioService.PlayAt(GameSfxId.Generator, transform.position);
+            yield return new WaitForSeconds(2.0f);
         }
     }
 
     public void StopWorkDueToStarvation()
     {
         if (!isPowerGenerating) return;
-        isPowerGenerating = false;
+        SetPowerGeneratingActive(false);
 
         if (buildingData != null)
         {

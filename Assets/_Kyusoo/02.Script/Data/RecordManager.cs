@@ -2,6 +2,7 @@ using HDY.Capture;
 using HDY.Forge;
 using HDY.Item;
 using HDY.Mem;
+using HDY.Tutorial;
 using KMS.InventoryDuped;
 using MemSystem.Data;
 using System;
@@ -107,6 +108,7 @@ public class RecordManager : MonoBehaviour
             waypointInfo = new List<WaypointInfo>(),
             chestInfo = new List<ChestInfo>(),
             forgeInstanceDataList = new List<ForgeInstanceData>(),
+            tutorialData = new TutorialProgressSnapshot(),
             playerPosDataList = new List<ScenePlayerPosData>
             {
                 new ScenePlayerPosData { sceneName = "Main_World_3", lastPlayerPos = null, hasSavedPlayerPos = false },
@@ -335,6 +337,9 @@ public class RecordManager : MonoBehaviour
             var playerPosRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "PlayerPosRecordData");
             playerPosRecord?.ApplyData(saveData, sceneType);
 
+            var tutorialRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "TutorialRecordData");
+            tutorialRecord?.ApplyData(saveData, sceneType);
+
             var offlineRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "OfflineRewardRecordData") as OfflineRewardRecordData;
             if (offlineRecord != null)
             {
@@ -486,7 +491,12 @@ public class RecordManager : MonoBehaviour
         {
             foreach (var slot in container.slots)
             {
-                data.slots.Add(new ItemStackData { itemId = slot != null ? slot.itemId : "", amount = slot != null ? slot.amount : 0 });
+                data.slots.Add(new ItemStackData
+                {
+                    itemId = slot != null ? slot.itemId : "",
+                    amount = slot != null ? slot.amount : 0,
+                    durability = slot != null ? slot.durability : -1
+                });
             }
         }
         return data;
@@ -514,7 +524,7 @@ public class RecordManager : MonoBehaviour
 
             if (i < source.slots.Count && source.slots[i] != null && !string.IsNullOrEmpty(source.slots[i].itemId) && source.slots[i].amount > 0)
             {
-                target.slots[i].Set(source.slots[i].itemId, source.slots[i].amount);
+                target.slots[i].Set(source.slots[i].itemId, source.slots[i].amount, source.slots[i].durability);
             }
             else
             {

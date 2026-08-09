@@ -257,6 +257,11 @@ namespace HDY.UI
             ProductionFacilityRuntime.OnMemDeploymentChanged += RefreshFromCaptureManager;
             ProductionCraftRuntime.OnMemDeploymentChanged += RefreshFromCaptureManager;
             ExplorationRuntime.OnMemDeploymentChanged += RefreshFromCaptureManager;
+            RanchFacilityRuntime.OnMemDeploymentChanged += RefreshFromCaptureManager; 
+            GeneratorRuntime.OnMemDeploymentChanged += RefreshFromCaptureManager; 
+            TransportRuntime.OnMemDeploymentChanged += RefreshFromCaptureManager; 
+            CampFireRuntime.OnMemDeploymentChanged += RefreshFromCaptureManager; 
+            KitchenRuntime.OnMemDeploymentChanged += RefreshFromCaptureManager; 
 
             // 활성화되는 시점의 최신 데이터로 즉시 한 번 맞춘다 - 이벤트를 기다리지 않고 그 사이 놓친
             // 변경사항(예: 이 그리드가 비활성 상태이던 동안 포획된 멤)까지 바로 반영한다.
@@ -275,6 +280,11 @@ namespace HDY.UI
             ProductionFacilityRuntime.OnMemDeploymentChanged -= RefreshFromCaptureManager;
             ProductionCraftRuntime.OnMemDeploymentChanged -= RefreshFromCaptureManager;
             ExplorationRuntime.OnMemDeploymentChanged -= RefreshFromCaptureManager;
+            RanchFacilityRuntime.OnMemDeploymentChanged -= RefreshFromCaptureManager; 
+            GeneratorRuntime.OnMemDeploymentChanged -= RefreshFromCaptureManager; 
+            TransportRuntime.OnMemDeploymentChanged -= RefreshFromCaptureManager;
+            CampFireRuntime.OnMemDeploymentChanged -= RefreshFromCaptureManager; 
+            KitchenRuntime.OnMemDeploymentChanged -= RefreshFromCaptureManager;
         }
 
         /// <summary>

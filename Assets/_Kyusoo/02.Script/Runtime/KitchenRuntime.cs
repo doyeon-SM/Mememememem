@@ -3,10 +3,13 @@ using HDY.Cook;
 using HDY.Inventory;
 using HDY.Item;
 using HDY.Mem;
+using KMS.Audio;
 using KMS.InventoryDuped;
 using MemSystem.Data;
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 public class KitchenRuntime : MonoBehaviour
@@ -41,6 +44,7 @@ public class KitchenRuntime : MonoBehaviour
     [SerializeField] private List<MemData> addMems = new List<MemData>();
     [SerializeField] private List<CapturedMemEntry> addMemEntries = new List<CapturedMemEntry>();
 
+    private Coroutine soundRoutine;
     public List<MemData> DeployedMems => addMems;
     public List<CapturedMemEntry> DeployedMemEntries => addMemEntries;
 
@@ -98,11 +102,15 @@ public class KitchenRuntime : MonoBehaviour
 
     private void Update()
     {
-        if (!isCooking) return;
+        if (!isCooking)
+        {
+            SetCookingActive(false);
+            return;
+        }
 
         if (currentStorageCount >= maxStorageCount)
         {
-            isCooking = false;
+            SetCookingActive(false);
             return;
         }
 
@@ -239,14 +247,9 @@ public class KitchenRuntime : MonoBehaviour
             totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, addMems);
             currentProgressTime = totalRequiredTime * currentProgressPercent;
 
-            if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
-            {
-                SetCookingActive(true);
-            }
-            else
-            {
-                isCooking = false;
-            }
+            bool isAnyMemStarving = DeployedMemEntries.Any(e => e != null && (e.IsStarving || e.CurrentHunger <= 0));
+
+            SetCookingActive(!isAnyMemStarving);
         }
     }
 
@@ -318,6 +321,10 @@ public class KitchenRuntime : MonoBehaviour
                 MemAdded?.Invoke(buildingData.buildingType, removedMem, false, MemPositions);
             }
         }
+        if(addMems.Count == 0)
+        {
+            SetCookingActive(false);
+        }
     }
 
     public void RemoveMem(MemData targetMem)
@@ -336,6 +343,8 @@ public class KitchenRuntime : MonoBehaviour
         currentStorageCount++;
         remainingQuantity--;
         currentProgressTime = 0f;
+
+        KMS.Audio.KMSAudioService.Play2D(GameSfxId.CookingComplete);
 
         if (remainingQuantity > 0)
         {
@@ -468,19 +477,45 @@ public class KitchenRuntime : MonoBehaviour
 
     private void SetCookingActive(bool value)
     {
-        if (isCooking == value) return;
+        if (isCooking == value && (value && soundRoutine != null)) return;
         isCooking = value;
 
-        if (isCooking && buildingData != null)
+        if (isCooking)
         {
-            FacilityStarted?.Invoke(buildingData.buildingType, addMems, MemPositions);
+            if (soundRoutine != null) StopCoroutine(soundRoutine);
+            soundRoutine = StartCoroutine(FacilitySoundRoutine());
+
+            if (buildingData != null)
+                FacilityStarted?.Invoke(buildingData.buildingType, addMems, MemPositions);
+        }
+        else
+        {
+            if (soundRoutine != null)
+            {
+                StopCoroutine(soundRoutine);
+                soundRoutine = null;
+            }
+
+            KMSAudioService.StopSfx(GameSfxId.Kitchen);
+
+            if (buildingData != null)
+                FacilityStopped?.Invoke(buildingData.buildingType, addMems, FacilityStopReason.CancelCrafting, MemPositions);
+        }
+    }
+
+    private IEnumerator FacilitySoundRoutine()
+    {
+        while (isCooking)
+        {
+            KMSAudioService.PlayAt(GameSfxId.Kitchen, transform.position);
+            yield return new WaitForSeconds(2.0f);
         }
     }
 
     public void StopWorkDueToStarvation()
     {
         if (!isCooking) return;
-        isCooking = false;
+        SetCookingActive(false);
 
         if (buildingData != null)
         {

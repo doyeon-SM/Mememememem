@@ -48,6 +48,11 @@ public class MemRecordData : MonoBehaviour, IRecord
         {
             liveDexRecordManager.OnFirstCaptureRecorded += OnFirstCaptureRecordedHandler;
         }
+
+        if (ConsumeFoodSystem.Instance != null)
+        {
+            ConsumeFoodSystem.Instance.OnFoodAmountChanged += OnHungerDataChangedHandler;
+        }
     }
 
     private void UnsubscribeManager()
@@ -64,6 +69,11 @@ public class MemRecordData : MonoBehaviour, IRecord
             liveDexRecordManager.OnFirstCaptureRecorded -= OnFirstCaptureRecordedHandler;
             liveDexRecordManager = null;
         }
+
+        if (ConsumeFoodSystem.Instance != null)
+        {
+            ConsumeFoodSystem.Instance.OnFoodAmountChanged -= OnHungerDataChangedHandler;
+        }
     }
 
     private void OnCapturedDataChangedHandler()
@@ -75,6 +85,11 @@ public class MemRecordData : MonoBehaviour, IRecord
         {
             SaveData(RecordManager.Instance.SaveFilePath);
         }
+    }
+
+    private void OnHungerDataChangedHandler(int currentSatiety, int maxSatiety)
+    {
+        OnCapturedDataChangedHandler();
     }
 
     private void OnFirstCaptureRecordedHandler(string memId, long timestamp)

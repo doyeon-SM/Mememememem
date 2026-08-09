@@ -47,6 +47,13 @@ namespace KMS.InventoryDuped
             var unresolvedStacks = new List<ItemStack>();
             var unresolvedIds = new HashSet<string>();
 
+            // [HDY 요청 - KMS 크로스 승인 - 내구도] 내구도 아이템(MaxDurability > 0)은 슬롯마다 서로 다른
+            // "현재" 내구도를 갖고 있다. 아래 totals(수량 합산 후 재분배) 경로를 타면 원래 슬롯이 사라지고
+            // 새 ItemStack이 만들어지면서 durability가 초기화(-1)되어 버리므로, 이런 아이템은 합산 대상에서
+            // 제외하고 원본 슬롯(durability 포함)을 그대로 개별 스택으로 유지한다 - 카탈로그 미등록
+            // 아이템(unresolvedStacks)과 동일한 처리 방식.
+            var durabilityStacks = new List<ItemStack>();
+
             foreach (var slot in container.slots)
             {
                 if (slot == null || slot.IsEmpty) continue;
@@ -57,8 +64,14 @@ namespace KMS.InventoryDuped
                 ItemData itemData = catalogManager.FindItemData(slot.itemId);
                 if (itemData == null)
                 {
-                    unresolvedStacks.Add(new ItemStack { itemId = slot.itemId, amount = slot.amount });
+                    unresolvedStacks.Add(new ItemStack { itemId = slot.itemId, amount = slot.amount, durability = slot.durability });
                     unresolvedIds.Add(slot.itemId);
+                    continue;
+                }
+
+                if (itemData.MaxDurability > 0)
+                {
+                    durabilityStacks.Add(new ItemStack { itemId = slot.itemId, amount = slot.amount, durability = slot.durability });
                     continue;
                 }
 
@@ -81,6 +94,7 @@ namespace KMS.InventoryDuped
             }
 
             compacted.AddRange(unresolvedStacks);
+            compacted.AddRange(durabilityStacks);
 
             List<ItemStack> sorted;
             switch (criteria)
@@ -143,7 +157,9 @@ namespace KMS.InventoryDuped
 
                 if (i < sorted.Count)
                 {
-                    container.slots[i].Set(sorted[i].itemId, sorted[i].amount);
+                    // [HDY 요청 - KMS 크로스 승인 - 내구도] 재배치 시 durability도 함께 옮긴다(내구도 없는
+                    // 일반 아이템은 sorted[i].durability가 기본값 -1이라 그대로 넘겨도 무해하다).
+                    container.slots[i].Set(sorted[i].itemId, sorted[i].amount, sorted[i].durability);
                 }
                 else
                 {
