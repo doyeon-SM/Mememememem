@@ -729,6 +729,12 @@ namespace HDY.Tutorial
             else
             {
                 RefreshObjectivePresentation();
+
+                // [HDY 요청 - 대사 재출력 버그 수정] 대사를 다 본 시점(목표 대기 상태로 전환)에도
+                // 저장 신호를 쏴야, 대사만 다 보고 목표 진행 전에 바로 씬을 나가거나 게임을 꺼도
+                // currentDialogueLineIndex가 최신 상태로 저장된다 - 안 그러면 다음에 들어왔을 때
+                // 마지막으로 저장된(더 이전) 대사 줄부터 다시 보일 수 있다.
+                OnTutorialProgressChanged?.Invoke();
             }
         }
 
@@ -1150,6 +1156,7 @@ namespace HDY.Tutorial
             {
                 currentStepIndex = currentStepIndex,
                 currentStepAwaitingTrigger = currentStepAwaitingTrigger,
+                currentDialogueLineIndex = currentDialogueLineIndex,
                 completedStepIds = new List<string>(completedStepIds),
                 objectiveProgressKeys = objectiveProgress.Keys.ToList(),
                 objectiveProgressValues = objectiveProgress.Values.ToList(),
@@ -1162,6 +1169,7 @@ namespace HDY.Tutorial
 
             currentStepIndex = snapshot.currentStepIndex;
             currentStepAwaitingTrigger = snapshot.currentStepAwaitingTrigger;
+            currentDialogueLineIndex = snapshot.currentDialogueLineIndex;
             completedStepIds = new List<string>(snapshot.completedStepIds ?? new List<string>());
 
             objectiveProgress.Clear();

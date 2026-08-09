@@ -252,6 +252,8 @@ namespace KMS.InventoryDuped
             }
         }
 
+        // [HDY 요청 - 음식 효과 한글 표기] EffectType 영문 열거형 이름이 툴팁에 그대로 노출되던 문제 수정.
+        // Speed는 "이동속도증가", Fulling은 "포만감"으로 매핑을 추가/변경했다.
         private string GetEffectText(HDY.Item.EffectType effect)
         {
             switch (effect)
@@ -259,7 +261,9 @@ namespace KMS.InventoryDuped
                 case HDY.Item.EffectType.Satiety:
                     return "포만감";
                 case HDY.Item.EffectType.Speed:
-                    return "이동속도";
+                    return "이동속도증가";
+                case HDY.Item.EffectType.Fulling:
+                    return "배부름";
                 default:
                     return effect.ToString();
             }
