@@ -256,12 +256,15 @@ public class ProductionFacilityRuntime : MonoBehaviour
         if (targetItemData == null) return;
 
         int amountToCollect = currentStorageCount;
+        
         WarehouseInventory warehouse = FindFirstObjectByType<WarehouseInventory>();
         if (warehouse != null)
         {
             int remaining = warehouse.AddItem(targetItemData, amountToCollect);
             currentStorageCount = remaining;
+            KMSAudioService.Play2D(GameSfxId.ItemObtained);
         }
+
         FacilityCollectManager.Instance?.NotifyFacilityChanged(this);
     }
 
