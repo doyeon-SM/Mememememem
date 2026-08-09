@@ -278,44 +278,36 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 8435116066358048210}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 4f99ae3d4ad94fa1b69e6250e8cc3084, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GH.World.GHWorldDayNightFogController
   skyController: {fileID: 8435116066358048212}
-  previewInSceneView: 1
-  dayNearFogColor: {r: 0.7, g: 0.72, b: 0.74, a: 1}
-  dayMidFogColor: {r: 0.76, g: 0.75, b: 0.78, a: 1}
-  dayFarFogColor: {r: 0.82, g: 0.78, b: 0.84, a: 1}
-  dayFogStartDistance: 12
-  dayFogEndDistance: 110
-  dayFogMaxOpacity: 1
-  dayFogDistancePower: 1
-  nightNearFogColor: {r: 0.2, g: 0.18, b: 0.24, a: 1}
-  nightMidFogColor: {r: 0.32, g: 0.28, b: 0.38, a: 1}
-  nightFarFogColor: {r: 0.52, g: 0.44, b: 0.58, a: 1}
-  nightFogStartDistance: 8
-  nightFogEndDistance: 90
-  nightFogMaxOpacity: 1
-  nightFogDistancePower: 1
+  fallbackNightBlend: 0
+  dayNearFogColor: {r: 0.57, g: 0.68, b: 0.78, a: 1}
+  dayMidFogColor: {r: 0.51, g: 0.63, b: 0.74, a: 1}
+  dayFarFogColor: {r: 0.45, g: 0.58, b: 0.7, a: 1}
+  dayFogStartDistance: 90
+  dayFogEndDistance: 650
+  dayFogMaxOpacity: 0.66
+  dayFogDistancePower: 0.9
+  nightNearFogColor: {r: 0.14, g: 0.08, b: 0.2, a: 1}
+  nightMidFogColor: {r: 0.19, g: 0.1, b: 0.26, a: 1}
+  nightFarFogColor: {r: 0.25, g: 0.13, b: 0.33, a: 1}
+  nightFogStartDistance: 80
+  nightFogEndDistance: 560
+  nightFogMaxOpacity: 0.7
+  nightFogDistancePower: 0.88
   middleColorPoint: 0.52
-  horizonWidthDegrees: 6
-  horizonVerticalOffsetDegrees: 0
-  dayHorizonIntensity: 0.18
-  nightHorizonIntensity: 0.25
-  lowerSkyFogCoverageDegrees: 32
-  lowerSkyFogFullCoverageDegrees: 18
-  lowerSkyFogOpacity: 1
-  terrainConcealmentCoverageDegrees: 42
-  terrainConcealmentStart: 0.12
-  terrainConcealmentFull: 0.42
-  terrainConcealmentStrength: 1
-  fogNoiseStrength: 0.045
-  fogNoiseScale: 7
-  fogNoiseSpeed: 0.012
-  matchProceduralSkyGradient: 1
-  proceduralSkyMatchStrength: 1
+  fogStrength: 1
+  skyColorMatchStrength: 0.72
+  daySkyHazeOpacity: 0.06
+  nightSkyHazeOpacity: 0.1
+  skyHazeHeightDegrees: 18
+  horizonFogStrength: 0.65
+  horizonFogHeightDegrees: 10
+  horizonFogColorInfluence: 0.35
 --- !u!114 &8435116066358048213
 MonoBehaviour:
   m_ObjectHideFlags: 0

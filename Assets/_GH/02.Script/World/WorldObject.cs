@@ -7,6 +7,7 @@ using KMS.InventoryDuped;
 using DG.Tweening;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 /// <summary>현재 장착 아이템으로 월드 오브젝트와 상호작용할 수 있는지 나타냅니다.</summary>
 public enum WorldObjectInteractionState
@@ -49,11 +50,12 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
     [Min(0f)] [SerializeField] private float respawnTime = 30f;
     [SerializeField] private CommonClass needGrade = CommonClass.Rare;
 
-    [Header("Spawn Growth Motion")]
-    [Tooltip("월드 오브젝트가 나타날 때 원래 크기까지 커지는 시간입니다. 성장 중에는 채집할 수 없습니다.")]
-    [Range(1.5f, 2f)] [SerializeField] private float spawnGrowthDuration = 1.75f;
-    [Tooltip("성장 연출이 시작되는 크기 비율입니다. 0이면 보이지 않는 크기에서 시작합니다.")]
-    [Range(0f, 0.25f)] [SerializeField] private float spawnStartScaleRatio = 0f;
+    [Header("Spawn Fade Motion")]
+    [Tooltip("월드 오브젝트가 투명 상태에서 원래 모습으로 나타나는 시간입니다. 페이드 중에는 채집할 수 없습니다.")]
+    [FormerlySerializedAs("spawnGrowthDuration")]
+    [Range(0.25f, 10f)] [SerializeField] private float spawnFadeDuration = 3f;
+    [Tooltip("페이드 알파를 갱신하는 단계 수입니다. 낮을수록 CPU 부하는 줄고, 높을수록 더 부드럽습니다.")]
+    [Range(8, 60)] [SerializeField] private int spawnFadeSteps = 30;
 
     [Header("Tree Depletion Motion")]
     [Tooltip("나무가 쓰러지는 연출 시간입니다. 아이템은 쓰러짐 시작과 동시에 생성됩니다.")]
@@ -132,6 +134,15 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
     /// <summary>현재 고갈되어 상호작용할 수 없는지 나타냅니다.</summary>
     public bool IsDepleted => currentObjectHp <= 0;
 
+    /// <summary>현재 스폰 페이드가 진행되어 타격 판정이 잠겨 있는지 나타냅니다.</summary>
+    public bool IsSpawnFading =>
+        isSpawnHitLocked ||
+        isGrowing ||
+        (spawnFadeEffect != null && spawnFadeEffect.IsActive);
+
+    /// <summary>도구 타격으로 피해를 받을 수 있는 완전 활성 상태인지 나타냅니다.</summary>
+    public bool CanReceiveToolHit => !IsDead && !IsSpawnFading;
+
     /// <summary>
     /// 아직 고갈되지 않은 오브젝트의 체력을 최대치로 회복합니다.
     /// 외부의 피격 복구 연출이 기존 드롭/리스폰 흐름을 건드리지 않고 사용할 수 있는 전용 진입점입니다.
@@ -172,12 +183,14 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
     private bool[] rendererInitialStates;
     private bool[] colliderInitialStates;
     private bool isGrowing;
+    private bool isSpawnHitLocked = true;
     private bool isTreeFalling;
     private Vector3 initialLocalPosition;
     private Quaternion initialLocalRotation;
     private Vector3 initialLocalScale;
-    private Tween spawnGrowthTween;
+    private Tween spawnFadeTween;
     private Tween treeFallTween;
+    private GHWorldObjectSpawnFade spawnFadeEffect;
 
     private void Awake()
     {
@@ -192,6 +205,7 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
         initialLocalRotation = transform.localRotation;
         initialLocalScale = transform.localScale;
         CacheResourceComponents();
+        spawnFadeEffect = new GHWorldObjectSpawnFade(resourceRenderers);
         SetResourceAvailable(true);
         PrewarmDropPools();
     }
@@ -202,7 +216,7 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
         RefreshRespawnState();
         if (!IsDead && !isGrowing)
         {
-            PlaySpawnGrowthMotion();
+            PlaySpawnFadeMotion();
         }
 
         InstanceEnabled?.Invoke(this);
@@ -214,16 +228,21 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
 
         if (isGrowing)
         {
-            spawnGrowthTween?.Kill(false);
-            spawnGrowthTween = null;
+            spawnFadeTween?.Kill(false);
+            spawnFadeTween = null;
+            spawnFadeEffect?.Restore();
             isGrowing = false;
             transform.localScale = initialLocalScale;
         }
+
+        isSpawnHitLocked = false;
     }
 
     private void OnDestroy()
     {
-        spawnGrowthTween?.Kill(false);
+        spawnFadeTween?.Kill(false);
+        spawnFadeEffect?.Restore();
+        isSpawnHitLocked = false;
         treeFallTween?.Kill(false);
     }
 
@@ -257,7 +276,7 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
     /// </summary>
     public bool CanInteract(KMS.PlayerInteraction interactor)
     {
-        return !IsDead && !isGrowing;
+        return CanReceiveToolHit;
     }
 
     /// <summary>옵션이 켜져 있으면 플레이어 상호작용 키로 현재 퀵슬롯 도구를 사용합니다.</summary>
@@ -354,7 +373,7 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
             return WorldObjectInteractionState.Depleted;
         }
 
-        if (isGrowing)
+        if (IsSpawnFading)
         {
             return WorldObjectInteractionState.Growing;
         }
@@ -632,6 +651,9 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
 
     private void Respawn()
     {
+        // Lock damage before HP and collision are restored. The collider remains enabled
+        // during the fade so the player can never overlap the respawning object.
+        isSpawnHitLocked = true;
         currentObjectHp = maxObjectHp;
         respawnAtTime = float.PositiveInfinity;
         isTreeFalling = false;
@@ -640,29 +662,51 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
         RestoreTreeTransform();
         Physics.SyncTransforms();
         SetResourceAvailable(true);
-        PlaySpawnGrowthMotion();
+        PlaySpawnFadeMotion();
         NotifyStateChanged();
     }
 
-    private void PlaySpawnGrowthMotion()
+    private void PlaySpawnFadeMotion()
     {
-        spawnGrowthTween?.Kill(false);
-        spawnGrowthTween = null;
+        isSpawnHitLocked = true;
+        spawnFadeTween?.Kill(false);
+        spawnFadeTween = null;
+        spawnFadeEffect?.Restore();
 
-        float duration = Mathf.Clamp(spawnGrowthDuration, 1.5f, 2f);
-        transform.localScale = initialLocalScale * Mathf.Clamp(spawnStartScaleRatio, 0f, 0.25f);
+        float duration = Mathf.Clamp(spawnFadeDuration, 0.25f, 10f);
+        transform.localScale = initialLocalScale;
         isGrowing = true;
         NotifyStateChanged();
 
-        spawnGrowthTween = transform
-            .DOScale(initialLocalScale, duration)
-            .SetEase(Ease.OutCubic)
+        if (spawnFadeEffect == null
+            || !spawnFadeEffect.Begin(spawnFadeSteps))
+        {
+            isGrowing = false;
+            isSpawnHitLocked = false;
+            NotifyStateChanged();
+            return;
+        }
+
+        float fadeAmount = 0f;
+        spawnFadeTween = DOTween
+            .To(
+                () => fadeAmount,
+                value =>
+                {
+                    fadeAmount = value;
+                    spawnFadeEffect.Apply(value, spawnFadeSteps);
+                },
+                1f,
+                duration)
+            .SetEase(Ease.InOutSine)
             .SetLink(gameObject, LinkBehaviour.KillOnDestroy)
             .OnComplete(() =>
             {
+                spawnFadeEffect.Restore();
                 transform.localScale = initialLocalScale;
                 isGrowing = false;
-                spawnGrowthTween = null;
+                isSpawnHitLocked = false;
+                spawnFadeTween = null;
                 NotifyStateChanged();
             });
     }
@@ -741,8 +785,8 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
 #if UNITY_EDITOR
     private void OnValidate()
     {
-        spawnGrowthDuration = Mathf.Clamp(spawnGrowthDuration, 1.5f, 2f);
-        spawnStartScaleRatio = Mathf.Clamp(spawnStartScaleRatio, 0f, 0.25f);
+        spawnFadeDuration = Mathf.Clamp(spawnFadeDuration, 0.25f, 10f);
+        spawnFadeSteps = Mathf.Clamp(spawnFadeSteps, 8, 60);
         treeFallDuration = Mathf.Clamp(treeFallDuration, 1f, 1.5f);
         treeFallAngle = Mathf.Clamp(treeFallAngle, 70f, 95f);
     }

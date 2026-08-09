@@ -1,15 +1,16 @@
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.Serialization;
 
 namespace GH.World
 {
     /// <summary>
-    /// Controls the world's distance fog independently from the sky controller.
-    /// Attach this component only to scenes that need fog.
+    /// Drives the bounded full-screen distance fog used by the world renderer.
+    /// Sky pixels are excluded in the shader and the maximum opacity is capped,
+    /// so distant geometry keeps detail instead of becoming a solid cutout.
     /// </summary>
     [DefaultExecutionOrder(510)]
     [DisallowMultipleComponent]
-    [RequireComponent(typeof(GHWorldDayNightSkyController))]
     public sealed class GHWorldDayNightFogController : MonoBehaviour
     {
         private static readonly int FogEnabledId =
@@ -30,52 +31,22 @@ namespace GH.World
             Shader.PropertyToID("_GHFogMaxOpacity");
         private static readonly int FogDistancePowerId =
             Shader.PropertyToID("_GHFogDistancePower");
-        private static readonly int FogHorizonWidthId =
-            Shader.PropertyToID("_GHFogHorizonWidth");
-        private static readonly int FogHorizonOffsetId =
-            Shader.PropertyToID("_GHFogHorizonOffset");
-        private static readonly int FogHorizonIntensityId =
-            Shader.PropertyToID("_GHFogHorizonIntensity");
-        private static readonly int FogSkyCoverageId =
-            Shader.PropertyToID("_GHFogSkyCoverage");
-        private static readonly int FogSkyFullCoverageId =
-            Shader.PropertyToID("_GHFogSkyFullCoverage");
-        private static readonly int FogSkyOpacityId =
-            Shader.PropertyToID("_GHFogSkyOpacity");
-        private static readonly int FogTerrainCoverageId =
-            Shader.PropertyToID("_GHFogTerrainCoverage");
-        private static readonly int FogTerrainConcealStartId =
-            Shader.PropertyToID("_GHFogTerrainConcealStart");
-        private static readonly int FogTerrainConcealFullId =
-            Shader.PropertyToID("_GHFogTerrainConcealFull");
-        private static readonly int FogTerrainConcealStrengthId =
-            Shader.PropertyToID("_GHFogTerrainConcealStrength");
-        private static readonly int FogNoiseStrengthId =
-            Shader.PropertyToID("_GHFogNoiseStrength");
-        private static readonly int FogNoiseScaleId =
-            Shader.PropertyToID("_GHFogNoiseScale");
-        private static readonly int FogNoiseSpeedId =
-            Shader.PropertyToID("_GHFogNoiseSpeed");
         private static readonly int FogSkyMatchId =
             Shader.PropertyToID("_GHFogSkyMatch");
-        private static readonly int FogSkyHorizonColorId =
-            Shader.PropertyToID("_GHFogSkyHorizonColor");
-        private static readonly int FogSkyZenithColorId =
-            Shader.PropertyToID("_GHFogSkyZenithColor");
-        private static readonly int FogSkyGradientBeginId =
-            Shader.PropertyToID("_GHFogSkyGradientBegin");
-        private static readonly int FogSkyGradientEndId =
-            Shader.PropertyToID("_GHFogSkyGradientEnd");
-        private static readonly int FogSkyDayCubeId =
+        private static readonly int FogDayCubeId =
             Shader.PropertyToID("_GHFogDayCube");
-        private static readonly int FogSkyNightCubeId =
-            Shader.PropertyToID("_GHFogNightCube");
-        private static readonly int FogSkyDayCubeAvailableId =
+        private static readonly int FogDayCubeAvailableId =
             Shader.PropertyToID("_GHFogDayCubeAvailable");
-        private static readonly int FogSkyNightCubeAvailableId =
-            Shader.PropertyToID("_GHFogNightCubeAvailable");
-        private static readonly int FogSkyGradientAvailableId =
+        private static readonly int FogGradientAvailableId =
             Shader.PropertyToID("_GHFogGradientAvailable");
+        private static readonly int FogGradientHorizonColorId =
+            Shader.PropertyToID("_GHFogGradientHorizonColor");
+        private static readonly int FogGradientSkyColorId =
+            Shader.PropertyToID("_GHFogGradientSkyColor");
+        private static readonly int FogGradientFadeBeginId =
+            Shader.PropertyToID("_GHFogGradientFadeBegin");
+        private static readonly int FogGradientFadeEndId =
+            Shader.PropertyToID("_GHFogGradientFadeEnd");
         private static readonly int FogSkyNightBlendId =
             Shader.PropertyToID("_GHFogSkyNightBlend");
         private static readonly int FogSkyTintId =
@@ -86,12 +57,20 @@ namespace GH.World
             Shader.PropertyToID("_GHFogSkyRotation");
         private static readonly int FogDaySkyScaleId =
             Shader.PropertyToID("_GHFogDaySkyScale");
-        private static readonly int FogNightSkyScaleId =
-            Shader.PropertyToID("_GHFogNightSkyScale");
         private static readonly int FogDayVerticalOffsetId =
             Shader.PropertyToID("_GHFogDayVerticalOffset");
-        private static readonly int FogNightVerticalOffsetId =
-            Shader.PropertyToID("_GHFogNightVerticalOffset");
+        private static readonly int FogSkyHazeOpacityId =
+            Shader.PropertyToID("_GHFogSkyHazeOpacity");
+        private static readonly int FogSkyHazeHeightId =
+            Shader.PropertyToID("_GHFogSkyHazeHeight");
+        private static readonly int FogHorizonStrengthId =
+            Shader.PropertyToID("_GHFogHorizonStrength");
+        private static readonly int FogHorizonHeightId =
+            Shader.PropertyToID("_GHFogHorizonHeight");
+        private static readonly int FogHorizonColorInfluenceId =
+            Shader.PropertyToID("_GHFogHorizonColorInfluence");
+
+        private static readonly int SourceDayCubeId = Shader.PropertyToID("_DayTex");
         private static readonly int SourceGradientHorizonColorId =
             Shader.PropertyToID("_GradientHorizonColor");
         private static readonly int SourceGradientSkyColorId =
@@ -100,142 +79,87 @@ namespace GH.World
             Shader.PropertyToID("_GradientFadeBegin");
         private static readonly int SourceGradientFadeEndId =
             Shader.PropertyToID("_GradientFadeEnd");
+        private static readonly int SourceBlendId = Shader.PropertyToID("_Blend");
         private static readonly int SourceTintId = Shader.PropertyToID("_Tint");
-        private static readonly int SourceExposureId =
-            Shader.PropertyToID("_Exposure");
-        private static readonly int SourceDayCubeId =
-            Shader.PropertyToID("_DayTex");
-        private static readonly int SourceNightCubeId =
-            Shader.PropertyToID("_NightTex");
-        private static readonly int SourceRotationId =
-            Shader.PropertyToID("_Rotation");
+        private static readonly int SourceExposureId = Shader.PropertyToID("_Exposure");
+        private static readonly int SourceRotationId = Shader.PropertyToID("_Rotation");
         private static readonly int SourceDaySkyScaleId =
             Shader.PropertyToID("_DaySkyScale");
-        private static readonly int SourceNightSkyScaleId =
-            Shader.PropertyToID("_NightSkyScale");
         private static readonly int SourceDayVerticalOffsetId =
             Shader.PropertyToID("_DayVerticalOffset");
-        private static readonly int SourceNightVerticalOffsetId =
-            Shader.PropertyToID("_NightVerticalOffset");
 
+        [Header("Optional Day/Night Link")]
+        [Tooltip("Optional. When assigned, fog colors follow the day/night blend. The fog still works independently when this is empty.")]
         [SerializeField] private GHWorldDayNightSkyController skyController;
-
-        [Header("Editor Preview")]
-        [Tooltip("Enable only when the distance fog must also be previewed in Scene View.")]
-        [SerializeField] private bool previewInSceneView;
+        [Tooltip("Night blend used when no day/night sky controller is assigned. 0 is day and 1 is night.")]
+        [Range(0f, 1f)]
+        [SerializeField] private float fallbackNightBlend;
 
         [Header("Day Fog")]
-        [Tooltip("Soft neutral haze entering the daytime fog.")]
         [SerializeField] private Color dayNearFogColor =
-            new Color(0.70f, 0.72f, 0.74f, 1f);
-        [Tooltip("Main daytime haze color. Keep this low-saturation so distant objects feel misty instead of tinted.")]
+            new Color(0.62f, 0.70f, 0.78f, 1f);
         [SerializeField] private Color dayMidFogColor =
-            new Color(0.76f, 0.75f, 0.78f, 1f);
-        [Tooltip("Bright far haze with a subtle lavender cast.")]
+            new Color(0.58f, 0.67f, 0.76f, 1f);
         [SerializeField] private Color dayFarFogColor =
-            new Color(0.82f, 0.78f, 0.84f, 1f);
+            new Color(0.54f, 0.62f, 0.72f, 1f);
         [Min(0f)]
-        [SerializeField] private float dayFogStartDistance = 12f;
+        [SerializeField] private float dayFogStartDistance = 60f;
         [Min(0.01f)]
-        [SerializeField] private float dayFogEndDistance = 110f;
-        [Range(0f, 1f)]
-        [SerializeField] private float dayFogMaxOpacity = 1f;
-        [Tooltip("Values below 1 make daytime fog build up earlier in the middle distance.")]
-        [Range(0.4f, 1.5f)]
-        [SerializeField] private float dayFogDistancePower = 1f;
+        [SerializeField] private float dayFogEndDistance = 500f;
+        [Range(0f, 0.88f)]
+        [SerializeField] private float dayFogMaxOpacity = 0.78f;
+        [Range(0.5f, 1.5f)]
+        [SerializeField] private float dayFogDistancePower = 0.82f;
 
         [Header("Night Fog")]
-        [Tooltip("Color entering the nighttime fog.")]
         [SerializeField] private Color nightNearFogColor =
-            new Color(0.20f, 0.18f, 0.24f, 1f);
-        [Tooltip("Main nighttime haze color.")]
+            new Color(0.20f, 0.10f, 0.28f, 1f);
         [SerializeField] private Color nightMidFogColor =
-            new Color(0.32f, 0.28f, 0.38f, 1f);
-        [Tooltip("Far nighttime haze. Bright enough to read as illuminated mist instead of a dark color filter.")]
+            new Color(0.25f, 0.12f, 0.34f, 1f);
         [SerializeField] private Color nightFarFogColor =
-            new Color(0.52f, 0.44f, 0.58f, 1f);
+            new Color(0.31f, 0.16f, 0.42f, 1f);
         [Min(0f)]
-        [SerializeField] private float nightFogStartDistance = 8f;
+        [SerializeField] private float nightFogStartDistance = 50f;
         [Min(0.01f)]
-        [SerializeField] private float nightFogEndDistance = 90f;
-        [Range(0f, 1f)]
-        [SerializeField] private float nightFogMaxOpacity = 1f;
-        [Tooltip("Values below 1 make nighttime fog build up earlier in the middle distance.")]
-        [Range(0.4f, 1.5f)]
-        [SerializeField] private float nightFogDistancePower = 1f;
+        [SerializeField] private float nightFogEndDistance = 420f;
+        [Range(0f, 0.88f)]
+        [SerializeField] private float nightFogMaxOpacity = 0.82f;
+        [Range(0.5f, 1.5f)]
+        [SerializeField] private float nightFogDistancePower = 0.80f;
 
-        [Header("Gradient Shape")]
-        [Tooltip("Normalized fog distance where the middle color is strongest.")]
+        [Header("Fog Shape")]
+        [Tooltip("0 is near color, 1 is far color.")]
         [Range(0.2f, 0.8f)]
         [SerializeField] private float middleColorPoint = 0.52f;
-
-        [Header("Horizon Haze")]
-        [Tooltip("Vertical thickness of haze around the world horizon in degrees.")]
-        [Range(0.5f, 12f)]
-        [SerializeField] private float horizonWidthDegrees = 6f;
-
-        [Tooltip("Moves the horizon haze center up or down in world-space degrees.")]
-        [Range(-5f, 5f)]
-        [SerializeField] private float horizonVerticalOffsetDegrees;
-
-        [Tooltip("Strength of the daytime band that softens the sea/sky boundary.")]
+        [Tooltip("Scales the final fog opacity without changing any fog colors. Lower this when the scene looks washed out.")]
         [Range(0f, 1f)]
-        [SerializeField] private float dayHorizonIntensity = 0.18f;
+        [SerializeField] private float fogStrength = 1f;
 
-        [Tooltip("Strength of the nighttime band that softens the sea/sky boundary.")]
+        [Header("Sky Boundary Blending")]
+        [Tooltip("Matches distant terrain fog to the active skybox direction.")]
         [Range(0f, 1f)]
-        [SerializeField] private float nightHorizonIntensity = 0.25f;
-
-        [Header("Skybox Integration")]
-        [Tooltip("Angle where the dense ground-fog bank finishes fading out. The skybox remains fully visible above this angle.")]
-        [Range(2f, 45f)]
-        [SerializeField] private float lowerSkyFogCoverageDegrees = 32f;
-
-        [Tooltip("Angle below which the ground-fog bank is fully dense. Distant terrain inside this area disappears into the same fog layer as the horizon.")]
-        [Range(0f, 40f)]
-        [SerializeField] private float lowerSkyFogFullCoverageDegrees = 18f;
-
-        [Tooltip("Maximum opacity of the lower fog bank. A value of 1 hides distant terrain silhouettes while leaving the upper skybox visible.")]
+        [SerializeField] private float skyColorMatchStrength = 0.9f;
+        [Tooltip("A subtle shared haze on the daytime sky near the horizon.")]
+        [Range(0f, 0.35f)]
+        [SerializeField] private float daySkyHazeOpacity = 0.12f;
+        [Tooltip("A subtle shared haze on the nighttime sky near the horizon.")]
+        [Range(0f, 0.35f)]
+        [SerializeField] private float nightSkyHazeOpacity = 0.18f;
+        [Tooltip("Height of the soft sky/terrain transition above the horizon.")]
+        [Range(3f, 45f)]
+        [SerializeField] private float skyHazeHeightDegrees = 24f;
+        [Header("Horizon Fog Bank")]
+        [Tooltip("Strength of the dedicated fog layer connecting distant water, terrain and the skybox horizon.")]
         [Range(0f, 1f)]
-        [SerializeField] private float lowerSkyFogOpacity = 1f;
-
-        [Header("Distant Terrain Concealment")]
-        [Tooltip("Vertical range in which distant geometry is blended completely into the current sky. This does not cover skybox pixels.")]
-        [Range(10f, 60f)]
-        [SerializeField] private float terrainConcealmentCoverageDegrees = 42f;
-
-        [Tooltip("Normalized fog distance where extra skyline concealment starts. Nearby gameplay objects remain visible below this distance.")]
-        [Range(0f, 0.9f)]
-        [SerializeField] private float terrainConcealmentStart = 0.12f;
-
-        [Tooltip("Normalized fog distance where distant terrain is fully replaced by the matching sky color.")]
-        [Range(0.1f, 1f)]
-        [SerializeField] private float terrainConcealmentFull = 0.42f;
-
-        [Tooltip("Strength of the depth-only distant terrain concealment.")]
+        [FormerlySerializedAs("horizonSurfaceBlend")]
+        [SerializeField] private float horizonFogStrength = 0.65f;
+        [Tooltip("Vertical angle over which the horizon fog layer fades out.")]
+        [Range(1f, 20f)]
+        [FormerlySerializedAs("horizonSurfaceDepthDegrees")]
+        [SerializeField] private float horizonFogHeightDegrees = 10f;
+        [Tooltip("How strongly Mid/Far Fog Color affects the horizon layer instead of using only the skybox color.")]
         [Range(0f, 1f)]
-        [SerializeField] private float terrainConcealmentStrength = 1f;
-
-        [Header("Fog Variation")]
-        [Tooltip("Subtle brightness variation shared by the sky veil and fully fogged terrain. This breaks up the flat color without revealing terrain silhouettes.")]
-        [Range(0f, 0.15f)]
-        [SerializeField] private float fogNoiseStrength = 0.045f;
-
-        [Tooltip("Size of the broad fog patches. Lower values make larger, softer patches.")]
-        [Range(2f, 20f)]
-        [SerializeField] private float fogNoiseScale = 7f;
-
-        [Tooltip("Very slow drift speed of the fog variation.")]
-        [Range(0f, 0.1f)]
-        [SerializeField] private float fogNoiseSpeed = 0.012f;
-
-        [Header("Sky Matching")]
-        [Tooltip("Automatically matches fully fogged terrain and the lower-sky veil to the current day and night skyboxes.")]
-        [SerializeField] private bool matchProceduralSkyGradient = true;
-
-        [Tooltip("Strength of automatic sky matching during day, night, and their transition.")]
-        [Range(0f, 1f)]
-        [SerializeField] private float proceduralSkyMatchStrength = 1f;
+        [SerializeField] private float horizonFogColorInfluence = 0.35f;
 
         private bool originalFogEnabled;
         private FogMode originalFogMode;
@@ -244,6 +168,12 @@ namespace GH.World
         private float originalFogStartDistance;
         private float originalFogEndDistance;
         private bool originalStateCaptured;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+        private static void ResetGlobalFogState()
+        {
+            Shader.SetGlobalFloat(FogEnabledId, 0f);
+        }
 
         private void Reset()
         {
@@ -257,13 +187,13 @@ namespace GH.World
             RenderPipelineManager.beginCameraRendering -= HandleBeginCameraRendering;
             RenderPipelineManager.beginCameraRendering += HandleBeginCameraRendering;
             Shader.SetGlobalFloat(FogEnabledId, 0f);
-            ApplyFog();
+            ApplyFogParameters();
         }
 
-        private void Update()
+        private void LateUpdate()
         {
             ResolveSkyController();
-            ApplyFog();
+            ApplyFogParameters();
         }
 
         private void OnDisable()
@@ -277,18 +207,10 @@ namespace GH.World
             ScriptableRenderContext context,
             Camera camera)
         {
-            bool isGameCamera = camera != null
-                && camera.cameraType == CameraType.Game;
-            bool isAllowedSceneView = previewInSceneView
+            bool shouldRender = isActiveAndEnabled
                 && camera != null
-                && camera.cameraType == CameraType.SceneView;
-            Shader.SetGlobalFloat(
-                FogEnabledId,
-                isActiveAndEnabled
-                    && skyController != null
-                    && (isGameCamera || isAllowedSceneView)
-                    ? 1f
-                    : 0f);
+                && camera.cameraType == CameraType.Game;
+            Shader.SetGlobalFloat(FogEnabledId, shouldRender ? 1f : 0f);
         }
 
         private void ResolveSkyController()
@@ -315,26 +237,22 @@ namespace GH.World
             originalStateCaptured = true;
         }
 
-        private void ApplyFog()
+        private void ApplyFogParameters()
         {
-            if (skyController == null)
-            {
-                Shader.SetGlobalFloat(FogEnabledId, 0f);
-                return;
-            }
-
-            float nightBlend = Mathf.Clamp01(skyController.CurrentNightBlend);
+            float nightBlend = skyController != null
+                ? Mathf.Clamp01(skyController.CurrentNightBlend)
+                : Mathf.Clamp01(fallbackNightBlend);
             float startDistance = Mathf.Lerp(
-                Mathf.Max(0f, dayFogStartDistance),
-                Mathf.Max(0f, nightFogStartDistance),
+                dayFogStartDistance,
+                nightFogStartDistance,
                 nightBlend);
             float endDistance = Mathf.Lerp(
-                Mathf.Max(dayFogStartDistance + 0.01f, dayFogEndDistance),
-                Mathf.Max(nightFogStartDistance + 0.01f, nightFogEndDistance),
+                dayFogEndDistance,
+                nightFogEndDistance,
                 nightBlend);
 
-            // The built-in fog only supports one color. Disable it while the
-            // full-screen distance gradient is active to avoid double fogging.
+            // The full-screen pass covers custom shaders consistently. Native
+            // fog must stay off or compatible materials would receive fog twice.
             RenderSettings.fog = false;
 
             Shader.SetGlobalColor(
@@ -346,7 +264,7 @@ namespace GH.World
             Shader.SetGlobalColor(
                 FogFarColorId,
                 Color.Lerp(dayFarFogColor, nightFarFogColor, nightBlend));
-            Shader.SetGlobalFloat(FogStartDistanceId, startDistance);
+            Shader.SetGlobalFloat(FogStartDistanceId, Mathf.Max(0f, startDistance));
             Shader.SetGlobalFloat(
                 FogEndDistanceId,
                 Mathf.Max(startDistance + 0.01f, endDistance));
@@ -355,165 +273,107 @@ namespace GH.World
                 Mathf.Clamp(middleColorPoint, 0.2f, 0.8f));
             Shader.SetGlobalFloat(
                 FogMaxOpacityId,
-                Mathf.Lerp(
-                    Mathf.Clamp01(dayFogMaxOpacity),
-                    Mathf.Clamp01(nightFogMaxOpacity),
-                    nightBlend));
+                Mathf.Lerp(dayFogMaxOpacity, nightFogMaxOpacity, nightBlend)
+                    * Mathf.Clamp01(fogStrength));
             Shader.SetGlobalFloat(
                 FogDistancePowerId,
-                Mathf.Lerp(
-                    Mathf.Clamp(dayFogDistancePower, 0.4f, 1.5f),
-                    Mathf.Clamp(nightFogDistancePower, 0.4f, 1.5f),
-                    nightBlend));
+                Mathf.Lerp(dayFogDistancePower, nightFogDistancePower, nightBlend));
             Shader.SetGlobalFloat(
-                FogHorizonWidthId,
-                Mathf.Clamp(horizonWidthDegrees, 0.5f, 12f));
+                FogSkyHazeOpacityId,
+                Mathf.Lerp(daySkyHazeOpacity, nightSkyHazeOpacity, nightBlend));
             Shader.SetGlobalFloat(
-                FogHorizonOffsetId,
-                Mathf.Clamp(horizonVerticalOffsetDegrees, -5f, 5f));
+                FogSkyHazeHeightId,
+                Mathf.Clamp(skyHazeHeightDegrees, 3f, 45f));
             Shader.SetGlobalFloat(
-                FogHorizonIntensityId,
-                Mathf.Lerp(
-                    Mathf.Clamp01(dayHorizonIntensity),
-                    Mathf.Clamp01(nightHorizonIntensity),
-                    nightBlend));
+                FogHorizonStrengthId,
+                Mathf.Clamp01(horizonFogStrength));
             Shader.SetGlobalFloat(
-                FogSkyCoverageId,
-                Mathf.Clamp(lowerSkyFogCoverageDegrees, 2f, 45f));
+                FogHorizonHeightId,
+                Mathf.Clamp(horizonFogHeightDegrees, 1f, 20f));
             Shader.SetGlobalFloat(
-                FogSkyFullCoverageId,
-                Mathf.Clamp(
-                    lowerSkyFogFullCoverageDegrees,
-                    0f,
-                    lowerSkyFogCoverageDegrees - 0.5f));
-            Shader.SetGlobalFloat(
-                FogSkyOpacityId,
-                Mathf.Clamp01(lowerSkyFogOpacity));
-            Shader.SetGlobalFloat(
-                FogTerrainCoverageId,
-                Mathf.Clamp(terrainConcealmentCoverageDegrees, 10f, 60f));
-            Shader.SetGlobalFloat(
-                FogTerrainConcealStartId,
-                Mathf.Clamp(terrainConcealmentStart, 0f, 0.9f));
-            Shader.SetGlobalFloat(
-                FogTerrainConcealFullId,
-                Mathf.Clamp(
-                    terrainConcealmentFull,
-                    terrainConcealmentStart + 0.01f,
-                    1f));
-            Shader.SetGlobalFloat(
-                FogTerrainConcealStrengthId,
-                Mathf.Clamp01(terrainConcealmentStrength));
-            Shader.SetGlobalFloat(
-                FogNoiseStrengthId,
-                Mathf.Clamp(fogNoiseStrength, 0f, 0.15f));
-            Shader.SetGlobalFloat(
-                FogNoiseScaleId,
-                Mathf.Clamp(fogNoiseScale, 2f, 20f));
-            Shader.SetGlobalFloat(
-                FogNoiseSpeedId,
-                Mathf.Clamp(fogNoiseSpeed, 0f, 0.1f));
+                FogHorizonColorInfluenceId,
+                Mathf.Clamp01(horizonFogColorInfluence));
             ApplySkyboxMatch(nightBlend);
         }
 
-        private void ApplySkyboxMatch(float nightBlend)
+        private void ApplySkyboxMatch(float fallbackNightBlend)
         {
-            Material currentSkybox = RenderSettings.skybox;
-            Texture dayCube = GetCubeTexture(currentSkybox, SourceDayCubeId);
-            Texture nightCube = GetCubeTexture(currentSkybox, SourceNightCubeId);
-            bool hasDayCube = dayCube != null;
-            bool hasNightCube = nightCube != null;
-            bool hasGradientProperties = currentSkybox != null
-                && currentSkybox.HasProperty(SourceGradientHorizonColorId)
-                && currentSkybox.HasProperty(SourceGradientSkyColorId)
-                && currentSkybox.HasProperty(SourceGradientFadeBeginId)
-                && currentSkybox.HasProperty(SourceGradientFadeEndId)
-                && (currentSkybox.IsKeywordEnabled("GRADIENT_BACKGROUND")
-                    || !hasNightCube);
-
-            if (!matchProceduralSkyGradient
-                || (!hasDayCube && !hasNightCube && !hasGradientProperties))
+            Material skybox = RenderSettings.skybox;
+            if (skybox == null)
             {
                 Shader.SetGlobalFloat(FogSkyMatchId, 0f);
                 return;
             }
 
-            Color tint = currentSkybox.HasProperty(SourceTintId)
-                ? currentSkybox.GetColor(SourceTintId)
-                : Color.white;
-            float exposure = currentSkybox.HasProperty(SourceExposureId)
-                ? Mathf.Max(0f, currentSkybox.GetFloat(SourceExposureId))
-                : 1f;
+            Texture dayCube = GetTexture(skybox, SourceDayCubeId);
+            bool hasDayCube = dayCube != null
+                && dayCube.dimension == TextureDimension.Cube;
+            bool hasGradient = skybox.HasProperty(SourceGradientHorizonColorId)
+                && skybox.HasProperty(SourceGradientSkyColorId)
+                && skybox.HasProperty(SourceGradientFadeBeginId)
+                && skybox.HasProperty(SourceGradientFadeEndId);
+
+            if (!hasDayCube && !hasGradient)
+            {
+                Shader.SetGlobalFloat(FogSkyMatchId, 0f);
+                return;
+            }
 
             Shader.SetGlobalFloat(
                 FogSkyMatchId,
-                Mathf.Clamp01(proceduralSkyMatchStrength));
+                Mathf.Clamp01(skyColorMatchStrength));
             Shader.SetGlobalFloat(
-                FogSkyDayCubeAvailableId,
+                FogDayCubeAvailableId,
                 hasDayCube ? 1f : 0f);
             Shader.SetGlobalFloat(
-                FogSkyNightCubeAvailableId,
-                hasNightCube ? 1f : 0f);
-            Shader.SetGlobalFloat(
-                FogSkyGradientAvailableId,
-                hasGradientProperties ? 1f : 0f);
-            Shader.SetGlobalFloat(FogSkyNightBlendId, nightBlend);
-            Shader.SetGlobalColor(FogSkyTintId, tint);
-            Shader.SetGlobalFloat(FogSkyExposureId, exposure);
+                FogGradientAvailableId,
+                hasGradient ? 1f : 0f);
 
             if (hasDayCube)
             {
-                Shader.SetGlobalTexture(FogSkyDayCubeId, dayCube);
+                Shader.SetGlobalTexture(FogDayCubeId, dayCube);
             }
 
-            if (hasNightCube)
-            {
-                Shader.SetGlobalTexture(FogSkyNightCubeId, nightCube);
-            }
-
-            if (hasGradientProperties)
+            if (hasGradient)
             {
                 Shader.SetGlobalColor(
-                    FogSkyHorizonColorId,
-                    currentSkybox.GetColor(SourceGradientHorizonColorId));
+                    FogGradientHorizonColorId,
+                    skybox.GetColor(SourceGradientHorizonColorId));
                 Shader.SetGlobalColor(
-                    FogSkyZenithColorId,
-                    currentSkybox.GetColor(SourceGradientSkyColorId));
+                    FogGradientSkyColorId,
+                    skybox.GetColor(SourceGradientSkyColorId));
                 Shader.SetGlobalFloat(
-                    FogSkyGradientBeginId,
-                    currentSkybox.GetFloat(SourceGradientFadeBeginId));
+                    FogGradientFadeBeginId,
+                    skybox.GetFloat(SourceGradientFadeBeginId));
                 Shader.SetGlobalFloat(
-                    FogSkyGradientEndId,
-                    currentSkybox.GetFloat(SourceGradientFadeEndId));
+                    FogGradientFadeEndId,
+                    skybox.GetFloat(SourceGradientFadeEndId));
             }
 
+            Shader.SetGlobalFloat(
+                FogSkyNightBlendId,
+                GetFloat(skybox, SourceBlendId, fallbackNightBlend));
+            Shader.SetGlobalColor(
+                FogSkyTintId,
+                GetColor(skybox, SourceTintId, Color.white));
+            Shader.SetGlobalFloat(
+                FogSkyExposureId,
+                Mathf.Max(0f, GetFloat(skybox, SourceExposureId, 1f)));
             Shader.SetGlobalFloat(
                 FogSkyRotationId,
-                GetFloat(currentSkybox, SourceRotationId, 0f));
+                GetFloat(skybox, SourceRotationId, 0f));
             Shader.SetGlobalFloat(
                 FogDaySkyScaleId,
-                GetFloat(currentSkybox, SourceDaySkyScaleId, 1f));
-            Shader.SetGlobalFloat(
-                FogNightSkyScaleId,
-                GetFloat(currentSkybox, SourceNightSkyScaleId, 1f));
+                Mathf.Max(0.001f, GetFloat(skybox, SourceDaySkyScaleId, 1f)));
             Shader.SetGlobalFloat(
                 FogDayVerticalOffsetId,
-                GetFloat(currentSkybox, SourceDayVerticalOffsetId, 0f));
-            Shader.SetGlobalFloat(
-                FogNightVerticalOffsetId,
-                GetFloat(currentSkybox, SourceNightVerticalOffsetId, 0f));
+                GetFloat(skybox, SourceDayVerticalOffsetId, 0f));
         }
 
-        private static Texture GetCubeTexture(Material material, int propertyId)
+        private static Texture GetTexture(Material material, int propertyId)
         {
-            if (material == null || !material.HasProperty(propertyId))
-            {
-                return null;
-            }
-
-            Texture texture = material.GetTexture(propertyId);
-            return texture != null && texture.dimension == TextureDimension.Cube
-                ? texture
+            return material.HasProperty(propertyId)
+                ? material.GetTexture(propertyId)
                 : null;
         }
 
@@ -522,8 +382,18 @@ namespace GH.World
             int propertyId,
             float fallback)
         {
-            return material != null && material.HasProperty(propertyId)
+            return material.HasProperty(propertyId)
                 ? material.GetFloat(propertyId)
+                : fallback;
+        }
+
+        private static Color GetColor(
+            Material material,
+            int propertyId,
+            Color fallback)
+        {
+            return material.HasProperty(propertyId)
+                ? material.GetColor(propertyId)
                 : fallback;
         }
 
@@ -549,50 +419,28 @@ namespace GH.World
             dayFogEndDistance = Mathf.Max(
                 dayFogStartDistance + 0.01f,
                 dayFogEndDistance);
+            dayFogMaxOpacity = Mathf.Clamp01(dayFogMaxOpacity);
+            dayFogDistancePower = Mathf.Clamp(dayFogDistancePower, 0.5f, 1.5f);
+
             nightFogStartDistance = Mathf.Max(0f, nightFogStartDistance);
             nightFogEndDistance = Mathf.Max(
                 nightFogStartDistance + 0.01f,
                 nightFogEndDistance);
-            dayFogMaxOpacity = Mathf.Clamp01(dayFogMaxOpacity);
             nightFogMaxOpacity = Mathf.Clamp01(nightFogMaxOpacity);
-            dayFogDistancePower = Mathf.Clamp(dayFogDistancePower, 0.4f, 1.5f);
-            nightFogDistancePower = Mathf.Clamp(nightFogDistancePower, 0.4f, 1.5f);
+            nightFogDistancePower = Mathf.Clamp(nightFogDistancePower, 0.5f, 1.5f);
             middleColorPoint = Mathf.Clamp(middleColorPoint, 0.2f, 0.8f);
-            horizonWidthDegrees = Mathf.Clamp(horizonWidthDegrees, 0.5f, 12f);
-            horizonVerticalOffsetDegrees = Mathf.Clamp(
-                horizonVerticalOffsetDegrees,
-                -5f,
-                5f);
-            dayHorizonIntensity = Mathf.Clamp01(dayHorizonIntensity);
-            nightHorizonIntensity = Mathf.Clamp01(nightHorizonIntensity);
-            lowerSkyFogCoverageDegrees = Mathf.Clamp(
-                lowerSkyFogCoverageDegrees,
-                2f,
-                45f);
-            lowerSkyFogFullCoverageDegrees = Mathf.Clamp(
-                lowerSkyFogFullCoverageDegrees,
-                0f,
-                lowerSkyFogCoverageDegrees - 0.5f);
-            lowerSkyFogOpacity = Mathf.Clamp01(lowerSkyFogOpacity);
-            terrainConcealmentCoverageDegrees = Mathf.Clamp(
-                terrainConcealmentCoverageDegrees,
-                10f,
-                60f);
-            terrainConcealmentStart = Mathf.Clamp(
-                terrainConcealmentStart,
-                0f,
-                0.9f);
-            terrainConcealmentFull = Mathf.Clamp(
-                terrainConcealmentFull,
-                terrainConcealmentStart + 0.01f,
-                1f);
-            terrainConcealmentStrength = Mathf.Clamp01(
-                terrainConcealmentStrength);
-            fogNoiseStrength = Mathf.Clamp(fogNoiseStrength, 0f, 0.15f);
-            fogNoiseScale = Mathf.Clamp(fogNoiseScale, 2f, 20f);
-            fogNoiseSpeed = Mathf.Clamp(fogNoiseSpeed, 0f, 0.1f);
-            proceduralSkyMatchStrength =
-                Mathf.Clamp01(proceduralSkyMatchStrength);
+            fogStrength = Mathf.Clamp01(fogStrength);
+            skyColorMatchStrength = Mathf.Clamp01(skyColorMatchStrength);
+            daySkyHazeOpacity = Mathf.Clamp(daySkyHazeOpacity, 0f, 0.35f);
+            nightSkyHazeOpacity = Mathf.Clamp(nightSkyHazeOpacity, 0f, 0.35f);
+            skyHazeHeightDegrees = Mathf.Clamp(skyHazeHeightDegrees, 3f, 45f);
+            horizonFogStrength = Mathf.Clamp01(horizonFogStrength);
+            horizonFogHeightDegrees = Mathf.Clamp(
+                horizonFogHeightDegrees,
+                1f,
+                20f);
+            horizonFogColorInfluence = Mathf.Clamp01(
+                horizonFogColorInfluence);
         }
     }
 }

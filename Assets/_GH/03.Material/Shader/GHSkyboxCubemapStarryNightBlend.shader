@@ -160,11 +160,24 @@ Shader "GH/Skybox/Cubemap Starry Night Blend"
                 float2 cell = floor(scaledUv);
                 float2 localUv = frac(scaledUv);
                 float randomValue = Hash21(cell + seed);
-                float visible = step(1.0 - saturate(density * 20.0), randomValue);
+                // Material density is already a small 0..0.05 probability.
+                // Multiplying it by 20 made almost half of all grid cells a
+                // star and produced the giant checkerboard seen in Game View.
+                float visible = step(1.0 - saturate(density * 1.25), randomValue);
                 float2 starPosition = lerp(0.18, 0.82, Hash22(cell + seed * 3.71));
                 float distanceToStar = length(localUv - starPosition);
-                float normalizedRadius = max(radius * gridWidth * 0.42, 0.025);
-                float star = 1.0 - smoothstep(normalizedRadius * 0.28, normalizedRadius, distanceToStar);
+                // Radius is expressed inside one grid cell. The previous
+                // gridWidth multiplication expanded a star beyond its entire
+                // cell, which turned circular points into large squares.
+                float normalizedRadius = lerp(
+                    0.055,
+                    0.22,
+                    saturate(radius / 0.05));
+                float edgeWidth = max(fwidth(distanceToStar) * 0.65, 0.002);
+                float star = 1.0 - smoothstep(
+                    normalizedRadius - edgeWidth,
+                    normalizedRadius + edgeWidth,
+                    distanceToStar);
                 float twinkle = 1.0 - twinkleAmount
                     + twinkleAmount * (0.55 + 0.45 * sin(_Time.y * twinkleSpeed + randomValue * 31.4));
                 return star * visible * twinkle;

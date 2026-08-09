@@ -517,7 +517,6 @@ namespace GH.World
             originalAmbientSkyColor = RenderSettings.ambientSkyColor;
             originalAmbientEquatorColor = RenderSettings.ambientEquatorColor;
             originalAmbientGroundColor = RenderSettings.ambientGroundColor;
-
             if (mainDirectionalLight != null)
             {
                 originalLightRotation = mainDirectionalLight.transform.rotation;

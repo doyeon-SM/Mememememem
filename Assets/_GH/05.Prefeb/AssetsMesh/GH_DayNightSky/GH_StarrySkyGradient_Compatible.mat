@@ -11,20 +11,20 @@ Material:
   m_Shader: {fileID: 4800000, guid: 724af77a2e994c12b03bd093479faf91, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
-  m_ValidKeywords:
+  m_ValidKeywords: []
+  m_InvalidKeywords:
   - GRADIENT_BACKGROUND
   - MOON
   - STAR_LAYER_1
   - STAR_LAYER_2
   - STAR_LAYER_3
-  m_InvalidKeywords: []
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
   m_CustomRenderQueue: -1
   stringTagMap: {}
   disabledShaderPasses: []
-  m_LockedProperties:
+  m_LockedProperties: 
   m_SavedProperties:
     serializedVersion: 3
     m_TexEnvs:
@@ -81,29 +81,29 @@ Material:
     - _Rotation: 0
     - _StarFadeBegin: -0.002
     - _StarFadeEnd: 0.711
-    - _StarLayer1Density: 0.0239
+    - _StarLayer1Density: 0.012
     - _StarLayer1EdgeFade: 0.819
     - _StarLayer1HDRBoost: 1.28
-    - _StarLayer1MaxRadius: 0.0074
+    - _StarLayer1MaxRadius: 0.004
     - _StarLayer1RotationSpeed: 0
     - _StarLayer1TwinkleAmount: 0.927
     - _StarLayer1TwinkleSpeed: 2
-    - _StarLayer2Density: 0.0194
+    - _StarLayer2Density: 0.008
     - _StarLayer2EdgeFade: 0.873
     - _StarLayer2HDRBoost: 1.1
-    - _StarLayer2MaxRadius: 0.005
+    - _StarLayer2MaxRadius: 0.003
     - _StarLayer2RotationSpeed: 0
     - _StarLayer2TwinkleAmount: 0.725
     - _StarLayer2TwinkleSpeed: 4
-    - _StarLayer3Density: 0.0015
+    - _StarLayer3Density: 0.0008
     - _StarLayer3EdgeFade: 0.696
     - _StarLayer3HDRBoost: 1
-    - _StarLayer3MaxRadius: 0.047
+    - _StarLayer3MaxRadius: 0.012
     - _StarLayer3RotationSpeed: 2
     - _StarLayer3TwinkleAmount: 0.741
     - _StarLayer3TwinkleSpeed: 3
     m_Colors:
-    - _GradientHorizonColor: {r: 0.9378356, g: 0.5028655, b: 0.9632353, a: 1}
+    - _GradientHorizonColor: {r: 0, g: 0, b: 0, a: 1}
     - _GradientSkyColor: {r: 0.0934256, g: 0.2600022, b: 0.39705884, a: 1}
     - _MoonColor: {r: 0.66, g: 0.65, b: 0.55, a: 1}
     - _MoonComputedPositionData: {r: -0.36930114, g: 0.66199994, b: 0.65220606, a: 0}
@@ -113,3 +113,4 @@ Material:
     - _StarLayer3Color: {r: 0.9780992, g: 0.9852941, b: 0.85488755, a: 1}
     - _Tint: {r: 1, g: 1, b: 1, a: 1}
   m_BuildTextureStacks: []
+  m_AllowLocking: 1

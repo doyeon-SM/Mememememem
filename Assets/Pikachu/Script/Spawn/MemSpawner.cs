@@ -61,6 +61,22 @@ namespace MemSystem.Spawn
         [Tooltip("스폰 영역 중심 오프셋. X = 월드 X축, Y = 월드 Z축")]
         [SerializeField] private Vector2 spawnAreaOffset = Vector2.zero;
 
+        [Header("스폰 표면 필터")]
+        [Tooltip("NavMesh 바로 아래의 실제 표면이 이 레이어에 속할 때만 멤을 스폰합니다.")]
+        [SerializeField] private LayerMask allowedSpawnSurfaceLayers = ~0;
+
+        [Tooltip("NavMesh 위치 위에서 아래 방향 표면 검사를 시작할 높이입니다.")]
+        [Min(0.1f)]
+        [SerializeField] private float surfaceProbeHeight = 2f;
+
+        [Tooltip("NavMesh 위치와 실제 표면 Collider 사이에 허용할 최대 높이 차이입니다.")]
+        [Min(0.05f)]
+        [SerializeField] private float maxSurfaceVerticalGap = 1.5f;
+
+        [Tooltip("허용된 표면을 찾기 위해 검사할 최대 랜덤 위치 개수입니다.")]
+        [Min(1)]
+        [SerializeField] private int spawnPositionAttempts = 60;
+
         // [구버전 호환] 예전 단일 반경(spawnRadius) 세팅값을 사이즈로 1회 자동 변환하기 위해 남겨둔 필드.
         // 기존 씬/프리팹에 직렬화된 값이 그대로 살아있으므로, 씬 파일을 직접 건드리지 않고 승계됩니다.
         [SerializeField, HideInInspector] private float spawnRadius = 200f;
@@ -368,8 +384,15 @@ namespace MemSystem.Spawn
             MemData data = memFactory.SelectRandomMemData(resolvedSpawnTable);
             if (data == null) return;
 
-            // 2. 랜덤 위치 탐색 (NavMesh 위)
-            Vector3 spawnPos = GetRandomSpawnPosition();
+            // 2. 랜덤 위치 탐색 (허용된 물리 레이어가 받치고 있는 NavMesh 위)
+            if (!TryGetRandomSpawnPosition(out Vector3 spawnPos))
+            {
+                Debug.LogWarning(
+                    $"[MemSpawner] '{name}'의 스폰 영역에서 허용된 표면 레이어 위의 " +
+                    "NavMesh 위치를 찾지 못해 이번 스폰을 취소했습니다.",
+                    this);
+                return;
+            }
 
             // 3. Pool에서 꺼내기 (Factory 초기화 자동 진행됨)
             Mem mem = memPool.Spawn(data, spawnPos);
@@ -459,7 +482,7 @@ namespace MemSystem.Spawn
         // 위치 탐색 유틸
         // =================================================================
 
-        private Vector3 GetRandomSpawnPosition()
+        private bool TryGetRandomSpawnPosition(out Vector3 spawnPosition)
         {
             Vector3 basePos = transform.position;
 
@@ -481,7 +504,8 @@ namespace MemSystem.Spawn
 
             // 중심점(basePos) 기준 스폰 영역(사각형) 내에서 NavMesh 위 유효 위치 탐색
             // Edge-snapping 방지를 위해 시도 횟수를 늘립니다.
-            for (int i = 0; i < 30; i++)
+            int attempts = Mathf.Max(1, spawnPositionAttempts);
+            for (int i = 0; i < attempts; i++)
             {
                 Vector3 candidate = GetRandomPointInArea(basePos, spawnAreaSize, spawnAreaOffset);
 
@@ -494,15 +518,46 @@ namespace MemSystem.Spawn
                     // 이를 방지하기 위해 원래 목표했던 좌표(candidate)와 찾아낸 좌표(hit.position)의 '수평 이동 거리'를 계산합니다.
                     // 수평 거리가 짧다(5m 미만)는 것은, 가로로 끌려간 게 아니라 위아래(Y축 높낮이)로만 정상적으로 스냅되었다는 뜻입니다.
                     float horizontalDist = Vector2.Distance(new Vector2(candidate.x, candidate.z), new Vector2(hit.position.x, hit.position.z));
-                    if (horizontalDist < 5f)
+                    if (horizontalDist < 5f && IsAllowedSpawnSurface(hit.position))
                     {
-                        return hit.position;
+                        spawnPosition = hit.position;
+                        return true;
                     }
                 }
             }
 
-            // 30번 실패 시 베이스 위치 근처라도 퍼지게 하기 위해 약간의 오프셋을 줍니다
-            return basePos + new Vector3(Random.Range(-2f, 2f), 0, Random.Range(-2f, 2f));
+            // 잘못된 레이어나 NavMesh 밖에 강제 스폰하지 않습니다.
+            spawnPosition = default;
+            return false;
+        }
+
+        private bool IsAllowedSpawnSurface(Vector3 navMeshPosition)
+        {
+            float probeHeight = Mathf.Max(0.1f, surfaceProbeHeight);
+            float allowedGap = Mathf.Max(0.05f, maxSurfaceVerticalGap);
+            Vector3 origin = navMeshPosition + Vector3.up * probeHeight;
+            float probeDistance = probeHeight + allowedGap;
+
+            // 모든 물리 레이어 중 가장 먼저 닿는 표면을 검사합니다. 허용 레이어만
+            // Raycast하면 건물 지붕을 통과해 아래 Terrain을 승인할 수 있습니다.
+            if (!Physics.Raycast(
+                    origin,
+                    Vector3.down,
+                    out RaycastHit surfaceHit,
+                    probeDistance,
+                    Physics.AllLayers,
+                    QueryTriggerInteraction.Ignore))
+            {
+                return false;
+            }
+
+            int surfaceLayerBit = 1 << surfaceHit.collider.gameObject.layer;
+            if ((allowedSpawnSurfaceLayers.value & surfaceLayerBit) == 0)
+            {
+                return false;
+            }
+
+            return Mathf.Abs(surfaceHit.point.y - navMeshPosition.y) <= allowedGap;
         }
 
         /// <summary>
@@ -559,6 +614,9 @@ namespace MemSystem.Spawn
             detectAreaSize.y = Mathf.Max(0f, detectAreaSize.y);
             spawnAreaSize.x = Mathf.Max(0f, spawnAreaSize.x);
             spawnAreaSize.y = Mathf.Max(0f, spawnAreaSize.y);
+            surfaceProbeHeight = Mathf.Max(0.1f, surfaceProbeHeight);
+            maxSurfaceVerticalGap = Mathf.Max(0.05f, maxSurfaceVerticalGap);
+            spawnPositionAttempts = Mathf.Max(1, spawnPositionAttempts);
         }
 
         private void OnDrawGizmosSelected()
