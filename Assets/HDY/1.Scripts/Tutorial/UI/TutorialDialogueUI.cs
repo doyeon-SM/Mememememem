@@ -47,6 +47,12 @@ namespace HDY.Tutorial
                 selfCanvasGroup = rootPanel.GetComponent<CanvasGroup>();
                 if (selfCanvasGroup == null) selfCanvasGroup = rootPanel.AddComponent<CanvasGroup>();
             }
+
+            // [HDY 요청 - 방어 코드] TutorialManager가 OnEnable에서 등록해줄 때까지(혹은 등록되더라도
+            // 아직 첫 스텝이 시작되기 전까지) 항상 숨김 상태로 시작한다. CanvasGroup 기본값
+            // (alpha=1, interactable=true, blocksRaycasts=true)을 그대로 두면, 특히 Title씬처럼 패널만
+            // 먼저 스폰되고 첫 스텝은 아직 대기 중인 상황에서 화면 전체 클릭이 막혀버린다.
+            SetVisible(false);
         }
 
         private void OnEnable()

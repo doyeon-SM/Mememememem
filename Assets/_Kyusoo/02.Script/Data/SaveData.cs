@@ -1,8 +1,9 @@
+using HDY.Capture;
+using HDY.Forge;
+using HDY.Tutorial;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
-using HDY.Capture;
-using HDY.Forge;
 
 [Serializable]
 public class ItemStackData
@@ -162,4 +163,7 @@ public class SaveData
 
     [Header("대장간 도구 인스턴스 데이터")]
     public List<ForgeInstanceData> forgeInstanceDataList = new List<ForgeInstanceData>();
+
+    [Header("튜토리얼 진행 스냅샷 데이터")]
+    public TutorialProgressSnapshot tutorialData = new TutorialProgressSnapshot();
 }

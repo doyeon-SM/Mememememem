@@ -1,11 +1,13 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
-using HDY.Capture;
+﻿using HDY.Capture;
 using HDY.Item;
 using HDY.Mem;
+using KMS.Audio;
 using MemSystem.Data;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using UnityEngine;
 
 public class TransportRuntime : MonoBehaviour
 {
@@ -193,7 +195,9 @@ public class TransportRuntime : MonoBehaviour
         totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseIntervalTime, addMems);
         currentProgressTime = totalRequiredTime * currentProgressPercent;
 
-        if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
+        bool isAnyMemStarving = DeployedMemEntries.Any(e => e != null && (e.IsStarving || e.CurrentHunger <= 0));
+
+        if (!isAnyMemStarving)
         {
             SetWorkingActive(true);
         }
@@ -280,6 +284,8 @@ public class TransportRuntime : MonoBehaviour
         isWorking = value;
         if (isWorking && buildingData != null)
         {
+            KMS.Audio.KMSAudioService.Play2D(GameSfxId.Transport);
+
             FacilityStarted?.Invoke(buildingData.buildingType, addMems, MemPositions);
         }
     }

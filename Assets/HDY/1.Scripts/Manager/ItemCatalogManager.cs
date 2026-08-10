@@ -37,6 +37,10 @@ namespace HDY.Item
     /// 소비되므로 Recipe_Requset_Item_Data(Item_ID+Amount) 대신 List&lt;string&gt;으로 단순화했다.
     /// 요리시설(CookingFacilityData)은 ShopData와 동일하게 시트가 아니라 SO 에셋 자체에 취급 레시피
     /// (Result_Item_ID) 목록을 직접 채우는 방식이라 여기서는 다루지 않는다.
+    ///
+    /// [HDY 요청 - KMS 크로스 승인 - 내구도] 시트에 이미 추가되어 있던 Durability 컬럼(Size 다음, 마지막
+    /// 컬럼)을 파싱해 ItemData.MaxDurability에 채운다. Size와 동일하게 없는 행(구버전 시트)도 방어적으로
+    /// 처리한다.
     /// </summary>
     public class ItemCatalogManager : MonoBehaviour
     {
@@ -287,6 +291,9 @@ namespace HDY.Item
 
             // [HDY 요청 - 크기 표시] Size 컬럼은 뒤에 추가된 것이라 없는 행(구버전 시트)도 있을 수 있어 방어적으로 처리한다.
             data.Size = cols.Length > 9 ? cols[9].Trim() : string.Empty;
+
+            // [HDY 요청 - KMS 크로스 승인 - 내구도] Size와 동일하게 방어적으로 처리한다(없는 행 = 0 = 내구도 없음).
+            data.MaxDurability = cols.Length > 10 ? ParseInt(cols[10]) : 0;
 
             data.ItemIcon = iconTable != null ? iconTable.GetIcon(data.Item_ID) : null;
 

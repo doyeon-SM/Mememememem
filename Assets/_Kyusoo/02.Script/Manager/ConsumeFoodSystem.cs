@@ -29,8 +29,10 @@ public class ConsumeFoodSystem : MonoBehaviour
 
     [Header("소모 주기 설정 (초 단위)")]
     [SerializeField] private float consumeInterval = 60f;
+    [SerializeField] private float refeedCheckInterval = 10f;
 
-    private float timer = 0f;
+    private float consumeTimer = 0f;
+    private float refeedTimer = 0f;
 
     /// <summary>
     /// [의미 축소 - 영지 배고픔 시스템 개편] 이제 "밥통이 완전히 바닥났는지"만 나타내는 비상 신호다.
@@ -91,13 +93,24 @@ public class ConsumeFoodSystem : MonoBehaviour
     {
         // [HDY 요청 - 영지 배고픔 시스템] 굶고 있는 멤도 매 틱 급식을 재시도해야 하므로, 예전과 달리
         // 전역 정지 플래그와 무관하게 타이머는 항상 진행된다.
-        timer += Time.deltaTime;
-        if (timer >= consumeInterval)
+        // 1. 60초 주기: 실제 멤들의 배고픔(CurrentHunger) 차감 및 급식
+        consumeTimer += Time.deltaTime;
+        if (consumeTimer >= consumeInterval)
         {
-            timer = 0f;
+            consumeTimer = 0f;
             TotalHungerManager.Instance?.ProcessPerMinuteConsumption();
             RefreshLegacyStarvationFlag();
         }
+
+        // 🌟 2. 10초 주기: 굶고 있는(IsStarving) 멤들의 재급식 시도 및 상태 체크
+        refeedTimer += Time.deltaTime;
+        if (refeedTimer >= refeedCheckInterval)
+        {
+            refeedTimer = 0f;
+            TotalHungerManager.Instance?.RetryStarvingMemsFeeding();
+        }
+
+
     }
 
     /// <summary>

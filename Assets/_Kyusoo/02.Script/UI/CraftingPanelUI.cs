@@ -7,6 +7,7 @@ using KMS.InventoryDuped;
 using MemSystem.Data;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -25,12 +26,12 @@ public class CraftingPanelUI : MonoBehaviour
     [Header("중앙 패널 - Center 멤슬롯")]
     [SerializeField] private MemSlotUI singleMemSlot;
 
-    [Header("중앙 패널 - Center: Default_Mode 오브젝트, 레시피 생성될 영역, 레시피 프리팹 ")]
+    [Header("중앙 패널 - Center: Default_Mode")]
     [SerializeField] private GameObject defaultModeObject;
     [SerializeField] private Transform recipeGridParent;
     [SerializeField] private GameObject recipeSlotPrefab;
 
-    [Header("중앙 패널 - Center: Select_Product 오브젝트, 선택 아이템 정보, 요구 재료 위치 및 프리팹, 요구수량, 수량 조절 버튼 및 슬라이드")]
+    [Header("중앙 패널 - Center: Select_Product")]
     [SerializeField] private GameObject selectProductModeObject;
     [SerializeField] private Image selectionImage;
     [SerializeField] private TextMeshProUGUI selectionName;
@@ -43,24 +44,24 @@ public class CraftingPanelUI : MonoBehaviour
     [SerializeField] private Button btnMax;
     [SerializeField] private Slider quantitySlider;
 
-    [Header("중앙 패널 - Center: Crafting 오브젝트, 제작 아이템 정보, 수령 버튼, 완성수량")]
+    [Header("중앙 패널 - Center: Crafting")]
     [SerializeField] private GameObject craftingModeObject;
     [SerializeField] private Image craftingItemIcon;
     [SerializeField] private TextMeshProUGUI craftingItemName;
     [SerializeField] private Button collectRewardBtn;
     [SerializeField] private TextMeshProUGUI completeCountText;
 
-    [Header("중앙 패널 - Bottom: Default_Mode 오브젝트, Desc연결")]
+    [Header("중앙 패널 - Bottom: Default_Mode")]
     [SerializeField] private GameObject bottomDefaultModeObject;
     [SerializeField] private TextMeshProUGUI selectGuideText;
 
-    [Header("중앙 패널 - Bottom: Select_Product 오브젝트, 제작 예상 시간, 다시 선택/제작 버튼")]
+    [Header("중앙 패널 - Bottom: Select_Product")]
     [SerializeField] private GameObject bottomSelectProductModeObject;
     [SerializeField] private TextMeshProUGUI craftingDurationText;
     [SerializeField] private Button reSelectBtn;
     [SerializeField] private Button craftBtn;
 
-    [Header("중앙 패널 - Bottom: Crafting 오브젝트, 진행도, 완성품 취소/수령 버튼")]
+    [Header("중앙 패널 - Bottom: Crafting")]
     [SerializeField] private GameObject bottomCraftingModeObject;
     [SerializeField] private Slider progressBar;
     [SerializeField] private TextMeshProUGUI durationText;
@@ -82,6 +83,7 @@ public class CraftingPanelUI : MonoBehaviour
 
     private Sequence dotsSequence;
     private bool isAnimatingDots = false;
+    private string currentStatusPrefix = "";
 
     private void Awake()
     {
@@ -116,7 +118,6 @@ public class CraftingPanelUI : MonoBehaviour
         {
             float progressNormalized = targetFacility.currentProgressTime / targetFacility.totalRequiredTime;
             if (progressBar != null) progressBar.value = progressNormalized;
-
             if (durationText != null) durationText.text = $"{Mathf.Clamp(progressNormalized * 100f, 0f, 100f):F0}%";
 
             UpdateCraftingStatusUI();
@@ -129,21 +130,50 @@ public class CraftingPanelUI : MonoBehaviour
         UpdateStorageText();
     }
 
+    private bool IsAllDeployedMemsStarving()
+    {
+        if (targetFacility == null || targetFacility.DeployedMemEntries == null || targetFacility.DeployedMemEntries.Count == 0)
+            return false;
+
+        return targetFacility.DeployedMemEntries.All(e => e != null && (e.IsStarving || e.CurrentHunger <= 0));
+    }
+
     private void UpdateCraftingStatusUI()
     {
         if (targetFacility == null) return;
 
-        bool isStarving = ConsumeFoodSystem.Instance != null && ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation;
+        bool isNoMem = targetFacility.DeployedMems.Count == 0 || targetFacility.DeployedMemEntries.Count == 0;
+        bool isAllStarving = !isNoMem && IsAllDeployedMemsStarving();
+        int currentSatiety = ConsumeFoodSystem.Instance != null ? ConsumeFoodSystem.Instance.CurrentSatiety : 0;
 
-        if (isStarving)
+        // 1. 멤 미배치
+        if (isNoMem)
         {
             StopDotsAnimation();
             if (craftingStatusText != null)
             {
-                craftingStatusText.color = Color.red;
-                craftingStatusText.text = "식량이 부족합니다";
+                craftingStatusText.color = Color.white;
+                craftingStatusText.text = "멤을 배치해야 합니다";
             }
         }
+        // 2. 가동 중지 (배치된 멤 모두 허기량 0)
+        else if (isAllStarving)
+        {
+            if (currentSatiety > 0)
+            {
+                StartDotsAnimation("음식 보충중");
+            }
+            else
+            {
+                StopDotsAnimation();
+                if (craftingStatusText != null)
+                {
+                    craftingStatusText.color = Color.red;
+                    craftingStatusText.text = "식량이 부족합니다";
+                }
+            }
+        }
+        // 3. 정상 제작 중
         else if (targetFacility.isProducing)
         {
             StartDotsAnimation();
@@ -154,47 +184,40 @@ public class CraftingPanelUI : MonoBehaviour
             if (craftingStatusText != null)
             {
                 craftingStatusText.color = Color.white;
-                if (targetFacility.currentStorageCount >= targetFacility.maxStorageCount)
-                    craftingStatusText.text = "보관함 가득 참";
-                else if (targetFacility.DeployedMems.Count == 0)
-                    craftingStatusText.text = "멤 미배치";
-                else
-                    craftingStatusText.text = "제작 대기 중";
+                craftingStatusText.text = "제작 대기 중";
             }
         }
     }
 
-    /// <summary>
-    /// 🌟 아이템 이름 + "제작중 . . ." 애니메이션 적용
-    /// </summary>
-    private void StartDotsAnimation()
+    private void StartDotsAnimation(string customPrefix = null)
     {
-        if (isAnimatingDots) return;
+        string prefix = customPrefix;
+
+        if (string.IsNullOrEmpty(prefix))
+        {
+            string itemName = "";
+            if (targetFacility != null && !string.IsNullOrEmpty(targetFacility.currentCraftingItem))
+            {
+                ItemData targetItemData = FindItemDataInCatalog(targetFacility.currentCraftingItem);
+                if (targetItemData != null) itemName = targetItemData.ItemName;
+            }
+            prefix = string.IsNullOrEmpty(itemName) ? "제작중" : $"{itemName} 제작중";
+        }
+
+        if (isAnimatingDots && currentStatusPrefix == prefix) return;
+
+        currentStatusPrefix = prefix;
         isAnimatingDots = true;
 
         if (dotsSequence != null) dotsSequence.Kill();
-
         if (craftingStatusText != null) craftingStatusText.color = Color.white;
 
-        // 아이템 이름 추출
-        string itemName = "";
-        if (targetFacility != null && !string.IsNullOrEmpty(targetFacility.currentCraftingItem))
-        {
-            ItemData targetItemData = FindItemDataInCatalog(targetFacility.currentCraftingItem);
-            if (targetItemData != null)
-            {
-                itemName = targetItemData.ItemName;
-            }
-        }
-
-        string prefix = string.IsNullOrEmpty(itemName) ? "제작중" : $"{itemName} 제작중";
-
         dotsSequence = DOTween.Sequence();
-        dotsSequence.AppendCallback(() => { SetStatusText($"{prefix} ."); })
+        dotsSequence.AppendCallback(() => { SetStatusText($"{currentStatusPrefix} ."); })
                     .AppendInterval(0.4f)
-                    .AppendCallback(() => { SetStatusText($"{prefix} .."); })
+                    .AppendCallback(() => { SetStatusText($"{currentStatusPrefix} .."); })
                     .AppendInterval(0.4f)
-                    .AppendCallback(() => { SetStatusText($"{prefix} ..."); })
+                    .AppendCallback(() => { SetStatusText($"{currentStatusPrefix} ..."); })
                     .AppendInterval(0.4f)
                     .SetLoops(-1, LoopType.Restart);
     }
@@ -209,6 +232,7 @@ public class CraftingPanelUI : MonoBehaviour
         if (!isAnimatingDots && dotsSequence == null) return;
 
         isAnimatingDots = false;
+        currentStatusPrefix = "";
         if (dotsSequence != null)
         {
             dotsSequence.Kill();
@@ -430,10 +454,7 @@ public class CraftingPanelUI : MonoBehaviour
 
         RecipeUnlockManager recipeManager = Object.FindFirstObjectByType<RecipeUnlockManager>();
 
-        if (recipeManager == null)
-        {
-            return;
-        }
+        if (recipeManager == null) return;
 
         if (recipeManager.RecipeUnlocks != null && recipeManager.RecipeUnlocks.Count > 0)
         {
@@ -456,10 +477,6 @@ public class CraftingPanelUI : MonoBehaviour
                 }
             }
         }
-        else
-        {
-            Debug.Log("[공방] RecipeUnlockManager 내부에 등록된 레시피 엔트리가 존재하지 않습니다.");
-        }
     }
 
     public void OnSelectItemRecipe(ItemData selectedItem)
@@ -470,7 +487,6 @@ public class CraftingPanelUI : MonoBehaviour
         activeSelectedRecipeData = FindRecipeDataInCatalog(selectedItem.Item_ID);
 
         maxCraftableQuantity = CalculateMaxCraftableLimitAmount(selectedItem);
-
         selectedQuantity = 1;
 
         if (quantitySlider != null)
@@ -627,22 +643,10 @@ public class CraftingPanelUI : MonoBehaviour
         if (targetFacility == null)
         {
             targetFacility = FindFirstObjectByType<ProductionCraftRuntime>();
-            if (targetFacility != null)
-            {
-                Debug.Log("<color=cyan>[CraftingPanelUI]</color> targetFacility가 null이어서 씬 내 활성 제작대 런타임을 자동 연결했습니다.");
-            }
-            else
-            {
-                Debug.LogError($"[{GetType().Name}] ❌ 씬에서 ProductionCraftRuntime 인스턴스를 찾지 못해 배치를 진행할 수 없습니다.");
-                return false;
-            }
+            if (targetFacility == null) return false;
         }
 
-        if (targetEntry == null)
-        {
-            Debug.LogError($"[{GetType().Name}] ❌ targetEntry 인자가 null입니다.");
-            return false;
-        }
+        if (targetEntry == null) return false;
 
         bool isSuccess = targetFacility.TryAddMem(targetMem, targetEntry);
 
@@ -689,38 +693,14 @@ public class CraftingPanelUI : MonoBehaviour
     private ItemData FindItemDataInCatalog(string itemId)
     {
         if (string.IsNullOrEmpty(itemId)) return null;
-
-        if (ItemCatalogManager.Instance == null)
-        {
-            Debug.LogError($"[ItemCatalogManager] 인스턴스가 존재하지 않아 아이템 '{itemId}'을(를) 탐색할 수 없습니다.");
-            return null;
-        }
-
-        ItemData targetItem = ItemCatalogManager.Instance.FindItemData(itemId);
-        if (targetItem == null)
-        {
-            Debug.LogError($"[ItemCatalogManager] 카탈로그에서 아이템 ID '{itemId}'에 해당하는 ItemData를 찾을 수 없습니다.");
-        }
-
-        return targetItem;
+        if (ItemCatalogManager.Instance == null) return null;
+        return ItemCatalogManager.Instance.FindItemData(itemId);
     }
 
     private HDY.Recipe.RecipeData FindRecipeDataInCatalog(string recipeItemId)
     {
         if (string.IsNullOrEmpty(recipeItemId)) return null;
-
-        if (ItemCatalogManager.Instance == null)
-        {
-            Debug.LogError($"[ItemCatalogManager] 인스턴스가 존재하지 않아 레시피 '{recipeItemId}'을(를) 탐색할 수 없습니다.");
-            return null;
-        }
-
-        HDY.Recipe.RecipeData targetRecipe = ItemCatalogManager.Instance.FindRecipeData(recipeItemId);
-        if (targetRecipe == null)
-        {
-            Debug.LogError($"[ItemCatalogManager] 카탈로그에서 레시피 ID '{recipeItemId}'에 해당하는 RecipeData를 찾을 수 없습니다.");
-        }
-
-        return targetRecipe;
+        if (ItemCatalogManager.Instance == null) return null;
+        return ItemCatalogManager.Instance.FindRecipeData(recipeItemId);
     }
 }

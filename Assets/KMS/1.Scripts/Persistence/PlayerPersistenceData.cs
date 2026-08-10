@@ -24,9 +24,10 @@ namespace KMS.Persistence
             for (int i = 0; i < data.slots.Length; i++)
             {
                 ItemStack sourceSlot = source.slots[i];
+                // [HDY 요청 - KMS 크로스 승인 - 내구도] durability도 함께 저장한다.
                 data.slots[i] = sourceSlot == null
                     ? new ItemStack()
-                    : new ItemStack { itemId = sourceSlot.itemId, amount = sourceSlot.amount };
+                    : new ItemStack { itemId = sourceSlot.itemId, amount = sourceSlot.amount, durability = sourceSlot.durability };
             }
 
             return data;

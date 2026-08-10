@@ -2,6 +2,7 @@ using HDY.Capture;
 using HDY.Forge;
 using HDY.Item;
 using HDY.Mem;
+using HDY.Tutorial;
 using KMS.InventoryDuped;
 using MemSystem.Data;
 using System;
@@ -107,6 +108,7 @@ public class RecordManager : MonoBehaviour
             waypointInfo = new List<WaypointInfo>(),
             chestInfo = new List<ChestInfo>(),
             forgeInstanceDataList = new List<ForgeInstanceData>(),
+            tutorialData = new TutorialProgressSnapshot(),
             playerPosDataList = new List<ScenePlayerPosData>
             {
                 new ScenePlayerPosData { sceneName = "Main_World_3", lastPlayerPos = null, hasSavedPlayerPos = false },
@@ -334,6 +336,9 @@ public class RecordManager : MonoBehaviour
 
             var playerPosRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "PlayerPosRecordData");
             playerPosRecord?.ApplyData(saveData, sceneType);
+
+            var tutorialRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "TutorialRecordData");
+            tutorialRecord?.ApplyData(saveData, sceneType);
 
             var offlineRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "OfflineRewardRecordData") as OfflineRewardRecordData;
             if (offlineRecord != null)

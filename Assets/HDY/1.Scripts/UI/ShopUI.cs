@@ -251,7 +251,7 @@ namespace HDY.UI
             if (restockCountdownText == null || stockManager == null) return;
 
             var remaining = stockManager.GetTimeUntilRestock(currentShop);
-            restockCountdownText.text = $"{(int)remaining.TotalMinutes:00}:{remaining.Seconds:00}";
+            restockCountdownText.text = "상점 초기화까지 남은 시간 : " + $"{(int)remaining.TotalMinutes:00}:{remaining.Seconds:00}";
         }
 
         /// <summary>

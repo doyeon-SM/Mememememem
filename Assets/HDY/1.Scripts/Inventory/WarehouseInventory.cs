@@ -31,6 +31,11 @@ namespace HDY.Inventory
     /// MaxStack 기준으로 다시 압축한 뒤(99, 51 형태로), 기준(Item_ID 또는 카테고리)으로 정렬하고 동순위는
     /// 수량이 많은 순으로 배치한다.
     ///
+    /// [HDY 요청 - KMS 크로스 승인 - 내구도] 내구도 아이템(MaxDurability > 0, 예: 몽둥이)은 슬롯마다
+    /// "현재" 내구도가 다를 수 있어 위 압축(합산 후 재분배) 대상에서 제외한다 - 그렇지 않으면 정렬할 때마다
+    /// 개별 내구도 정보가 사라진다. TryTakeSlot/TryGetSlotSnapshot/TryPlaceHeldAmount/AddToEmptySlots도
+    /// durability를 함께 다루도록 수정했다.
+    ///
     /// [행 추가 (업그레이드)] KMS.InventoryContainer.Initialize()는 배열 크기가 바뀌면 통째로 새 배열을
     /// 만들어서(기존 아이템 손실) "시작할 때 한 번만 크기를 정하는" 용도로만 설계되어 있다. 창고는 런타임에
     /// 행이 늘어나야 하고 기존 아이템은 그대로 유지되어야 하므로, InventoryContainer(KMS 파일)를 건드리는 대신
@@ -227,7 +232,8 @@ namespace HDY.Inventory
             if (slot == null || slot.IsEmpty || amount <= 0) return false;
 
             int takenAmount = Mathf.Min(amount, slot.amount);
-            takenStack = new ItemStack { itemId = slot.itemId, amount = takenAmount };
+            // [HDY 요청 - KMS 크로스 승인 - 내구도] 떼어낸 새 스택에도 durability를 그대로 복사한다.
+            takenStack = new ItemStack { itemId = slot.itemId, amount = takenAmount, durability = slot.durability };
 
             slot.amount -= takenAmount;
             if (slot.amount <= 0) slot.Clear();
@@ -258,7 +264,8 @@ namespace HDY.Inventory
             ItemStack slot = storage.slots[index];
             if (slot == null || slot.IsEmpty) return false;
 
-            snapshot = new ItemStack { itemId = slot.itemId, amount = slot.amount };
+            // [HDY 요청 - KMS 크로스 승인 - 내구도] 스냅샷에도 durability를 그대로 복사한다.
+            snapshot = new ItemStack { itemId = slot.itemId, amount = slot.amount, durability = slot.durability };
             return true;
         }
 
@@ -286,7 +293,8 @@ namespace HDY.Inventory
             if (target.IsEmpty)
             {
                 int placed = Mathf.Min(GetMaxStack(heldStack.itemId), requestedAmount);
-                target.Set(heldStack.itemId, placed);
+                // [HDY 요청 - KMS 크로스 승인 - 내구도] 빈 슬롯에 놓을 때 durability를 함께 넘긴다.
+                target.Set(heldStack.itemId, placed, heldStack.durability);
                 heldStack.amount -= placed;
                 if (heldStack.amount <= 0) heldStack.Clear();
 
@@ -312,8 +320,10 @@ namespace HDY.Inventory
 
             string displacedItemId = target.itemId;
             int displacedAmount = target.amount;
-            target.Set(heldStack.itemId, heldStack.amount);
-            heldStack.Set(displacedItemId, displacedAmount);
+            // [HDY 요청 - KMS 크로스 승인 - 내구도] 교환 시 양쪽 durability를 서로 맞바꾼다.
+            int displacedDurability = target.durability;
+            target.Set(heldStack.itemId, heldStack.amount, heldStack.durability);
+            heldStack.Set(displacedItemId, displacedAmount, displacedDurability);
 
             OnStorageChanged?.Invoke();
             return true;
@@ -364,7 +374,8 @@ namespace HDY.Inventory
             {
                 if (i < sorted.Count)
                 {
-                    storage.slots[i].Set(sorted[i].itemId, sorted[i].amount);
+                    // [HDY 요청 - KMS 크로스 승인 - 내구도] 재배치 시 durability도 함께 옮긴다.
+                    storage.slots[i].Set(sorted[i].itemId, sorted[i].amount, sorted[i].durability);
                 }
                 else
                 {
@@ -377,14 +388,25 @@ namespace HDY.Inventory
             OnStorageChanged?.Invoke();
         }
 
-        /// <summary>같은 Item_ID를 모두 합산한 뒤, MaxStack 기준으로 [꽉 찬 스택, ..., 나머지] 형태로 다시 나눈다.</summary>
+        /// <summary>같은 Item_ID를 모두 합산한 뒤, MaxStack 기준으로 [꽉 찬 스택, ..., 나머지] 형태로 다시 나눈다.
+        /// [HDY 요청 - KMS 크로스 승인 - 내구도] 내구도 아이템(MaxDurability > 0)은 슬롯마다 서로 다른 "현재"
+        /// 내구도를 가지므로 합산 대상에서 제외하고, 원본 슬롯(durability 포함)을 그대로 개별 스택으로 유지한다.</summary>
         private List<ItemStack> BuildCompactedStacks()
         {
+            var catalog = ResolveCatalogManager();
             var totals = new Dictionary<string, int>();
+            var durabilityStacks = new List<ItemStack>();
 
             foreach (var slot in storage.slots)
             {
                 if (slot.IsEmpty) continue;
+
+                var itemData = catalog != null ? catalog.FindItemData(slot.itemId) : null;
+                if (itemData != null && itemData.MaxDurability > 0)
+                {
+                    durabilityStacks.Add(new ItemStack { itemId = slot.itemId, amount = slot.amount, durability = slot.durability });
+                    continue;
+                }
 
                 totals.TryGetValue(slot.itemId, out int current);
                 totals[slot.itemId] = current + slot.amount;
@@ -404,6 +426,8 @@ namespace HDY.Inventory
                     remaining -= take;
                 }
             }
+
+            compacted.AddRange(durabilityStacks);
 
             return compacted;
         }
@@ -548,12 +572,16 @@ namespace HDY.Inventory
             int remaining = amount;
             int maxStack = Mathf.Max(1, item.MaxStack);
 
+            // [HDY 요청 - KMS 크로스 승인 - 내구도] 내구도가 있는 아이템은 새로 생기는 개체를 항상
+            // 최대 내구도로 초기화한다.
+            int initialDurability = item.MaxDurability > 0 ? item.MaxDurability : -1;
+
             foreach (var slot in storage.slots)
             {
                 if (!slot.IsEmpty) continue;
 
                 int added = Mathf.Min(maxStack, remaining);
-                slot.Set(item.Item_ID, added);
+                slot.Set(item.Item_ID, added, initialDurability);
                 remaining -= added;
 
                 if (remaining <= 0) break;
