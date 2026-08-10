@@ -198,11 +198,13 @@ namespace GH.Loading
 
         private IEnumerator RunLoading(LoadingContext context, List<ILoadingTask> tasks)
         {
-            if (RecordManager.Instance != null)
+            string currentSceneName = SceneManager.GetActiveScene().name.ToLower();
+            if (RecordManager.Instance != null && !currentSceneName.Contains("title"))
             {
                 RecordManager.Instance.SaveAllData();
                 RecordManager.Instance.SetSceneUnloading(true);
             }
+
 
             ShowRandomTip();
             onLoadingStarted?.Invoke();

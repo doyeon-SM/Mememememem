@@ -121,13 +121,13 @@ public class TitleMenuUI : MonoBehaviour
     }
 
     /// <summary>
-    /// 🌟 [수정] 새로 하기: 로딩 패널을 먼저 화면에 그리고 무거운 파일 생성을 뒤이어 수행
+    /// 새로 하기: 로딩 패널을 먼저 화면에 그리고 무거운 파일 생성을 뒤이어 수행
     /// </summary>
     private IEnumerator StartNewGameRoutine()
     {
         bool success = false;
 
-        // 1. 로딩 패널 및 화면 가림 처리 우선 실행
+        // 1. 로딩 패널 화면 생성
         if (LoadingManager.Instance != null)
         {
             success = LoadingManager.Instance.LoadScene(defaultStartScene, string.Empty);
@@ -135,10 +135,11 @@ public class TitleMenuUI : MonoBehaviour
 
         if (success)
         {
-            // 2. 로딩 패널 UI가 화면을 덮을 수 있도록 1프레임 대기
+            // 2. 유니티 캔버스가 로딩 패널 UI를 화면에 완전히 그릴 때까지 대기
+            yield return new WaitForEndOfFrame();
             yield return null;
 
-            // 3. 로딩 화면 뒤에서 무거운 새 게임 파일 사전 생성 실행 (체감 렉 제거)
+            // 3. 로딩 화면이 덮인 상태에서 파일 생성 실행 (화면 멈춤 현상 체감 차단)
             if (RecordManager.Instance != null)
             {
                 RecordManager.Instance.PrepareNewGameFile(defaultStartScene);
@@ -146,7 +147,6 @@ public class TitleMenuUI : MonoBehaviour
         }
         else
         {
-            // 4. LoadingManager가 없는 예외 비상 경로
             yield return null;
             if (RecordManager.Instance != null)
             {
