@@ -96,12 +96,18 @@ namespace HDY.UI
     /// </summary>
     public class ShopUI : MonoBehaviour
     {
-        /// <summary>상점 이동 탭 버튼 하나와 그 버튼이 여는 상점을 짝짓는 항목.</summary>
+        /// <summary>
+        /// 상점 이동 탭 버튼 하나와 그 버튼이 여는 상점을 짝짓는 항목.
+        /// [HDY 요청 - 선택 표시 이미지] selectedImage는 버튼 안에 미리 배치해둔 "지금 이 상점을 보고
+        /// 있다"는 표시 이미지다. RefreshShopEntryButtons가 entry.shop == currentShop인 항목만 활성화하고
+        /// 나머지는 비활성화한다(interactable=false로 회색 표시하는 것과는 별개의 추가 표시).
+        /// </summary>
         [Serializable]
         private class ShopEntry
         {
             public Button button;
             public ShopData shop;
+            public Image selectedImage;
         }
 
         public static ShopUI Instance { get; private set; }
@@ -282,13 +288,21 @@ namespace HDY.UI
             if (popupRoot != null) popupRoot.SetActive(false);
         }
 
-        /// <summary>지금 보고 있는 상점의 이동 탭 버튼만 interactable=false로 회색 표시한다.</summary>
+        /// <summary>
+        /// 지금 보고 있는 상점의 이동 탭 버튼만 interactable=false로 회색 표시하고, 그 버튼 안의
+        /// selectedImage도 함께 활성화한다(HDY 요청). Open()이 이 메서드를 호출하므로 상점이 처음
+        /// 열릴 때도 자연스럽게 반영된다.
+        /// </summary>
         private void RefreshShopEntryButtons()
         {
             foreach (var entry in shopEntries)
             {
                 if (entry == null || entry.button == null) continue;
-                entry.button.interactable = entry.shop != currentShop;
+
+                bool isCurrent = entry.shop == currentShop;
+                entry.button.interactable = !isCurrent;
+
+                if (entry.selectedImage != null) entry.selectedImage.gameObject.SetActive(isCurrent);
             }
         }
 

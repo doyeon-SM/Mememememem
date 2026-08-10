@@ -13,17 +13,19 @@ namespace HDY.UI
     /// 멤창고(MemStorageUI)와 도감(MemDexUI) 둘 다에서 재사용한다.
     /// - 창고: 포획된 개체(CapturedMemEntry)가 있어 ShowInfo(entry, data) 사용, 탐험 스탯은 그 개체의 실제 값(단일 숫자).
     /// - 도감: 포획된 개체가 없어 ShowInfo(data, firstCapturedTimestamp) 사용. MemData.explorationStat 하나만으로는
-    ///   개체별 실제 범위를 반영하지 못하므로, MemTierTable에서 해당 등급의 explorationMin~explorationMax 범위를
-    ///   찾아 "20~100" 형식으로 보여준다(테이블/스펙이 없으면 MemData의 단일 값으로 대체).
+    ///   그 등급이 도달할 수 있는 최대치를 보여주지 못하므로, MemTierTable에서 해당 등급의 explorationMax
+    ///   (최대치)만 찾아 숫자 하나로 보여준다(테이블/스펙이 없으면 MemData의 단일 값으로 대체). [HDY 요청]
+    ///   예전에는 "20~100"처럼 최소~최대 범위로 보여줬으나, 최대치 숫자 하나만 보여주도록 바꿨다.
     /// 두 오버로드 모두 내부적으로 RenderInfo로 렌더링을 위임한다.
     ///
     /// [HDY 요청 - 스탯 표시 구조] 제작/벌목/채광/이동/생산/탐험 6개 스탯 전부 스탯당 아이콘(Image) +
     /// 이름(TMP_Text, "제작" 등 고정 라벨) + 값(TMP_Text) 이렇게 3개 오브젝트로 표시한다(SetStatRow).
     /// 값이 1 이상이면 3개 전부 알파 1(불투명), 값이 0이거나 데이터가 없어 "??"로 표시될 때는 3개 전부
     /// 알파를 dimmedStatAlpha(기본 0.7)로 낮춰 "의미 없는 스탯"임을 시각적으로 구분한다. 탐험은 값 텍스트에
-    /// 표시되는 문자열(단일 값 또는 도감의 범위)과 알파 판단 기준값이 서로 달라서(범위 텍스트는 알파 판단에
-    /// 쓸 단일 숫자가 없음) SetStatRow의 문자열 오버로드를 쓴다 - 판단 기준값은 창고(ShowInfo(entry, data))
-    /// 에서는 entry.ExplorationStat, 도감(ShowInfo(data, timestamp))에서는 data.explorationStat을 사용한다.
+    /// 표시되는 문자열(창고=개체의 실제 값, 도감=그 등급의 최대치)과 알파 판단 기준값이 서로 달라서(도감의
+    /// 최대치는 이 특정 개체의 실제 스탯이 아니라 등급 전체의 최대치라 알파 판단 기준으로 쓰기엔 부적절함)
+    /// SetStatRow의 문자열 오버로드를 쓴다 - 판단 기준값은 창고(ShowInfo(entry, data))에서는
+    /// entry.ExplorationStat, 도감(ShowInfo(data, timestamp))에서는 data.explorationStat을 사용한다.
     ///
     /// [HDY 요청 - 데이터 없을 때 "??" 표시] 아직 아무 멤도 선택되지 않은 최초 상태(또는 이후 선택이
     /// 해제된 상태), 혹은 멤 데이터(SO)가 아직 입력되지 않은 경우에는 이름/티어/스탯 관련 텍스트들을
@@ -47,7 +49,7 @@ namespace HDY.UI
     public class MemStorageUI_Info : MonoBehaviour
     {
         [Header("데이터 참조")]
-        [Tooltip("등급별 탐험 스탯 범위(최소~최대) 조회용. 도감(ShowInfo(MemData, long?))에서 범위 표시에 사용한다.")]
+        [Tooltip("등급별 탐험 스탯 최대치 조회용. 도감(ShowInfo(MemData, long?))에서 최대치 표시에 사용한다.")]
         [SerializeField] private MemTierTable tierTable;
 
         [Header("정보 패널 (그리드 옆 고정 표시)")]
@@ -115,8 +117,8 @@ namespace HDY.UI
         }
 
         /// <summary>
-        /// MemData만으로 정보를 표시한다. (도감에서 사용) 포획된 개체가 없어 탐험 스탯은 단일 값 대신
-        /// MemTierTable에서 찾은 해당 등급의 "최소~최대" 범위로 보여준다.
+        /// MemData만으로 정보를 표시한다. (도감에서 사용) 포획된 개체가 없어 탐험 스탯은 그 개체의 실제 값
+        /// 대신 MemTierTable에서 찾은 해당 등급의 최대치 숫자를 보여준다.
         /// </summary>
         /// <param name="firstCapturedTimestamp">
         /// [HDY 요청 - 최초 포획 정보] 이 멤 종의 최초 포획 시각(UTC Unix, 초). MemDexRecordManager에
@@ -135,7 +137,7 @@ namespace HDY.UI
             // (MemDexSlotUI)와 동일하게 검은 실루엣으로 보여준다(스포일러 방지).
             bool isDiscovered = firstCapturedTimestamp.HasValue;
 
-            RenderInfo(isDiscovered ? data : null, isDiscovered ? BuildExplorationRangeText(data) : null, isDiscovered ? data.explorationStat : (int?)null);
+            RenderInfo(isDiscovered ? data : null, isDiscovered ? BuildExplorationMaxText(data) : null, isDiscovered ? data.explorationStat : (int?)null);
             ApplyIcon(data, isDiscovered);
 
             SetFirstCapturedVisible(true, firstCapturedTimestamp);
@@ -150,14 +152,18 @@ namespace HDY.UI
             SetFirstCapturedVisible(false, null);
         }
 
-        /// <summary>MemTierTable에서 이 멤 등급의 탐험 스탯 범위를 찾아 "최소~최대" 형식으로 반환한다. 테이블/스펙이 없으면 MemData의 단일 값으로 대체(경고 로그 남김).</summary>
-        private string BuildExplorationRangeText(MemData data)
+        /// <summary>
+        /// [HDY 요청] MemTierTable에서 이 멤 등급의 탐험 스탯 최대치(explorationMax)를 찾아 숫자 하나로
+        /// 반환한다(예전에는 "최소~최대" 범위 문자열이었으나 최대치 숫자 하나만 보여주도록 바꿨다).
+        /// 테이블/스펙이 없으면 MemData의 단일 값으로 대체(경고 로그 남김).
+        /// </summary>
+        private string BuildExplorationMaxText(MemData data)
         {
             var spec = tierTable != null ? tierTable.GetSpec(data.tier) : null;
 
             if (spec != null)
             {
-                return $"{spec.explorationMin}~{spec.explorationMax}";
+                return spec.explorationMax.ToString();
             }
 
             Debug.LogWarning($"[MemStorageUI_Info] MemTierTable에서 '{data.tier}' 등급 스펙을 찾을 수 없어 MemData의 단일 값으로 대체합니다.", this);

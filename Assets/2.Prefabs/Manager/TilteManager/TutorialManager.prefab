@@ -16,6 +16,7 @@ GameObject:
   - component: {fileID: 3650121313490701782}
   - component: {fileID: 2555297992624773185}
   - component: {fileID: 6174222535760434545}
+  - component: {fileID: 7611788442445048901}
   m_Layer: 0
   m_Name: TutorialCatalogManager
   m_TagString: Untagged
@@ -133,7 +134,23 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HDY.Tutorial.TutorialUIPanelWatcher
   tutorialManager: {fileID: 0}
-  uiManager: {fileID: 0}
+  recheckInterval: 0.5
+--- !u!114 &7611788442445048901
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7185046713866143461}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c063331ca59530c44b69ccc35d05191d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HDY.Tutorial.TutorialRecipeUnlockWatcher
+  tutorialManager: {fileID: 0}
+  recipeUnlockManager: {fileID: 0}
+  watchedItemId: blueprint_production_stand
+  objectiveKey: forge_unlocked
 --- !u!1 &8375597262771345063
 GameObject:
   m_ObjectHideFlags: 0
@@ -181,9 +198,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::HDY.Tutorial.TutorialManager
   tutorialCatalog: {fileID: 4243988849731463048}
   territoryData: {fileID: 0}
+  worldCamera: {fileID: 0}
   tutorialPanelPrefab: {fileID: 1736015115227195769, guid: 79ae9da47e34c0f49ad03484d91c8083, type: 3}
   currentStepIndex: -1
-  currentStepId: 
-  currentStepAwaitingTrigger: 0
-  completedStepIds: []
-  currentObjectiveProgressDebug: []

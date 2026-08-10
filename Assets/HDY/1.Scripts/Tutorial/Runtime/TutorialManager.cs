@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using TMPro;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using HDY.Forge;
@@ -63,6 +64,11 @@ namespace HDY.Tutorial
     /// 이 매니저는 "심는 것"만 담당하면 되고 별도의 UI 연결 코드는 필요 없다.
     ///
     /// [사운드 - HDY 요청] 스텝(=퀘스트) 완료 시 KMSAudioService.Play2D(GameSfxId.QuestComplete)를 재생한다.
+    ///
+    /// [HDY 요청 - 대사 중 입력 차단] 대사가 화면에 떠 있는 동안 F(상호작용)와 클릭을 제외한 게임플레이
+    /// 입력(이동/좌클릭 채집·공격/점프/핫바 등)을 막는다(SetDialogueInputBlock 참고). 상자(Chest)와
+    /// 웨이포인트석(WayPointStone)은 전부 F(PlayerInteraction)로 여는 구조라, 이 차단 하나로 "대사 중에
+    /// 미리 상자를 열거나 웨이포인트를 등록해서 튜토리얼 진행이 꼬이는" 문제까지 함께 막힌다.
     /// </summary>
     public class TutorialManager : MonoBehaviour
     {
@@ -172,6 +178,10 @@ namespace HDY.Tutorial
 
         private int currentDialogueLineIndex;
 
+        // [HDY 요청 - 대사 중 입력 차단] 대사가 화면에 떠 있는 동안(ShowLine 호출 시점 ~ Hide 호출 시점) true.
+        // Update()에서 F키 우회 폴링 여부를 판단하는 데도 같이 쓴다.
+        private bool isDialogueInputBlockActive;
+
         /// <summary>이번 씬에 자동으로 심어둔 튜토리얼 패널 인스턴스(중복 스폰 방지용 추적).</summary>
         private GameObject spawnedTutorialPanel;
 
@@ -213,6 +223,14 @@ namespace HDY.Tutorial
             UnsubscribeTerritoryLevel();
             UnsubscribeInteractInput();
 
+            // [HDY 요청 - 대사 중 입력 차단 방어] 이 매니저 자체가 비활성화되는 극단적인 경우에도 플레이어가
+            // 영원히 입력이 막힌 채로 남지 않도록 여기서도 확실히 풀어준다.
+            if (isDialogueInputBlockActive)
+            {
+                isDialogueInputBlockActive = false;
+                playerInput?.SetGameplayInputBlocked(false);
+            }
+
             // [HDY 요청 - 영지 방문 시 진행 막힘 수정] OnDisable 시점에 Unity가 이 오브젝트의 코루틴을
             // 이미 전부 멈추므로 StopCoroutine은 불필요하지만, 참조만은 비워둬야 다음에 다시 활성화됐을 때
             // "이미 재시도 중"이라는 낡은 가드에 막히지 않는다.
@@ -224,6 +242,24 @@ namespace HDY.Tutorial
             EnsureReferences();
             EnsureTutorialPanelSpawned(); // 최초 진입 씬은 sceneLoaded 이벤트를 놓칠 수 있어 한 번 더 보장
             TryActivateNextPendingStep();
+        }
+
+        /// <summary>
+        /// [HDY 요청 - 대사 중 F키 우회] 대사가 떠 있는 동안은 SetDialogueInputBlock(true)가
+        /// playerInput의 Gameplay 액션맵을 통째로 막아서 Interact(F) 액션도 함께 막히므로,
+        /// PlayerInput.InteractPressed 이벤트에 더 이상 의존할 수 없다. 그래서 여기서 원시 키보드
+        /// 입력(Keyboard.current)을 직접 읽어 F만 예외적으로 통과시킨다 - 차단 중이 아닐 때는 기존처럼
+        /// SubscribeInteractInput으로 등록한 이벤트 경로가 정상 동작하므로 여기서는 아무 것도 하지 않는다.
+        /// </summary>
+        private void Update()
+        {
+            if (!isDialogueInputBlockActive) return;
+            if (Keyboard.current == null) return;
+
+            if (Keyboard.current[Key.F].wasPressedThisFrame)
+            {
+                HandleInteractPressed();
+            }
         }
 
         /// <summary>
@@ -314,6 +350,12 @@ namespace HDY.Tutorial
         {
             spawnedTutorialPanel = null; // 이전 씬 인스턴스는 씬 전환과 함께 이미 파괴됨 - 참조만 정리
             fallbackCanvas = null; // [HDY 요청 - 이상한 Canvas에 붙는 문제 수정] 이전 씬의 폴백 Canvas도 마찬가지
+
+            // [HDY 요청 - 대사 중 입력 차단 방어] 이전 씬의 PlayerInput 인스턴스는 곧 사라지므로 굳이
+            // SetGameplayInputBlocked(false)를 호출할 필요는 없지만(씬 전환으로 어차피 파괴됨), 플래그는
+            // 여기서 리셋해둬야 새 씬에서 RefreshDialoguePresentation이 다시 정확한 상태로 켜고 끌 수 있다.
+            isDialogueInputBlockActive = false;
+
             EnsureTutorialPanelSpawned();
             NotifyTriggerFired(TutorialTriggerType.SceneEnter, scene.name);
 
@@ -720,7 +762,11 @@ namespace HDY.Tutorial
             }
 
             // 대사 끝 - 목표가 있으면 목표 완료를 기다리고(대화창은 닫음), 없으면 바로 스텝 완료.
+            // [HDY 요청 - 버그 수정] 여기서 dialogueUI.Hide()만 직접 부르고 SetDialogueInputBlock(false)를
+            // 빼먹어서, 목표 대기 상태로 넘어간 뒤에도(대사창은 사라졌는데) 입력 차단이 풀리지 않는 문제가
+            // 있었다 - RefreshDialoguePresentation()을 거치지 않는 유일한 Hide() 호출 지점이었다.
             dialogueUI?.Hide();
+            SetDialogueInputBlock(false);
 
             if (current.objectives == null || current.objectives.Count == 0)
             {
@@ -1054,10 +1100,34 @@ namespace HDY.Tutorial
                 current.dialogueLines == null || currentDialogueLineIndex >= current.dialogueLines.Count)
             {
                 dialogueUI.Hide();
+                SetDialogueInputBlock(false);
                 return;
             }
 
             dialogueUI.ShowLine(current.dialogueLines[currentDialogueLineIndex].text);
+            SetDialogueInputBlock(true);
+        }
+
+        /// <summary>
+        /// [HDY 요청 - 대사 중 입력 차단] 대사가 떠 있는 동안 F(상호작용)와 클릭을 제외한 게임플레이
+        /// 입력을 막는다. playerInput.SetGameplayInputBlocked(true)는 이동/좌클릭 채집·공격/점프/재장전/
+        /// 핫바/이전·다음뿐 아니라 F(Interact)까지 포함한 Gameplay 액션맵 전체를 막는데, 상자(Chest)와
+        /// 웨이포인트석(WayPointStone)은 전부 KMS.PlayerInteraction이 이 F(input.InteractPressed)를
+        /// 구독해서 여는 구조라 이 하나로 "대사 중엔 상자 열기/웨이포인트 등록도 진행되지 않는다"는
+        /// 방어까지 자동으로 해결된다(각 바인더에 별도 가드를 추가할 필요 없음). F만은 예외로 계속
+        /// 눌려야 하므로, isDialogueInputBlockActive가 true인 동안 Update()에서 원시 키보드 입력
+        /// (Keyboard.current)을 직접 읽어 F를 우회 처리한다(HandleInteractPressed 재사용 -
+        /// InteractPressed 이벤트에는 의존하지 않음). 마우스 클릭(대화창의 "다음" 버튼 등 UI 클릭)은
+        /// 애초에 PlayerInput의 Gameplay 액션맵과 무관하게 Unity UI 이벤트 시스템(EventSystem/
+        /// GraphicRaycaster)이 독립적으로 처리하므로 막히지 않는다.
+        /// </summary>
+        private void SetDialogueInputBlock(bool blocked)
+        {
+            if (isDialogueInputBlockActive == blocked) return;
+            isDialogueInputBlockActive = blocked;
+
+            EnsureReferences();
+            playerInput?.SetGameplayInputBlocked(blocked);
         }
 
         private void RefreshObjectivePresentation()
