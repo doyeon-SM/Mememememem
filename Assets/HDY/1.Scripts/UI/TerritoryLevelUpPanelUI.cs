@@ -28,12 +28,29 @@ namespace HDY.UI
     /// 씬에 적용하는 코드, 영지 씬에 들어올 때마다 실행됨)가 복원된 레벨 값으로 다른 UI(HUD 등)를 강제로
     /// 갱신시키기 위해, 리플렉션으로 TerritoryData.OnLevelChanged를 저장/복원 시점마다 직접 재호출한다
     /// (levelEvent?.DynamicInvoke(liveTerritoryData.Level)). 이 신호는 "진짜 레벨업"이 아니라 "복원
-    /// 알림"이라 실제로 레벨이 오르지 않았는데도 이 패널이 반응해서, 씬에 들어올 때마다 레벨업 팝업이
-    /// 뜨는 문제가 있었다. 저장/복원 로직(다른 팀 파일)은 건드리지 않고, 이 컴포넌트가 이번 활성화
-    /// 사이클에서 "처음 받는" OnLevelChanged 신호만 방어적으로 무시하는 방식으로 고쳤다 - 씬에 들어와
-    /// 구독을 걸자마자 오는 신호가 바로 그 복원 신호이기 때문이다. 그 이후에 오는 신호부터는 정상적으로
-    /// 진짜 레벨업으로 간주해 팝업을 띄운다(같은 씬에 머무는 동안 실제로 레벨업이 여러 번 일어나도 전부
-    /// 정상 반응 - 무시하는 건 재활성화 직후 딱 한 번뿐).
+    /// 알림"이라, 그대로 두면 씬에 들어올 때마다 레벨업 팝업이 뜨는 문제가 있었다.
+    ///
+    /// [1차 수정(폐기) - "활성화 후 첫 신호는 무조건 무시"] 처음엔 OnEnable 이후 처음 받는
+    /// OnLevelChanged 신호를 무조건 한 번 무시했다. 진짜 레벨업이 활성화 직후 첫 신호로 들어오는
+    /// 경우까지 같이 무시돼버려 레벨업이 안 뜨는 새 버그로 이어져 폐기했다.
+    ///
+    /// [2차 수정(폐기) - 메모리상 TerritoryData.Level과 비교] "활성화 시점(OnEnable)에
+    /// territoryData.Level을 기준값으로 캐시해뒀다가, 그보다 큰 값만 진짜 레벨업으로 본다"로 바꿨다.
+    /// 씬 전환(같은 플레이 세션 안)에는 잘 맞았지만, 게임을 완전히 종료했다 재접속하면 기준값 자체가
+    /// 저장되지 않는 순수 런타임 변수라 다시 문제가 재현됐다 - 이 패널의 OnEnable이 _Kyusoo의
+    /// TerritoryRecordData.ApplyData()보다 먼저 실행되면, 세이브가 복원되기 전(TerritoryData의 기본값)을
+    /// 기준값으로 캐시해버려서, 그 직후 들어오는 복원 신호(실제로는 변화 없음)가 그 낮은 기본값보다는
+    /// 크다는 이유로 "진짜 레벨업"으로 오판했다.
+    ///
+    /// [3차 수정(현재) - 디스크에 저장된 영지 레벨과 비교] 메모리 상태나 활성화 타이밍에 의존하지 않고,
+    /// RecordManager.Instance.ReadRawSaveFileOnly()로 세이브 파일을 직접 읽어 그 안의 territoryLevel을
+    /// 기준값으로 삼는다(GetPersistedTerritoryLevel 참고). 이 값은 _Kyusoo의 ApplyData가 아직 실행됐는지
+    /// 여부와 무관하게 항상 "진짜로 저장되어 있는 값"이므로, 게임을 재시작해도 항상 정확한 기준이 된다.
+    /// 세이브 파일이 아직 없으면(최초 실행) territoryData.Level로 폴백한다.
+    /// - level이 기준값 이하면 -> 값이 실제로 오르지 않은 것(복원 알림/중복 신호)이므로 조용히 무시.
+    /// - level이 기준값보다 크면 -> 진짜 레벨업이므로 정상적으로 팝업을 띄운다.
+    /// 두 경우 모두 lastKnownLevel(런타임 캐시, 같은 세션 안에서의 빠른 재비교용)은 최신 level로
+    /// 갱신해둔다.
     ///
     /// [이미지] iconImage는 코드에서 스프라이트를 바꾸지 않는다 - 인스펙터에 미리 설정해둔 단일
     /// 고정 이미지를 그대로 사용한다(레벨 공통 이미지 1개, 요청하신 방식).
@@ -44,7 +61,8 @@ namespace HDY.UI
     /// [참조 확보 - EnsureReferences 패턴] territoryData는 Awake뿐 아니라 OnEnable에서도 다시 확보를
     /// 시도한다(TerritoryData.Resolve(existing) - 이미 있으면 그대로, 없으면 싱글톤 Instance, 그래도
     /// 없으면 씬 검색).
-    /// [교통정리] HDY 폴더 소속. KMS/Kyusoo/_GH/Pikachu 파일은 수정하지 않음(KMS Audio는 호출만 함).
+    /// [교통정리] HDY 폴더 소속. KMS/Kyusoo/_GH/Pikachu 파일은 수정하지 않음 - RecordManager는
+    /// 이미 공개된(public) ReadRawSaveFileOnly()/Instance를 호출만 할 뿐, 그 파일 자체를 건드리지 않는다.
     /// </summary>
     public class TerritoryLevelUpPanelUI : MonoBehaviour
     {
@@ -64,9 +82,10 @@ namespace HDY.UI
         private Coroutine autoHideRoutine;
         private CanvasGroup canvasGroup;
 
-        // [버그 수정 - 씬 입장 시 오작동 방지] 이번 활성화 사이클에서 OnLevelChanged를 아직 한 번도
-        // 받지 못했으면 true. 첫 신호는 세이브 복원 알림일 가능성이 높아 무시하고, 그 다음부터 반응한다.
-        private bool awaitingFirstLevelSignal;
+        // [버그 수정 - 디스크 저장값 기준 비교] 마지막으로 확인한 레벨(세션 내 빠른 재비교용 캐시).
+        // OnEnable에서 GetPersistedTerritoryLevel()로 초기화하고, HandleLevelChanged에서 매번 최신값으로
+        // 갱신한다. 새로 받은 level이 이 값보다 커야만 "진짜 레벨업"으로 간주해 팝업을 띄운다.
+        private int lastKnownLevel;
 
         private void Awake()
         {
@@ -96,9 +115,11 @@ namespace HDY.UI
         {
             EnsureReferences();
 
-            // [버그 수정 - 씬 입장 시 오작동 방지] 다시 활성화될 때마다(=씬에 들어올 때마다) 리셋한다.
-            // 이번에 구독을 걸고 나서 처음 오는 OnLevelChanged 한 번은 무시한다.
-            awaitingFirstLevelSignal = true;
+            // [버그 수정 - 디스크 저장값 기준 비교] 다시 활성화될 때마다(=씬에 들어올 때마다) 세이브
+            // 파일에 실제로 기록된 값을 기준선으로 다시 잡는다. _Kyusoo의 ApplyData가 아직 실행 전이라
+            // territoryData.Level이 아직 예전 값(또는 기본값)이어도 상관없다 - 디스크 값은 그 실행
+            // 여부와 무관하게 항상 정확하다.
+            lastKnownLevel = GetPersistedTerritoryLevel();
 
             if (territoryData != null)
             {
@@ -130,19 +151,34 @@ namespace HDY.UI
             territoryData = TerritoryData.Resolve(territoryData);
         }
 
+        /// <summary>
+        /// [버그 수정 - 디스크 저장값 기준 비교] RecordManager.Instance.ReadRawSaveFileOnly()로 세이브
+        /// 파일을 직접 읽어 그 안의 territoryLevel을 반환한다. 세이브 파일이 없거나(최초 실행) 읽기에
+        /// 실패하면, 차선책으로 지금 메모리상 territoryData.Level을 대신 쓴다(그마저 없으면 0).
+        /// </summary>
+        private int GetPersistedTerritoryLevel()
+        {
+            if (RecordManager.Instance != null)
+            {
+                var saved = RecordManager.Instance.ReadRawSaveFileOnly();
+                if (saved != null) return saved.territoryLevel;
+            }
+
+            return territoryData != null ? territoryData.Level : 0;
+        }
+
         private void HandleLevelChanged(int level)
         {
-            // [버그 수정 - 씬 입장 시 오작동 방지] _Kyusoo의 TerritoryRecordData.ApplyData()가 세이브
-            // 데이터를 씬에 적용할 때마다(영지 씬에 들어올 때마다) 복원된 레벨로 이 이벤트를 리플렉션으로
-            // 강제 재호출한다 - 진짜 레벨업이 아니라 "복원 알림"이다. 이번 활성화 사이클에서 처음 받는
-            // 신호가 바로 그 복원 알림일 가능성이 높으므로, 팝업을 띄우지 않고 조용히 넘어간다.
-            // 그 다음부터 오는 신호는 실제 레벨업으로 간주해 정상적으로 팝업을 띄운다.
-            if (awaitingFirstLevelSignal)
+            // [버그 수정 - 디스크 저장값 기준 비교] 값이 실제로 오르지 않았다면(복원 알림, 혹은 같은
+            // 레벨을 다시 알려주는 중복 신호) 팝업 없이 조용히 넘어간다. 기준선은 항상 최신으로
+            // 갱신해둔다.
+            if (level <= lastKnownLevel)
             {
-                awaitingFirstLevelSignal = false;
+                lastKnownLevel = level;
                 return;
             }
 
+            lastKnownLevel = level;
             Show(level);
         }
 

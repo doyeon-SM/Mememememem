@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using HDY.Recipe;
+using HDY.Tutorial;
 
 namespace HDY.UI
 {
@@ -84,6 +85,13 @@ namespace HDY.UI
 
                 slot.SetData(info.Id, info.Icon, info.IsUnlocked, info.Interactable);
                 slot.OnClicked += HandleSlotClicked;
+
+                // [HDY 요청 - 튜토리얼 하이라이트] 이 분기는 영지 확장 슬롯일 때만 실행된다(레시피
+                // 슬롯은 아래 entries 루프에서 별도로 만들어짐). 슬롯 프리팹 자체에 하이라이트 타겟을
+                // 붙이면 레시피 슬롯까지 전부 하이라이트되어 버리므로, 여기서 이 슬롯 하나에만 동적으로
+                // 붙인다. Setup()이 다시 호출될 때마다 ClearSlots()가 기존 슬롯을 Destroy하고 여기서
+                // 새로 Instantiate하므로 컴포넌트가 중복으로 쌓이지 않는다.
+                slot.gameObject.AddComponent<TutorialUIHighlightTarget>().Configure("territory_expand_button");
 
                 slots.Add(slot);
             }

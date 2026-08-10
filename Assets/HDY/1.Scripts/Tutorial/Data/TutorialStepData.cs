@@ -37,7 +37,15 @@ namespace HDY.Tutorial
         public int targetAmount = 1;
     }
 
-    /// <summary>스텝 완료 시 지급할 보상 하나.</summary>
+    /// <summary>
+    /// 스텝 완료 시 지급할 보상 하나.
+    ///
+    /// [HDY 요청 - 골드/고정 연마 보상] itemId가 정확히 "gold"이면 인벤토리 지급이 아니라
+    /// TutorialManager.GrantRewards가 TerritoryData.AddGold(amount)를 호출한다(amount = 지급할 골드 수치).
+    /// applyFixedToolRefinement를 켜면, 지급 직후 그 자리에 놓인 스택에 PlayerDefaultItemTest와 동일한
+    /// 고정 연마(Rare/DamageIncrease/데미지/1)를 ForgeManager.TryAssignFixedRefinement로 강제 적용한다
+    /// (대장간 대상이 아닌 아이템이면 조용히 무시됨). CSV에서는 "아이템ID:수량:refined"로 표시한다.
+    /// </summary>
     [Serializable]
     public class TutorialRewardEntry
     {
@@ -45,6 +53,10 @@ namespace HDY.Tutorial
 
         [Min(1)]
         public int amount = 1;
+
+        [Tooltip("체크하면 지급 직후 이 아이템에 고정 연마(Rare/DamageIncrease/1)를 강제로 적용합니다. " +
+                 "대장간 대상이 아닌 아이템(예: 몽둥이)이면 체크해도 조용히 무시됩니다.")]
+        public bool applyFixedToolRefinement;
     }
 
     /// <summary>
@@ -83,5 +95,17 @@ namespace HDY.Tutorial
         [Tooltip("TutorialUIHighlightTarget에 등록된 UI 요소의 키. 시야 감지 트리거(ObjectSighted 등)로 " +
                  "활성화된 스텝은 이 값이 비어있어도 감지된 월드 오브젝트를 자동으로 강조한다.")]
         public string highlightKey;
+
+        [Header("대기 안내 (CSV Waiting_Hint 컬럼)")]
+        [Tooltip("이 스텝이 자기 트리거(예: MemSighted/ChestOpened 등)를 아직 만족하지 못해 \"대기 중\"인 동안 " +
+                 "목표 HUD에 대신 표시할 안내 문구. 대사를 다 넘긴 뒤에도 플레이어가 무엇을 해야 할지 잊지 않도록 " +
+                 "보여준다(예: \"멤 찾기\", \"상자 열기\"). 비워두면 기존 대기 문구(NoObjectiveText)를 그대로 쓴다.")]
+        public string waitingHintText;
+
+        [Header("퀘스트 제목 (CSV Quest_Title 컬럼)")]
+        [Tooltip("[예약] 보상이 있는 스텝에 한해 채워 넣는 제목. 추후 제작될 보상 UI(스텝 완료 시 뜨는 보상 팝업 등)에서 " +
+                 "사용할 예정이며, 지금은 별도로 참조하는 런타임 로직이 없다. 모든 스텝에 채울 필요 없음 - " +
+                 "보상 UI가 만들어지기 전까지는 비워둬도 아무 효과가 없다.")]
+        public string questTitle;
     }
 }
