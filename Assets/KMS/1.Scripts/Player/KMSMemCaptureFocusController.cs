@@ -8,7 +8,7 @@ using UnityEngine;
 namespace KMS
 {
     /// <summary>
-    /// 카메라 정면의 멤을 감지하고 현재 장착한 캡슐 기준 포획 확률을 표시합니다.
+    /// 캡슐 궤적 링 또는 카메라 정면의 멤을 감지하고 현재 장착한 캡슐 기준 포획 확률을 표시합니다.
     /// 포획 공식은 멤의 ICapturable 구현에 위임합니다.
     /// </summary>
     [DisallowMultipleComponent]
@@ -17,6 +17,7 @@ namespace KMS
         [Header("References")]
         [SerializeField] private PlayerInventory inventory;
         [SerializeField] private KMSMemCaptureFocusView view;
+        [SerializeField] private CapsuleTrajectoryPreview trajectoryPreview;
         [SerializeField] private Transform cameraTransform;
 
         [Header("Focus Detection")]
@@ -34,6 +35,7 @@ namespace KMS
         {
             inventory = GetComponent<PlayerInventory>();
             view = GetComponent<KMSMemCaptureFocusView>();
+            trajectoryPreview = GetComponent<CapsuleTrajectoryPreview>();
             cameraTransform = Camera.main != null ? Camera.main.transform : null;
         }
 
@@ -59,7 +61,7 @@ namespace KMS
             }
 
             Transform focusCamera = ResolveCameraTransform();
-            Mem focusedMem = focusCamera != null ? FindFocusedMem(focusCamera) : null;
+            Mem focusedMem = ResolveFocusedMem(focusCamera);
             if (focusedMem == null || !focusedMem.IsActive)
             {
                 view.Hide();
@@ -101,6 +103,24 @@ namespace KMS
             {
                 view = GetComponent<KMSMemCaptureFocusView>();
             }
+
+            if (trajectoryPreview == null)
+            {
+                trajectoryPreview = GetComponent<CapsuleTrajectoryPreview>();
+            }
+        }
+
+        private Mem ResolveFocusedMem(Transform focusCamera)
+        {
+            Mem trajectoryMem = trajectoryPreview != null
+                ? trajectoryPreview.PredictedMemTarget
+                : null;
+            if (trajectoryMem != null && trajectoryMem.IsActive)
+            {
+                return trajectoryMem;
+            }
+
+            return focusCamera != null ? FindFocusedMem(focusCamera) : null;
         }
 
         private Transform ResolveCameraTransform()

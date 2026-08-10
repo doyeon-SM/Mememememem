@@ -225,7 +225,8 @@ namespace KMS
             if (toolAnimationController != null && toolAnimationController.IsToolActionPlaying)
             {
                 ToolMotionType motionType = toolAnimationController.CurrentMotionType;
-                if (motionType != ToolMotionType.Pickaxe
+                if (motionType != ToolMotionType.Axe
+                    && motionType != ToolMotionType.Pickaxe
                     && motionType != ToolMotionType.Hoe)
                 {
                     return false;

@@ -3,6 +3,7 @@ using System.Collections;
 using GH.Loading;
 using KMS.InventoryDuped;
 using KMS.Harvesting;
+using KMS.Audio;
 using UnityEngine;
 
 namespace KMS
@@ -40,6 +41,10 @@ namespace KMS
         [SerializeField, Range(0.01f, 1f)] private float respawnHealthPercent = 1f;
         [SerializeField, Min(0f)] private float respawnInvulnerabilityDuration = 2f;
 
+        [Header("Presentation")]
+        [SerializeField, Min(0f)] private float musicDuckFadeDuration = 0.6f;
+        [SerializeField, Range(0f, 1f)] private float deathMusicMultiplier = 1f / 3f;
+
         public bool IsDead { get; private set; }
         public event Action Respawned;
 
@@ -51,6 +56,7 @@ namespace KMS
         private Vector3 sceneSpawnPosition;
         private Coroutine invulnerabilityCoroutine;
         private LoadingManager subscribedLoadingManager;
+        private bool hasActiveRespawnWayPoint;
 
         private void Reset()
         {
@@ -95,6 +101,10 @@ namespace KMS
             }
 
             if (stats != null) stats.SetInvulnerable(false);
+            if (IsDead)
+            {
+                KMSAudioService.SetTemporaryMusicDuck(1f, musicDuckFadeDuration);
+            }
         }
 
         private void BindLoadingManager()
@@ -147,7 +157,9 @@ namespace KMS
             if (IsDead) return;
             IsDead = true;
             deathPosition = transform.position;
-            respawnPosition = ResolveNearestActiveWayPointPosition(deathPosition);
+            respawnPosition = ResolveNearestActiveWayPointPosition(
+                deathPosition,
+                out hasActiveRespawnWayPoint);
 
             // Closing the map clears both its input request and the source-stone
             // authorization used by territory travel before death takes ownership.
@@ -185,6 +197,11 @@ namespace KMS
             int lostAmount = inventory != null ? inventory.ApplyDeathPenalty() : 0;
             Debug.Log($"[PlayerDeath] 사망 처리 완료. 손실 수량={lostAmount}, 위치={deathPosition}", this);
 
+            KMSAudioService.SetTemporaryMusicDuck(
+                deathMusicMultiplier,
+                musicDuckFadeDuration);
+            hud?.ShowDeathPresentation(hasActiveRespawnWayPoint);
+
             if (animator != null)
             {
                 animator.ResetTrigger(ReviveHash);
@@ -217,6 +234,7 @@ namespace KMS
 
             IsDead = false;
             stats.Revive(respawnHealthPercent);
+            KMSAudioService.SetTemporaryMusicDuck(1f, musicDuckFadeDuration);
 
             if (input != null)
             {
@@ -240,9 +258,12 @@ namespace KMS
             }
         }
 
-        private Vector3 ResolveNearestActiveWayPointPosition(Vector3 origin)
+        private Vector3 ResolveNearestActiveWayPointPosition(
+            Vector3 origin,
+            out bool foundActiveWayPoint)
         {
             WayPointManager manager = WayPointManager.Instance;
+            foundActiveWayPoint = false;
             if (manager == null) return sceneSpawnPosition;
 
             bool found = false;
@@ -270,6 +291,7 @@ namespace KMS
                     this);
             }
 
+            foundActiveWayPoint = found;
             return nearestPosition;
         }
 
