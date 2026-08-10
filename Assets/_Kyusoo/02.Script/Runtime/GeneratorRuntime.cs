@@ -1,11 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using UnityEngine;
-using HDY.Capture;
+﻿using HDY.Capture;
 using HDY.Item;
 using HDY.Mem;
-using MemSystem.Data;
+using KMS.Audio;
 using KMS.InventoryDuped;
+using MemSystem.Data;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using UnityEngine;
 
 public class GeneratorRuntime : MonoBehaviour
 {
@@ -130,7 +132,10 @@ public class GeneratorRuntime : MonoBehaviour
         totalPowerRequiredTime = ProductionCalculator.CalculatePowerGenerationTime(basePowerGenerationTime, addMems[0]);
         currentPowerProgressTime = totalPowerRequiredTime * currentProgressPercent;
 
-        if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
+        // 🌟 추천 수정 방식: 배치된 멤 중 한 마리라도 IsStarving 상태인지 직접 확인
+        bool isAnyMemStarving = DeployedMemEntries.Any(e => e != null && (e.IsStarving || e.CurrentHunger <= 0));
+
+        if (!isAnyMemStarving)
         {
             SetPowerGeneratingActive(true);
         }
@@ -240,6 +245,8 @@ public class GeneratorRuntime : MonoBehaviour
 
         if (isPowerGenerating && buildingData != null)
         {
+            KMS.Audio.KMSAudioService.Play2D(GameSfxId.Generator);
+
             FacilityStarted?.Invoke(buildingData.buildingType, addMems, MemPositions);
         }
     }

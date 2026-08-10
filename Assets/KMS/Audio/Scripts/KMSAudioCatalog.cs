@@ -30,7 +30,20 @@ namespace KMS.Audio
         ForgeEnhanceFailure,
         TerritoryLevelUp,
         GoddessStatueUnlock,
-        QuestComplete
+        QuestComplete,
+        CraftingComplete,
+        CookingComplete,
+        Logging,
+        Mining,
+        Crafting,
+        Cooking,
+        CampFire,
+        Kitchen,
+        Ranch,
+        Transport,
+        Generator,
+        Farm,
+        WheatFarm
     }
 
     [Serializable]

@@ -3,10 +3,12 @@ using HDY.Inventory;
 using HDY.Item;
 using HDY.Mem;
 using HDY.Recipe;
+using KMS.Audio;
 using KMS.InventoryDuped;
 using MemSystem.Data;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 public class ProductionCraftRuntime : MonoBehaviour
@@ -157,13 +159,15 @@ public class ProductionCraftRuntime : MonoBehaviour
             totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, addMems);
             currentProgressTime = totalRequiredTime * currentProgressPercent;
 
-            if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
+            bool isAnyMemStarving = DeployedMemEntries.Any(e => e != null && (e.IsStarving || e.CurrentHunger <= 0));
+
+            if (!isAnyMemStarving)
             {
                 SetProducingActive(true);
             }
             else
             {
-                isProducing = false;
+                SetProducingActive(false);
             }
         }
     }
@@ -254,6 +258,8 @@ public class ProductionCraftRuntime : MonoBehaviour
         currentStorageCount++;
         remainingQuantity--;
         currentProgressTime = 0f;
+
+        KMS.Audio.KMSAudioService.Play2D(GameSfxId.CraftingComplete);
 
         if (remainingQuantity > 0)
         {
@@ -376,6 +382,8 @@ public class ProductionCraftRuntime : MonoBehaviour
 
         if (isProducing && buildingData != null)
         {
+            KMS.Audio.KMSAudioService.Play2D(GameSfxId.Crafting);
+
             FacilityStarted?.Invoke(buildingData.buildingType, addMems, MemPositions);
         }
     }

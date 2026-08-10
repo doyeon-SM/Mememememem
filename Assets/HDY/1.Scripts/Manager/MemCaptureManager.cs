@@ -407,7 +407,9 @@ namespace HDY.Capture
                     KeyId = Guid.NewGuid().ToString(),
                     MemId = memId,
                     ExplorationStat = UnityEngine.Random.Range(20, 101),
-                    IsActive = false
+                    IsActive = false,
+                    CurrentHunger = ResolveMaxHunger(memId),
+                    IsStarving = false
                 };
 
                 Debug.Log($"<color=cyan>[Test] 테스트 멤 주입 성공!</color> Index: {emptyIndex} | MemId: {memId} | 스탯: {capturedMems[emptyIndex].ExplorationStat}");

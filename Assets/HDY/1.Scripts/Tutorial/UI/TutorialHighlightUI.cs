@@ -142,9 +142,23 @@ namespace HDY.Tutorial
             ApplyAlpha(dimAlpha);
         }
 
+        // [HDY 요청 - 카메라 참조 통합] targetCamera가 Inspector에 직접 지정돼 있으면 그걸 최우선으로
+        // 쓰고, 없으면 TutorialManager.ResolveWorldCamera()(TutorialSightDetector와 공유하는 지점)를
+        // 거쳐 Camera.main으로 폴백한다. 이전에는 이 컴포넌트와 TutorialSightDetector가 각자 독립적으로
+        // Camera.main을 조회해서 서로 다른 카메라를 참조할 수 있었다(감지는 되는데 하이라이트만 안 보이는
+        // 버그의 유력한 원인).
         private Camera ResolveCamera()
         {
-            if (targetCamera == null) targetCamera = Camera.main;
+            if (targetCamera != null) return targetCamera;
+
+            tutorialManager = TutorialManager.Resolve(tutorialManager);
+            if (tutorialManager != null)
+            {
+                var shared = tutorialManager.ResolveWorldCamera();
+                if (shared != null) return shared;
+            }
+
+            targetCamera = Camera.main;
             return targetCamera;
         }
 

@@ -1,14 +1,55 @@
-﻿Step_ID,Trigger_Type,Trigger_Param,Dialogue_Lines,Objectives,Rewards,Highlight_Key
-ctrl_guide,Manual,,이동은 WASD로 합니다.;점프는 스페이스바입니다.,,,
-hunger_intro,Manual,,배고프면 체력이 서서히 줄어듭니다.;음식을 먹어 허기를 채우세요.,,,
-territory_first_visit,SceneEnter,Territory,이곳이 도연님의 영지입니다.;화면 위쪽 HUD에서 영지 상태를 확인할 수 있어요.,,,territory_hud
-mem_storage_intro,Manual,,포획한 멤은 멤 창고에서 관리할 수 있어요.;창고 버튼을 한번 눌러보세요.,,,mem_storage_button
-goddess_forge_unlock,UIPanelOpened,goddess_panel,여신상에 제물을 바치면 새 시설을 해금할 수 있습니다.;이번엔 제작대를 해금해볼까요?,,blueprint_production_stand:1,goddess_statue_button
-workbench_placement_guide,Manual,,받은 제작대 설계도로 영지에 제작대를 설치해보세요.;배치할 위치를 정하고 확인을 누르면 완성됩니다.,,,build_menu_button
-produce_iron_plank_quest,Manual,,제작대에서 철 주괴와 나무 판자를 직접 만들어보세요.,item_iron:철 주괴:1;item_woodplank:나무판자:1,item_iron:5;item_woodplank:5,
-territory_expansion_quest,Manual,,이제 영지를 확장해봅시다.,territory_expanded:영지 확장:1,item_baseblueprint:1,territory_expand_button
-territory_expansion_resource_hint,Manual,,자재가 부족하다면 지도에서 활성화된 웨이포인트를 선택해 탐험을 떠나보세요.;웨이포인트 주변에서 자재를 모아올 수 있어요.,,,map_button
-territory_level5_quest,Manual,,영지를 5레벨까지 키워봅시다.,territory_level:영지 레벨:5,tool_shabby_capsule:10,
-exploration_forge_unlock_intro,Manual,,영지 레벨이 올라 탐험대와 대장간을 이용할 수 있게 되었어요.,,,
-exploration_ui_intro,UIPanelOpened,exploration_panel,탐험대를 통해 멤을 타지로 보내 탐사시킬 수 있습니다.,,,exploration_button
-forge_ui_intro,UIPanelOpened,forge_panel,대장간에서는 장비를 강화하고 승급시킬 수 있습니다.,,,forge_button
+Step_ID,Trigger_Type,Trigger_Param,Dialogue_Lines,Objectives,Rewards,Highlight_Key,Waiting_Hint,Quest_Title
+ctrl_guide,SceneEnter,Main_World_3,MemTown에 오신것을 환영합니다.;이곳은 여명섬입니다.;이동은 WASD로 합니다.;점프는 스페이스바입니다.,,,,,
+run_guide,Manual,,Shift를 누르고 있으면 더 빠르게 달릴 수 있어요.,,,,,
+hunger_intro,Manual,,행동을 하거나 체력을 회복하기 위해 허기를 소비합니다.;배고프면 체력이 서서히 줄어듭니다.;음식을 먹어 허기를 채우세요.,,,hp_hunger_hud,,
+food_eat_guide,Manual,,보유한 음식은 좌클릭으로 섭취할 수 있어요.;음식마다 회복량이나 이동속도 같은 다양한 효과가 있어요.,,item_salad:5,,,체력과 배고픔
+quickslot_intro,Manual,,숫자 키를 누르면 핫바에 등록된 도구나 아이템을 선택할 수 있어요.;선택한 도구는 좌클릭으로 사용합니다.;도끼・곡괭이・괭이・몽둥이 같은 기본 도구를 이미 가지고 있어요.;나무・돌・덤불마다 어울리는 도구가 달라요. 도끼・곡괭이・괭이를 각각 사용해보세요.,,tool_shabby_axe:1:refined;tool_shabby_pickax:1:refined;tool_shabby_hoe:1:refined,quickslot_hud,,준비하기
+inventory_intro,Manual,,I 키를 누르면 인벤토리를 열어 보유 아이템을 확인할 수 있어요.,,,inventory_hud,,
+chest_sighted,ChestSighted,,저건 상자예요! 안에 아이템이 들어있을 거예요.,,,,상자 찾기,
+chest_open_guide,Manual,,상자 가까이 다가가 F 키를 눌러 열어보세요.,,,,상자 열기,
+chest_open_confirm,ChestOpened,,상자를 열어 아이템을 획득했어요!;인벤토리에서 확인해보세요.,,item_baseblueprint:1,,상자 열기,보물찾기
+mem_sighted,MemSighted,,저기 멤이 보여요! 야생의 멤은 포획해서 영지로 데려갈 수 있어요.,,tool_shabby_club:1;tool_shabby_capsule:10,,멤 찾기,일꾼 찾기
+mem_attack_guide,Manual,,몽둥이를 선택하고 좌클릭으로 공격해 멤의 체력을 낮춰보세요.,,,,멤 찾기,
+mem_capture_guide,Manual,,멤의 체력이 충분히 낮아지면 캡슐을 선택하세요.;마우스 우클릭을 홀드해 조준하고 놓으면 캡슐이 날아가 포획을 시도합니다.,,,,멤 찾기,
+mem_capture_confirm,MemCaptured,,멤 포획에 성공했어요!;포획한 멤은 영지의 멤 창고에서 관리할 수 있어요.,,tool_shabby_capsule:10,,멤 포획하기,영지의 훌륭한 일꾼
+gather_object_sighted,ObjectSighted,,저기 채집할 수 있는 사물이 보여요!,,item_wood:20;item_irongemstone:20,,채집물 찾기,자원 찾기
+gather_practice,Manual,,가까이 다가가 알맞은 도구를 선택한 뒤 좌클릭으로 상호작용해보세요.;채집에 성공하면 재료 아이템을 얻을 수 있어요.,,,,채집물 찾기,
+waypoint_sighted,WaypointSighted,,저건 웨이포인트 등록석이에요! 등록해두면 나중에 빠르게 이동할 수 있어요.,,gold:1000,,웨이포인트 등록석 찾기,집으로 돌아가는 법
+waypoint_register_guide,Manual,,등록석 가까이 다가가 F 키를 눌러 웨이포인트로 등록해보세요.,,,,웨이포인트 등록석 찾기,
+waypoint_register_confirm,WaypointUnlocked,,웨이포인트가 등록되었어요!;이제 이 지점으로 빠르게 이동할 수 있어요.,,gold:1000,,웨이포인트 등록하기,집으로 돌아가는 법 2
+map_intro,Manual,,M 키를 누르면 지도를 열어 등록된 웨이포인트를 확인할 수 있어요.;프리뷰 모드에서는 웨이포인트 이동이나 영지 이동은 할 수 없어요.,,,map_button,웨이포인트로 이동하기,
+warp_and_return_guide,Manual,,등록된 워프에 다가가 F 키를 누르면 웨이포인트 간 빠르게 이동할 수 있어요.,,,,웨이포인트로 이동하기,
+warp_and_return_guide2,Manual,,[영지 이동] 버튼을 누르면 영지로 돌아갈 수 있어요.,,,go_territory_button,영지로 이동하기,
+territory_first_visit,SceneEnter,Territory,이곳은 영지입니다.;화면 위쪽 HUD에서 영지 상태를 확인할 수 있어요.,,,territory_hud,,
+hud_shop_intro,Manual,,상점에서는 아이템을 판매해 골드를 얻거나 골드로 재료를 구매할 수 있어요.,,,shop_button,,
+hud_warehouse_intro,Manual,,창고에서는 내 인벤토리와 영지 창고에 쌓인 아이템을 한눈에 확인할 수 있어요.,,,warehouse_button,,
+hud_codex_intro,Manual,,도감에서는 포획한 멤의 정보를 ID・티어・스탯별로 정렬해 확인할 수 있어요.,,,codex_button,,
+mem_storage_intro,Manual,,포획한 멤은 멤 창고에서 관리할 수 있어요.;창고 버튼을 한번 눌러보세요.,,gold:1000,mem_storage_button,,영지의 기본
+goddess_forge_unlock,UIPanelOpened,goddess_panel,여신상에 제물을 바치면 새 시설을 해금할 수 있습니다.;이번엔 제작대를 해금해볼까요?,,blueprint_production_stand:1,goddess_statue_button,여신상 열기,영지의 시작
+workbench_placement_guide,Manual,,받은 제작대 설계도로 영지에 제작대를 설치해보세요.;배치할 위치를 정하고 R 키로 회전할 수 있어요.;배치를 마쳤으면 확인을 눌러 완성하세요.,,,build_menu_button,,
+workbench_recipe_intro,Manual,,제작대를 클릭하면 해금된 레시피 목록과 필요한 재료를 확인할 수 있어요.,,,,,
+mem_slot_assign_guide,Manual,,포획한 멤을 드래그해서 제작대의 멤 슬롯에 배치해보세요.;슬롯에 맞는 스탯의 멤만 생산을 진행할 수 있어요.,,,,,
+foodbowl_intro,Manual,,시설에 배치한 멤은 시간이 지나면 허기가 줄어들어요.;허기를 채우지 못하면 시설 가동이 멈춰버려요.,,,foodbowl_button,,
+foodbowl_fill_guide,Manual,,밥통 왼쪽 위 옥수수 아이콘을 클릭하세요.;오른쪽에 있는 가방과 창고 속 음식을 왼쪽 영역으로 옮기면 일하는 멤에게 밥을 줄 수 있습니다.;밥이 없으면 멤은 일하지 않아요!;밥통을 잘 관리해주세요.,,item_berry:20,,,생산의 기본
+produce_iron_plank_quest,Manual,,제작대에서 철 주괴와 나무 판자를 직접 만들어보세요.,item_iron:철 주괴:1;item_woodplank:나무판자:1,item_irongemstone:20;item_wood:20,,,생산의 시작
+collect_production_guide,Manual,,생산이 완료된 아이템은 시설을 클릭해 수령할 수 있어요.;수령한 아이템은 자동으로 창고로 이동해요.,,,,,
+territory_expansion_resource_hint,Manual,,영지를 확장하려면 자재가 필요해요.;자재가 부족하다면 지도에서 활성화된 웨이포인트를 선택해 탐험을 떠나보세요.,,,map_button,,
+territory_expansion_quest,Manual,,이제 영지를 확장해봅시다.,territory_expanded:영지 확장:1,item_irongemstone:20;item_wood:20,territory_expand_button,,영지 발전
+production_facility_intro,LevelReached,4,영지 레벨이 올라 벌목장・채석장・밭 같은 생산 시설을 해금할 수 있게 됐어요.;여신상에서 원하는 시설의 설계도를 해금해보세요.,,,,영지레벨 4레벨 달성하기,
+logging_farm_guide,Manual,,나무 벌목장을 설치하면 나무 원목을 자동으로 생산할 수 있어요.;제작대와 마찬가지로 멤을 슬롯에 배치해야 가동돼요.,,,,,
+quarry_farm_guide,Manual,,채석장을 설치하면 철 원석 같은 광물을 자동으로 생산할 수 있어요.,,,,,
+crop_farm_guide,Manual,,밭을 설치하면 작물을 자동으로 생산할 수 있어요.,,,,,
+auto_production_collect_quest,Manual,,생산 시설에서 만들어진 재료를 수령해보세요.,,,,,
+shop_sell_guide,Manual,,상점에서 필요 없는 아이템을 판매하면 골드를 얻을 수 있어요.,,,,,
+shop_buy_material_guide,Manual,,골드로 다양한 재료나 토대를 구매할 수 있어요.;토대는 제작대에서 설계도 레시피를 만들 때 필요해요.,,,,,
+territory_level5_quest,Manual,,영지를 5레벨까지 키워봅시다.,territory_level:영지 레벨:5,,,영지레벨 5레벨 달성하기,
+forge_unlock_intro,LevelReached,5,영지 레벨이 올라 대장간을 이용할 수 있게 되었어요.,,,,,
+forge_ui_intro,Manual,,대장간에서는 도구를 강화・승급・연마・전승할 수 있어요.;강화는 단계를 올리고 10단계에 도달하면 승급할 수 있어요.;연마로 추가 효과를 붙이고 전승으로 옵션을 다른 도구에 옮길 수 있어요.,,,forge_button,,
+exploration_unlock_intro,LevelReached,5,영지 레벨이 올라 탐험대를 이용할 수 있게 되었어요.,,,,,
+exploration_ui_intro,Manual,,탐험대에서는 포획한 멤을 배치해 자동으로 탐사를 보낼 수 있어요.;모든 웨이포인트를 해금해야 탐험대를 이용할 수 있어요.,,,exploration_button,,
+expedition_dispatch_guide,Manual,,탐험대에 포획한 멤을 배치하고 탐험을 시작해보세요.;시간이 지나면 자동으로 탐사 결과를 받아볼 수 있어요.,,item_baseblueprint:1,,,도구 강화와 탐험대
+cooking_unlock_intro,LevelReached,8,영지 레벨이 올라 모닥불과 목장을 해금할 수 있게 됐어요.,,item_baseblueprint:1,,영지레벨 8레벨 달성하기,영지 발전 2
+cooking_facility_guide,Manual,,모닥불을 설치하고 요리를 진행할 수 있습니다.,,,,,
+shop_cookbook_guide,Manual,,요리 레시피는 상점에서 요리책을 구매하면 무작위로 요리 레시피가 해금돼요.,,,,,
+cooking_practice_guide,Manual,,해금한 레시피와 재료로 요리를 만들어보세요.;완성된 요리는 허기 회복은 물론 다양한 효과를 줘요.,,gold:10000,,,더 좋은 음식
+livestock_farm_intro,Manual,,목장에 멤을 배치하면 멤마다 정해진 특수품을 시간마다 자동으로 얻을 수 있어요.,,,,,

@@ -67,9 +67,23 @@ namespace KMS
     }
 
     /// <summary>
-    /// KMS 플레이어의 음식 포만감 구간과 구간에 묶인 효과를 관리한다.
-    /// 일반 음식은 오른쪽 normalSatiety에 합쳐지고, 효과 음식은 최신 순서로 왼쪽에 삽입한다.
-    /// 최대 허기 초과와 실제 허기 소모는 오른쪽(일반 허기, 오래된 효과)부터 처리한다.
+    /// KMS 플레이어의 음식 포만감을 "하나의 큐"로 관리한다.
+    ///
+    /// [HDY 요청 - KMS 승인 - 음식 큐 통합] 예전에는 효과 없는(포만감만 채우는) 음식은 별도의
+    /// normalSatiety(단일 float)에 합쳐지고, 효과 있는 음식만 effectSegments 큐에 개별 구간으로
+    /// 들어갔다. 문제는 normalSatiety가 "언제 먹었는지"와 무관하게 항상 가장 먼저 소비되도록 설계되어
+    /// 있었다는 점이다 - 그래서 효과 음식을 먼저 먹고 포만감만 있는 음식을 나중에 먹으면, 나중에 먹은
+    /// 포만감이 먼저 먹은 효과 음식보다 먼저 소비되어버리는 선입선출 위반이 있었다.
+    ///
+    /// 지금은 효과 유무와 상관없이 모든 음식을 하나의 segments 큐에 넣는다(효과 없는 음식은 그냥
+    /// effects가 빈 리스트인 세그먼트). 새 음식은 항상 큐 맨 앞(index 0)에 삽입되고, 소비/오버플로우
+    /// 트림은 항상 큐 뒤쪽(가장 오래된 세그먼트)부터 진행된다 - 실제 취식 순서가 곧 소비 순서가 된다.
+    ///
+    /// 단, 다음 비대칭 규칙은 기존 설계를 그대로 유지한다:
+    /// - 효과 있는 음식은 배고픔이 가득 차 있어도 항상 전체 포만감만큼 큐에 삽입되고, 자리가 모자라면
+    ///   가장 오래된 세그먼트부터 밀어내서(트림해서) 자리를 만든다 (효과를 반드시 온전히 적용하기 위함).
+    /// - 효과 없는 음식은 남은 여유 공간만큼만 채워지고, 남는 포만감은 그냥 버려진다(다른 세그먼트를
+    ///   밀어내지 않는다).
     /// </summary>
     [DisallowMultipleComponent]
     [RequireComponent(typeof(PlayerStats))]
@@ -78,14 +92,14 @@ namespace KMS
         private const float Epsilon = 0.001f;
 
         [SerializeField] private PlayerStats stats;
-        [SerializeField, Min(0f)] private float normalSatiety;
-        [SerializeField] private List<KMSFoodEffectSegment> effectSegments =
+        [SerializeField] private List<KMSFoodEffectSegment> segments =
             new List<KMSFoodEffectSegment>();
 
         private bool initialized;
 
-        public float NormalSatiety => normalSatiety;
-        public IReadOnlyList<KMSFoodEffectSegment> EffectSegments => effectSegments;
+        /// <summary>큐 전체(효과 있는 음식 + 효과 없는 음식 모두). index 0 = 가장 최근에 먹은 음식(최신,
+        /// 가장 늦게 소비됨), 마지막 index = 가장 먼저 먹은 음식(가장 오래됨, 가장 먼저 소비됨).</summary>
+        public IReadOnlyList<KMSFoodEffectSegment> FoodSegments => segments;
         public event Action Changed;
 
         public float MoveSpeedMultiplier
@@ -107,20 +121,31 @@ namespace KMS
             if (stats == null) stats = GetComponent<PlayerStats>();
         }
 
+        /// <summary>큐 전체를 비우고, currentHunger가 있으면 효과 없는 단일 세그먼트 하나로 초기화한다.</summary>
         public void InitializeAsNormal(float currentHunger, bool notify = true)
         {
-            normalSatiety = Mathf.Max(0f, currentHunger);
-            effectSegments.Clear();
+            segments.Clear();
+
+            float clamped = Mathf.Max(0f, currentHunger);
+            if (clamped > Epsilon)
+            {
+                segments.Add(new KMSFoodEffectSegment(null, clamped, new List<KMSActiveFoodEffect>()));
+            }
+
             initialized = true;
             if (notify) Changed?.Invoke();
         }
 
+        /// <summary>
+        /// 음식을 먹는 경로가 아닌 다른 방식으로 회복된 포만감을 큐에 반영한다(예: 향후 추가될 수 있는
+        /// 별도 회복 수단). 방금 생긴 포만감이므로 큐 맨 앞(최신, 가장 늦게 소비됨)에 넣는다.
+        /// </summary>
         public void RegisterNormalRestoration(float restoredAmount)
         {
             EnsureInitialized();
             if (restoredAmount <= Epsilon) return;
 
-            normalSatiety += restoredAmount;
+            segments.Insert(0, new KMSFoodEffectSegment(null, restoredAmount, new List<KMSActiveFoodEffect>()));
             Changed?.Invoke();
         }
 
@@ -142,27 +167,19 @@ namespace KMS
             if (!CanApplyFood(item, satietyAmount, maxHunger, currentHunger)) return false;
 
             List<KMSActiveFoodEffect> gameplayEffects = CopyGameplayEffects(item);
-            if (gameplayEffects.Count == 0)
-            {
-                float restored = Mathf.Min(satietyAmount, maxHunger - resultingHunger);
-                if (restored <= Epsilon) return false;
+            bool hasEffects = gameplayEffects.Count > 0;
 
-                normalSatiety += restored;
-                resultingHunger += restored;
-            }
-            else
-            {
-                float insertedSatiety = Mathf.Min(satietyAmount, maxHunger);
-                if (insertedSatiety <= Epsilon) return false;
+            // 효과 음식: 항상 전체 포만감만큼 삽입(자리 없으면 가장 오래된 세그먼트를 밀어냄).
+            // 효과 없는 음식: 남은 여유 공간만큼만 삽입(다른 세그먼트를 밀어내지 않음).
+            float insertedSatiety = hasEffects
+                ? Mathf.Min(satietyAmount, maxHunger)
+                : Mathf.Min(satietyAmount, maxHunger - resultingHunger);
 
-                effectSegments.Insert(0, new KMSFoodEffectSegment(
-                    item.Item_ID,
-                    insertedSatiety,
-                    gameplayEffects));
+            if (insertedSatiety <= Epsilon) return false;
 
-                resultingHunger = Mathf.Min(maxHunger, resultingHunger + insertedSatiety);
-                TrimFromRight(GetTrackedSatiety() - resultingHunger);
-            }
+            segments.Insert(0, new KMSFoodEffectSegment(item.Item_ID, insertedSatiety, gameplayEffects));
+            resultingHunger = Mathf.Min(maxHunger, resultingHunger + insertedSatiety);
+            TrimFromRight(GetTrackedSatiety() - resultingHunger);
 
             Changed?.Invoke();
             return true;
@@ -174,25 +191,7 @@ namespace KMS
             float remaining = Mathf.Max(0f, consumedAmount);
             if (remaining <= Epsilon) return;
 
-            float normalConsumed = Mathf.Min(normalSatiety, remaining);
-            normalSatiety -= normalConsumed;
-            remaining -= normalConsumed;
-
-            for (int i = effectSegments.Count - 1; i >= 0 && remaining > Epsilon; i--)
-            {
-                KMSFoodEffectSegment segment = effectSegments[i];
-                if (segment == null)
-                {
-                    effectSegments.RemoveAt(i);
-                    continue;
-                }
-
-                remaining -= segment.Consume(remaining);
-                if (segment.RemainingSatiety <= Epsilon)
-                {
-                    effectSegments.RemoveAt(i);
-                }
-            }
+            ConsumeFromTail(ref remaining);
 
             Changed?.Invoke();
         }
@@ -200,9 +199,9 @@ namespace KMS
         public float GetActiveEffectTotal(EffectType effectType)
         {
             float total = 0f;
-            for (int i = 0; i < effectSegments.Count; i++)
+            for (int i = 0; i < segments.Count; i++)
             {
-                KMSFoodEffectSegment segment = effectSegments[i];
+                KMSFoodEffectSegment segment = segments[i];
                 if (segment != null && segment.RemainingSatiety > Epsilon)
                 {
                     total += segment.GetEffectTotal(effectType);
@@ -217,14 +216,14 @@ namespace KMS
             EnsureInitialized();
             var data = new KMSFoodEffectStateSaveData
             {
-                layoutVersion = 2,
-                normalSatiety = normalSatiety,
-                segments = new KMSFoodEffectSegmentSaveData[effectSegments.Count]
+                layoutVersion = 3,
+                normalSatiety = 0f,
+                segments = new KMSFoodEffectSegmentSaveData[segments.Count]
             };
 
-            for (int i = 0; i < effectSegments.Count; i++)
+            for (int i = 0; i < segments.Count; i++)
             {
-                KMSFoodEffectSegment segment = effectSegments[i];
+                KMSFoodEffectSegment segment = segments[i];
                 var segmentData = new KMSFoodEffectSegmentSaveData
                 {
                     itemId = segment != null ? segment.ItemId : string.Empty,
@@ -255,7 +254,7 @@ namespace KMS
 
         public void RestoreSaveData(KMSFoodEffectStateSaveData data, float currentHunger)
         {
-            effectSegments.Clear();
+            segments.Clear();
 
             if (data == null)
             {
@@ -263,11 +262,17 @@ namespace KMS
                 return;
             }
 
-            normalSatiety = Mathf.Max(0f, data.normalSatiety);
+            // layoutVersion < 2: 세그먼트 배열이 오래된 순으로 저장돼있어 뒤집어야 한다(예전 레이아웃).
+            // layoutVersion < 3: 예전 모델은 효과 없는 포만감을 normalSatiety라는 별도 값으로 저장했고,
+            // 그 값은 항상 가장 먼저 소비되는 우선순위였다. 새 모델에서 동일한 소비 우선순위를 갖는
+            // 자리는 "가장 오래된(리스트 맨 뒤) 세그먼트"이므로, 복원 후 맨 뒤에 추가한다. 예전 데이터는
+            // 일반 음식과 효과 음식 사이의 실제 취식 순서를 기록하지 않았으므로 완벽한 복원은 불가능하며,
+            // 이 마이그레이션은 옛 소비 우선순위를 그대로 유지하는 최선의 근사치다.
+            bool legacyOrder = data.layoutVersion < 2;
+            bool legacyNormalBucket = data.layoutVersion < 3;
 
             if (data.segments != null)
             {
-                bool legacyOrder = data.layoutVersion < 2;
                 for (int offset = 0; offset < data.segments.Length; offset++)
                 {
                     int i = legacyOrder ? data.segments.Length - 1 - offset : offset;
@@ -289,18 +294,16 @@ namespace KMS
                         }
                     }
 
-                    if (restoredEffects.Count == 0)
-                    {
-                        normalSatiety += savedSegment.remainingSatiety;
-                    }
-                    else
-                    {
-                        effectSegments.Add(new KMSFoodEffectSegment(
-                            savedSegment.itemId,
-                            savedSegment.remainingSatiety,
-                            restoredEffects));
-                    }
+                    segments.Add(new KMSFoodEffectSegment(
+                        savedSegment.itemId,
+                        savedSegment.remainingSatiety,
+                        restoredEffects));
                 }
+            }
+
+            if (legacyNormalBucket && data.normalSatiety > Epsilon)
+            {
+                segments.Add(new KMSFoodEffectSegment(null, data.normalSatiety, new List<KMSActiveFoodEffect>()));
             }
 
             float clampedCurrentHunger = Mathf.Max(0f, currentHunger);
@@ -311,7 +314,7 @@ namespace KMS
             }
             else if (tracked < clampedCurrentHunger)
             {
-                normalSatiety += clampedCurrentHunger - tracked;
+                segments.Add(new KMSFoodEffectSegment(null, clampedCurrentHunger - tracked, new List<KMSActiveFoodEffect>()));
             }
 
             initialized = true;
@@ -327,14 +330,35 @@ namespace KMS
 
         private float GetTrackedSatiety()
         {
-            float total = normalSatiety;
-            for (int i = 0; i < effectSegments.Count; i++)
+            float total = 0f;
+            for (int i = 0; i < segments.Count; i++)
             {
-                KMSFoodEffectSegment segment = effectSegments[i];
+                KMSFoodEffectSegment segment = segments[i];
                 if (segment != null) total += Mathf.Max(0f, segment.RemainingSatiety);
             }
 
             return total;
+        }
+
+        /// <summary>큐 뒤쪽(가장 오래된 세그먼트)부터 remaining만큼 소비한다. ConsumeSatiety(공개, 자연
+        /// 소비)와 TrimFromRight(내부, 오버플로우 정리) 양쪽에서 공유하는 핵심 로직.</summary>
+        private void ConsumeFromTail(ref float remaining)
+        {
+            for (int i = segments.Count - 1; i >= 0 && remaining > Epsilon; i--)
+            {
+                KMSFoodEffectSegment segment = segments[i];
+                if (segment == null)
+                {
+                    segments.RemoveAt(i);
+                    continue;
+                }
+
+                remaining -= segment.Consume(remaining);
+                if (segment.RemainingSatiety <= Epsilon)
+                {
+                    segments.RemoveAt(i);
+                }
+            }
         }
 
         private void TrimFromRight(float amount)
@@ -342,22 +366,7 @@ namespace KMS
             float remaining = Mathf.Max(0f, amount);
             if (remaining <= Epsilon) return;
 
-            float normalTrimmed = Mathf.Min(normalSatiety, remaining);
-            normalSatiety -= normalTrimmed;
-            remaining -= normalTrimmed;
-
-            for (int i = effectSegments.Count - 1; i >= 0 && remaining > Epsilon; i--)
-            {
-                KMSFoodEffectSegment segment = effectSegments[i];
-                if (segment == null)
-                {
-                    effectSegments.RemoveAt(i);
-                    continue;
-                }
-
-                remaining -= segment.Consume(remaining);
-                if (segment.RemainingSatiety <= Epsilon) effectSegments.RemoveAt(i);
-            }
+            ConsumeFromTail(ref remaining);
         }
 
         private static bool HasGameplayEffects(ItemData item)
