@@ -46,7 +46,8 @@ namespace KMS.Audio
         WheatFarm,
         Wind,
         Bird,
-        Title
+        Title,
+        OpenChest
     }
 
     [Serializable]
