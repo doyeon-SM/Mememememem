@@ -13,6 +13,7 @@ public class TitleMenuUI : MonoBehaviour
     [SerializeField] private Button newGameButton;      // 기존 유저 전용 [새로 하기]
     [SerializeField] private Button continueGameButton; // 기존 유저 전용 [이어 하기]
     [SerializeField] private Button resetButton;        // 테스트 전용 [최초 실행 기록 리셋]
+    [SerializeField] private Button quitButton;         // 🌟 [요구사항 1] 종료 버튼 추가
 
     [Header("기본 씬 설정")]
     [SerializeField] private string defaultStartScene = "Main_World_3";
@@ -48,6 +49,7 @@ public class TitleMenuUI : MonoBehaviour
         }
 
         if (resetButton != null) resetButton.gameObject.SetActive(true);
+        if (quitButton != null) quitButton.gameObject.SetActive(true); 
 
         SetAllButtonsInteractable(true);
     }
@@ -61,6 +63,7 @@ public class TitleMenuUI : MonoBehaviour
         if (newGameButton != null) newGameButton.interactable = interactable;
         if (continueGameButton != null) continueGameButton.interactable = interactable;
         if (resetButton != null) resetButton.interactable = interactable;
+        if (quitButton != null) quitButton.interactable = interactable; // 🌟 [추가] 종료 버튼 인터랙션 제어
     }
 
     private void BindButtonEvents()
@@ -69,6 +72,7 @@ public class TitleMenuUI : MonoBehaviour
         BindButton(newGameButton, OnClickNewGame);
         BindButton(continueGameButton, OnClickContinue);
         BindButton(resetButton, OnClickResetFirstLaunch);
+        BindButton(quitButton, OnClickQuit); // 🌟 [요구사항 2] 종료 버튼 이벤트 바인딩
     }
 
     private void BindButton(Button button, Action action)
@@ -83,7 +87,7 @@ public class TitleMenuUI : MonoBehaviour
     {
         if (targetButton == null) return;
 
-        // 🌟 클릭 즉시 모든 타이틀 버튼 비활성화 (연타 방지)
+        // 클릭 즉시 모든 타이틀 버튼 비활성화 (연타 방지)
         SetAllButtonsInteractable(false);
 
         targetButton.transform.DOKill();
@@ -118,6 +122,19 @@ public class TitleMenuUI : MonoBehaviour
     {
         FirstLaunchManager.ResetFirstLaunch();
         RefreshButtonStates();
+    }
+
+    /// <summary>
+    /// 🌟 [요구사항 2] 종료 버튼 클릭 시 GameQuitButton의 QuitGame 호출
+    /// </summary>
+    public void OnClickQuit()
+    {
+       
+    #if UNITY_EDITOR
+        UnityEditor.EditorApplication.isPlaying = false;
+    #else
+        Application.Quit();
+    #endif
     }
 
     /// <summary>
@@ -160,7 +177,7 @@ public class TitleMenuUI : MonoBehaviour
     }
 
     /// <summary>
-    /// 🌟 [수정] 이어 하기: 로딩 패널을 거치도록 일원화
+    /// 이어 하기: 로딩 패널을 거치도록 일원화
     /// </summary>
     private IEnumerator ContinueGameRoutine()
     {
