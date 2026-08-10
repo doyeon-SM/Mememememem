@@ -3114,15 +3114,29 @@ MonoBehaviour:
   fallbackToolDamage: 1
   baseToolUseCooldown: 1
   minimumToolUseCooldown: 0.1
-  memMeleeItemId: tool_shabby_club
+  memMeleeItemIds:
+  - tool_shabby_club
+  - tool_club
+  - tool_decent_club
+  memMeleeLayer:
+    serializedVersion: 2
+    m_Bits: 1024
+  memMeleeObstructionLayer:
+    serializedVersion: 2
+    m_Bits: 4294967295
   memMeleeDistance: 5
+  memMeleeHalfAngle: 55
+  memMeleeOriginHeight: 1
+  memMeleeVerticalTolerance: 1.5
   memMeleeHungerCost: 1
   memHitDustPool: {fileID: 0}
   drawDebugRay: 1
   drawSphereCastGizmo: 1
+  drawMemMeleeGizmo: 1
   debugMissColor: {r: 1, g: 0, b: 0, a: 1}
   debugHitColor: {r: 0, g: 1, b: 0, a: 1}
   sphereCastGizmoColor: {r: 1, g: 0.72, b: 0.1, a: 0.85}
+  memMeleeGizmoColor: {r: 0.2, g: 0.85, b: 1, a: 0.85}
   logHitTarget: 1
 --- !u!114 &5415274748756277863
 MonoBehaviour:
@@ -3244,7 +3258,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 5320301024596143200}
-  m_Enabled: 0
+  m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 846f9bbc7192499cb2beca31ec1485cd, type: 3}
   m_Name: 
@@ -3327,6 +3341,7 @@ MonoBehaviour:
   inventory: {fileID: 9124669202358280069}
   movement: {fileID: 757377502652196312}
   animator: {fileID: 1914156871709254916}
+  toolAnimationController: {fileID: 0}
   handAnchor: {fileID: 0}
   prefabTable: {fileID: 11400000, guid: 2df0fe05f944de94394c1b2705430ece, type: 2}
   heldCapsuleScaleCompensation: 0.6666667
@@ -3351,6 +3366,7 @@ MonoBehaviour:
   - tool_club
   - tool_decent_club
   stateEntryTimeout: 0.75
+  stationarySpeedThreshold: 0.1
 --- !u!114 &7938680308663795052
 MonoBehaviour:
   m_ObjectHideFlags: 0

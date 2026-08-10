@@ -66,6 +66,7 @@ namespace KMS
         [SerializeField] private float ladderSlideDownSpeed = 1.2f;
         [SerializeField] private float ladderSnapSpeed = 12f;
         [SerializeField] private float ladderInputThreshold = 0.1f;
+        [SerializeField, Min(0.01f)] private float ladderAnimationCycleDuration = 0.7666667f;
 
         public bool IsMovementEnabled
         {
@@ -94,6 +95,8 @@ namespace KMS
         private static readonly int JumpHash = Animator.StringToHash("Jump");
         private static readonly int FreeFallHash = Animator.StringToHash("FreeFall");
         private static readonly int MotionSpeedHash = Animator.StringToHash("MotionSpeed");
+        private static readonly int IsClimbingHash = Animator.StringToHash("IsClimbing");
+        private static readonly int ClimbCycleHash = Animator.StringToHash("ClimbCycle");
 
         private float verticalVelocity;
         private float maximumDownwardSpeed;
@@ -104,6 +107,7 @@ namespace KMS
         private Vector3 externalVelocity;
         private LadderVolume candidateLadder;
         private LadderVolume activeLadder;
+        private float climbAnimationCycle;
         private bool isDead;
         private Vector3 stepVisualBaseLocalPosition;
         private float stepVisualOffset;
@@ -163,6 +167,7 @@ namespace KMS
         {
             maxStepHeight = Mathf.Max(0f, maxStepHeight);
             stepSmoothTime = Mathf.Max(0.01f, stepSmoothTime);
+            ladderAnimationCycleDuration = Mathf.Max(0.01f, ladderAnimationCycleDuration);
             if (characterController == null) characterController = GetComponent<CharacterController>();
             SyncStepHeight();
         }
@@ -283,6 +288,7 @@ namespace KMS
 
             activeLadder = null;
             candidateLadder = null;
+            climbAnimationCycle = 0f;
             IsSprinting = false;
             coyoteTimer = 0f;
             jumpBufferTimer = 0f;
@@ -297,6 +303,7 @@ namespace KMS
             if (input.Move.y <= ladderInputThreshold) return;
 
             activeLadder = candidateLadder;
+            climbAnimationCycle = 0f;
             verticalVelocity = 0f;
             externalVelocity = Vector3.zero;
             CurrentSpeed = 0f;
@@ -321,6 +328,7 @@ namespace KMS
         private void ExitLadder(Vector3 exitPosition)
         {
             activeLadder = null;
+            climbAnimationCycle = 0f;
             verticalVelocity = groundedStickForce;
             externalVelocity = Vector3.zero;
             CurrentSpeed = 0f;
@@ -467,6 +475,13 @@ namespace KMS
             float verticalInput = input != null ? input.Move.y : 0f;
             bool climbingUp = verticalInput > ladderInputThreshold;
             float verticalSpeed = climbingUp ? ladderClimbSpeed : -ladderSlideDownSpeed;
+            float normalizedClimbSpeed = Mathf.Approximately(ladderClimbSpeed, 0f)
+                ? 0f
+                : verticalSpeed / ladderClimbSpeed;
+            climbAnimationCycle = Mathf.Repeat(
+                climbAnimationCycle
+                    + normalizedClimbSpeed * Time.deltaTime / ladderAnimationCycleDuration,
+                1f);
 
             Vector3 snappedPoint = activeLadder.GetClosestPointOnPath(transform.position);
             Vector3 snapDelta = snappedPoint - transform.position;
@@ -553,6 +568,8 @@ namespace KMS
             animator.SetBool(GroundedHash, IsGrounded);
             animator.SetBool(JumpHash, !IsGrounded && verticalVelocity > 0f);
             animator.SetBool(FreeFallHash, !IsGrounded && verticalVelocity < 0f);
+            animator.SetBool(IsClimbingHash, IsOnLadder);
+            animator.SetFloat(ClimbCycleHash, climbAnimationCycle);
         }
 
         private float ResolveMoveSpeedMultiplier()

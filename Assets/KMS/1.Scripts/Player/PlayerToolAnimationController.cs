@@ -22,8 +22,10 @@ namespace KMS
 
         [Header("Action Request")]
         [SerializeField, Min(0.1f)] private float stateEntryTimeout = 0.75f;
+        [SerializeField, Min(0f)] private float stationarySpeedThreshold = 0.1f;
 
         public bool IsToolActionPlaying => actionRequested || actionStateActive;
+        public bool IsToolActionStateActive => actionStateActive;
         public ToolMotionType CurrentMotionType { get; private set; }
         public event Action ToolActionStarted;
         public event Action ToolActionEnded;
@@ -36,6 +38,7 @@ namespace KMS
 
         private bool actionRequested;
         private bool actionStateActive;
+        private bool movementLocked;
         private float requestTime;
 
         private void Reset()
@@ -67,7 +70,8 @@ namespace KMS
             if (motionType == ToolMotionType.None
                 || animator == null
                 || IsToolActionPlaying
-                || actionDuration <= 0f)
+                || actionDuration <= 0f
+                || !CanStartToolAction())
             {
                 return false;
             }
@@ -81,6 +85,7 @@ namespace KMS
             CurrentMotionType = motionType;
             actionRequested = true;
             requestTime = Time.unscaledTime;
+            SetMovementLocked(true);
             ToolActionStarted?.Invoke();
 
             animator.ResetTrigger(ToolActionHash);
@@ -132,6 +137,7 @@ namespace KMS
             actionRequested = false;
             actionStateActive = false;
             CurrentMotionType = ToolMotionType.None;
+            SetMovementLocked(false);
             ToolActionEnded?.Invoke();
         }
 
@@ -146,6 +152,7 @@ namespace KMS
             actionRequested = false;
             actionStateActive = false;
             CurrentMotionType = ToolMotionType.None;
+            SetMovementLocked(false);
             if (hadAction) ToolActionEnded?.Invoke();
         }
 
@@ -159,7 +166,44 @@ namespace KMS
 
             actionRequested = false;
             CurrentMotionType = ToolMotionType.None;
+            SetMovementLocked(false);
             if (hadAction) ToolActionEnded?.Invoke();
+        }
+
+        public float GetCurrentActionNormalizedTime()
+        {
+            if (!actionStateActive || animator == null) return 0f;
+
+            AnimatorStateInfo state = animator.GetCurrentAnimatorStateInfo(0);
+            if (animator.IsInTransition(0))
+            {
+                AnimatorStateInfo next = animator.GetNextAnimatorStateInfo(0);
+                if (next.IsTag("ToolAction")) state = next;
+            }
+
+            return Mathf.Clamp01(state.normalizedTime);
+        }
+
+        private bool CanStartToolAction()
+        {
+            if (movement == null) return true;
+
+            return movement.IsMovementEnabled
+                && !movement.IsDead
+                && !movement.IsOnLadder
+                && !movement.IsSprinting
+                && movement.CurrentSpeed <= stationarySpeedThreshold;
+        }
+
+        private void SetMovementLocked(bool locked)
+        {
+            if (movementLocked == locked) return;
+
+            movementLocked = locked;
+            if (movement != null)
+            {
+                movement.SetMovementBlocked(this, locked);
+            }
         }
 
         private bool IsClub(string itemId)
@@ -190,6 +234,7 @@ namespace KMS
         private void OnValidate()
         {
             stateEntryTimeout = Mathf.Max(0.1f, stateEntryTimeout);
+            stationarySpeedThreshold = Mathf.Max(0f, stationarySpeedThreshold);
         }
     }
 }
