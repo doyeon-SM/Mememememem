@@ -125,6 +125,12 @@ namespace MemSystem.Spawn
         // 현재 이 스파우너가 관리하는 활성 멤 목록
         private List<Mem> activeMems = new List<Mem>();
 
+        // 일괄 디스폰 시 순회용 복사 버퍼 (매 프레임 GC 방지를 위해 재사용)
+        private readonly List<Mem> despawnBuffer = new List<Mem>();
+
+        // 일괄 디스폰 중에는 RemoveActiveMem이 개별적으로 쿨타임을 시작하지 않도록 막는 플래그
+        private bool isBulkDespawning;
+
         private float playerStayTimer;
         private float stayTriggerDuration; // 이번 턴에 요구되는 체류 시간 (랜덤 결정됨)
         private float despawnTimer;
@@ -419,19 +425,33 @@ namespace MemSystem.Spawn
             if (despawnTimer >= despawnDelay)
             {
                 Debug.Log($"[MemSpawner] 플레이어 장기 부재({despawnDelay}초) — 활성 멤 {activeMems.Count}마리 일괄 디스폰");
-                
-                // 뒤에서부터 지워야 안전함
-                for (int i = activeMems.Count - 1; i >= 0; i--)
+
+                // mem.OnDespawn()은 OnMemDespawned 이벤트를 발행하고, 그 핸들러(RemoveActiveMem)가
+                // activeMems에서 제거 + 풀 반환까지 동기적으로 끝낸다. 여기서 memPool.Despawn()을
+                // 또 부르면 같은 인스턴스를 두 번 반환해 ObjectPool이 예외를 던지므로 부르지 않는다.
+                // 순회 중 콜백이 activeMems를 수정하므로 복사본을 돌린다.
+                despawnBuffer.Clear();
+                despawnBuffer.AddRange(activeMems);
+
+                isBulkDespawning = true;
+                for (int i = 0; i < despawnBuffer.Count; i++)
                 {
-                    var mem = activeMems[i];
-                    if (mem != null)
+                    var mem = despawnBuffer[i];
+                    if (mem == null) continue;
+
+                    mem.OnDespawn(); // 이벤트 발행 → RemoveActiveMem에서 풀 반환
+
+                    // 이미 IsActive=false여서 이벤트가 발행되지 않은 멤은 여기서 직접 회수한다.
+                    if (activeMems.Remove(mem))
                     {
-                        mem.OnDespawn(); // 이벤트 발행 등 내부 처리
                         memPool.Despawn(mem);
                     }
                 }
+                isBulkDespawning = false;
+
+                despawnBuffer.Clear();
                 activeMems.Clear();
-                
+
                 // 구역이 비워졌으므로 쿨타임 돌입
                 StartCooldown();
             }
@@ -469,7 +489,10 @@ namespace MemSystem.Spawn
             if (activeMems.Remove(mem))
             {
                 memPool.Despawn(mem);
-                
+
+                // 일괄 디스폰 중이면 루프가 끝난 뒤 한 번만 쿨타임을 시작한다 (중복 롤 방지)
+                if (isBulkDespawning) return;
+
                 // 만약 이 구역의 모든 멤이 사라졌다면(포획/도주 등으로) 쿨타임 시작
                 if (activeMems.Count == 0 && !isInCooldown)
                 {
