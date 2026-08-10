@@ -99,6 +99,12 @@ MonoBehaviour:
   detectAreaOffset: {x: 0, y: 0}
   spawnAreaSize: {x: 400, y: 400}
   spawnAreaOffset: {x: 0, y: 0}
+  allowedSpawnSurfaceLayers:
+    serializedVersion: 2
+    m_Bits: 33554432
+  surfaceProbeHeight: 2
+  maxSurfaceVerticalGap: 1.5
+  spawnPositionAttempts: 60
   spawnRadius: 200
   areaMigrated: 1
   maxActiveCount: 12

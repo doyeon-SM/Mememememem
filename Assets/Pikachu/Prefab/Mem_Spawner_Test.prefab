@@ -82,6 +82,12 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 2e401caa7986662408594d1503a7093b, type: 2}
   waypoints:
   - {fileID: 0}
+  allowedSpawnSurfaceLayers:
+    serializedVersion: 2
+    m_Bits: 33554432
+  surfaceProbeHeight: 2
+  maxSurfaceVerticalGap: 1.5
+  spawnPositionAttempts: 60
   spawnRadius: 200
   maxActiveCount: 20
   minStayTime: 1

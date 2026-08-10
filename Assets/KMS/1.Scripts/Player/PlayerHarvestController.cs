@@ -624,6 +624,14 @@ namespace KMS.Harvesting
             if (hitObj.collider == null) return false;
             WorldObject harvestable = hitObj.collider.GetComponentInParent<WorldObject>();
             if (harvestable == null) return false;
+
+            // Spawn-fading resources keep collision enabled to prevent player overlap,
+            // but consume the tool trace without damage, impact audio, or hit feedback.
+            if (!harvestable.CanReceiveToolHit)
+            {
+                return true;
+            }
+
             bool applied = harvestable.ObjectInteract(
                 inventory,
                 selectedItem,

@@ -22,6 +22,10 @@ public class WorldChunk : MonoBehaviour
     [SerializeField] private Color normalColor = new Color(0.25f, 0.85f, 1f, 0.8f);
     [SerializeField] private Color errorColor = new Color(1f, 0.15f, 0.1f, 0.9f);
 
+    [Header("Collision")]
+    [Tooltip("Adds collision only to placed renderer hierarchies that do not already contain a Collider.")]
+    [SerializeField] private bool addMissingColliders = true;
+
     public Vector2Int Coord => coord;
     public float ChunkSize => chunkSize;
     public Bounds Bounds => CalculateBounds(coord, chunkSize, worldOrigin);
@@ -30,6 +34,23 @@ public class WorldChunk : MonoBehaviour
 
     private static readonly List<Transform> s_CachedOutOfBounds = new List<Transform>();
     private static readonly List<Transform> s_CachedChildren = new List<Transform>();
+
+    private void Awake()
+    {
+        if (addMissingColliders)
+        {
+            WorldChunkColliderBuilder.AddMissingColliders(this);
+        }
+    }
+
+    /// <summary>
+    /// Adds colliders to renderer-based objects that have no collider anywhere in their placed hierarchy.
+    /// Existing collider hierarchies are intentionally left untouched.
+    /// </summary>
+    public WorldChunkColliderBuildResult AddMissingColliders(bool registerUndo = false)
+    {
+        return WorldChunkColliderBuilder.AddMissingColliders(this, registerUndo);
+    }
 
     public void Configure(float newChunkSize, Vector3 newWorldOrigin)
     {

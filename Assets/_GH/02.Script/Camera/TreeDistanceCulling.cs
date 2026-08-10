@@ -53,6 +53,5 @@ public class TreeDistanceCulling : MonoBehaviour
         distances[treeLayer] = Mathf.Max(0f, cullDistance);
 
         cachedCamera.layerCullDistances = distances;
-        cachedCamera.layerCullSpherical = true;
     }
 }
