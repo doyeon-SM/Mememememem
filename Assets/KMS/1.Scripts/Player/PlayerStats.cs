@@ -12,7 +12,8 @@ namespace KMS
         Generic,
         MemAttack,
         Fall,
-        Starvation
+        Starvation,
+        Water
     }
 
     public class PlayerStats : MonoBehaviour
@@ -37,6 +38,7 @@ namespace KMS
 
         public event Action<float, float> HealthChanged;
         public event Action<float, float> HungerChanged;
+        public event Action<ItemData, float> FoodApplied;
         public event Action<float> Damaged;
         public event Action<float, PlayerDamageType> DamageReceived;
         public event Action<float> Healed;
@@ -97,7 +99,12 @@ namespace KMS
 
         public void TakeDamage(float amount, PlayerDamageType damageType)
         {
-            if (!IsAlive || IsInvulnerable || amount <= 0f) return;
+            ApplyDamage(amount, damageType, false);
+        }
+
+        private void ApplyDamage(float amount, PlayerDamageType damageType, bool ignoreInvulnerability)
+        {
+            if (!IsAlive || (!ignoreInvulnerability && IsInvulnerable) || amount <= 0f) return;
 
             CurrentHealth = Mathf.Max(0f, CurrentHealth - amount);
             Damaged?.Invoke(amount);
@@ -215,6 +222,7 @@ namespace KMS
         public bool ApplyFood(ItemData item, float satietyAmount)
         {
             ResolveFoodEffects();
+            float previousHunger = CurrentHunger;
             if (!foodEffects.ApplyFood(
                     item,
                     satietyAmount,
@@ -226,6 +234,8 @@ namespace KMS
             }
 
             CurrentHunger = resultingHunger;
+            float restoredAmount = CurrentHunger - previousHunger;
+            FoodApplied?.Invoke(item, restoredAmount);
             HungerChanged?.Invoke(CurrentHunger, maxHunger);
             return true;
         }
@@ -249,9 +259,15 @@ namespace KMS
             IsInvulnerable = invulnerable;
         }
 
-        public void Kill()
+        /// <summary>
+        /// Immediately reduces health to zero. Environmental kill volumes can opt
+        /// out of temporary respawn invulnerability when the hazard must be lethal.
+        /// </summary>
+        public void Kill(
+            PlayerDamageType damageType = PlayerDamageType.Generic,
+            bool ignoreInvulnerability = false)
         {
-            TakeDamage(CurrentHealth);
+            ApplyDamage(CurrentHealth, damageType, ignoreInvulnerability);
         }
 
         public PlayerStatsSaveData CaptureSaveData()

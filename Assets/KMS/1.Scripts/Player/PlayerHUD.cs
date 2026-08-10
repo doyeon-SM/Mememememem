@@ -132,6 +132,7 @@ namespace KMS
             {
                 stats.HealthChanged += HandleHealthChanged;
                 stats.HungerChanged += HandleHungerChanged;
+                stats.FoodApplied += HandleFoodApplied;
                 stats.Died += HandleDied;
                 stats.Revived += HandleRevived;
             }
@@ -176,6 +177,7 @@ namespace KMS
             {
                 stats.HealthChanged -= HandleHealthChanged;
                 stats.HungerChanged -= HandleHungerChanged;
+                stats.FoodApplied -= HandleFoodApplied;
                 stats.Died -= HandleDied;
                 stats.Revived -= HandleRevived;
             }
@@ -701,6 +703,13 @@ namespace KMS
                 ResolveHudView();
                 hudView?.SetHunger(current, max, foodEffects);
             }
+        }
+
+        private void HandleFoodApplied(ItemData item, float restoredAmount)
+        {
+            if (UsesToolkitHud || item == null) return;
+            ResolveHudView();
+            hudView?.PrepareFoodFeedback(item, restoredAmount);
         }
 
         private void HandleFoodEffectsChanged()

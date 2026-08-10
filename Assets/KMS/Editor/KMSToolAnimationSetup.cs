@@ -22,6 +22,11 @@ namespace KMS.EditorTools
         private const string CarryClubClipPath = CarryFolder + "/Carry_Club.anim";
         private const string CarryReferenceClipPath =
             "Assets/KMS/4.Animation/Dodo/Clips/Happy_Idle.anim";
+        private const string ClubClipPath =
+            "Assets/KMS/4.Animation/Dodo/Clips/Tool_Animation/club.anim";
+        private const string ClubSourceClipPath =
+            "Assets/KMS/4.Animation/Dodo/Clips/Slash.anim";
+        private const string ClubTimingVersion = "KMSClubTimingV1";
 
         private static readonly string[] PlayerPrefabPaths =
         {
@@ -35,12 +40,16 @@ namespace KMS.EditorTools
                 ToolMotionType.Axe,
                 "Assets/KMS/4.Animation/Dodo/Clips/Tool_Animation/axe.anim",
                 0.39f),
-            new ToolStateDefinition("Tool_Club", ToolMotionType.Club, null, 0.27f),
+            new ToolStateDefinition(
+                "Tool_Club",
+                ToolMotionType.Club,
+                ClubClipPath,
+                0.64f),
             new ToolStateDefinition(
                 "Tool_Hoe",
                 ToolMotionType.Hoe,
                 "Assets/KMS/4.Animation/Dodo/Clips/Tool_Animation/hoe.anim",
-                0.43f),
+                0.60f),
             new ToolStateDefinition(
                 "Tool_Pickaxe",
                 ToolMotionType.Pickaxe,
@@ -59,6 +68,7 @@ namespace KMS.EditorTools
             }
 
             EnsureFolder("Assets/KMS/4.Animation/Dodo/Clips", "HeldItemCarry");
+            CreateClubClipIfMissing();
             ConfigureAnimator(controller);
             KMSConsumableAnimationSetup.ConfigureAnimator(controller);
 
@@ -71,6 +81,92 @@ namespace KMS.EditorTools
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
             Debug.Log("[KMS Tool Animation] Animator and player prefabs configured.");
+        }
+
+        private static void CreateClubClipIfMissing()
+        {
+            AnimationClip clubClip =
+                AssetDatabase.LoadAssetAtPath<AnimationClip>(ClubClipPath);
+            if (clubClip != null)
+            {
+                ApplyClubTimingIfNeeded(clubClip);
+                return;
+            }
+
+            AnimationClip source =
+                AssetDatabase.LoadAssetAtPath<AnimationClip>(ClubSourceClipPath);
+            if (source == null)
+            {
+                throw new InvalidOperationException(
+                    $"Club source animation clip not found: {ClubSourceClipPath}");
+            }
+
+            clubClip = new AnimationClip();
+            EditorUtility.CopySerialized(source, clubClip);
+            clubClip.name = "club";
+            AssetDatabase.CreateAsset(clubClip, ClubClipPath);
+            AssetDatabase.ImportAsset(ClubClipPath, ImportAssetOptions.ForceSynchronousImport);
+            ApplyClubTimingIfNeeded(clubClip);
+            EditorUtility.SetDirty(clubClip);
+        }
+
+        private static void ApplyClubTimingIfNeeded(AnimationClip clubClip)
+        {
+            AssetImporter importer = AssetImporter.GetAtPath(ClubClipPath);
+            if (importer != null && importer.userData == ClubTimingVersion) return;
+
+            float length = Mathf.Max(0.01f, clubClip.length);
+            foreach (EditorCurveBinding binding in AnimationUtility.GetCurveBindings(clubClip))
+            {
+                AnimationCurve curve = AnimationUtility.GetEditorCurve(clubClip, binding);
+                if (curve == null) continue;
+
+                Keyframe[] keys = curve.keys;
+                for (int i = 0; i < keys.Length; i++)
+                {
+                    Keyframe key = keys[i];
+                    float normalizedTime = Mathf.Clamp01(key.time / length);
+                    key.time = RemapClubNormalizedTime(normalizedTime) * length;
+                    keys[i] = key;
+                }
+
+                curve.keys = keys;
+                AnimationUtility.SetEditorCurve(clubClip, binding, curve);
+            }
+
+            EditorUtility.SetDirty(clubClip);
+            if (importer != null)
+            {
+                importer.userData = ClubTimingVersion;
+                importer.SaveAndReimport();
+            }
+        }
+
+        private static float RemapClubNormalizedTime(float sourceTime)
+        {
+            const float windupSourceEnd = 0.18f;
+            const float windupTargetEnd = 0.22f;
+            const float strikeSourceEnd = 0.72f;
+            const float strikeTargetEnd = 0.64f;
+
+            if (sourceTime <= windupSourceEnd)
+            {
+                return Mathf.InverseLerp(0f, windupSourceEnd, sourceTime)
+                    * windupTargetEnd;
+            }
+
+            if (sourceTime <= strikeSourceEnd)
+            {
+                return Mathf.Lerp(
+                    windupTargetEnd,
+                    strikeTargetEnd,
+                    Mathf.InverseLerp(windupSourceEnd, strikeSourceEnd, sourceTime));
+            }
+
+            return Mathf.Lerp(
+                strikeTargetEnd,
+                1f,
+                Mathf.InverseLerp(strikeSourceEnd, 1f, sourceTime));
         }
 
         private static void ConfigureAnimator(AnimatorController controller)

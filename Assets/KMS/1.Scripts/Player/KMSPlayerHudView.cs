@@ -28,6 +28,14 @@ namespace KMS
         [SerializeField] private Color speedFoodEffectColor = new Color32(255, 132, 43, 255);
         [SerializeField] private Color otherFoodEffectColor = new Color32(174, 92, 255, 255);
 
+        [Header("Hunger Restore Feedback")]
+        [SerializeField, Min(0.05f)] private float hungerRestoreDuration = 0.55f;
+        [SerializeField, Range(1f, 1.25f)] private float hungerPulseScale = 1.06f;
+        [SerializeField, Min(0.1f)] private float hungerRestorePopupDuration = 0.8f;
+        [SerializeField, Min(0f)] private float hungerRestorePopupRise = 28f;
+        [SerializeField, Min(8f)] private float hungerRestorePopupFontSize = 16f;
+        [SerializeField] private Color hungerRestorePopupColor = new Color32(121, 255, 137, 255);
+
         [Header("Transient UI")]
         [SerializeField] private RectTransform notificationContainer;
         [SerializeField] private GameObject notificationTemplate;
@@ -52,6 +60,16 @@ namespace KMS
 
         private readonly List<Image> hungerEffectSegmentImages = new List<Image>();
         private readonly List<ActiveItemObtainedToast> itemObtainedToasts = new List<ActiveItemObtainedToast>();
+        private readonly List<GameObject> hungerRestorePopups = new List<GameObject>();
+        private Coroutine hungerRestoreRoutine;
+        private bool hungerInitialized;
+        private float displayedHunger;
+        private float displayedMaxHunger;
+        private float requestedHunger;
+        private float pendingFoodHungerRestore;
+        private string pendingFoodEffectText;
+        private Color pendingFoodEffectColor;
+        private Vector3 hungerTrackBaseScale = Vector3.one;
 
         private sealed class ActiveItemObtainedToast
         {
@@ -103,6 +121,7 @@ namespace KMS
 
         private void OnDisable()
         {
+            ResetHungerFeedback();
             ClearItemObtainedToasts();
         }
 
@@ -116,8 +135,274 @@ namespace KMS
             float max,
             KMSFoodEffectController foodEffects = null)
         {
-            SetProgress(hungerFill, hungerText, current, max);
+            current = Mathf.Clamp(current, 0f, Mathf.Max(0f, max));
+            max = Mathf.Max(0f, max);
+
+            if (!hungerInitialized)
+            {
+                hungerInitialized = true;
+                displayedHunger = current;
+                displayedMaxHunger = max;
+                requestedHunger = current;
+                CacheHungerTrackScale();
+                SetProgress(hungerFill, hungerText, current, max);
+                ShowPendingFoodFeedback(0f);
+                RenderHungerEffectSegments(foodEffects, max);
+                return;
+            }
+
+            float restoredAmount = current - requestedHunger;
+            float previousMax = displayedMaxHunger;
+            requestedHunger = current;
+            displayedMaxHunger = max;
+            bool hasPendingFoodFeedback = pendingFoodHungerRestore > 0.001f
+                                          || !string.IsNullOrEmpty(pendingFoodEffectText);
+            bool animateRestore = restoredAmount > 0.001f && pendingFoodHungerRestore > 0.001f;
+
+            if (hasPendingFoodFeedback)
+            {
+                ShowPendingFoodFeedback(Mathf.Max(0f, restoredAmount));
+            }
+
+            if (animateRestore)
+            {
+                StopHungerRestoreAnimation();
+                CacheHungerTrackScale();
+                hungerRestoreRoutine = StartCoroutine(AnimateHungerRestore(current, max));
+            }
+            else if (!Mathf.Approximately(current, displayedHunger)
+                     || !Mathf.Approximately(max, previousMax))
+            {
+                StopHungerRestoreAnimation();
+                displayedHunger = current;
+                SetProgress(hungerFill, hungerText, current, max);
+            }
+
             RenderHungerEffectSegments(foodEffects, max);
+        }
+
+        public void PrepareFoodFeedback(ItemData item, float restoredAmount)
+        {
+            pendingFoodHungerRestore = Mathf.Max(0f, restoredAmount);
+            pendingFoodEffectText = BuildSpecialFoodEffectText(
+                item,
+                out bool hasSpeedEffect,
+                out bool hasOtherEffect);
+            pendingFoodEffectColor = hasSpeedEffect && !hasOtherEffect
+                ? speedFoodEffectColor
+                : otherFoodEffectColor;
+        }
+
+        private IEnumerator AnimateHungerRestore(float target, float max)
+        {
+            float start = displayedHunger;
+            float duration = Mathf.Max(0.05f, hungerRestoreDuration);
+            float elapsed = 0f;
+            RectTransform track = GetHungerTrack();
+
+            while (elapsed < duration)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                float progress = Mathf.Clamp01(elapsed / duration);
+                float eased = 1f - Mathf.Pow(1f - progress, 3f);
+                displayedHunger = Mathf.Lerp(start, target, eased);
+                SetProgress(hungerFill, hungerText, displayedHunger, max);
+                if (track != null)
+                {
+                    float pulse = Mathf.Sin(progress * Mathf.PI) * (hungerPulseScale - 1f);
+                    track.localScale = hungerTrackBaseScale * (1f + pulse);
+                }
+                yield return null;
+            }
+
+            displayedHunger = target;
+            SetProgress(hungerFill, hungerText, target, max);
+            if (track != null) track.localScale = hungerTrackBaseScale;
+            hungerRestoreRoutine = null;
+        }
+
+        private void ShowPendingFoodFeedback(float actualRestoredAmount)
+        {
+            float popupRestore = Mathf.Min(
+                Mathf.Max(0f, actualRestoredAmount),
+                pendingFoodHungerRestore);
+            Color popupColor = string.IsNullOrEmpty(pendingFoodEffectText)
+                ? hungerRestorePopupColor
+                : pendingFoodEffectColor;
+            ShowFoodFeedbackPopup(popupRestore, pendingFoodEffectText, popupColor);
+            pendingFoodHungerRestore = 0f;
+            pendingFoodEffectText = null;
+        }
+
+        private void StopHungerRestoreAnimation()
+        {
+            if (hungerRestoreRoutine != null)
+            {
+                StopCoroutine(hungerRestoreRoutine);
+                hungerRestoreRoutine = null;
+            }
+
+            RectTransform track = GetHungerTrack();
+            if (track != null) track.localScale = hungerTrackBaseScale;
+        }
+
+        private void ShowFoodFeedbackPopup(
+            float restoredAmount,
+            string specialEffectText,
+            Color popupColor)
+        {
+            RectTransform track = GetHungerTrack();
+            if (track == null || hungerText == null) return;
+            if (restoredAmount <= 0.001f && string.IsNullOrEmpty(specialEffectText)) return;
+
+            var popupObject = new GameObject(
+                "FoodFeedbackPopup",
+                typeof(RectTransform),
+                typeof(CanvasRenderer),
+                typeof(TextMeshProUGUI),
+                typeof(CanvasGroup));
+            popupObject.layer = hungerText.gameObject.layer;
+            popupObject.transform.SetParent(track, false);
+
+            RectTransform rect = popupObject.GetComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.5f, 1f);
+            rect.anchorMax = new Vector2(0.5f, 1f);
+            rect.pivot = new Vector2(0.5f, 0f);
+            rect.anchoredPosition = new Vector2(0f, 5f);
+            bool hasSpecialEffect = !string.IsNullOrEmpty(specialEffectText);
+            rect.sizeDelta = new Vector2(
+                Mathf.Max(140f, track.rect.width),
+                hasSpecialEffect && restoredAmount > 0.001f ? 54f : 34f);
+
+            TextMeshProUGUI label = popupObject.GetComponent<TextMeshProUGUI>();
+            label.text = BuildFoodFeedbackText(restoredAmount, specialEffectText);
+            label.font = hungerText.font;
+            label.fontSharedMaterial = hungerText.fontSharedMaterial;
+            label.fontSize = Mathf.Max(8f, hungerRestorePopupFontSize);
+            label.fontStyle = FontStyles.Bold;
+            label.alignment = TextAlignmentOptions.Center;
+            label.color = popupColor;
+            label.lineSpacing = -8f;
+            label.raycastTarget = false;
+
+            CanvasGroup canvasGroup = popupObject.GetComponent<CanvasGroup>();
+            canvasGroup.interactable = false;
+            canvasGroup.blocksRaycasts = false;
+
+            hungerRestorePopups.Add(popupObject);
+            StartCoroutine(AnimateHungerRestorePopup(popupObject, rect, canvasGroup));
+        }
+
+        private IEnumerator AnimateHungerRestorePopup(
+            GameObject popupObject,
+            RectTransform rect,
+            CanvasGroup canvasGroup)
+        {
+            float duration = Mathf.Max(0.1f, hungerRestorePopupDuration);
+            Vector2 start = rect.anchoredPosition;
+            float elapsed = 0f;
+
+            while (elapsed < duration && popupObject != null)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                float progress = Mathf.Clamp01(elapsed / duration);
+                rect.anchoredPosition = start + Vector2.up * (hungerRestorePopupRise * progress);
+                rect.localScale = Vector3.one * Mathf.Lerp(0.82f, 1f, Mathf.Clamp01(progress / 0.18f));
+                canvasGroup.alpha = 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.45f, 1f, progress));
+                yield return null;
+            }
+
+            hungerRestorePopups.Remove(popupObject);
+            if (popupObject != null) Destroy(popupObject);
+        }
+
+        private static string FormatHungerRestoreAmount(float amount)
+        {
+            float rounded = Mathf.Round(amount);
+            return Mathf.Abs(amount - rounded) < 0.01f
+                ? $"+{rounded:0}"
+                : $"+{amount:0.#}";
+        }
+
+        private static string BuildFoodFeedbackText(float restoredAmount, string specialEffectText)
+        {
+            if (restoredAmount <= 0.001f) return specialEffectText;
+            string restoredText = FormatHungerRestoreAmount(restoredAmount);
+            return string.IsNullOrEmpty(specialEffectText)
+                ? restoredText
+                : $"{restoredText}\n{specialEffectText}";
+        }
+
+        private static string BuildSpecialFoodEffectText(
+            ItemData item,
+            out bool hasSpeedEffect,
+            out bool hasOtherEffect)
+        {
+            hasSpeedEffect = false;
+            hasOtherEffect = false;
+            if (item == null || item.EatEffects == null) return string.Empty;
+
+            var labels = new List<string>();
+            for (int i = 0; i < item.EatEffects.Count; i++)
+            {
+                ItemEffect effect = item.EatEffects[i];
+                if (effect == null
+                    || effect.Effect == EffectType.Satiety
+                    || Mathf.Approximately(effect.Value, 0f))
+                {
+                    continue;
+                }
+
+                string value = effect.Value > 0f
+                    ? $"+{effect.Value:0.#}"
+                    : $"{effect.Value:0.#}";
+                switch (effect.Effect)
+                {
+                    case EffectType.Speed:
+                        hasSpeedEffect = true;
+                        labels.Add($"이동 속도 {value}%");
+                        break;
+                    case EffectType.Fulling:
+                        hasOtherEffect = true;
+                        labels.Add($"포만감 유지 {value}");
+                        break;
+                    default:
+                        hasOtherEffect = true;
+                        labels.Add($"{effect.Effect} {value}");
+                        break;
+                }
+            }
+
+            return string.Join(" · ", labels);
+        }
+
+        private RectTransform GetHungerTrack()
+        {
+            return hungerFill != null ? hungerFill.rectTransform.parent as RectTransform : null;
+        }
+
+        private void CacheHungerTrackScale()
+        {
+            RectTransform track = GetHungerTrack();
+            if (track != null)
+            {
+                hungerTrackBaseScale = track.localScale;
+            }
+        }
+
+        private void ResetHungerFeedback()
+        {
+            StopHungerRestoreAnimation();
+
+            for (int i = hungerRestorePopups.Count - 1; i >= 0; i--)
+            {
+                if (hungerRestorePopups[i] != null) Destroy(hungerRestorePopups[i]);
+            }
+
+            hungerRestorePopups.Clear();
+            hungerInitialized = false;
+            pendingFoodHungerRestore = 0f;
+            pendingFoodEffectText = null;
         }
 
         public void SetRealTime(string value)
