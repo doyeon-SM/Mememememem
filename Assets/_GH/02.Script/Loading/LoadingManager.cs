@@ -127,6 +127,14 @@ namespace GH.Loading
                 return false;
             }
 
+            string currentSceneName = SceneManager.GetActiveScene().name.ToLower();
+            if (currentSceneName.Contains("title") && WayPointManager.Instance != null)
+            {
+                var field = typeof(WayPointManager).GetField("authorizingTerritoryLoad",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                field?.SetValue(WayPointManager.Instance, true);
+            }
+
             if (WayPointManager.Instance != null
                 && !WayPointManager.Instance.IsSceneLoadAuthorized(sceneName))
             {
@@ -190,11 +198,13 @@ namespace GH.Loading
 
         private IEnumerator RunLoading(LoadingContext context, List<ILoadingTask> tasks)
         {
-            if (RecordManager.Instance != null)
+            string currentSceneName = SceneManager.GetActiveScene().name.ToLower();
+            if (RecordManager.Instance != null && !currentSceneName.Contains("title"))
             {
                 RecordManager.Instance.SaveAllData();
                 RecordManager.Instance.SetSceneUnloading(true);
             }
+
 
             ShowRandomTip();
             onLoadingStarted?.Invoke();

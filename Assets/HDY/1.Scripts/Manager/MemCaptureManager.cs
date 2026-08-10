@@ -104,8 +104,8 @@ namespace HDY.Capture
     {
         public static MemCaptureManager Instance { get; private set; }
 
-        [Header("창고 최대치 설정 (추후 변경 가능하도록 노출, 기본 48칸 x 10페이지)")]
-        [SerializeField] private int slotsPerPage = 48;
+        [Header("창고 최대치 설정 (추후 변경 가능하도록 노출, 기본 30칸 x 10페이지)")]
+        [SerializeField] private int slotsPerPage = 30;
         [SerializeField] private int maxPages = 10;
 
         public int SlotsPerPage => slotsPerPage;

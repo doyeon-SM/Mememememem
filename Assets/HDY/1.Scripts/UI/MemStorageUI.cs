@@ -97,6 +97,14 @@ namespace HDY.UI
     /// 원인이었다. 그래서 이 구독들을 OnEnable로 옮기고(열 때마다 다시 구독), isSubscribedToUIEvents로 중복
     /// 구독을 막는다 - MemStorageUI_Grid.isSubscribedToCaptureEvents와 동일한 패턴이다. OnDiscardRequested도
     /// 이 구독 그룹에 함께 넣는다.
+    ///
+    /// [HDY 요청 - 닫기 버튼] closeButton은 UIManager.Instance.CloseCurrent()를 그대로 호출한다
+    /// (HandleCloseButtonClicked). UIManager.cs의 문서화된 규칙대로, 프리팹 내부의 자체 닫기 버튼은 반드시
+    /// CloseCurrent()를 거쳐야 openStack/currentPrefabKey 상태가 실제 열림 여부와 어긋나지 않는다 - 여기서
+    /// SetActive(false)를 직접 호출하지 않는 이유다. ESC로 닫는 기능은 _GH SceneUIManager가 이 패널을
+    /// SetActive(false)하면 UIManager의 ManagedPanelCloseWatcher가 감지해서 별도로 동기화하므로, 이 버튼과는
+    /// 서로 다른 경로로 동작하며 영향을 주고받지 않는다. 다른 버튼들과 동일하게 리스너 등록은 OnEnable에서
+    /// (isSubscribedToUIEvents 그룹에 포함), 해제는 OnDisable에서 한다.
     /// </summary>
     public class MemStorageUI : MonoBehaviour
     {
@@ -109,6 +117,10 @@ namespace HDY.UI
         [SerializeField] private MemStorageUI_Grid grid;
         [SerializeField] private MemStorageUI_Info info;
         [SerializeField] private MemStorageUI_Sort sort;
+
+        [Header("닫기 버튼 (HDY 요청)")]
+        [Tooltip("클릭 시 UIManager.Instance.CloseCurrent()를 호출한다. ESC로 닫는 기능(SceneUIManager 위임)에는 영향을 주지 않는다.")]
+        [SerializeField] private Button closeButton;
 
         [Header("멤창고 업그레이드 (페이지 확장)")]
         [SerializeField] private Button upgradeButton;
@@ -150,6 +162,7 @@ namespace HDY.UI
             if (grid == null) Debug.LogWarning("[MemStorageUI] grid가 비어있습니다.", this);
             if (info == null) Debug.LogWarning("[MemStorageUI] info가 비어있습니다.", this);
             if (sort == null) Debug.LogWarning("[MemStorageUI] sort가 비어있습니다. 정렬 버튼이 동작하지 않습니다.", this);
+            if (closeButton == null) Debug.LogWarning("[MemStorageUI] closeButton이 비어있습니다. 닫기 버튼이 동작하지 않습니다.", this);
             if (upgradeButton == null) Debug.LogWarning("[MemStorageUI] upgradeButton이 비어있습니다. 업그레이드 버튼이 동작하지 않습니다.", this);
             if (storageUpgrade == null) Debug.LogWarning("[MemStorageUI] storageUpgrade가 비어있습니다. 업그레이드 팝업을 열 수 없습니다.", this);
         }
@@ -184,6 +197,11 @@ namespace HDY.UI
                 if (upgradeButton != null)
                 {
                     upgradeButton.onClick.AddListener(HandleUpgradeButtonClicked);
+                }
+
+                if (closeButton != null)
+                {
+                    closeButton.onClick.AddListener(HandleCloseButtonClicked);
                 }
 
                 isSubscribedToUIEvents = true;
@@ -229,6 +247,11 @@ namespace HDY.UI
                 upgradeButton.onClick.RemoveListener(HandleUpgradeButtonClicked);
             }
 
+            if (closeButton != null)
+            {
+                closeButton.onClick.RemoveListener(HandleCloseButtonClicked);
+            }
+
             isSubscribedToUIEvents = false;
 
             if (captureManager != null)
@@ -256,10 +279,28 @@ namespace HDY.UI
         }
 
         /// <summary>
+        /// [HDY 요청 - 닫기 버튼] UIManager.Instance.CloseCurrent()를 그대로 호출한다. 여기서 직접
+        /// SetActive(false)를 호출하지 않는 이유는 UIManager.cs에 문서화되어 있다 - CloseCurrent()를
+        /// 거치지 않으면 openStack/currentPrefabKey가 실제 열림 상태와 어긋나 같은 HUD 버튼을 다시 눌러도
+        /// 반응하지 않는 등의 문제가 생길 수 있다. ESC로 닫는 기능(_GH SceneUIManager가 담당)과는 서로
+        /// 다른 경로라 영향을 주고받지 않는다.
+        /// </summary>
+        private void HandleCloseButtonClicked()
+        {
+            if (UIManager.Instance == null)
+            {
+                Debug.LogWarning("[MemStorageUI] UIManager.Instance를 찾을 수 없어 닫기 버튼을 처리할 수 없습니다.", this);
+                return;
+            }
+
+            UIManager.Instance.CloseCurrent();
+        }
+
+        /// <summary>
         /// [HDY 요청] storageUpgrade.CanUpgrade()(더 언락할 페이지가 남아있는지) 기준으로 업그레이드
         /// 버튼을 켜고 끈다. 더 이상 언락할 페이지가 없으면(MAX) 버튼 자체를 숨긴다. upgradeButton은
-        /// MemStorageUI_Grid의 pageDotsParent 하위에 배치되어 있으므로(페이지 점들 오른쪽에 붙어 보이도록),
-        /// 활성화되면 그 부모의 레이아웃(HorizontalLayoutGroup 등)에 따라 자동으로 가장 오른쪽에 위치한다.
+        /// 그리드의 페이지 이동 UI(좌우 버튼/인디케이터)와는 완전히 별도의 위치에 독립적으로 배치되어
+        /// 있으며, 이 메서드는 활성/비활성 상태만 관리한다(실제 위치/레이아웃은 씬에서 직접 배치).
         /// </summary>
         private void RefreshUpgradeButtonState()
         {
