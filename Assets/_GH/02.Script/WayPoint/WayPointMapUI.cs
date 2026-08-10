@@ -54,6 +54,8 @@ public class WayPointMapUI : MonoBehaviour
     [SerializeField] private RectTransform tooltipRoot;
     [Tooltip("새 WayPoint_ToolTip 디자인 루트의 전용 뷰입니다.")]
     [SerializeField] private WayPointTooltipView tooltipView;
+    [Tooltip("잠긴 웨이포인트에만 사용하는 별도 툴팁 프리팹입니다. 비워 두면 Resources에서 자동으로 찾습니다.")]
+    [SerializeField] private WayPointTooltipView lockedTooltipPrefab;
     [FormerlySerializedAs("tooltipText")]
     [SerializeField] private TMP_Text tooltipTitleText;
     [SerializeField] private TMP_Text tooltipDescriptionText;
@@ -113,6 +115,8 @@ public class WayPointMapUI : MonoBehaviour
     private bool pointerOverTooltip;
     private bool tooltipHideRequested;
     private float tooltipHideAtTime;
+    private WayPointTooltipView lockedTooltipView;
+    private WayPointTooltipView activeTooltipView;
 
     /// <summary>현재 지도를 열 때 적용된 보기 전용 또는 이동 모드입니다.</summary>
     public WayPointMapOpenMode CurrentOpenMode => currentOpenMode;
@@ -351,7 +355,8 @@ public class WayPointMapUI : MonoBehaviour
         }
 
         EnsureTooltip();
-        bool hasNewTooltip = tooltipView != null;
+        WayPointTooltipView stateTooltipView = ActivateTooltipView(state);
+        bool hasNewTooltip = stateTooltipView != null;
         bool hasLegacyTooltip = tooltipTitleText != null && tooltipDescriptionText != null;
         if (tooltipRoot == null || (!hasNewTooltip && !hasLegacyTooltip))
         {
@@ -464,9 +469,12 @@ public class WayPointMapUI : MonoBehaviour
 
     private Vector2 GetTooltipSize()
     {
-        if (tooltipView != null && tooltipView.RectTransform != null)
+        WayPointTooltipView sizeSource = activeTooltipView != null
+            ? activeTooltipView
+            : tooltipView;
+        if (sizeSource != null && sizeSource.RectTransform != null)
         {
-            Vector2 viewSize = tooltipView.RectTransform.rect.size;
+            Vector2 viewSize = sizeSource.RectTransform.rect.size;
             if (viewSize.x > 0f && viewSize.y > 0f)
             {
                 return viewSize;
@@ -1166,6 +1174,16 @@ public class WayPointMapUI : MonoBehaviour
     // 툴팁 오브젝트가 없으면 기본 툴팁 UI를 자동 생성한다.
     private void EnsureTooltip()
     {
+        if (lockedTooltipPrefab == null)
+        {
+            GameObject lockedTooltipAsset =
+                Resources.Load<GameObject>("WayPoint_ToolTip_Locked");
+            if (lockedTooltipAsset != null)
+            {
+                lockedTooltipPrefab = lockedTooltipAsset.GetComponent<WayPointTooltipView>();
+            }
+        }
+
         if (tooltipView != null)
         {
             if (tooltipRoot == null)
@@ -1285,17 +1303,56 @@ public class WayPointMapUI : MonoBehaviour
     // 웨이포인트 이름, 설명, 현재 이동 가능 여부를 툴팁 텍스트에 반영한다.
     private void RefreshTooltip(WayPointRunTime state)
     {
-        if (tooltipView != null)
+        WayPointTooltipView stateTooltipView = ActivateTooltipView(state);
+        if (stateTooltipView != null)
         {
-            tooltipView.Refresh(
+            stateTooltipView.Refresh(
                 state,
                 currentOpenMode,
-                CanTravelByClick(state),
-                IsCurrentLocation(state));
+                CanTravelByClick(state));
             return;
         }
 
         RefreshTooltipText(state);
+    }
+
+    private WayPointTooltipView ActivateTooltipView(WayPointRunTime state)
+    {
+        WayPointTooltipView targetView = tooltipView;
+        if (state != null && !state.IsActive && lockedTooltipPrefab != null)
+        {
+            if (lockedTooltipView == null)
+            {
+                Transform parent = tooltipRoot != null ? tooltipRoot : transform;
+                lockedTooltipView = Instantiate(lockedTooltipPrefab, parent);
+                lockedTooltipView.name = "WayPoint_ToolTip_Locked";
+                lockedTooltipView.Initialize(this);
+
+                RectTransform lockedRect = lockedTooltipView.RectTransform;
+                if (lockedRect != null)
+                {
+                    lockedRect.anchorMin = new Vector2(0.5f, 0.5f);
+                    lockedRect.anchorMax = new Vector2(0.5f, 0.5f);
+                    lockedRect.pivot = new Vector2(0.5f, 0.5f);
+                    lockedRect.anchoredPosition = Vector2.zero;
+                }
+            }
+
+            targetView = lockedTooltipView;
+        }
+
+        if (tooltipView != null)
+        {
+            tooltipView.gameObject.SetActive(targetView == tooltipView);
+        }
+
+        if (lockedTooltipView != null)
+        {
+            lockedTooltipView.gameObject.SetActive(targetView == lockedTooltipView);
+        }
+
+        activeTooltipView = targetView;
+        return activeTooltipView;
     }
 
     private void RefreshTooltipText(WayPointRunTime state)

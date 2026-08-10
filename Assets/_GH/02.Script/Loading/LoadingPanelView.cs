@@ -1,3 +1,4 @@
+using Michsky.MUIP;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -11,6 +12,9 @@ namespace GH.Loading
     [DisallowMultipleComponent]
     public class LoadingPanelView : MonoBehaviour
     {
+        [Tooltip("Modern UI Pack ProgressBar입니다. 비어 있으면 자식에서 자동으로 찾습니다.")]
+        [SerializeField] private ProgressBar progressBar;
+        [Tooltip("이전 로딩 UI와의 호환용 Slider입니다.")]
         [SerializeField] private Slider progressSlider;
         [SerializeField] private TMP_Text descriptionText;
         [SerializeField] private TMP_Text percentText;
@@ -18,6 +22,12 @@ namespace GH.Loading
 
         /// <summary>별도 팁 텍스트 영역이 연결되어 있는지 나타냅니다.</summary>
         public bool HasTipText => tipText != null;
+
+        private void Awake()
+        {
+            ResolveReferences();
+            PrepareProgressBar();
+        }
 
         /// <summary>기존 내장 로딩 UI를 런타임 패널 방식으로 이전할 때 참조를 연결합니다.</summary>
         internal void Configure(
@@ -36,6 +46,13 @@ namespace GH.Loading
         public void SetProgress(string description, float progress, bool showDescription)
         {
             float clampedProgress = Mathf.Clamp01(progress);
+
+            ResolveReferences();
+
+            if (progressBar != null)
+            {
+                progressBar.SetValue(clampedProgress * 100f);
+            }
 
             if (progressSlider != null)
             {
@@ -65,5 +82,35 @@ namespace GH.Loading
                 descriptionText.text = tip;
             }
         }
+
+        private void ResolveReferences()
+        {
+            if (progressBar == null)
+            {
+                progressBar = GetComponentInChildren<ProgressBar>(true);
+            }
+        }
+
+        private void PrepareProgressBar()
+        {
+            if (progressBar == null)
+            {
+                return;
+            }
+
+            progressBar.isOn = false;
+            progressBar.restart = false;
+            progressBar.invert = false;
+            progressBar.minValue = 0f;
+            progressBar.maxValue = 100f;
+            progressBar.SetValue(0f);
+        }
+
+#if UNITY_EDITOR
+        private void OnValidate()
+        {
+            ResolveReferences();
+        }
+#endif
     }
 }

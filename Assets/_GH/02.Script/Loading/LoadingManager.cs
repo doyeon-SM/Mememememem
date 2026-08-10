@@ -35,7 +35,12 @@ namespace GH.Loading
         [Header("Presentation")]
         [Range(0.5f, 0.99f)]
         [SerializeField] private float actualLoadingProgressPortion = 0.9f;
-        [SerializeField] private Vector2 presentationDurationRange = new Vector2(3f, 4f);
+        [Tooltip("실제 로딩이 이 시간보다 빨라도 0~90% 연출은 이 시간 동안 진행됩니다.")]
+        [Min(0f)]
+        [SerializeField] private float minimumActualLoadingDuration = 1f;
+        [Tooltip("실제 로딩 완료 후 90~100%가 차오르는 고정 연출 시간입니다.")]
+        [Min(0f)]
+        [SerializeField] private float completionPresentationDuration = 2f;
         [TextArea]
         [SerializeField] private string[] loadingTips = Array.Empty<string>();
         [SerializeField] private string presentationDescription = "월드 배치 중";
@@ -127,6 +132,14 @@ namespace GH.Loading
                 return false;
             }
 
+            string currentSceneName = SceneManager.GetActiveScene().name.ToLower();
+            if (currentSceneName.Contains("title") && WayPointManager.Instance != null)
+            {
+                var field = typeof(WayPointManager).GetField("authorizingTerritoryLoad",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                field?.SetValue(WayPointManager.Instance, true);
+            }
+
             if (WayPointManager.Instance != null
                 && !WayPointManager.Instance.IsSceneLoadAuthorized(sceneName))
             {
@@ -190,19 +203,23 @@ namespace GH.Loading
 
         private IEnumerator RunLoading(LoadingContext context, List<ILoadingTask> tasks)
         {
-            if (RecordManager.Instance != null)
+            string currentSceneName = SceneManager.GetActiveScene().name.ToLower();
+            if (RecordManager.Instance != null && !currentSceneName.Contains("title"))
             {
                 RecordManager.Instance.SaveAllData();
                 RecordManager.Instance.SetSceneUnloading(true);
             }
+
 
             ShowRandomTip();
             onLoadingStarted?.Invoke();
 
             float totalWeight = GetTotalWeight(tasks);
             float completedWeight = 0f;
+            float actualLoadingStartedAt = Time.unscaledTime;
+            string lastActualDescription = "로딩 준비 중";
 
-            Report("로딩 준비 중", 0f);
+            Report(lastActualDescription, 0f);
 
             foreach (ILoadingTask task in tasks)
             {
@@ -210,26 +227,35 @@ namespace GH.Loading
                 string description = string.IsNullOrWhiteSpace(task.Description)
                     ? "로딩 중"
                     : task.Description;
+                lastActualDescription = description;
 
                 yield return task.Run(context, localProgress =>
                 {
                     float weightedProgress = completedWeight + Mathf.Clamp01(localProgress) * taskWeight;
                     float normalizedProgress = totalWeight > 0f ? weightedProgress / totalWeight : 1f;
-                    Report(description, normalizedProgress * actualLoadingProgressPortion);
+                    ReportActualLoadingProgress(
+                        description,
+                        normalizedProgress,
+                        actualLoadingStartedAt);
                 });
 
                 completedWeight += taskWeight;
                 float actualProgress = totalWeight > 0f ? completedWeight / totalWeight : 1f;
-                Report(description, actualProgress * actualLoadingProgressPortion);
+                ReportActualLoadingProgress(
+                    description,
+                    actualProgress,
+                    actualLoadingStartedAt);
                 yield return null;
             }
 
+            yield return CompleteMinimumActualLoadingPresentation(
+                actualLoadingStartedAt,
+                lastActualDescription);
             yield return RunPresentationProgress();
             yield return CompleteDeferredTasks(tasks);
             yield return null;
 
             MovePlayerToDestinationWayPoint(context.DestinationId);
-            Report("로딩 완료", 1f);
             IsLoading = false;
             loadingRoutine = null;
             DestroyLoadingPanelInstance();
@@ -240,13 +266,12 @@ namespace GH.Loading
 
         private IEnumerator RunPresentationProgress()
         {
-            float minDuration = Mathf.Max(0f, presentationDurationRange.x);
-            float maxDuration = Mathf.Max(minDuration, presentationDurationRange.y);
-            float duration = UnityEngine.Random.Range(minDuration, maxDuration);
+            float duration = Mathf.Max(0f, completionPresentationDuration);
 
             if (duration <= 0f)
             {
-                Report(presentationDescription, 1f);
+                Report("로딩 완료", 1f);
+                yield return null;
                 yield break;
             }
 
@@ -261,6 +286,44 @@ namespace GH.Loading
                 Report(presentationDescription, progress);
                 yield return null;
             }
+
+            Report("로딩 완료", 1f);
+            yield return null;
+        }
+
+        private void ReportActualLoadingProgress(
+            string description,
+            float actualNormalizedProgress,
+            float startedAt)
+        {
+            float minimumDuration = Mathf.Max(0f, minimumActualLoadingDuration);
+            float timeNormalizedProgress = minimumDuration <= 0f
+                ? 1f
+                : Mathf.Clamp01((Time.unscaledTime - startedAt) / minimumDuration);
+            float visibleActualProgress = Mathf.Min(
+                Mathf.Clamp01(actualNormalizedProgress),
+                timeNormalizedProgress);
+
+            Report(
+                description,
+                visibleActualProgress * actualLoadingProgressPortion);
+        }
+
+        private IEnumerator CompleteMinimumActualLoadingPresentation(
+            float startedAt,
+            string description)
+        {
+            float minimumDuration = Mathf.Max(0f, minimumActualLoadingDuration);
+            while (Time.unscaledTime - startedAt < minimumDuration)
+            {
+                float normalizedTime = minimumDuration <= 0f
+                    ? 1f
+                    : Mathf.Clamp01((Time.unscaledTime - startedAt) / minimumDuration);
+                Report(description, normalizedTime * actualLoadingProgressPortion);
+                yield return null;
+            }
+
+            Report(description, actualLoadingProgressPortion);
         }
 
         private static IEnumerator CompleteDeferredTasks(IReadOnlyList<ILoadingTask> tasks)

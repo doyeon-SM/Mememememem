@@ -127,13 +127,15 @@ public class ProductionCraftRuntime : MonoBehaviour
 
         totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, addMems);
 
-        if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
+        bool isAnyMemStarving = DeployedMemEntries.Any(e => e != null && (e.IsStarving || e.CurrentHunger <= 0));
+
+        if (!isAnyMemStarving)
         {
             SetProducingActive(true);
         }
         else
         {
-            isProducing = false;
+            SetProducingActive(false);
         }
     }
 
@@ -195,6 +197,11 @@ public class ProductionCraftRuntime : MonoBehaviour
         if (addMems.Count >= 1 && addMemEntries.Count > 0)
         {
             RemoveMem(addMemEntries[0]);
+        }
+
+        if (targetEntry.CurrentHunger > 0)
+        {
+            targetEntry.IsStarving = false;
         }
 
         addMems.Add(realMemData);

@@ -406,8 +406,10 @@ MonoBehaviour:
     Loop: 0
     Output: {fileID: 0}
   - Id: 36
-    Clips: []
-    Volume: 1
+    Clips:
+    - {fileID: 8300000, guid: 0c6a1ad7bee415e4bbed2dcd5993125a, type: 3}
+    - {fileID: 8300000, guid: 96051e514a387ca4fb1827ad491e2257, type: 3}
+    Volume: 0.508
     PitchMin: 0.96
     PitchMax: 1.04
     SpatialBlend: 1
@@ -416,7 +418,32 @@ MonoBehaviour:
     Loop: 0
     Output: {fileID: 0}
   - Id: 37
-    Clips: []
+    Clips:
+    - {fileID: 8300000, guid: ea9a236045f2d6b45afd460816620412, type: 3}
+    - {fileID: 8300000, guid: 9103e53ccb1abd1499257d25df34a543, type: 3}
+    - {fileID: 8300000, guid: 537b9e5bfc7bd4241a639227967314c4, type: 3}
+    Volume: 0.6
+    PitchMin: 0.96
+    PitchMax: 1.04
+    SpatialBlend: 1
+    Cooldown: 0
+    MaxVoices: 4
+    Loop: 0
+    Output: {fileID: 0}
+  - Id: 38
+    Clips:
+    - {fileID: 8300000, guid: 939eea99cd8f5e6459544d2b1fa65f76, type: 3}
+    Volume: 0.8
+    PitchMin: 0.96
+    PitchMax: 1.04
+    SpatialBlend: 0
+    Cooldown: 0
+    MaxVoices: 1
+    Loop: 1
+    Output: {fileID: 0}
+  - Id: 39
+    Clips:
+    - {fileID: 8300000, guid: 015034ec4e15dc1448a28397ae5cfb05, type: 3}
     Volume: 1
     PitchMin: 0.96
     PitchMax: 1.04
@@ -439,7 +466,7 @@ MonoBehaviour:
     Loop: 1
     Output: {fileID: 0}
   - SceneName: Main_World_Cave
-    Clip: {fileID: 8300000, guid: 46ffdade3caf6fb45b449df922a35b8a, type: 3}
+    Clip: {fileID: 8300000, guid: cafc0baf0c7c3a744b162ef769bf8401, type: 3}
     Volume: 0.65
     FadeSeconds: 1.25
     Loop: 1

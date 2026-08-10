@@ -1,4 +1,6 @@
 using UnityEngine;
+using System;
+using KMS.Audio;
 
 /// <summary>
 /// Unity Button의 OnClick에서 Managed UI를 ID로 제어하기 위한 중계 컴포넌트입니다.
@@ -12,16 +14,33 @@ public sealed class ManagedUIButton : MonoBehaviour
 
     public void Open()
     {
-        SceneUIManager.TryOpenManagedUI(managedUIId);
+        if (SceneUIManager.TryOpenManagedUI(managedUIId))
+        {
+            PlayOptionClick();
+        }
     }
 
     public void Close()
     {
-        SceneUIManager.TryCloseManagedUI(managedUIId);
+        if (SceneUIManager.TryCloseManagedUI(managedUIId))
+        {
+            PlayOptionClick();
+        }
     }
 
     public void Toggle()
     {
-        SceneUIManager.TryToggleManagedUI(managedUIId);
+        if (SceneUIManager.TryToggleManagedUI(managedUIId))
+        {
+            PlayOptionClick();
+        }
+    }
+
+    private void PlayOptionClick()
+    {
+        if (string.Equals(managedUIId, "Option", StringComparison.OrdinalIgnoreCase))
+        {
+            KMSUIAudio.PlayClick();
+        }
     }
 }
