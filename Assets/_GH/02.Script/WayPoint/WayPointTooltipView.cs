@@ -19,6 +19,7 @@ public class WayPointTooltipView : MonoBehaviour, IPointerEnterHandler, IPointer
     [SerializeField] private Button travelButton;
 
     [Header("State")]
+    [SerializeField] private bool lockedVariant;
     [Range(0, 255)]
     [SerializeField] private int lockedBackgroundAlpha = 200;
     [SerializeField] private Color previewUnavailableNameColor = new Color(1f, 0.25f, 0.25f, 1f);
@@ -55,8 +56,7 @@ public class WayPointTooltipView : MonoBehaviour, IPointerEnterHandler, IPointer
     public void Refresh(
         WayPointRunTime state,
         WayPointMapOpenMode openMode,
-        bool canTravel,
-        bool isCurrentLocation)
+        bool canTravel)
     {
         if (state == null || state.Definition == null)
         {
@@ -75,9 +75,7 @@ public class WayPointTooltipView : MonoBehaviour, IPointerEnterHandler, IPointer
             string displayName = string.IsNullOrWhiteSpace(state.DisplayName)
                 ? state.Id
                 : state.DisplayName;
-            waypointNameText.text = isCurrentLocation
-                ? $"현재 위치 · {displayName}"
-                : displayName;
+            waypointNameText.text = displayName;
             waypointNameText.color = isPreviewUnlocked
                 ? previewUnavailableNameColor
                 : defaultNameColor;
@@ -85,9 +83,9 @@ public class WayPointTooltipView : MonoBehaviour, IPointerEnterHandler, IPointer
 
         if (waypointIcon != null)
         {
-            Sprite sprite = isUnlocked
-                ? state.Definition.tooltipIcon
-                : defaultLockedIcon;
+            Sprite sprite = lockedVariant
+                ? defaultLockedIcon
+                : state.Definition.tooltipIcon;
             waypointIcon.sprite = sprite;
             waypointIcon.enabled = sprite != null;
         }
@@ -95,14 +93,14 @@ public class WayPointTooltipView : MonoBehaviour, IPointerEnterHandler, IPointer
         if (fillBackground != null)
         {
             Color color = fillBackground.color;
-            color.a = isUnlocked ? 0f : lockedBackgroundAlpha / 255f;
+            color.a = lockedVariant ? lockedBackgroundAlpha / 255f : 0f;
             fillBackground.color = color;
             fillBackground.raycastTarget = true;
         }
 
         if (travelButton != null)
         {
-            travelButton.interactable = canTravel;
+            travelButton.interactable = !lockedVariant && canTravel;
         }
     }
 

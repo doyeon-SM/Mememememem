@@ -1,6 +1,7 @@
 ﻿using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
+using KMS.Audio;
 
 /// <summary>
 /// 하나의 웨이포인트 런타임 상태를 지도 아이콘으로 표시하고 클릭 이동 및 툴팁 입력을 전달합니다.
@@ -180,6 +181,8 @@ public class WayPointMapIconUI : MonoBehaviour, IPointerEnterHandler, IPointerMo
         {
             return;
         }
+
+        KMSUIAudio.PlayClick();
 
         if (owner.CanTravelByClick(state))
         {

@@ -1,5 +1,6 @@
 using KGH.Data;
 using KMS;
+using KMS.Audio;
 using KMS.InventoryDuped;
 using System;
 using System.Collections.Generic;
@@ -106,6 +107,7 @@ public class Chest : MonoBehaviour, KMS.IInteractable
     private void OpenAndDropItems()
     {
         isOpened = true;
+        KMSAudioService.PlayAt(GameSfxId.OpenChest, transform.position);
 
         if (presentation != null
             && presentation.PlayOpenSequence(SpawnDropItemsAndNotify))

@@ -312,6 +312,11 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
 
         slider.onValueChanged.RemoveListener(listener);
         slider.onValueChanged.AddListener(listener);
+
+        if (slider.GetComponent<GHSettingsSliderClickFeedback>() == null)
+        {
+            slider.gameObject.AddComponent<GHSettingsSliderClickFeedback>();
+        }
     }
 
     private static void BindButton(Button button, UnityEngine.Events.UnityAction listener)
@@ -321,7 +326,9 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
             return;
         }
 
+        button.onClick.RemoveListener(KMSUIAudio.PlayClick);
         button.onClick.RemoveListener(listener);
+        button.onClick.AddListener(KMSUIAudio.PlayClick);
         button.onClick.AddListener(listener);
     }
 
@@ -440,6 +447,7 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
             return;
         }
 
+        KMSUIAudio.PlayClick();
         selectedResolutionIndex = Mathf.Clamp(index, 0, resolutionOptions.Count - 1);
         RefreshApplyButtonState();
     }
@@ -451,6 +459,7 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
             return;
         }
 
+        KMSUIAudio.PlayClick();
         selectedFullScreen = index == 1;
         RefreshApplyButtonState();
     }
@@ -462,6 +471,7 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
             return;
         }
 
+        KMSUIAudio.PlayClick();
         selectedViewDistanceIndex = Mathf.Clamp(index, 0, 2);
         RefreshApplyButtonState();
     }
