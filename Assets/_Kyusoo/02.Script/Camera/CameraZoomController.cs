@@ -23,7 +23,7 @@ public class CameraZoomController : MonoBehaviour
     [SerializeField] private CanvasGroup zoomCanvasGroup; // UI 페이드인/아웃용 그룹
     [SerializeField] private TMP_Text zoomText;          // (선택) 줌 퍼센트/타이틀 텍스트
     [SerializeField] private float fadeDuration = 0.2f;    // 페이드 시간
-    [SerializeField] private float displayDuration = 2f;  // 화면 노출 유지 시간 (2초)
+    [SerializeField] private float displayDuration = 1f;  // 화면 노출 유지 시간 (2초)
 
     private float targetOrthoSize;
     private float zoomVelocity;
