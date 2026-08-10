@@ -104,6 +104,11 @@ namespace KMS.Audio
             sfxVolume = Mathf.Clamp01(PlayerPrefs.GetFloat(SfxVolumeKey, 1f));
             musicVolume = Mathf.Clamp01(PlayerPrefs.GetFloat(MusicVolumeKey, 1f));
 
+            if (GetComponent<KMSRandomAmbientSfxPlayer>() == null)
+            {
+                gameObject.AddComponent<KMSRandomAmbientSfxPlayer>();
+            }
+
             CreateMusicSources();
             for (int i = 0; i < InitialSourceCount; i++)
             {
