@@ -3711,6 +3711,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 1028760775}
     m_Modifications:
+    - target: {fileID: 455893742656203031, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 465755928046886828, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
       propertyPath: m_Pivot.x
       value: 1
@@ -3807,6 +3811,38 @@ PrefabInstance:
       propertyPath: m_AnchoredPosition.y
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 1752086921852659905, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1752086921852659905, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
+      propertyPath: m_AnchorMin.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1752086921852659905, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1752086921852659905, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2972343677502481698, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2972343677502481698, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
+      propertyPath: m_AnchorMin.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2972343677502481698, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2972343677502481698, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 3188002273125514438, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
       propertyPath: m_OnClick.m_PersistentCalls.m_Calls.Array.data[0].m_Target
       value: 
@@ -3825,6 +3861,10 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3458375096759521491, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
       propertyPath: m_AnchoredPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3952301858580669026, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
+      propertyPath: m_AnchorMax.y
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 4962541421081146795, guid: 47d903d3b3a661e46970b9ca353da45c, type: 3}
@@ -13660,6 +13700,8 @@ MonoBehaviour:
   maxSize: 5
   zoomSensitivity: 0.15
   smoothTime: 0.1
+  increaseAmount: 1
+  zoomSlider: {fileID: 0}
 --- !u!114 &1229683081
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -14478,6 +14520,7 @@ MonoBehaviour:
   notifyInputManager: 1
   playerTag: Player
   playerLayerName: Player
+  settingsApplyFadeDuration: 0.35
   placementModeUIRoot: {fileID: 0}
 --- !u!4 &1359819167
 Transform:
@@ -15377,6 +15420,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ConsumeFoodSystem
   foodWarehouseUI: {fileID: 965430487036185205}
   consumeInterval: 60
+  refeedCheckInterval: 10
   maxSatiety: 0
   currentSatiety: 0
 --- !u!114 &1423062863
@@ -15476,6 +15520,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 1028760775}
     m_Modifications:
+    - target: {fileID: 6989592447473372344, guid: ebecef3dd79e022408e22b0e710cbc36, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: 104.1001
+      objectReference: {fileID: 0}
     - target: {fileID: 8727722151818743729, guid: ebecef3dd79e022408e22b0e710cbc36, type: 3}
       propertyPath: m_Name
       value: UI_Map_Panel
@@ -22247,6 +22295,10 @@ MonoBehaviour:
   occupiedBorderColor: {r: 0.95, g: 0.65, b: 0.2, a: 0.85}
   occupiedBorderWidth: 3
   activeBuildingWarningCanvasGroup: {fileID: 0}
+  fenceXPrefab: {fileID: 0}
+  fenceZPrefab: {fileID: 0}
+  mixFencePrefab: {fileID: 0}
+  fenceContainer: {fileID: 0}
 --- !u!1 &2111073404
 GameObject:
   m_ObjectHideFlags: 0
