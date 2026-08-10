@@ -10,6 +10,7 @@ namespace KMS
         [SerializeField] private PlayerInventory inventory;
         [SerializeField] private PlayerMovement movement;
         [SerializeField] private Animator animator;
+        [SerializeField] private PlayerToolAnimationController toolAnimationController;
         [SerializeField] private Transform handAnchor;
         [SerializeField] private HeldItemPrefabTable prefabTable;
 
@@ -31,6 +32,11 @@ namespace KMS
         private Vector3 heldModelAxis = Vector3.up;
         private HeldItemCarryType requestedCarryType;
         private float requestedCarryWeight;
+        private bool wasToolActionActive;
+        private Quaternion actionEntryLocalRotation = Quaternion.identity;
+        private Quaternion actionExitLocalRotation = Quaternion.identity;
+        private float actionRecoveryBlend = 1f;
+        private ToolMotionType lastActionMotionType = ToolMotionType.None;
 
         private void Awake()
         {
@@ -59,7 +65,7 @@ namespace KMS
 
         private void LateUpdate()
         {
-            UpdateCarryOrientation();
+            UpdateHeldOrientation();
         }
 
         private void OnDisable()
@@ -146,14 +152,91 @@ namespace KMS
             requestedCarryWeight = Mathf.Clamp01(blendWeight);
         }
 
-        private void UpdateCarryOrientation()
+        private void UpdateHeldOrientation()
         {
             if (heldModelInstance == null || handAnchor == null) return;
 
+            bool actionActive = toolAnimationController != null
+                && toolAnimationController.IsToolActionStateActive;
+            if (actionActive)
+            {
+                lastActionMotionType = toolAnimationController.CurrentMotionType;
+                if (!wasToolActionActive)
+                {
+                    actionEntryLocalRotation = heldModelInstance.transform.localRotation;
+                    wasToolActionActive = true;
+                }
+
+                float normalizedTime = toolAnimationController.GetCurrentActionNormalizedTime();
+                if (ToolActionGripPose.TryEvaluate(
+                        toolAnimationController.CurrentMotionType,
+                        normalizedTime,
+                        out Vector3 direction,
+                        out float roll))
+                {
+                    Quaternion target = ResolveDirectionLocalRotation(direction, roll);
+                    float entryBlend = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0f, 0.10f, normalizedTime));
+                    heldModelInstance.transform.localRotation = Quaternion.Slerp(
+                        actionEntryLocalRotation,
+                        target,
+                        entryBlend);
+                    actionExitLocalRotation = heldModelInstance.transform.localRotation;
+                    actionRecoveryBlend = 0f;
+                    return;
+                }
+            }
+            else if (wasToolActionActive)
+            {
+                wasToolActionActive = false;
+                if (UsesSeamlessCarryHandoff(lastActionMotionType))
+                {
+                    // These action profiles already finish at the long-tool carry direction.
+                    // Recompute against the current hand instead of blending a local rotation
+                    // captured under the previous Animator hand pose.
+                    actionRecoveryBlend = 1f;
+                }
+                else
+                {
+                    actionExitLocalRotation = heldModelInstance.transform.localRotation;
+                    actionRecoveryBlend = 0f;
+                }
+
+                lastActionMotionType = ToolMotionType.None;
+            }
+
+            Quaternion carryRotation = ResolveCarryLocalRotation();
+            if (actionRecoveryBlend < 1f)
+            {
+                actionRecoveryBlend = Mathf.MoveTowards(
+                    actionRecoveryBlend,
+                    1f,
+                    10f * Time.deltaTime);
+                heldModelInstance.transform.localRotation = Quaternion.Slerp(
+                    actionExitLocalRotation,
+                    carryRotation,
+                    Mathf.SmoothStep(0f, 1f, actionRecoveryBlend));
+                return;
+            }
+
+            heldModelInstance.transform.localRotation = carryRotation;
+        }
+
+        private static bool UsesSeamlessCarryHandoff(ToolMotionType motionType)
+        {
+            return motionType == ToolMotionType.Pickaxe
+                || motionType == ToolMotionType.Hoe;
+        }
+
+        private Quaternion ResolveCarryLocalRotation()
+        {
+            if (heldModelInstance == null || handAnchor == null)
+            {
+                return heldModelBaseLocalRotation;
+            }
+
             if (requestedCarryType == HeldItemCarryType.None || requestedCarryWeight <= 0f)
             {
-                heldModelInstance.transform.localRotation = heldModelBaseLocalRotation;
-                return;
+                return heldModelBaseLocalRotation;
             }
 
             Vector3 localDirection = requestedCarryType == HeldItemCarryType.Club
@@ -161,21 +244,31 @@ namespace KMS
                 : longToolCarryDirection;
             if (localDirection.sqrMagnitude < 0.0001f)
             {
-                heldModelInstance.transform.localRotation = heldModelBaseLocalRotation;
-                return;
+                return heldModelBaseLocalRotation;
             }
 
+            Quaternion targetLocalRotation = ResolveDirectionLocalRotation(localDirection, 0f);
+            return Quaternion.Slerp(
+                heldModelBaseLocalRotation,
+                targetLocalRotation,
+                requestedCarryWeight);
+        }
+
+        private Quaternion ResolveDirectionLocalRotation(Vector3 localDirection, float roll)
+        {
             Quaternion baseWorldRotation = handAnchor.rotation * heldModelBaseLocalRotation;
             Vector3 currentAxis = baseWorldRotation * heldModelAxis;
             Vector3 targetAxis = transform.TransformDirection(localDirection.normalized);
             Quaternion targetWorldRotation =
                 Quaternion.FromToRotation(currentAxis, targetAxis) * baseWorldRotation;
+            if (!Mathf.Approximately(roll, 0f))
+            {
+                targetWorldRotation = Quaternion.AngleAxis(roll, targetAxis) * targetWorldRotation;
+            }
+
             Quaternion targetLocalRotation =
                 Quaternion.Inverse(handAnchor.rotation) * targetWorldRotation;
-            heldModelInstance.transform.localRotation = Quaternion.Slerp(
-                heldModelBaseLocalRotation,
-                targetLocalRotation,
-                requestedCarryWeight);
+            return targetLocalRotation;
         }
 
         private void OnValidate()
@@ -201,6 +294,10 @@ namespace KMS
             if (movement == null) movement = GetComponent<PlayerMovement>();
             if (movement != null && movement.Animator != null) animator = movement.Animator;
             if (animator == null) animator = GetComponentInChildren<Animator>(true);
+            if (toolAnimationController == null)
+            {
+                toolAnimationController = GetComponent<PlayerToolAnimationController>();
+            }
             ResolveHandAnchor();
         }
 
@@ -219,6 +316,11 @@ namespace KMS
             requestedCarryWeight = 0f;
             heldModelBaseLocalRotation = Quaternion.identity;
             heldModelAxis = Vector3.up;
+            wasToolActionActive = false;
+            actionEntryLocalRotation = Quaternion.identity;
+            actionExitLocalRotation = Quaternion.identity;
+            actionRecoveryBlend = 1f;
+            lastActionMotionType = ToolMotionType.None;
             if (heldModelInstance == null) return;
 
             Destroy(heldModelInstance);

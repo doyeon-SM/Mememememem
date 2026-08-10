@@ -24,6 +24,8 @@ Shader "Hidden/GH/Distance Gradient Fog"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
 
             SAMPLER(sampler_BlitTexture);
+            TEXTURECUBE(_GHFogDayCube);
+            SAMPLER(sampler_GHFogDayCube);
 
             float _GHDistanceFogEnabled;
             half4 _GHFogNearColor;
@@ -34,9 +36,80 @@ Shader "Hidden/GH/Distance Gradient Fog"
             float _GHFogMidPoint;
             float _GHFogMaxOpacity;
             float _GHFogDistancePower;
-            float _GHFogHorizonWidth;
-            float _GHFogHorizonOffset;
-            float _GHFogHorizonIntensity;
+            float _GHFogSkyMatch;
+            float _GHFogDayCubeAvailable;
+            float _GHFogGradientAvailable;
+            half4 _GHFogGradientHorizonColor;
+            half4 _GHFogGradientSkyColor;
+            float _GHFogGradientFadeBegin;
+            float _GHFogGradientFadeEnd;
+            float _GHFogSkyNightBlend;
+            half4 _GHFogSkyTint;
+            float _GHFogSkyExposure;
+            float _GHFogSkyRotation;
+            float _GHFogDaySkyScale;
+            float _GHFogDayVerticalOffset;
+            float _GHFogSkyHazeOpacity;
+            float _GHFogSkyHazeHeight;
+            float _GHFogHorizonStrength;
+            float _GHFogHorizonHeight;
+            float _GHFogHorizonColorInfluence;
+
+            float2 RotateFogDirection(float2 value, float angleRadians)
+            {
+                float sineValue;
+                float cosineValue;
+                sincos(angleRadians, sineValue, cosineValue);
+                return float2(
+                    value.x * cosineValue - value.y * sineValue,
+                    value.x * sineValue + value.y * cosineValue);
+            }
+
+            half3 SampleDirectionalSky(float3 viewDirection)
+            {
+                float3 direction = normalize(viewDirection);
+                direction.xz = RotateFogDirection(
+                    direction.xz,
+                    radians(_GHFogSkyRotation));
+
+                half3 dayColor = _GHFogFarColor.rgb;
+                if (_GHFogDayCubeAvailable > 0.5)
+                {
+                    float3 dayDirection = direction;
+                    dayDirection.xz *= max(_GHFogDaySkyScale, 0.001);
+                    dayDirection.y += _GHFogDayVerticalOffset * 0.01;
+                    dayColor = SAMPLE_TEXTURECUBE(
+                        _GHFogDayCube,
+                        sampler_GHFogDayCube,
+                        normalize(dayDirection)).rgb;
+                    dayColor *= _GHFogSkyTint.rgb * max(0.0, _GHFogSkyExposure);
+                }
+
+                half3 nightColor = _GHFogFarColor.rgb;
+                if (_GHFogGradientAvailable > 0.5)
+                {
+                    float gradientAmount = smoothstep(
+                        _GHFogGradientFadeBegin,
+                        max(
+                            _GHFogGradientFadeEnd,
+                            _GHFogGradientFadeBegin + 0.001),
+                        direction.y);
+                    nightColor = lerp(
+                        _GHFogGradientHorizonColor.rgb,
+                        _GHFogGradientSkyColor.rgb,
+                        gradientAmount);
+                    nightColor *= max(0.0, _GHFogSkyExposure);
+                }
+
+                half3 sampledSky = lerp(
+                    dayColor,
+                    nightColor,
+                    saturate(_GHFogSkyNightBlend));
+                return lerp(
+                    _GHFogFarColor.rgb,
+                    sampledSky,
+                    saturate(_GHFogSkyMatch));
+            }
 
             half4 Frag(Varyings input) : SV_Target
             {
@@ -68,45 +141,70 @@ Shader "Hidden/GH/Distance Gradient Fog"
                     UNITY_MATRIX_I_VP);
                 float3 viewDirection = normalize(
                     farWorldPosition - _WorldSpaceCameraPos);
-                float horizonCenter = sin(radians(_GHFogHorizonOffset));
-                float horizonWidth = max(
-                    0.0001,
-                    sin(radians(max(0.01, _GHFogHorizonWidth))));
-                float horizonDistance = abs(viewDirection.y - horizonCenter);
-                float horizonShape = 1.0 - smoothstep(
-                    horizonWidth * 0.18,
-                    horizonWidth,
-                    horizonDistance);
-                float horizonOpacity = horizonShape
-                    * saturate(_GHFogHorizonIntensity);
+                half3 directionalSkyColor = SampleDirectionalSky(viewDirection);
 
-                // Sky pixels receive only the narrow horizon haze. This keeps
-                // the upper sky clear while blending the sea/sky boundary.
+                float skyHazeHeight = sin(radians(max(3.0, _GHFogSkyHazeHeight)));
+                float horizonDistance = abs(viewDirection.y);
+                float horizonHaze = 1.0 - smoothstep(
+                    skyHazeHeight * 0.08,
+                    skyHazeHeight,
+                    horizonDistance);
+                float skyHazeOpacity = horizonHaze
+                    * min(saturate(_GHFogSkyHazeOpacity), 0.35);
+                half3 sharedHazeColor = lerp(
+                    directionalSkyColor,
+                    _GHFogFarColor.rgb,
+                    0.18);
+                float horizonFogHeight = sin(radians(
+                    clamp(_GHFogHorizonHeight, 1.0, 20.0)));
+                float horizonFogMask = 1.0 - smoothstep(
+                    horizonFogHeight * 0.04,
+                    horizonFogHeight,
+                    abs(viewDirection.y));
+                half3 horizonFogTint = lerp(
+                    _GHFogMidColor.rgb,
+                    _GHFogFarColor.rgb,
+                    0.65);
+                half3 horizonFogColor = lerp(
+                    directionalSkyColor,
+                    horizonFogTint,
+                    saturate(_GHFogHorizonColorInfluence));
+                float horizonFogOpacity = horizonFogMask
+                    * saturate(_GHFogHorizonStrength);
+
+                // Sky pixels keep their actual skybox details. Only a subtle
+                // horizon haze is shared with distant geometry, removing the
+                // hard terrain/sky seam without covering the upper skybox.
                 #if UNITY_REVERSED_Z
                     if (rawDepth <= 0.00001)
                     {
+                        half3 skyOrDepthlessSurface = lerp(
+                            sourceColor.rgb,
+                            sharedHazeColor,
+                            skyHazeOpacity);
                         return half4(
                             lerp(
-                                sourceColor.rgb,
-                                _GHFogFarColor.rgb,
-                                horizonOpacity),
+                                skyOrDepthlessSurface,
+                                horizonFogColor,
+                                horizonFogOpacity),
                             sourceColor.a);
                     }
                 #else
                     if (rawDepth >= 0.99999)
                     {
+                        half3 skyOrDepthlessSurface = lerp(
+                            sourceColor.rgb,
+                            sharedHazeColor,
+                            skyHazeOpacity);
                         return half4(
                             lerp(
-                                sourceColor.rgb,
-                                _GHFogFarColor.rgb,
-                                horizonOpacity),
+                                skyOrDepthlessSurface,
+                                horizonFogColor,
+                                horizonFogOpacity),
                             sourceColor.a);
                     }
                 #endif
 
-                // World-space distance keeps the fog boundary spherical around
-                // the camera. LinearEyeDepth alone measures only view-space Z,
-                // which made geometry near the screen edges receive less fog.
                 float3 sceneWorldPosition = ComputeWorldSpacePosition(
                     uv,
                     rawDepth,
@@ -121,12 +219,22 @@ Shader "Hidden/GH/Distance Gradient Fog"
                     (sceneDistance - _GHFogStartDistance) / fogRange);
                 fogDistance = pow(
                     max(fogDistance, 0.00001),
-                    clamp(_GHFogDistancePower, 0.4, 1.5));
-                float fogAmount = smoothstep(0.0, 1.0, fogDistance);
+                    clamp(_GHFogDistancePower, 0.5, 1.5));
+
+                // Smooth distance response: no screen-angle mask, horizon
+                // strip, or forced terrain replacement is involved.
+                float fogAmount = fogDistance * fogDistance
+                    * (3.0 - 2.0 * fogDistance);
 
                 float middlePoint = clamp(_GHFogMidPoint, 0.01, 0.99);
-                float nearToMiddle = smoothstep(0.0, middlePoint, fogDistance);
-                float middleToFar = smoothstep(middlePoint, 1.0, fogDistance);
+                float nearToMiddle = smoothstep(
+                    0.0,
+                    middlePoint,
+                    fogDistance);
+                float middleToFar = smoothstep(
+                    middlePoint,
+                    1.0,
+                    fogDistance);
                 half3 fogColor = lerp(
                     _GHFogNearColor.rgb,
                     _GHFogMidColor.rgb,
@@ -136,15 +244,35 @@ Shader "Hidden/GH/Distance Gradient Fog"
                     _GHFogFarColor.rgb,
                     middleToFar);
 
-                float opacity = fogAmount * saturate(_GHFogMaxOpacity);
-                float distantHorizonOpacity = horizonOpacity
-                    * smoothstep(0.28, 0.82, fogDistance);
-                opacity = 1.0 - (1.0 - opacity)
-                    * (1.0 - distantHorizonOpacity);
+                // At long range the fog follows the exact skybox direction
+                // behind that pixel. This is what dissolves mountain outlines
+                // naturally instead of producing a flat, clipped silhouette.
+                float skyColorWeight = smoothstep(0.20, 0.92, fogDistance)
+                    * saturate(_GHFogSkyMatch);
                 fogColor = lerp(
                     fogColor,
-                    _GHFogFarColor.rgb,
-                    distantHorizonOpacity);
+                    directionalSkyColor,
+                    skyColorWeight);
+
+                // Keep part of the original surface at every distance. A small
+                // common horizon veil then softens both sides of the boundary.
+                float opacity = fogAmount
+                    * min(saturate(_GHFogMaxOpacity), 0.88);
+                float geometryHorizonBlend = horizonFogOpacity
+                    * smoothstep(0.55, 1.0, fogDistance);
+                fogColor = lerp(
+                    fogColor,
+                    horizonFogColor,
+                    geometryHorizonBlend);
+                opacity = 1.0 - (1.0 - opacity)
+                    * (1.0 - geometryHorizonBlend);
+                float geometryHaze = skyHazeOpacity
+                    * smoothstep(0.35, 1.0, fogDistance);
+                opacity = 1.0 - (1.0 - opacity) * (1.0 - geometryHaze);
+                fogColor = lerp(
+                    fogColor,
+                    sharedHazeColor,
+                    geometryHaze);
                 return half4(
                     lerp(sourceColor.rgb, fogColor, opacity),
                     sourceColor.a);
