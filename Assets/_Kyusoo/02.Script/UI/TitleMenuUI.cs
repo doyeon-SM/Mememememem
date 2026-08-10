@@ -1,8 +1,10 @@
-﻿using System;
+﻿using DG.Tweening;
+using GH.Loading;
+using KMS.Audio;
+using System;
+using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
-using DG.Tweening;
-using GH.Loading;
 
 public class TitleMenuUI : MonoBehaviour
 {
@@ -19,6 +21,13 @@ public class TitleMenuUI : MonoBehaviour
     {
         RefreshButtonStates();
         BindButtonEvents();
+
+        KMSAudioService.Play2D(GameSfxId.Title);
+    }
+
+    private void OnDestroy()
+    {
+        KMSAudioService.StopSfx(GameSfxId.Title);
     }
 
     public void RefreshButtonStates()
@@ -39,6 +48,19 @@ public class TitleMenuUI : MonoBehaviour
         }
 
         if (resetButton != null) resetButton.gameObject.SetActive(true);
+
+        SetAllButtonsInteractable(true);
+    }
+
+    /// <summary>
+    /// 버튼 연타 및 중복 클릭을 방지하기 위한 인터랙션 제어
+    /// </summary>
+    private void SetAllButtonsInteractable(bool interactable)
+    {
+        if (gameStartButton != null) gameStartButton.interactable = interactable;
+        if (newGameButton != null) newGameButton.interactable = interactable;
+        if (continueGameButton != null) continueGameButton.interactable = interactable;
+        if (resetButton != null) resetButton.interactable = interactable;
     }
 
     private void BindButtonEvents()
@@ -49,9 +71,6 @@ public class TitleMenuUI : MonoBehaviour
         BindButton(resetButton, OnClickResetFirstLaunch);
     }
 
-    /// <summary>
-    /// 버튼 공통 바인딩 및 DOTween 클릭 팝업 연출 적용
-    /// </summary>
     private void BindButton(Button button, Action action)
     {
         if (button == null) return;
@@ -60,41 +79,90 @@ public class TitleMenuUI : MonoBehaviour
         button.onClick.AddListener(() => PlayButtonAnimationAndExecute(button, action));
     }
 
-    /// <summary>
-    /// 버튼이 눌릴 때 꾹 눌렸다가 탄성 있게 튀어오르는 연출 후 액션 실행
-    /// </summary>
     private void PlayButtonAnimationAndExecute(Button targetButton, Action action)
     {
         if (targetButton == null) return;
 
-        targetButton.interactable = false;
+        // 🌟 클릭 즉시 모든 타이틀 버튼 비활성화 (연타 방지)
+        SetAllButtonsInteractable(false);
 
         targetButton.transform.DOKill();
 
-        
         Sequence seq = DOTween.Sequence().SetUpdate(true);
         seq.Append(targetButton.transform.DOScale(0.9f, 0.08f).SetEase(Ease.OutQuad));   // 살짝 작아짐
         seq.Append(targetButton.transform.DOScale(1.05f, 0.12f).SetEase(Ease.OutBack)); // 커지며 튀어오름
         seq.Append(targetButton.transform.DOScale(1f, 0.08f).SetEase(Ease.OutQuad));     // 기본 크기로 복귀
         seq.OnComplete(() =>
         {
-            targetButton.interactable = true;
-            action?.Invoke(); 
+            action?.Invoke();
         });
     }
 
     public void OnClickGameStart()
     {
         FirstLaunchManager.SetFirstLaunchCompleted();
-        StartNewGameWithLoadingScreen();
+        StartCoroutine(StartNewGameRoutine());
     }
 
     public void OnClickNewGame()
     {
-        StartNewGameWithLoadingScreen();
+        StartCoroutine(StartNewGameRoutine());
     }
 
     public void OnClickContinue()
+    {
+        StartCoroutine(ContinueGameRoutine());
+    }
+
+    public void OnClickResetFirstLaunch()
+    {
+        FirstLaunchManager.ResetFirstLaunch();
+        RefreshButtonStates();
+    }
+
+    /// <summary>
+    /// 🌟 [수정] 새로 하기: 로딩 패널을 먼저 화면에 그리고 무거운 파일 생성을 뒤이어 수행
+    /// </summary>
+    private IEnumerator StartNewGameRoutine()
+    {
+        bool success = false;
+
+        // 1. 로딩 패널 및 화면 가림 처리 우선 실행
+        if (LoadingManager.Instance != null)
+        {
+            success = LoadingManager.Instance.LoadScene(defaultStartScene, string.Empty);
+        }
+
+        if (success)
+        {
+            // 2. 로딩 패널 UI가 화면을 덮을 수 있도록 1프레임 대기
+            yield return null;
+
+            // 3. 로딩 화면 뒤에서 무거운 새 게임 파일 사전 생성 실행 (체감 렉 제거)
+            if (RecordManager.Instance != null)
+            {
+                RecordManager.Instance.PrepareNewGameFile(defaultStartScene);
+            }
+        }
+        else
+        {
+            // 4. LoadingManager가 없는 예외 비상 경로
+            yield return null;
+            if (RecordManager.Instance != null)
+            {
+                RecordManager.Instance.StartNewGame(defaultStartScene);
+            }
+            else
+            {
+                SetAllButtonsInteractable(true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 🌟 [수정] 이어 하기: 로딩 패널을 거치도록 일원화
+    /// </summary>
+    private IEnumerator ContinueGameRoutine()
     {
         string targetScene = defaultStartScene;
 
@@ -107,44 +175,25 @@ public class TitleMenuUI : MonoBehaviour
             }
         }
 
+        bool success = false;
         if (LoadingManager.Instance != null)
         {
-            bool success = LoadingManager.Instance.LoadScene(targetScene, string.Empty);
-            if (!success && RecordManager.Instance != null)
+            success = LoadingManager.Instance.LoadScene(targetScene, string.Empty);
+        }
+
+        if (!success)
+        {
+            Debug.LogWarning($"[TitleMenuUI] LoadingManager를 통한 이어하기 실패. Scene: {targetScene}");
+            if (RecordManager.Instance != null)
             {
                 RecordManager.Instance.ContinueGame(defaultStartScene);
             }
-        }
-        else if (RecordManager.Instance != null)
-        {
-            RecordManager.Instance.ContinueGame(defaultStartScene);
-        }
-    }
-
-    public void OnClickResetFirstLaunch()
-    {
-        FirstLaunchManager.ResetFirstLaunch();
-        RefreshButtonStates();
-    }
-
-    private void StartNewGameWithLoadingScreen()
-    {
-        if (RecordManager.Instance != null)
-        {
-            RecordManager.Instance.PrepareNewGameFile(defaultStartScene);
-        }
-
-        if (LoadingManager.Instance != null)
-        {
-            bool success = LoadingManager.Instance.LoadScene(defaultStartScene, string.Empty);
-            if (!success && RecordManager.Instance != null)
+            else
             {
-                RecordManager.Instance.StartNewGame(defaultStartScene);
+                SetAllButtonsInteractable(true);
             }
         }
-        else if (RecordManager.Instance != null)
-        {
-            RecordManager.Instance.StartNewGame(defaultStartScene);
-        }
+
+        yield break;
     }
 }

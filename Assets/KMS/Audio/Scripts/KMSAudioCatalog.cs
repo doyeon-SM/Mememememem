@@ -45,7 +45,8 @@ namespace KMS.Audio
         Farm,
         WheatFarm,
         Wind,
-        Bird
+        Bird,
+        Title
     }
 
     [Serializable]

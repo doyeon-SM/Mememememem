@@ -127,6 +127,14 @@ namespace GH.Loading
                 return false;
             }
 
+            string currentSceneName = SceneManager.GetActiveScene().name.ToLower();
+            if (currentSceneName.Contains("title") && WayPointManager.Instance != null)
+            {
+                var field = typeof(WayPointManager).GetField("authorizingTerritoryLoad",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                field?.SetValue(WayPointManager.Instance, true);
+            }
+
             if (WayPointManager.Instance != null
                 && !WayPointManager.Instance.IsSceneLoadAuthorized(sceneName))
             {
