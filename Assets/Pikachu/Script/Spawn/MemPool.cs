@@ -7,6 +7,7 @@
 //   가비지 컬렉션(GC) 스파이크로 인해 렉이 발생할 수 있습니다.
 // - 이를 방지하기 위해 Unity 내장 ObjectPool<T>를 사용하여 미리 생성해두고 재사용합니다.
 // ============================================================================
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Pool;
 using MemSystem.Core;
@@ -44,6 +45,11 @@ namespace MemSystem.Spawn
         // =================================================================
 
         private ObjectPool<Mem> pool;
+
+        // 현재 풀 밖(사용 중)에 나가 있는 인스턴스 집합.
+        // ObjectPool의 collectionCheck는 중복 반환 시 예외를 던져 호출부 Update를 통째로 중단시키므로,
+        // 예외가 나기 전에 여기서 걸러 무시한다.
+        private readonly HashSet<Mem> checkedOut = new HashSet<Mem>();
 
         /// <summary>현재 월드에 활성화된 멤 수</summary>
         public int ActiveCount => pool != null ? pool.CountActive : 0;
@@ -101,6 +107,8 @@ namespace MemSystem.Spawn
             var mem = pool.Get();
             if (mem != null)
             {
+                checkedOut.Add(mem);
+
                 // 팩토리를 통해 데이터 초기화 및 활성화
                 factory.InitializeMem(mem, data, position);
             }
@@ -117,6 +125,11 @@ namespace MemSystem.Spawn
         {
             if (pool == null || mem == null) return;
 
+            // 이미 반환됐거나 이 풀에서 나간 적 없는 인스턴스는 무시한다.
+            // (같은 멤에 대해 이벤트 핸들러와 호출부가 각각 Despawn을 부르는 경우가 있어,
+            //  여기서 막지 않으면 ObjectPool이 예외를 던져 Update 루프 전체가 중단된다.)
+            if (!checkedOut.Remove(mem)) return;
+
             // 상태 리셋 후 풀 반환 (비활성화 처리)
             mem.ResetForPool();
             pool.Release(mem);
@@ -130,6 +143,7 @@ namespace MemSystem.Spawn
         /// </summary>
         public void ClearPool()
         {
+            checkedOut.Clear();
             pool?.Clear();
         }
 
@@ -161,6 +175,7 @@ namespace MemSystem.Spawn
         {
             if (mem != null)
             {
+                checkedOut.Remove(mem);
                 Destroy(mem.gameObject);
             }
         }
