@@ -878,7 +878,9 @@ public class WayPointMapUI : MonoBehaviour
             view.Refresh(
                 mapDefinition,
                 GetMapDisplayName(mapDefinition),
-                isAvailable);
+                isAvailable,
+                normalMapButtonTextColor,
+                lockedMapButtonTextColor);
             return;
         }
 
