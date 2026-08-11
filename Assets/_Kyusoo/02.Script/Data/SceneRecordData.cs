@@ -21,7 +21,7 @@ public class SceneRecordData : MonoBehaviour, IRecord
 
     public void InitDefaultData(ref SaveData saveData)
     {
-        saveData.lastPlayScene = "Main_World2";
+        saveData.lastPlayScene = "Main_World_3";
     }
 
     public void SaveData(string saveFilePath)
