@@ -22,7 +22,8 @@ namespace KMS.InventoryDuped
         [SerializeField] private RectTransform contentRect;
         [SerializeField] private RectTransform gridRect;
         [SerializeField] private RectTransform upgradeButtonRect;
-        [SerializeField] private float cellHeight = 60f;
+        [SerializeField] private RectTransform trashSlotRect;
+        [SerializeField] private float cellHeight = 74f;
         [SerializeField] private float rowSpacing = 6f;
         [SerializeField] private float upgradeGap = 10f;
         [SerializeField] private float upgradeHeight = 54f;
@@ -130,8 +131,20 @@ namespace KMS.InventoryDuped
                 upgradeButtonRect.anchoredPosition = new Vector2(0f, -(gridHeight + upgradeGap));
             }
 
+            // Keep both footer actions on the same grid row.  The trash slot used
+            // to be pinned to the panel corner, which made it drift away from the
+            // upgrade slot as the unlocked inventory height changed.
+            if (trashSlotRect != null)
+            {
+                trashSlotRect.anchoredPosition = new Vector2(320f, -(gridHeight + upgradeGap));
+            }
+
             float contentHeight = gridHeight + bottomPadding;
-            if (canUpgrade) contentHeight += upgradeGap + upgradeHeight;
+            // The trash action remains available at maximum capacity even after
+            // the upgrade button disappears, so its footer row must still be
+            // included in the scrollable content height.
+            if (canUpgrade || trashSlotRect != null)
+                contentHeight += upgradeGap + upgradeHeight;
             Vector2 contentSize = contentRect.sizeDelta;
             contentSize.y = contentHeight;
             contentRect.sizeDelta = contentSize;
