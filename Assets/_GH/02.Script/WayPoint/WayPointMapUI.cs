@@ -54,7 +54,7 @@ public class WayPointMapUI : MonoBehaviour
     [SerializeField] private RectTransform tooltipRoot;
     [Tooltip("새 WayPoint_ToolTip 디자인 루트의 전용 뷰입니다.")]
     [SerializeField] private WayPointTooltipView tooltipView;
-    [Tooltip("잠긴 웨이포인트에만 사용하는 별도 툴팁 프리팹입니다. 비워 두면 Resources에서 자동으로 찾습니다.")]
+    [Tooltip("잠긴 웨이포인트에만 사용하는 별도 툴팁 프리팹입니다. 루트와 자식의 앵커, 크기, 텍스트 스타일은 이 프리팹에서 편집하며 런타임에도 그대로 유지됩니다. 비워 두면 Resources에서 자동으로 찾습니다.")]
     [SerializeField] private WayPointTooltipView lockedTooltipPrefab;
     [FormerlySerializedAs("tooltipText")]
     [SerializeField] private TMP_Text tooltipTitleText;
@@ -1329,15 +1329,7 @@ public class WayPointMapUI : MonoBehaviour
                 lockedTooltipView = Instantiate(lockedTooltipPrefab, parent);
                 lockedTooltipView.name = "WayPoint_ToolTip_Locked";
                 lockedTooltipView.Initialize(this);
-
-                RectTransform lockedRect = lockedTooltipView.RectTransform;
-                if (lockedRect != null)
-                {
-                    lockedRect.anchorMin = new Vector2(0.5f, 0.5f);
-                    lockedRect.anchorMax = new Vector2(0.5f, 0.5f);
-                    lockedRect.pivot = new Vector2(0.5f, 0.5f);
-                    lockedRect.anchoredPosition = Vector2.zero;
-                }
+                // 프리팹에서 조정한 RectTransform 앵커, 피벗, 크기와 오프셋을 유지한다.
             }
 
             targetView = lockedTooltipView;
