@@ -25,6 +25,8 @@ using UnityEngine.InputSystem;
 [DisallowMultipleComponent]
 public sealed class SceneUIManager : MonoBehaviour
 {
+    private const string OptionManagedUIId = "Option";
+
     public static SceneUIManager Instance { get; private set; }
 
     [Header("UI References")]
@@ -80,6 +82,10 @@ public sealed class SceneUIManager : MonoBehaviour
     private bool settingsStateApplied;
     private bool managedUIStateApplied;
     private bool persistentSceneCursorStateApplied;
+
+    private CanvasGroup settingsUIVisibilityGroup;
+    private float settingsUIAlphaBeforeOption = 1f;
+    private bool settingsUIHiddenForOption;
 
     private CursorLockMode normalCursorLockMode;
     private bool normalCursorVisible;
@@ -170,12 +176,20 @@ public sealed class SceneUIManager : MonoBehaviour
             HandleEscape();
         }
 
+        SynchronizeSettingsUIAlphaForOption();
         UpdateManagedOpenSnapshot();
 
         if (!IsSettingsOpen && !HasOpenManagedUI && !keepCursorVisibleInScene)
         {
             CaptureNormalState();
         }
+    }
+
+    private void LateUpdate()
+    {
+        // Option 버튼 이벤트가 이 매니저의 Update 이후에 직접 SetActive를 바꿔도
+        // 같은 프레임 렌더링 전에 ESC UI 알파를 맞춥니다.
+        SynchronizeSettingsUIAlphaForOption();
     }
 
     private void OnDisable()
@@ -266,6 +280,7 @@ public sealed class SceneUIManager : MonoBehaviour
         }
 
         RestoreSettingsState();
+        SynchronizeSettingsUIAlphaForOption();
     }
 
     /// <summary>현재 씬에서 환경설정 하위 창의 적용 페이드를 사용할지와 시간을 반환합니다.</summary>
@@ -339,10 +354,12 @@ public sealed class SceneUIManager : MonoBehaviour
         if (isSettingsSubPage && IsSettingsOpen)
         {
             ApplySettingsOpenState();
+            SynchronizeSettingsUIAlphaForOption();
             UpdateManagedOpenSnapshot();
             return;
         }
 
+        SynchronizeSettingsUIAlphaForOption();
         SynchronizeManagedUIState();
         UpdateManagedOpenSnapshot();
     }
@@ -830,7 +847,66 @@ public sealed class SceneUIManager : MonoBehaviour
         }
 
         ApplySettingsOpenState();
+        SynchronizeSettingsUIAlphaForOption();
         UpdateManagedOpenSnapshot();
+    }
+
+    /// <summary>
+    /// Option 환경설정 하위 창이 열려 있는 동안 뒤쪽의 ESC 설정 UI만 투명하게 만듭니다.
+    /// 씬/프리팹 수정 없이 런타임 CanvasGroup을 사용하며, 닫힐 때 숨기기 직전 알파값을 복구합니다.
+    /// </summary>
+    private void SynchronizeSettingsUIAlphaForOption()
+    {
+        bool shouldHideSettingsUI = IsSettingsOpen && IsOptionManagedUIOpen();
+        if (!shouldHideSettingsUI)
+        {
+            RestoreSettingsUIAlphaAfterOption();
+            return;
+        }
+
+        if (settingsUI == null)
+        {
+            return;
+        }
+
+        if (settingsUIVisibilityGroup == null)
+        {
+            settingsUIVisibilityGroup = settingsUI.GetComponent<CanvasGroup>();
+            if (settingsUIVisibilityGroup == null)
+            {
+                settingsUIVisibilityGroup = settingsUI.AddComponent<CanvasGroup>();
+            }
+        }
+
+        if (!settingsUIHiddenForOption)
+        {
+            settingsUIAlphaBeforeOption = settingsUIVisibilityGroup.alpha;
+            settingsUIHiddenForOption = true;
+        }
+
+        settingsUIVisibilityGroup.alpha = 0f;
+    }
+
+    private bool IsOptionManagedUIOpen()
+    {
+        return managedUIById.TryGetValue(OptionManagedUIId, out GameObject optionUI)
+            && IsValidManagedUI(optionUI)
+            && IsOpen(optionUI);
+    }
+
+    private void RestoreSettingsUIAlphaAfterOption()
+    {
+        if (!settingsUIHiddenForOption)
+        {
+            return;
+        }
+
+        if (settingsUIVisibilityGroup != null)
+        {
+            settingsUIVisibilityGroup.alpha = settingsUIAlphaBeforeOption;
+        }
+
+        settingsUIHiddenForOption = false;
     }
 
     /// <summary>
@@ -1376,6 +1452,8 @@ public sealed class SceneUIManager : MonoBehaviour
 
     private void RestoreRuntimeState()
     {
+        RestoreSettingsUIAlphaAfterOption();
+
         if (settingsStateApplied)
         {
             RestoreSettingsState();

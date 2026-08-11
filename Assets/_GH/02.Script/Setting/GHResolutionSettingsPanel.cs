@@ -113,6 +113,7 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
     private SettingsSnapshot committedSnapshot;
     private CanvasGroup applyFadeCanvasGroup;
     private Coroutine applyCloseFadeCoroutine;
+    private Coroutine selectorIndicatorRefreshCoroutine;
 
     private void Awake()
     {
@@ -127,6 +128,14 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
         LoadCommittedSettingsIntoUi();
         CaptureCommittedSnapshot();
         RefreshAllControls();
+
+        if (selectorIndicatorRefreshCoroutine != null)
+        {
+            StopCoroutine(selectorIndicatorRefreshCoroutine);
+        }
+
+        selectorIndicatorRefreshCoroutine = StartCoroutine(
+            RefreshSelectorIndicatorsAfterInitialization());
     }
 
     private void OnDisable()
@@ -136,7 +145,13 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
             StopCoroutine(applyCloseFadeCoroutine);
         }
 
+        if (selectorIndicatorRefreshCoroutine != null)
+        {
+            StopCoroutine(selectorIndicatorRefreshCoroutine);
+        }
+
         applyCloseFadeCoroutine = null;
+        selectorIndicatorRefreshCoroutine = null;
         ResetApplyFadeVisual();
 
         if (isApplicationQuitting
@@ -395,12 +410,30 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
 
         if (selector.enableIndicators && selector.indicatorParent != null)
         {
+            string selectedItemTitle = selector.items[index].itemTitle;
+            bool hasNamedIndicator = false;
+
+            for (int i = 0; i < selector.indicatorParent.childCount; i++)
+            {
+                Transform indicator = selector.indicatorParent.GetChild(i);
+                if (indicator != null && indicator.name == selectedItemTitle)
+                {
+                    hasNamedIndicator = true;
+                    break;
+                }
+            }
+
             for (int i = 0; i < selector.indicatorParent.childCount; i++)
             {
                 Transform indicator = selector.indicatorParent.GetChild(i);
                 Transform onObject = indicator.Find("On");
                 Transform offObject = indicator.Find("Off");
-                bool isSelected = i == index;
+                // HorizontalSelector.UpdateIndicators uses delayed Destroy. During the
+                // first frame, old and newly-created indicator groups can coexist, so a
+                // raw child index can light an indicator that is about to be destroyed.
+                bool isSelected = hasNamedIndicator
+                    ? indicator.name == selectedItemTitle
+                    : i == index;
 
                 if (onObject != null)
                 {
@@ -413,6 +446,25 @@ public sealed class GHResolutionSettingsPanel : MonoBehaviour
                 }
             }
         }
+    }
+
+    private IEnumerator RefreshSelectorIndicatorsAfterInitialization()
+    {
+        // HorizontalSelector.Awake rebuilds its indicators with delayed Destroy.
+        // Reapply the committed indices after that first-frame rebuild has settled.
+        yield return null;
+
+        selectorIndicatorRefreshCoroutine = null;
+        if (!isActiveAndEnabled)
+        {
+            yield break;
+        }
+
+        isRefreshingUi = true;
+        SetSelectorIndexWithoutNotify(resolutionSelector, selectedResolutionIndex);
+        SetSelectorIndexWithoutNotify(screenModeSelector, selectedFullScreen ? 1 : 0);
+        SetSelectorIndexWithoutNotify(viewDistanceSelector, selectedViewDistanceIndex);
+        isRefreshingUi = false;
     }
 
     private static void SetSliderValueWithoutNotify(Slider slider, float normalizedValue)
