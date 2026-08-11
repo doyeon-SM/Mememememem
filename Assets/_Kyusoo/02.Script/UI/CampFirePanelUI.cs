@@ -23,51 +23,41 @@ public class CampFirePanelUI : MonoBehaviour
     [Header("상단 - 건물 이름")]
     [SerializeField] private TextMeshProUGUI buildingName;
 
-    [Header("중앙 - 멤 슬롯 (단일 1마리)")]
+    [Header("Center - 2단 모드 설정")]
+    [SerializeField] private GameObject centerMemModeObject;            // [1] 멤 배치모드 (Default, Cooking 시 활성화)
     [SerializeField] private MemSlotUI singleMemSlot;
 
-    [Header("중앙 - Default_Mode (레시피 선택 그리드)")]
-    [SerializeField] private GameObject defaultModeObject;
+    [SerializeField] private GameObject centerSelectedFoodModeObject;   // [2] 선택한 요리모드 (SelectFood 시 활성화)
+    [SerializeField] private Image selectionImage;
+    [SerializeField] private TextMeshProUGUI selectionName;
+
+    [Header("Bottom - [1] Default Mode (기본모드)")]
+    [SerializeField] private GameObject bottomDefaultModeObject;
     [SerializeField] private Transform recipeGridParent;
     [SerializeField] private GameObject recipeSlotPrefab;
 
-    [Header("중앙 - Select_Mode (요리 및 재료 정보)")]
-    [SerializeField] private GameObject selectFoodModeObject;
-    [SerializeField] private Image selectionImage;
-    [SerializeField] private TextMeshProUGUI selectionName;
+    [Header("Bottom - [2] Select Mode (선택모드)")]
+    [SerializeField] private GameObject bottomSelectFoodModeObject;
     [SerializeField] private Transform requiredListParent;
     [SerializeField] private GameObject requireMaterialPrefab;
     [SerializeField] private TextMeshProUGUI productAmountText;
-    [SerializeField] private Button btnMin;
     [SerializeField] private Button btnMinus;
     [SerializeField] private Button btnPlus;
-    [SerializeField] private Button btnMax;
-    [SerializeField] private Slider quantitySlider;
-
-    [Header("중앙 - Cooking_Mode (요리 진행 중 정보)")]
-    [SerializeField] private GameObject cookingModeObject;
-    [SerializeField] private Image cookingItemIcon;
-    [SerializeField] private TextMeshProUGUI cookingItemName;
-    [SerializeField] private Button collectRewardBtn;
-    [SerializeField] private TextMeshProUGUI completeCountText;
-
-    [Header("하단 - Default_Mode")]
-    [SerializeField] private GameObject bottomDefaultModeObject;
-    [SerializeField] private TextMeshProUGUI selectGuideText;
-
-    [Header("하단 - Select_Mode")]
-    [SerializeField] private GameObject bottomSelectFoodModeObject;
     [SerializeField] private TextMeshProUGUI cookingDurationText;
     [SerializeField] private Button reSelectBtn;
     [SerializeField] private Button cookBtn;
 
-    [Header("하단 - Cooking_Mode")]
+    [Header("Bottom - [3] Cooking Mode (요리모드)")]
     [SerializeField] private GameObject bottomCookingModeObject;
+    [SerializeField] private Image cookingItemIcon;
+    [SerializeField] private Button cookingItemIconButton;         // 요리 아이콘 클릭 수령용 버튼
+    [SerializeField] private TextMeshProUGUI cookingItemName;
     [SerializeField] private Slider progressBar;
     [SerializeField] private TextMeshProUGUI durationText;
-    [SerializeField] private TextMeshProUGUI cookingStatusText;
+    [SerializeField] private TextMeshProUGUI cookingStatusText;    // 상태 텍스트 ("요리중 .", "요리 완료!", "식량이 부족합니다" 등)
+    [SerializeField] private TextMeshProUGUI cookingSpeedText;     // 요리 속도 (예: "15.0초 (개당)")
+    [SerializeField] private TextMeshProUGUI cookingQuantityText;  // 완성된 수량 (0부터 시작하여 완성 시 +1)
     [SerializeField] private Button cancelBtn;
-    [SerializeField] private Button getBtn;
 
     private CampFireRuntime targetFacility;
     public CampFireRuntime TargetFacility => targetFacility;
@@ -78,9 +68,6 @@ public class CampFirePanelUI : MonoBehaviour
     private int selectedQuantity = 1;
     private int maxCookableQuantity = 1;
 
-    private bool isUpdatingQuantitySystem = false;
-    private Coroutine errorFeedbackCoroutine;
-
     private Sequence dotsSequence;
     private bool isAnimatingDots = false;
     private string currentStatusPrefix = "";
@@ -90,17 +77,22 @@ public class CampFirePanelUI : MonoBehaviour
         if (Instance == null) Instance = this;
         else Destroy(gameObject);
 
-        if (btnMin != null) btnMin.onClick.AddListener(SetMinQuantity);
-        if (btnMax != null) btnMax.onClick.AddListener(SetMaxQuantity);
         if (btnMinus != null) btnMinus.onClick.AddListener(() => ModifyQuantity(-1));
         if (btnPlus != null) btnPlus.onClick.AddListener(() => ModifyQuantity(1));
-        if (quantitySlider != null) quantitySlider.onValueChanged.AddListener(OnSliderQuantityChanged);
 
         if (reSelectBtn != null) reSelectBtn.onClick.AddListener(OnClickReSelect);
         if (cookBtn != null) cookBtn.onClick.AddListener(OnClickCookStart);
         if (cancelBtn != null) cancelBtn.onClick.AddListener(OnClickCancelCooking);
-        if (getBtn != null) getBtn.onClick.AddListener(OnClickCollectReward);
-        if (collectRewardBtn != null) collectRewardBtn.onClick.AddListener(OnClickCollectReward);
+
+        // 요리 아이콘 클릭 시 수령 연동
+        if (cookingItemIconButton != null)
+        {
+            cookingItemIconButton.onClick.AddListener(OnClickCollectReward);
+        }
+        else if (cookingItemIcon != null && cookingItemIcon.TryGetComponent<Button>(out var iconBtn))
+        {
+            iconBtn.onClick.AddListener(OnClickCollectReward);
+        }
 
         if (singleMemSlot != null) singleMemSlot.InitializeSlot(0);
     }
@@ -116,18 +108,16 @@ public class CampFirePanelUI : MonoBehaviour
 
         if (currentUIState == CookingUIState.Cooking && !string.IsNullOrEmpty(targetFacility.currentCookingItem) && targetFacility.totalRequiredTime > 0f)
         {
-            float progressNormalized = targetFacility.currentProgressTime / targetFacility.totalRequiredTime;
+            float progressNormalized = Mathf.Clamp01(targetFacility.currentProgressTime / targetFacility.totalRequiredTime);
             if (progressBar != null) progressBar.value = progressNormalized;
-            if (durationText != null) durationText.text = $"{Mathf.Clamp(progressNormalized * 100f, 0f, 100f):F0}%";
+            if (durationText != null) durationText.text = $"{progressNormalized * 100f:F0}%";
 
             UpdateCookingStatusUI();
+            UpdateCookingInfoText();
         }
 
         bool canGet = (targetFacility.currentStorageCount > 0);
-        if (getBtn != null) getBtn.interactable = canGet;
-        if (collectRewardBtn != null) collectRewardBtn.interactable = canGet;
-
-        UpdateStorageText();
+        if (cookingItemIconButton != null) cookingItemIconButton.interactable = canGet;
     }
 
     private bool IsAllDeployedMemsStarving()
@@ -146,8 +136,19 @@ public class CampFirePanelUI : MonoBehaviour
         bool isAllStarving = !isNoMem && IsAllDeployedMemsStarving();
         int currentSatiety = ConsumeFoodSystem.Instance != null ? ConsumeFoodSystem.Instance.CurrentSatiety : 0;
 
-        // 1. 멤 미배치
-        if (isNoMem)
+        bool isCookingComplete = (targetFacility.remainingQuantity <= 0 && targetFacility.currentStorageCount > 0)
+                              || (targetFacility.targetQuantity > 0 && targetFacility.currentStorageCount >= targetFacility.targetQuantity);
+
+        if (isCookingComplete)
+        {
+            StopDotsAnimation();
+            if (cookingStatusText != null)
+            {
+                cookingStatusText.color = Color.white;
+                cookingStatusText.text = "요리 완료!";
+            }
+        }
+        else if (isNoMem)
         {
             StopDotsAnimation();
             if (cookingStatusText != null)
@@ -156,7 +157,6 @@ public class CampFirePanelUI : MonoBehaviour
                 cookingStatusText.text = "멤을 배치해야 합니다";
             }
         }
-        // 2. 가동 중지 (배치된 멤 모두 허기량 0)
         else if (isAllStarving)
         {
             if (currentSatiety > 0)
@@ -173,10 +173,9 @@ public class CampFirePanelUI : MonoBehaviour
                 }
             }
         }
-        // 3. 정상 요리 중
         else if (targetFacility.isCooking)
         {
-            StartDotsAnimation("요리중");
+            StartDotsAnimation();
         }
         else
         {
@@ -189,9 +188,29 @@ public class CampFirePanelUI : MonoBehaviour
         }
     }
 
-    private void StartDotsAnimation(string customPrefix = "요리중")
+    private void UpdateCookingInfoText()
     {
-        string prefix = string.IsNullOrEmpty(customPrefix) ? "요리중" : customPrefix;
+        if (targetFacility == null) return;
+
+        if (cookingSpeedText != null)
+        {
+            cookingSpeedText.text = $"{targetFacility.totalRequiredTime:F1}초 (개당)";
+        }
+
+        if (cookingQuantityText != null)
+        {
+            cookingQuantityText.text = targetFacility.currentStorageCount.ToString();
+        }
+    }
+
+    private void StartDotsAnimation(string customPrefix = null)
+    {
+        string prefix = customPrefix;
+
+        if (string.IsNullOrEmpty(prefix))
+        {
+            prefix = "요리중";
+        }
 
         if (isAnimatingDots && currentStatusPrefix == prefix) return;
 
@@ -274,9 +293,9 @@ public class CampFirePanelUI : MonoBehaviour
     {
         if (targetFacility == null) return;
 
-        if (defaultModeObject != null) defaultModeObject.SetActive(currentUIState == CookingUIState.Default);
-        if (selectFoodModeObject != null) selectFoodModeObject.SetActive(currentUIState == CookingUIState.SelectFood);
-        if (cookingModeObject != null) cookingModeObject.SetActive(currentUIState == CookingUIState.Cooking);
+        bool isMemMode = (currentUIState == CookingUIState.Default || currentUIState == CookingUIState.Cooking);
+        if (centerMemModeObject != null) centerMemModeObject.SetActive(isMemMode);
+        if (centerSelectedFoodModeObject != null) centerSelectedFoodModeObject.SetActive(currentUIState == CookingUIState.SelectFood);
 
         if (bottomDefaultModeObject != null) bottomDefaultModeObject.SetActive(currentUIState == CookingUIState.Default);
         if (bottomSelectFoodModeObject != null) bottomSelectFoodModeObject.SetActive(currentUIState == CookingUIState.SelectFood);
@@ -301,6 +320,7 @@ public class CampFirePanelUI : MonoBehaviour
             }
 
             UpdateCookingStatusUI();
+            UpdateCookingInfoText();
         }
         else
         {
@@ -312,23 +332,17 @@ public class CampFirePanelUI : MonoBehaviour
     {
         if (activeSelectedFood == null) return;
 
-        isUpdatingQuantitySystem = true;
         if (productAmountText != null) productAmountText.text = selectedQuantity.ToString();
-        if (quantitySlider != null) quantitySlider.value = selectedQuantity;
-        isUpdatingQuantitySystem = false;
 
-        if (btnMin != null) btnMin.interactable = (selectedQuantity > 1);
         if (btnMinus != null) btnMinus.interactable = (selectedQuantity > 1);
-
         if (btnPlus != null) btnPlus.interactable = (maxCookableQuantity > 0 && selectedQuantity < maxCookableQuantity);
-        if (btnMax != null) btnMax.interactable = (maxCookableQuantity > 0 && selectedQuantity < maxCookableQuantity);
 
         if (cookBtn != null)
         {
             cookBtn.interactable = (maxCookableQuantity > 0 && selectedQuantity > 0);
         }
 
-        if (errorFeedbackCoroutine == null && cookingDurationText != null)
+        if (cookingDurationText != null)
         {
             if (maxCookableQuantity == 0)
             {
@@ -344,34 +358,9 @@ public class CampFirePanelUI : MonoBehaviour
         }
     }
 
-    private void OnSliderQuantityChanged(float value)
-    {
-        if (isUpdatingQuantitySystem) return;
-
-        int maxLimit = Mathf.Max(1, maxCookableQuantity);
-        selectedQuantity = Mathf.Clamp(Mathf.RoundToInt(value), 1, maxLimit);
-
-        UpdateSelectFoodCalculatedUI();
-        GenerateRequiredMaterialListUI();
-    }
-
     private void ModifyQuantity(int amount)
     {
         selectedQuantity = Mathf.Clamp(selectedQuantity + amount, 1, maxCookableQuantity);
-        UpdateSelectFoodCalculatedUI();
-        GenerateRequiredMaterialListUI();
-    }
-
-    private void SetMinQuantity()
-    {
-        selectedQuantity = 1;
-        UpdateSelectFoodCalculatedUI();
-        GenerateRequiredMaterialListUI();
-    }
-
-    private void SetMaxQuantity()
-    {
-        selectedQuantity = maxCookableQuantity;
         UpdateSelectFoodCalculatedUI();
         GenerateRequiredMaterialListUI();
     }
@@ -405,6 +394,9 @@ public class CampFirePanelUI : MonoBehaviour
         return finalCalculatedMax == int.MaxValue ? 0 : Mathf.Max(0, finalCalculatedMax);
     }
 
+    /// <summary>
+    /// 🌟 [수정] RequireMaterialItemUI를 우선적으로 찾아서 재료 이미지, 이름, 수량이 CraftingPanelUI처럼 모두 표시되도록 보완
+    /// </summary>
     private void GenerateRequiredMaterialListUI()
     {
         if (requiredListParent == null) return;
@@ -416,14 +408,8 @@ public class CampFirePanelUI : MonoBehaviour
         List<string> ingredientIds = targetFacility.GetIngredientIdsForCooking(activeSelectedFood.Item_ID);
         if (ingredientIds == null || ingredientIds.Count == 0) return;
 
-        PlayerInventory inventory = FindFirstObjectByType<PlayerInventory>();
-        WarehouseInventory warehouse = FindFirstObjectByType<WarehouseInventory>();
-
-        int displayCount = Mathf.Min(4, ingredientIds.Count);
-
-        for (int i = 0; i < displayCount; i++)
+        foreach (string matId in ingredientIds)
         {
-            string matId = ingredientIds[i];
             if (string.IsNullOrEmpty(matId)) continue;
 
             ItemData materialItemData = FindItemDataInCatalog(matId);
@@ -432,18 +418,21 @@ public class CampFirePanelUI : MonoBehaviour
             {
                 GameObject materialSlotInstance = Instantiate(requireMaterialPrefab, requiredListParent);
 
-                int owned = 0;
-                if (inventory != null) owned += inventory.GetItemAmount(matId);
-                if (warehouse != null) owned += warehouse.GetItemAmount(matId);
-                int requiredTotal = 1 * selectedQuantity;
-
-                if (materialSlotInstance.TryGetComponent<CookingRecipeSlotIconUI>(out var iconUI))
-                {
-                    iconUI.SetupSlot(materialItemData, owned, requiredTotal);
-                }
-                else if (materialSlotInstance.TryGetComponent<RequireMaterialItemUI>(out var materialUI))
+                // 🌟 RequireMaterialItemUI를 1순위로 바인딩 (이름, 아이콘, 수량이 모두 표시됨)
+                if (materialSlotInstance.TryGetComponent<RequireMaterialItemUI>(out var materialUI))
                 {
                     materialUI.SetupMaterialSlot(materialItemData, 1, selectedQuantity);
+                }
+                else if (materialSlotInstance.TryGetComponent<CookingRecipeSlotIconUI>(out var iconUI))
+                {
+                    PlayerInventory inventory = FindFirstObjectByType<PlayerInventory>();
+                    WarehouseInventory warehouse = FindFirstObjectByType<WarehouseInventory>();
+                    int owned = 0;
+                    if (inventory != null) owned += inventory.GetItemAmount(matId);
+                    if (warehouse != null) owned += warehouse.GetItemAmount(matId);
+                    int requiredTotal = 1 * selectedQuantity;
+
+                    iconUI.SetupSlot(materialItemData, owned, requiredTotal);
                 }
                 else if (materialSlotInstance.TryGetComponent<Image>(out var img))
                 {
@@ -507,22 +496,12 @@ public class CampFirePanelUI : MonoBehaviour
         maxCookableQuantity = CalculateMaxCookableLimitAmount(selectedFood.Item_ID);
         selectedQuantity = 1;
 
-        if (quantitySlider != null)
-        {
-            quantitySlider.minValue = 1;
-            quantitySlider.maxValue = Mathf.Max(1, maxCookableQuantity);
-            quantitySlider.wholeNumbers = true;
-        }
-
         currentUIState = CookingUIState.SelectFood;
         RefreshCookingModeUI();
     }
 
     private void OnClickReSelect()
     {
-        if (errorFeedbackCoroutine != null) StopCoroutine(errorFeedbackCoroutine);
-        errorFeedbackCoroutine = null;
-
         activeSelectedFood = null;
         selectedQuantity = 1;
 
@@ -534,11 +513,7 @@ public class CampFirePanelUI : MonoBehaviour
     {
         if (targetFacility == null || activeSelectedFood == null) return;
 
-        if (targetFacility.DeployedMems.Count == 0)
-        {
-            TriggerErrorFeedbackAlert("멤이 배치되지 않았습니다");
-            return;
-        }
+        if (targetFacility.DeployedMems.Count == 0) return;
 
         List<string> ingredientIds = targetFacility.GetIngredientIdsForCooking(activeSelectedFood.Item_ID);
         bool isMaterialEnough = true;
@@ -562,11 +537,7 @@ public class CampFirePanelUI : MonoBehaviour
             }
         }
 
-        if (!isMaterialEnough)
-        {
-            TriggerErrorFeedbackAlert("요리에 필요한 식재료가 부족합니다");
-            return;
-        }
+        if (!isMaterialEnough) return;
 
         foreach (string matId in ingredientIds)
         {
@@ -599,29 +570,6 @@ public class CampFirePanelUI : MonoBehaviour
         RefreshCookingModeUI();
     }
 
-    private void TriggerErrorFeedbackAlert(string errorMsg)
-    {
-        if (errorFeedbackCoroutine != null) StopCoroutine(errorFeedbackCoroutine);
-        errorFeedbackCoroutine = StartCoroutine(ErrorFeedbackRoutine(errorMsg));
-    }
-
-    private IEnumerator ErrorFeedbackRoutine(string msg)
-    {
-        if (cookingDurationText != null)
-        {
-            Color originColor = cookingDurationText.color;
-            cookingDurationText.color = Color.red;
-            cookingDurationText.text = msg;
-
-            yield return new WaitForSeconds(2f);
-
-            cookingDurationText.color = originColor;
-        }
-
-        errorFeedbackCoroutine = null;
-        UpdateSelectFoodCalculatedUI();
-    }
-
     private void OnClickCancelCooking()
     {
         if (targetFacility == null) return;
@@ -644,12 +592,6 @@ public class CampFirePanelUI : MonoBehaviour
         }
 
         RefreshCookingModeUI();
-    }
-
-    private void UpdateStorageText()
-    {
-        if (targetFacility == null || completeCountText == null) return;
-        completeCountText.text = targetFacility.currentStorageCount.ToString();
     }
 
     public bool TryDeployMemFromUI(MemData targetMem, CapturedMemEntry targetEntry)
@@ -689,9 +631,6 @@ public class CampFirePanelUI : MonoBehaviour
 
     public void ClosePanel()
     {
-        if (errorFeedbackCoroutine != null) StopCoroutine(errorFeedbackCoroutine);
-        errorFeedbackCoroutine = null;
-
         StopDotsAnimation();
         targetFacility = null;
     }
@@ -701,7 +640,6 @@ public class CampFirePanelUI : MonoBehaviour
         if (targetFacility == null) return;
         RefreshStaticUI();
         RefreshCookingModeUI();
-        UpdateStorageText();
     }
 
     private ItemData FindItemDataInCatalog(string itemId)

@@ -24,8 +24,9 @@ namespace HDY.Tutorial
     /// ItemCatalogManager.FindItemData로 조회한 ItemData.ItemIcon을 쓴다(ShopSlotUI가 쓰는 것과
     /// 동일한 조회 방식).
     ///
-    /// [호버링 없음 / 표시 전용] 슬롯(TutorialRewardSlotUI)은 아이콘 + 개수만 보여주는 단순 표시라
-    /// 별도 포인터 이벤트를 두지 않는다.
+    /// [HDY 요청 - 아이템 이름 표시] 슬롯(TutorialRewardSlotUI)이 아이콘 + 개수뿐 아니라 이름도 함께
+    /// 표시한다. 이름 조회는 ResolveItemName이 ResolveIcon과 같은 방식으로 처리한다(골드는 하드코딩된
+    /// "골드", 나머지는 ItemCatalogManager 조회).
     ///
     /// [HDY 요청 - F키로도 확인 가능] 탐험 중에는 마우스 커서가 잠겨있어 버튼 클릭이 불가능하다.
     /// 그래서 확인 버튼 클릭과 TutorialManager가 F키(상호작용키) 입력을 받아 대신 호출해주는 경로가
@@ -161,7 +162,7 @@ namespace HDY.Tutorial
             foreach (var reward in rewards)
             {
                 var slot = Instantiate(rewardSlotPrefab, rewardListParent);
-                slot.Setup(ResolveIcon(reward.itemId), reward.amount);
+                slot.Setup(ResolveIcon(reward.itemId), reward.amount, ResolveItemName(reward.itemId));
                 spawnedSlots.Add(slot);
             }
         }
@@ -176,6 +177,19 @@ namespace HDY.Tutorial
             itemCatalogManager = ItemCatalogManager.Resolve(itemCatalogManager);
             var itemData = itemCatalogManager != null ? itemCatalogManager.FindItemData(itemId) : null;
             return itemData != null ? itemData.ItemIcon : null;
+        }
+
+        /// <summary>ResolveIcon과 동일한 규칙으로 아이템 표시 이름을 찾는다. "gold"는 카탈로그에 없어 하드코딩된 이름을 대신 쓴다.</summary>
+        private string ResolveItemName(string itemId)
+        {
+            if (string.Equals(itemId, GoldRewardItemId, StringComparison.OrdinalIgnoreCase))
+            {
+                return "골드";
+            }
+
+            itemCatalogManager = ItemCatalogManager.Resolve(itemCatalogManager);
+            var itemData = itemCatalogManager != null ? itemCatalogManager.FindItemData(itemId) : null;
+            return itemData != null ? itemData.ItemName : itemId;
         }
 
         /// <summary>보상 팝업이 떠 있어 확인을 기다리는 중인지. TutorialManager가 F키 입력을 이 팝업의 확인으로 넘길지 판단할 때 쓴다.</summary>

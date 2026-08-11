@@ -76,16 +76,22 @@ public class FacilityUpgrade : MonoBehaviour, IUpgradable
         {
             buildingName = data.buildingName;
         }
-        return $"{buildingName} 레벨업";
+        return $"{buildingName} 강화";
     }
 
-    public string GetUpgradeDescription()
+    // [HDY 요청] 팝업 중간에 표시할 문구. 최대 레벨이면 "Lv.Max", 아니면 "강화 비용".
+    public string GetUpgradeMiddleText()
     {
         int currentLevel = GetCurrentLevel();
         int maxLevel = GetMaxLevel();
 
-        if (currentLevel >= maxLevel) return "Lv.Max";
-        return $"Lv.{currentLevel} → Lv.{currentLevel + 1}";
+        return currentLevel >= maxLevel ? "Lv.Max" : "강화 비용";
+    }
+
+    // [HDY 요청] 확인 버튼에 표시할 고정 문구.
+    public string GetUpgradeButtonText()
+    {
+        return "강화";
     }
 
     public void ApplyUpgrade()
