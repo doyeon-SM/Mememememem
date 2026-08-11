@@ -199,6 +199,18 @@ namespace KMS
             return CurrentHunger >= amount;
         }
 
+        /// <summary>
+        /// Consumes hunger only when the full requested amount is available.
+        /// Use this for transactional costs that must not partially drain hunger.
+        /// </summary>
+        public bool TryConsumeHungerExact(float amount)
+        {
+            if (amount <= 0f) return true;
+            if (!HasHunger(amount)) return false;
+
+            return ConsumeHunger(amount);
+        }
+
         public float RestoreHunger(float amount)
         {
             if (amount <= 0f) return 0f;

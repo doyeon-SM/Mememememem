@@ -76,17 +76,16 @@ namespace HDY.Inventory
             return "창고 확장";
         }
 
-        /// <summary>확인 버튼 라벨에 그대로 들어가는 짧은 문구. 최대치면 "MAX", 아니면 "현재행 → 다음행".</summary>
-        public string GetUpgradeDescription()
+        /// <summary>[HDY 요청] 팝업 중간에 표시할 문구. 최대치면 "MAX", 아니면 "추가 10칸 확장 비용".</summary>
+        public string GetUpgradeMiddleText()
         {
-            if (warehouseInventory == null) return string.Empty;
+            return CanUpgrade() ? "추가 10칸 확장 비용" : "MAX";
+        }
 
-            if (!CanUpgrade())
-            {
-                return "MAX";
-            }
-
-            return $"{warehouseInventory.RowCount}줄 → {warehouseInventory.RowCount + 1}줄";
+        /// <summary>[HDY 요청] 확인 버튼에 표시할 고정 문구.</summary>
+        public string GetUpgradeButtonText()
+        {
+            return "확장";
         }
 
         /// <summary>UpgradePopupUI가 비용 지불을 마친 뒤 호출한다. 여기서는 순수하게 행 추가만 담당한다.</summary>

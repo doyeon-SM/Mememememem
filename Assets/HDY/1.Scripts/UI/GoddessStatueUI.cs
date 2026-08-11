@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UI;
 using HDY.Item;
 using HDY.Territory;
 using HDY.Recipe;
@@ -50,6 +51,11 @@ namespace HDY.UI
     /// [스크롤] 마우스 휠 스크롤은 Unity의 ScrollRect가 기본으로 지원하므로 이 스크립트에서 별도 처리하지 않는다.
     /// [그리드 최대 2줄] 각 줄의 슬롯 배치는 GoddessStatueUI_LevelRow의 Grid Layout Group(Constraint를
     /// Fixed Row Count=2로 설정)이 알아서 처리하므로, 이 컨트롤러는 슬롯 개수만 넘겨주면 된다.
+    ///
+    /// [HDY 요청 - 닫기 버튼] closeButton은 UIManager.Instance.CloseCurrent()를 그대로 호출한다
+    /// (HandleCloseButtonClicked). MemStorageUI의 닫기 버튼과 동일한 이유로 SetActive(false)를 직접
+    /// 호출하지 않는다 - 이 패널은 UIManager가 Instantiate/Destroy로 생명주기를 관리하므로, 자체 닫기
+    /// 버튼도 반드시 CloseCurrent()를 거쳐야 openStack/currentPrefabKey 상태가 어긋나지 않는다.
     /// </summary>
     public class GoddessStatueUI : MonoBehaviour
     {
@@ -76,6 +82,10 @@ namespace HDY.UI
         [Header("레벨별 줄 배치 (ScrollRect의 Content를 rowsParent로 연결)")]
         [SerializeField] private Transform rowsParent;
         [SerializeField] private GoddessStatueUI_LevelRow rowPrefab;
+
+        [Header("닫기 버튼 (HDY 요청)")]
+        [Tooltip("클릭 시 UIManager.Instance.CloseCurrent()를 호출한다.")]
+        [SerializeField] private Button closeButton;
 
         private readonly List<GoddessStatueUI_LevelRow> rows = new List<GoddessStatueUI_LevelRow>();
 
@@ -106,6 +116,7 @@ namespace HDY.UI
             if (itemCatalogManager == null) Debug.LogWarning("[GoddessStatueUI] itemCatalogManager를 찾을 수 없습니다.", this);
             if (rowsParent == null) Debug.LogWarning("[GoddessStatueUI] rowsParent가 비어있습니다.", this);
             if (rowPrefab == null) Debug.LogWarning("[GoddessStatueUI] rowPrefab이 비어있습니다.", this);
+            if (closeButton == null) Debug.LogWarning("[GoddessStatueUI] closeButton이 비어있습니다. 닫기 버튼이 동작하지 않습니다.", this);
         }
 
         private void OnEnable()
@@ -116,6 +127,12 @@ namespace HDY.UI
             if (territoryExpansionManager != null) territoryExpansionManager.OnExpansionChanged += HandleDataChanged;
 
             TrySubscribeToPopupClosed();
+
+            if (closeButton != null)
+            {
+                closeButton.onClick.RemoveListener(HandleCloseButtonClicked);
+                closeButton.onClick.AddListener(HandleCloseButtonClicked);
+            }
 
             selectedItemId = null;
             BuildRows();
@@ -139,6 +156,11 @@ namespace HDY.UI
             }
 
             subscribedToPopupClosed = false;
+
+            if (closeButton != null)
+            {
+                closeButton.onClick.RemoveListener(HandleCloseButtonClicked);
+            }
         }
 
         /// <summary>이미 구독했으면 아무 것도 하지 않는다. UpgradePopupUI.Instance가 아직 없으면 조용히 넘어가고(다음 시도에서 재시도), 있으면 구독하고 플래그를 세운다.</summary>
@@ -149,6 +171,23 @@ namespace HDY.UI
 
             UpgradePopupUI.Instance.OnPopupClosed += HandlePopupClosed;
             subscribedToPopupClosed = true;
+        }
+
+        /// <summary>
+        /// [HDY 요청 - 닫기 버튼] UIManager.Instance.CloseCurrent()를 그대로 호출한다. 여기서 직접
+        /// SetActive(false)나 Destroy를 호출하지 않는 이유는 UIManager.cs에 문서화되어 있다 -
+        /// CloseCurrent()를 거치지 않으면 openStack/currentPrefabKey가 실제 열림 상태와 어긋나 같은 HUD
+        /// 버튼을 다시 눌러도 반응하지 않는 등의 문제가 생길 수 있다.
+        /// </summary>
+        private void HandleCloseButtonClicked()
+        {
+            if (UIManager.Instance == null)
+            {
+                Debug.LogWarning("[GoddessStatueUI] UIManager.Instance를 찾을 수 없어 닫기 버튼을 처리할 수 없습니다.", this);
+                return;
+            }
+
+            UIManager.Instance.CloseCurrent();
         }
 
         /// <summary>레시피 해금/영지 확장 상태가 바뀌었을 때(팝업 결제 성공 등) 호출. 선택을 풀고 줄 전체를 다시 그린다.</summary>

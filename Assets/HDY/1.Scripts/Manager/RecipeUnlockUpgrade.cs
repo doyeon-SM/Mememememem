@@ -17,8 +17,9 @@ namespace HDY.Recipe
     /// 조회한다. 카탈로그에 등록이 안 돼 있는 등 못 찾으면 경고 로그를 남기고 Item_ID를 그대로 대신 표시한다
     /// (팝업 자체가 빈 제목으로 뜨는 것보다는 낫다).
     ///
-    /// [확인 버튼 라벨 고정] 레시피 해금은 "레벨업"처럼 숫자가 올라가는 개념이 아니라 예/아니오로 끝나는
-    /// 단일 동작이라, 확인 버튼 라벨(GetUpgradeDescription)은 "Unlock"으로 고정한다.
+    /// [HDY 요청 - 헤더/미들/버튼 텍스트 고정] 제목은 "{아이템 이름} 해금", 팝업 중간 설명(GetUpgradeMiddleText)은
+    /// "해금 가격", 확인 버튼(GetUpgradeButtonText)은 "해금"으로 전부 고정이다 - 레시피 해금은 "레벨업"처럼
+    /// 숫자가 올라가는 개념이 아니라 예/아니오로 끝나는 단일 동작이라 최대치 분기가 필요 없다.
     ///
     /// [재료/골드 표시는 팝업이 범용으로 처리] GetUpgradeCost()가 반환하는 GoldCost/MaterialCosts만 채워주면,
     /// 재료 스크롤 뷰 표시 여부·골드 텍스트 표시 여부는 UpgradePopupUI.RefreshDisplay가 알아서 처리한다
@@ -44,15 +45,22 @@ namespace HDY.Recipe
             if (itemData == null || string.IsNullOrEmpty(itemData.ItemName))
             {
                 Debug.LogWarning($"[RecipeUnlockUpgrade] Item_ID '{entry.Item_ID}'에 해당하는 ItemData(또는 ItemName)를 찾을 수 없어 Item_ID를 그대로 표시합니다.");
-                return entry.Item_ID;
+                return $"{entry.Item_ID} 해금";
             }
 
-            return itemData.ItemName;
+            return $"{itemData.ItemName} 해금";
         }
 
-        public string GetUpgradeDescription()
+        /// <summary>[HDY 요청] 팝업 중간에 표시할 문구. 레시피 해금은 최대치 개념이 없어 항상 고정.</summary>
+        public string GetUpgradeMiddleText()
         {
-            return "Unlock";
+            return "해금 가격";
+        }
+
+        /// <summary>[HDY 요청] 확인 버튼에 표시할 고정 문구.</summary>
+        public string GetUpgradeButtonText()
+        {
+            return "해금";
         }
 
         /// <summary>

@@ -2959,7 +2959,7 @@ MonoBehaviour:
   jumpBufferTime: 0.12
   groundLayers:
     serializedVersion: 2
-    m_Bits: 247
+    m_Bits: 33554679
   groundedOffset: -0.12
   groundedRadius: 0.28
   moveHungerCostPerSecond: 0
@@ -2967,7 +2967,7 @@ MonoBehaviour:
   sprintHungerCostPerSecond: 0.25
   externalForceDecay: 8
   ladderClimbSpeed: 3
-  ladderSlideDownSpeed: 1.2
+  ladderSlideDownSpeed: 2.4
   ladderSnapSpeed: 12
   ladderInputThreshold: 0.1
   ladderAnimationCycleDuration: 0.7666667
@@ -2997,6 +2997,8 @@ MonoBehaviour:
   positionSmoothTime: 0
   aimFovReduction: 5
   zoomSmoothTime: 0.2
+  aimShoulderOffset: {x: 0.7, y: 0.15, z: 0.25}
+  aimShoulderSmoothTime: 0.2
   avoidClipping: 1
   collisionRadius: 0.2
   collisionBuffer: 0.1
@@ -3157,6 +3159,8 @@ MonoBehaviour:
   recoveryInterval: 4
   healthPerTick: 20
   hungerCostPerTick: 10
+  minimumHungerReserve: 10
+  recoveryDelayAfterEating: 2
   logRecovery: 0
 --- !u!114 &5163941127334908272
 MonoBehaviour:

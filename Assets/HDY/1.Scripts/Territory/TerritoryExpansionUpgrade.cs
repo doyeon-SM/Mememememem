@@ -34,9 +34,16 @@ namespace HDY.Territory
             return $"영지 확장 (Lv.{entry.RequestTerritoryLevel})";
         }
 
-        public string GetUpgradeDescription()
+        /// <summary>[HDY 요청] 팝업 중간에 표시할 문구. 영지 확장은 최대치 개념이 없어 항상 고정.</summary>
+        public string GetUpgradeMiddleText()
         {
-            return "Unlock";
+            return "확장 가격";
+        }
+
+        /// <summary>[HDY 요청] 확인 버튼에 표시할 고정 문구.</summary>
+        public string GetUpgradeButtonText()
+        {
+            return "확장";
         }
 
         /// <summary>슬롯 자체가 이미 interactable=false로 걸러지지만, 팝업이 열린 뒤에도 방어적으로 한 번 더 확인한다.</summary>

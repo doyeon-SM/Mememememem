@@ -15,9 +15,9 @@ namespace HDY.UI
     /// 예: 시작 2페이지 -> 최대 10페이지면 업그레이드는 총 8단계이므로 goldCostPerStep 크기도 8이어야 한다.
     /// RecipeUnlockManager와 마찬가지로 기획 확정 전까지는 인스펙터에서 단계별 금액을 직접 입력하는 방식이다.
     ///
-    /// [설명 문구] UpgradePopupUI에는 별도 설명 영역이 없고, GetUpgradeDescription()의 결과가 그대로 확인
-    /// 버튼의 라벨로 쓰인다. 그래서 "멤창고를 2페이지에서 3페이지로 확장합니다" 같은 긴 문장 대신
-    /// "2 → 3"처럼 버튼 한 줄에 들어가는 짧은 형식으로 반환한다.
+    /// [HDY 요청 - 헤더/미들/버튼 텍스트] 제목은 GetUpgradeTitle(), 팝업 중간 설명은 GetUpgradeMiddleText()
+    /// ("추가 페이지 확장 비용" 또는 최대치면 "MAX"), 확인 버튼 라벨은 GetUpgradeButtonText()("확장" 고정)로
+    /// 각각 나뉜다.
     ///
     /// [territoryData 자동 탐색] 이 컴포넌트는 씬에 상시 배치된 오브젝트가 아니라 멤창고 UI 프리팹의
     /// 일부라, HUD 버튼으로 열릴 때마다 UIManager가 새로 Instantiate한다. territoryData는 다른 씬
@@ -30,7 +30,7 @@ namespace HDY.UI
     /// null이라 captureManager 확보에 실패하고, 예전에는 재시도 로직이 없어 CanUpgrade()가 영원히 false를
     /// 반환해 업그레이드 버튼이 계속 숨겨진 채로 남는 문제가 있었다(MemStorageUI.RefreshUpgradeButtonState가
     /// 그 결과를 보고 SetActive(false)로 꺼버림). 그래서 MemStorageUI_Grid의 EnsureCaptureManager()와 동일한
-    /// 패턴으로, 외부에서 호출되는 모든 진입점(CanUpgrade/GetUpgradeCost/GetUpgradeDescription/ApplyUpgrade)
+    /// 패턴으로, 외부에서 호출되는 모든 진입점(CanUpgrade/GetUpgradeCost/GetUpgradeMiddleText/ApplyUpgrade)
     /// 맨 앞에서 EnsureReferences()를 다시 호출해서, 아직 확보 못 했으면 호출될 때마다 다시 시도한다(이미
     /// 확보되어 있으면 아무 것도 하지 않으므로 여러 번 호출해도 안전하다).
     /// </summary>
@@ -53,7 +53,7 @@ namespace HDY.UI
 
         /// <summary>
         /// [HDY 요청] captureManager/territoryData가 비어있으면 다시 확보를 시도한다. Awake뿐 아니라
-        /// CanUpgrade/GetUpgradeCost/GetUpgradeDescription/ApplyUpgrade 등 외부에서 호출되는 모든 진입점
+        /// CanUpgrade/GetUpgradeCost/GetUpgradeMiddleText/ApplyUpgrade 등 외부에서 호출되는 모든 진입점
         /// 맨 앞에서 호출해서, Awake 실행 순서 문제로 최초 확보에 실패했더라도 이후 호출 시점에 다시 시도할
         /// 수 있게 한다.
         /// </summary>
@@ -94,21 +94,22 @@ namespace HDY.UI
 
         public string GetUpgradeTitle()
         {
-            return "멤창고 페이지 확장";
+            return "멤 창고 확장";
         }
 
-        /// <summary>확인 버튼 라벨에 그대로 들어가는 짧은 문구. 최대치면 "MAX", 아니면 "현재페이지 → 다음페이지".</summary>
-        public string GetUpgradeDescription()
+        /// <summary>[HDY 요청] 팝업 중간에 표시할 문구. 최대치면 "MAX", 아니면 "추가 페이지 확장 비용".</summary>
+        public string GetUpgradeMiddleText()
         {
             EnsureReferences();
             if (captureManager == null) return string.Empty;
 
-            if (!CanUpgrade())
-            {
-                return "MAX";
-            }
+            return CanUpgrade() ? "추가 페이지 확장 비용" : "MAX";
+        }
 
-            return $"{captureManager.UnlockedPageCount} → {captureManager.UnlockedPageCount + 1}";
+        /// <summary>[HDY 요청] 확인 버튼에 표시할 고정 문구.</summary>
+        public string GetUpgradeButtonText()
+        {
+            return "확장";
         }
 
         /// <summary>UpgradePopupUI가 비용 지불을 마친 뒤 호출한다. 여기서는 순수하게 페이지 언락만 담당한다.</summary>
