@@ -77,12 +77,12 @@ namespace KMS
         private static readonly RollKey[] HoeInwardRollKeys =
         {
             new RollKey(0f, 0f),
-            new RollKey(0.10f, -20f),
-            new RollKey(0.18f, -40f),
-            new RollKey(0.24f, -45f),
-            new RollKey(0.30f, -45f),
-            new RollKey(0.45f, -45f),
-            new RollKey(0.60f, -25f),
+            new RollKey(0.10f, 30f),
+            new RollKey(0.18f, 10f),
+            new RollKey(0.24f, 5f),
+            new RollKey(0.30f, 5f),
+            new RollKey(0.45f, 5f),
+            new RollKey(0.60f, 25f),
             new RollKey(0.76f, 0f),
             new RollKey(0.90f, 0f),
             new RollKey(1f, 0f)
