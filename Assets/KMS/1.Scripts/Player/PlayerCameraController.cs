@@ -20,9 +20,12 @@ namespace KMS
         [SerializeField] private float maxPitch = 70f;
         [SerializeField] private float positionSmoothTime = 0.04f;
 
-        [Header("Aim Zoom")]
+        [Header("Aim Camera")]
         [SerializeField, Min(0f)] private float aimFovReduction = 5f;
         [SerializeField, Min(0.01f)] private float zoomSmoothTime = 0.2f;
+        [Tooltip("조준 중 카메라 피벗 오프셋입니다. X=카메라 기준 오른쪽, Y=월드 위, Z=카메라 수평 전방입니다.")]
+        [SerializeField] private Vector3 aimShoulderOffset = new Vector3(0.7f, 0.15f, 0.25f);
+        [SerializeField, Min(0.01f)] private float aimShoulderSmoothTime = 0.2f;
 
         [Header("Collision")]
         [SerializeField] private bool avoidClipping = true;
@@ -43,6 +46,9 @@ namespace KMS
         private float defaultFieldOfView;
         private float targetFieldOfView;
         private float fieldOfViewVelocity;
+        private Vector3 currentAimShoulderOffset;
+        private Vector3 targetAimShoulderOffset;
+        private Vector3 aimShoulderOffsetVelocity;
 
         private void Reset()
         {
@@ -77,7 +83,7 @@ namespace KMS
 
         private void LateUpdate()
         {
-            UpdateAimZoom();
+            UpdateAimCameraTransition();
 
             if (input != null)
             {
@@ -103,7 +109,13 @@ namespace KMS
             pitch = Mathf.Clamp(pitch - look.y * verticalSensitivity, minPitch, maxPitch);
 
             Quaternion rotation = Quaternion.Euler(pitch, yaw, 0f);
-            Vector3 pivot = followTarget.position + targetOffset;
+            Quaternion horizontalRotation = Quaternion.Euler(0f, yaw, 0f);
+            Vector3 horizontalShoulderOffset = horizontalRotation * new Vector3(
+                currentAimShoulderOffset.x,
+                0f,
+                currentAimShoulderOffset.z);
+            Vector3 shoulderOffset = horizontalShoulderOffset + Vector3.up * currentAimShoulderOffset.y;
+            Vector3 pivot = followTarget.position + targetOffset + shoulderOffset;
             float finalDistance = GetCameraDistance(pivot, rotation);
             Vector3 desiredPosition = pivot + rotation * new Vector3(0f, 0f, -finalDistance);
 
@@ -125,26 +137,41 @@ namespace KMS
 
         public void SetAimZoom(bool isAiming)
         {
-            if (targetCamera == null) return;
-            targetFieldOfView = isAiming
-                ? Mathf.Max(1f, defaultFieldOfView - aimFovReduction)
-                : defaultFieldOfView;
+            targetAimShoulderOffset = isAiming ? aimShoulderOffset : Vector3.zero;
+
+            if (targetCamera != null)
+            {
+                targetFieldOfView = isAiming
+                    ? Mathf.Max(1f, defaultFieldOfView - aimFovReduction)
+                    : defaultFieldOfView;
+            }
         }
 
-        private void UpdateAimZoom()
+        private void UpdateAimCameraTransition()
         {
-            if (targetCamera == null) return;
-            targetCamera.fieldOfView = Mathf.SmoothDamp(
-                targetCamera.fieldOfView,
-                targetFieldOfView,
-                ref fieldOfViewVelocity,
-                zoomSmoothTime);
+            if (targetCamera != null)
+            {
+                targetCamera.fieldOfView = Mathf.SmoothDamp(
+                    targetCamera.fieldOfView,
+                    targetFieldOfView,
+                    ref fieldOfViewVelocity,
+                    zoomSmoothTime);
+            }
+
+            currentAimShoulderOffset = Vector3.SmoothDamp(
+                currentAimShoulderOffset,
+                targetAimShoulderOffset,
+                ref aimShoulderOffsetVelocity,
+                aimShoulderSmoothTime);
         }
 
         private void OnDisable()
         {
             if (targetCamera != null) targetCamera.fieldOfView = defaultFieldOfView;
             fieldOfViewVelocity = 0f;
+            currentAimShoulderOffset = Vector3.zero;
+            targetAimShoulderOffset = Vector3.zero;
+            aimShoulderOffsetVelocity = Vector3.zero;
         }
 
         private float GetCameraDistance(Vector3 pivot, Quaternion rotation)
