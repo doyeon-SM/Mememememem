@@ -67,7 +67,8 @@ namespace KMS
         public Button MapButton => mapButton;
         public Button RespawnButton => respawnButton;
 
-        private readonly List<Image> hungerEffectSegmentImages = new List<Image>();
+        private readonly List<KMSHungerSegmentGraphic> hungerEffectSegmentGraphics =
+            new List<KMSHungerSegmentGraphic>();
         private readonly List<ActiveItemObtainedToast> itemObtainedToasts = new List<ActiveItemObtainedToast>();
         private readonly List<GameObject> hungerRestorePopups = new List<GameObject>();
         private Coroutine hungerRestoreRoutine;
@@ -886,22 +887,36 @@ namespace KMS
             int requiredCount = foodEffects != null ? foodEffects.FoodSegments.Count : 0;
             EnsureHungerEffectSegmentCount(requiredCount);
 
-            float cursor = 0f;
-            for (int i = 0; i < hungerEffectSegmentImages.Count; i++)
+            float trackedSatiety = 0f;
+            if (foodEffects != null)
             {
-                Image image = hungerEffectSegmentImages[i];
-                if (image == null) continue;
+                for (int i = 0; i < foodEffects.FoodSegments.Count; i++)
+                {
+                    KMSFoodEffectSegment trackedSegment = foodEffects.FoodSegments[i];
+                    if (trackedSegment != null)
+                    {
+                        trackedSatiety += Mathf.Max(0f, trackedSegment.RemainingSatiety);
+                    }
+                }
+            }
+            float visibleEnd = maxHunger > 0f ? Mathf.Clamp01(trackedSatiety / maxHunger) : 0f;
+
+            float cursor = 0f;
+            for (int i = 0; i < hungerEffectSegmentGraphics.Count; i++)
+            {
+                KMSHungerSegmentGraphic graphic = hungerEffectSegmentGraphics[i];
+                if (graphic == null) continue;
 
                 if (i >= requiredCount || maxHunger <= 0f)
                 {
-                    image.gameObject.SetActive(false);
+                    graphic.gameObject.SetActive(false);
                     continue;
                 }
 
                 KMSFoodEffectSegment segment = foodEffects.FoodSegments[i];
                 if (segment == null || segment.RemainingSatiety <= 0f)
                 {
-                    image.gameObject.SetActive(false);
+                    graphic.gameObject.SetActive(false);
                     continue;
                 }
 
@@ -912,17 +927,18 @@ namespace KMS
                 if (segment.Effects.Count == 0)
                 {
                     // 효과 없는(포만감만) 세그먼트: cursor는 이미 전진했으므로 뒤 세그먼트 위치는 정확하다.
-                    image.gameObject.SetActive(false);
+                    graphic.gameObject.SetActive(false);
                     continue;
                 }
 
-                RectTransform rect = image.rectTransform;
+                RectTransform rect = graphic.rectTransform;
                 rect.anchorMin = new Vector2(start, 0f);
                 rect.anchorMax = new Vector2(end, 1f);
                 rect.anchoredPosition = Vector2.zero;
                 rect.sizeDelta = Vector2.zero;
-                image.color = GetFoodEffectColor(segment);
-                image.gameObject.SetActive(end > start);
+                graphic.color = GetFoodEffectColor(segment);
+                graphic.SetRoundedEnds(start <= 0.0001f, end >= visibleEnd - 0.0001f);
+                graphic.gameObject.SetActive(end > start);
             }
         }
 
@@ -930,32 +946,30 @@ namespace KMS
         {
             if (hungerFill == null || hungerFill.rectTransform.parent == null) return;
 
-            while (hungerEffectSegmentImages.Count < count)
+            while (hungerEffectSegmentGraphics.Count < count)
             {
                 var segmentObject = new GameObject(
-                    $"FoodEffectSegment_{hungerEffectSegmentImages.Count}",
+                    $"FoodEffectSegment_{hungerEffectSegmentGraphics.Count}",
                     typeof(RectTransform),
                     typeof(CanvasRenderer),
-                    typeof(Image));
+                    typeof(KMSHungerSegmentGraphic));
                 segmentObject.layer = hungerFill.gameObject.layer;
                 segmentObject.transform.SetParent(hungerFill.rectTransform.parent, false);
 
-                Image image = segmentObject.GetComponent<Image>();
-                image.raycastTarget = false;
-                image.maskable = hungerFill.maskable;
-                image.sprite = null;
-                image.type = Image.Type.Simple;
-                hungerEffectSegmentImages.Add(image);
+                KMSHungerSegmentGraphic graphic = segmentObject.GetComponent<KMSHungerSegmentGraphic>();
+                graphic.raycastTarget = false;
+                graphic.maskable = hungerFill.maskable;
+                hungerEffectSegmentGraphics.Add(graphic);
             }
 
             int firstSibling = hungerFill.transform.GetSiblingIndex() + 1;
-            for (int i = 0; i < hungerEffectSegmentImages.Count; i++)
+            for (int i = 0; i < hungerEffectSegmentGraphics.Count; i++)
             {
-                Image image = hungerEffectSegmentImages[i];
-                if (image != null)
+                KMSHungerSegmentGraphic graphic = hungerEffectSegmentGraphics[i];
+                if (graphic != null)
                 {
-                    image.transform.SetSiblingIndex(
-                        Mathf.Min(firstSibling + i, image.transform.parent.childCount - 1));
+                    graphic.transform.SetSiblingIndex(
+                        Mathf.Min(firstSibling + i, graphic.transform.parent.childCount - 1));
                 }
             }
         }
