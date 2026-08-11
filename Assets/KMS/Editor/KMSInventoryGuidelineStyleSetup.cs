@@ -19,17 +19,23 @@ namespace KMS.EditorTools
         private const string RoundedFillPath = KmsSpriteRoot + "/Rounded Filled 1024px_pp1000.png";
         private const string RoundedOutlineSourcePath = ModernUiRoot + "/Border/Rounded/1024px/Rounded Outline 1024px - 1x.png";
         private const string RoundedOutlinePath = KmsSpriteRoot + "/Rounded Outline 1024px - 1x_pp1000.png";
-        private const string ExistingSortIconPath = "Assets/KMS/3.UI/Icons/KMS_Inventory_Category.png";
-        private const string TrashIconPath = ModernUiRoot + "/Icon/System/Trash.png";
+        private const string PikachuIconRoot = "Assets/Pikachu/Resource/Icon";
+        private const string IdIconPath = PikachuIconRoot + "/fluent-emoji-high-contrast--id-button.png";
+        private const string SortIconPath = PikachuIconRoot + "/material-symbols--sort-rounded (1).png";
+        private const string TrashIconPath = PikachuIconRoot + "/mage--trash-fill.png";
 
         private static readonly Color32 OuterPanelColor = new Color32(43, 59, 64, 130);
         private static readonly Color32 InnerPanelColor = new Color32(10, 17, 20, 118);
         private static readonly Color32 SlotColor = new Color32(11, 18, 21, 196);
-        private static readonly Color32 FooterActionColor = new Color32(112, 119, 119, 170);
+        private static readonly Color32 FooterActionColor = new Color32(112, 119, 119, 145);
         private static readonly Color32 BorderColor = new Color32(174, 184, 184, 48);
 
         private const float SlotSize = 74f;
         private const float SlotSpacing = 6f;
+        private const float BorderPixelsPerUnitMultiplier = 3f;
+        private static readonly Vector2 IdIconSize = new Vector2(22f, 22f);
+        private static readonly Vector2 SortIconSize = new Vector2(34f, 34f);
+        private static readonly Vector2 TrashIconSize = new Vector2(46f, 46f);
 
         [MenuItem("KMS/Inventory/Apply Guideline Visual Style")]
         public static void Apply()
@@ -37,7 +43,8 @@ namespace KMS.EditorTools
             EnsureKmsRoundedOutline();
             Sprite roundedFill = LoadSprite(RoundedFillPath);
             Sprite roundedOutline = LoadSprite(RoundedOutlinePath);
-            Sprite existingSortIcon = LoadSprite(ExistingSortIconPath);
+            Sprite idIcon = LoadSprite(IdIconPath);
+            Sprite sortIcon = LoadSprite(SortIconPath);
             Sprite trashIcon = LoadSprite(TrashIconPath);
 
             GameObject root = PrefabUtility.LoadPrefabContents(CanvasPrefabPath);
@@ -55,7 +62,7 @@ namespace KMS.EditorTools
                     "Long-term inventory chrome or scroll content is missing.");
 
                 ConfigurePanels(panel, chrome, roundedFill);
-                ConfigureHeader(chrome, existingSortIcon);
+                ConfigureHeader(chrome, idIcon, sortIcon);
                 ConfigureScroll(scrollRoot, roundedFill);
 
                 GridLayoutGroup gridLayout = inventoryUI.inventoryGrid.GetComponent<GridLayoutGroup>();
@@ -126,7 +133,8 @@ namespace KMS.EditorTools
                 {
                     Image border = Find(slot.transform, "GuidelineBorder")?.GetComponent<Image>();
                     Image background = Find(slot.transform, "Slot_BG")?.GetComponent<Image>();
-                    Require(border?.sprite != null && border.sprite.pixelsPerUnit >= 999f,
+                    Require(border?.sprite != null && border.sprite.pixelsPerUnit >= 999f
+                            && Mathf.Approximately(border.pixelsPerUnitMultiplier, BorderPixelsPerUnitMultiplier),
                         $"Thin PPU 1000 slot border is missing: {slot.name}");
                     Require(background != null && background.rectTransform.anchorMin == Vector2.zero
                             && background.rectTransform.anchorMax == Vector2.one,
@@ -150,8 +158,20 @@ namespace KMS.EditorTools
                     "Upgrade action is not using the reference gray fill.");
                 Require(Find(trash.transform, "Slot_BG")?.GetComponent<Image>()?.color == FooterActionColor,
                     "Trash action is not using the reference gray fill.");
-                Require(Find(trash.transform, "TrashSlotIcon")?.GetComponent<Image>()?.sprite == LoadSprite(TrashIconPath),
-                    "Modern UI Pack trash icon is not installed.");
+                Transform trashIcon = Find(trash.transform, "TrashSlotIcon");
+                Require(trashIcon?.GetComponent<Image>()?.sprite == LoadSprite(TrashIconPath)
+                        && ((RectTransform)trashIcon).sizeDelta == TrashIconSize,
+                    "Merged trash icon is not installed.");
+
+                Transform filters = Find(panel, "P_sort");
+                Transform idIcon = Find(Find(filters, "B_category"), "Image");
+                Transform sortIcon = Find(Find(panel, "B_ID"), "ModernUIIcon");
+                Require(idIcon?.GetComponent<Image>()?.sprite == LoadSprite(IdIconPath)
+                        && ((RectTransform)idIcon).sizeDelta == IdIconSize,
+                    "Merged ID icon is not installed.");
+                Require(sortIcon?.GetComponent<Image>()?.sprite == LoadSprite(SortIconPath)
+                        && ((RectTransform)sortIcon).sizeDelta == SortIconSize,
+                    "Merged independent sort icon is not installed.");
 
                 Button closeButton = Find(panel, "CloseShell")?.GetComponent<Button>();
                 Require(closeButton != null && (closeButton.targetGraphic as Image)?.color.a == 0f,
@@ -193,7 +213,7 @@ namespace KMS.EditorTools
             chrome.SetAsLastSibling();
         }
 
-        private static void ConfigureHeader(RectTransform chrome, Sprite existingSortIcon)
+        private static void ConfigureHeader(RectTransform chrome, Sprite idIcon, Sprite sortIcon)
         {
             TMP_Text title = Find(chrome, "Title")?.GetComponent<TMP_Text>();
             if (title != null)
@@ -249,13 +269,12 @@ namespace KMS.EditorTools
                 }
             }
 
-            // Modern UI Pack has no ID-in-a-box or descending-line sort glyph.
-            // Preserve the authored KMS glyph instead of substituting an unrelated
-            // list-view icon.
+            SetNamedImageSprite(Find(filters, "B_category"), "Image", idIcon, IdIconSize);
+
             Button listButton = Find(chrome, "B_ID")?.GetComponent<Button>();
             Require(listButton != null, "Independent inventory sort button is missing.");
             SetTopRight((RectTransform)listButton.transform, new Vector2(-18f, -56f), new Vector2(42f, 34f));
-            SetButtonSprite(listButton, existingSortIcon, new Vector2(24f, 24f));
+            SetButtonSprite(listButton, sortIcon, SortIconSize);
         }
 
         private static void ConfigureScroll(RectTransform scrollRoot, Sprite roundedFill)
@@ -313,7 +332,7 @@ namespace KMS.EditorTools
             icon.preserveAspect = true;
             icon.rectTransform.anchorMin = icon.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
             icon.rectTransform.anchoredPosition = Vector2.zero;
-            icon.rectTransform.sizeDelta = new Vector2(34f, 34f);
+            icon.rectTransform.sizeDelta = TrashIconSize;
         }
 
         private static void ConfigureScrollableView(
@@ -359,7 +378,7 @@ namespace KMS.EditorTools
             image.sprite = outline;
             image.type = Image.Type.Sliced;
             image.color = BorderColor;
-            image.pixelsPerUnitMultiplier = 1.5f;
+            image.pixelsPerUnitMultiplier = BorderPixelsPerUnitMultiplier;
             image.raycastTarget = false;
             Transform background = Find(root, "Slot_BG");
             if (background != null) border.SetSiblingIndex(background.GetSiblingIndex() + 1);
@@ -374,6 +393,18 @@ namespace KMS.EditorTools
             icon.color = Color.white;
             icon.preserveAspect = true;
             SetNamedIconSize(button.transform, "ModernUIIcon", size);
+        }
+
+        private static void SetNamedImageSprite(Transform root, string iconName, Sprite sprite, Vector2 size)
+        {
+            Transform iconTransform = Find(root, iconName);
+            Require(iconTransform != null, $"{root?.name ?? "Unknown"} icon is missing.");
+            Image icon = iconTransform.GetComponent<Image>();
+            Require(icon != null, $"{iconTransform.name} Image is missing.");
+            icon.sprite = sprite;
+            icon.color = Color.white;
+            icon.preserveAspect = true;
+            SetNamedIconSize(root, iconName, size);
         }
 
         private static void SetNamedIconSize(Transform root, string iconName, Vector2 size)
@@ -441,7 +472,7 @@ namespace KMS.EditorTools
         private static Sprite LoadSprite(string path)
         {
             Sprite sprite = AssetDatabase.LoadAssetAtPath<Sprite>(path);
-            Require(sprite != null, $"Modern UI Pack sprite is missing: {path}");
+            Require(sprite != null, $"UI sprite is missing: {path}");
             return sprite;
         }
 
