@@ -1,3 +1,4 @@
+using HDY.Item;
 using UnityEngine;
 
 namespace KMS
@@ -10,6 +11,8 @@ namespace KMS
         [SerializeField] private float recoveryInterval = 1f;
         [SerializeField] private float healthPerTick = 5f;
         [SerializeField] private float hungerCostPerTick = 5f;
+        [SerializeField] private float minimumHungerReserve = 10f;
+        [SerializeField] private float recoveryDelayAfterEating = 2f;
         [SerializeField] private bool logRecovery;
 
         private float recoveryDelayTimer;
@@ -33,6 +36,7 @@ namespace KMS
             if (stats != null)
             {
                 stats.Damaged += HandleDamaged;
+                stats.FoodApplied += HandleFoodApplied;
             }
         }
 
@@ -41,6 +45,7 @@ namespace KMS
             if (stats != null)
             {
                 stats.Damaged -= HandleDamaged;
+                stats.FoodApplied -= HandleFoodApplied;
             }
         }
 
@@ -58,12 +63,14 @@ namespace KMS
             recoveryTickTimer -= Time.deltaTime;
             if (recoveryTickTimer > 0f) return;
 
-            recoveryTickTimer = Mathf.Max(0.01f, recoveryInterval);
+            float requiredHunger = hungerCostPerTick + minimumHungerReserve;
+            if (!stats.HasHunger(requiredHunger)) return;
 
-            if (!stats.ConsumeHunger(hungerCostPerTick)) return;
+            if (!stats.TryConsumeHungerExact(hungerCostPerTick)) return;
 
             float previousHealth = stats.CurrentHealth;
             stats.Heal(healthPerTick);
+            recoveryTickTimer = Mathf.Max(0.01f, recoveryInterval);
 
             if (logRecovery && stats.CurrentHealth > previousHealth)
             {
@@ -79,12 +86,23 @@ namespace KMS
             recoveryTickTimer = 0f;
         }
 
+        private void HandleFoodApplied(ItemData item, float restoredAmount)
+        {
+            if (restoredAmount <= 0f) return;
+
+            recoveryDelayTimer = Mathf.Max(
+                recoveryDelayTimer,
+                Mathf.Max(0f, recoveryDelayAfterEating));
+        }
+
         private void OnValidate()
         {
             recoveryDelayAfterDamage = Mathf.Max(0f, recoveryDelayAfterDamage);
             recoveryInterval = Mathf.Max(0.01f, recoveryInterval);
             healthPerTick = Mathf.Max(0f, healthPerTick);
             hungerCostPerTick = Mathf.Max(0f, hungerCostPerTick);
+            minimumHungerReserve = Mathf.Max(0f, minimumHungerReserve);
+            recoveryDelayAfterEating = Mathf.Max(0f, recoveryDelayAfterEating);
         }
     }
 }

@@ -92,10 +92,10 @@ public class ProductionCraftRuntime : MonoBehaviour
 
     private void Update()
     {
-        if (!isProducing) 
+        if (!isProducing)
         {
             SetProducingActive(false);
-            return; 
+            return;
         }
 
         if (currentStorageCount >= maxStorageCount)
@@ -127,16 +127,7 @@ public class ProductionCraftRuntime : MonoBehaviour
 
         totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, addMems);
 
-        bool isAnyMemStarving = DeployedMemEntries.Any(e => e != null && (e.IsStarving || e.CurrentHunger <= 0));
-
-        if (!isAnyMemStarving)
-        {
-            SetProducingActive(true);
-        }
-        else
-        {
-            SetProducingActive(false);
-        }
+        CheckProductionCondition();
     }
 
     public void SelectAndStartCrafting(ItemData targetItem, int quantity)
@@ -167,10 +158,21 @@ public class ProductionCraftRuntime : MonoBehaviour
             totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, addMems);
             currentProgressTime = totalRequiredTime * currentProgressPercent;
 
-            bool isAnyMemStarving = DeployedMemEntries.Any(e => e != null && (e.IsStarving || e.CurrentHunger <= 0));
-
-            SetProducingActive(!isAnyMemStarving);
+            CheckProductionCondition();
         }
+    }
+
+    // 🌟 [추가] 시설 가동 상태를 종합 검사하는 함수
+    public void CheckProductionCondition()
+    {
+        if (string.IsNullOrEmpty(currentCraftingItem) || remainingQuantity <= 0 || addMems.Count == 0)
+        {
+            SetProducingActive(false);
+            return;
+        }
+
+        bool isAnyMemStarving = DeployedMemEntries.Any(e => e != null && (e.IsStarving || e.CurrentHunger <= 0));
+        SetProducingActive(!isAnyMemStarving);
     }
 
     public bool TryAddMem(MemData targetMem, CapturedMemEntry targetEntry)
@@ -209,6 +211,7 @@ public class ProductionCraftRuntime : MonoBehaviour
         targetEntry.IsActive = true;
 
         RecalculateCraftingTimer();
+        CheckProductionCondition(); // 🌟 [추가] 멤 배치 시점 가동 여부 재검사
 
         if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
 
@@ -236,6 +239,7 @@ public class ProductionCraftRuntime : MonoBehaviour
             if (index < addMems.Count) addMems.RemoveAt(index);
 
             RecalculateCraftingTimer();
+            CheckProductionCondition(); // 🌟 [추가] 멤 제거 시점 가동 여부 재검사
 
             if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
 
@@ -246,7 +250,7 @@ public class ProductionCraftRuntime : MonoBehaviour
                 MemAdded?.Invoke(buildingData.buildingType, removedMem, false, MemPositions);
             }
         }
-        if(addMemEntries.Count == 0)
+        if (addMemEntries.Count == 0)
         {
             SetProducingActive(false);
         }

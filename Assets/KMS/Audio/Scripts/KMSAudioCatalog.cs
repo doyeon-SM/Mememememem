@@ -47,7 +47,8 @@ namespace KMS.Audio
         Wind,
         Bird,
         Title,
-        OpenChest
+        OpenChest,
+        NightBird
     }
 
     [Serializable]
