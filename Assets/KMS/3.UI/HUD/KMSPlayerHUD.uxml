@@ -20,8 +20,8 @@
             <ui:Label text="숫자키 또는 휠로 취소" class="throw-guide__cancel"/>
         </ui:VisualElement>
         <ui:VisualElement name="message-overlay" style="display: none;">
-            <ui:Label name="message-label" text="사망했습니다"/>
-            <ui:Button name="respawn-button" text="Respawn"/>
+            <ui:Label name="message-label" text="캐릭터 사망&#10;────────────"/>
+            <ui:Button name="respawn-button" text="부활"/>
         </ui:VisualElement>
     </ui:VisualElement>
 </ui:UXML>

@@ -35,6 +35,7 @@ namespace KMS
         public KMSFoodEffectController FoodEffects => foodEffects;
         public bool IsAlive { get; private set; } = true;
         public bool IsInvulnerable { get; private set; }
+        public PlayerDamageType LastDamageType { get; private set; } = PlayerDamageType.Generic;
 
         public event Action<float, float> HealthChanged;
         public event Action<float, float> HungerChanged;
@@ -107,6 +108,7 @@ namespace KMS
             if (!IsAlive || (!ignoreInvulnerability && IsInvulnerable) || amount <= 0f) return;
 
             CurrentHealth = Mathf.Max(0f, CurrentHealth - amount);
+            LastDamageType = damageType;
             Damaged?.Invoke(amount);
             DamageReceived?.Invoke(amount, damageType);
             HealthChanged?.Invoke(CurrentHealth, maxHealth);

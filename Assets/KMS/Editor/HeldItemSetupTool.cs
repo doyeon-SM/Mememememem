@@ -172,6 +172,171 @@ namespace KMS.EditorTools
                 "플레이어 연결을 갱신했습니다.");
         }
 
+        [MenuItem("KMS/Setup Axe Blade Contact Geometry")]
+        public static void SetupAxeBladeContactGeometry()
+        {
+            string[] axePrefabNames =
+            {
+                "Held_ShabbyAxe",
+                "Held_Axe",
+                "Held_DecentAxe"
+            };
+
+            foreach (string prefabName in axePrefabNames)
+            {
+                string prefabPath = $"{HeldPrefabFolder}/{prefabName}.prefab";
+                GameObject root = PrefabUtility.LoadPrefabContents(prefabPath);
+                try
+                {
+                    List<Vector3> vertices = CollectMeshVertices(root.transform);
+                    if (vertices.Count == 0)
+                    {
+                        throw new System.InvalidOperationException(
+                            $"[HeldItemSetup] No axe mesh vertices found: {prefabPath}");
+                    }
+
+                    CalculateAxeContactGeometry(
+                        vertices,
+                        out Vector3 shaftDirection,
+                        out Vector3 contactPoint,
+                        out Vector3 bladeNormal);
+                    HeldToolContactGeometry geometry =
+                        root.GetComponent<HeldToolContactGeometry>();
+                    if (geometry == null)
+                    {
+                        geometry = root.AddComponent<HeldToolContactGeometry>();
+                    }
+
+                    geometry.SetGeometry(shaftDirection, contactPoint, bladeNormal);
+                    EditorUtility.SetDirty(geometry);
+                    PrefabUtility.SaveAsPrefabAsset(root, prefabPath);
+                    Debug.Log(
+                        $"[HeldItemSetup] {prefabName} axe geometry: " +
+                        $"shaft={shaftDirection}, contact={contactPoint}, normal={bladeNormal}");
+                }
+                finally
+                {
+                    PrefabUtility.UnloadPrefabContents(root);
+                }
+            }
+
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+        }
+
+        private static List<Vector3> CollectMeshVertices(Transform root)
+        {
+            var vertices = new List<Vector3>();
+            foreach (MeshFilter meshFilter in root.GetComponentsInChildren<MeshFilter>(true))
+            {
+                Mesh mesh = meshFilter.sharedMesh;
+                if (mesh == null) continue;
+                foreach (Vector3 vertex in mesh.vertices)
+                {
+                    vertices.Add(root.InverseTransformPoint(
+                        meshFilter.transform.TransformPoint(vertex)));
+                }
+            }
+
+            return vertices;
+        }
+
+        private static void CalculateAxeContactGeometry(
+            List<Vector3> vertices,
+            out Vector3 shaftDirection,
+            out Vector3 contactPoint,
+            out Vector3 bladeNormal)
+        {
+            Vector3 center = Vector3.zero;
+            foreach (Vector3 vertex in vertices) center += vertex;
+            center /= vertices.Count;
+            shaftDirection = center.sqrMagnitude > 0.0001f
+                ? center.normalized
+                : Vector3.up;
+
+            float minShaft = float.PositiveInfinity;
+            float maxShaft = float.NegativeInfinity;
+            foreach (Vector3 vertex in vertices)
+            {
+                float projection = Vector3.Dot(vertex, shaftDirection);
+                minShaft = Mathf.Min(minShaft, projection);
+                maxShaft = Mathf.Max(maxShaft, projection);
+            }
+
+            float headStart = Mathf.Lerp(minShaft, maxShaft, 0.70f);
+            var headVertices = new List<Vector3>();
+            Vector3 headCenter = Vector3.zero;
+            foreach (Vector3 vertex in vertices)
+            {
+                if (Vector3.Dot(vertex, shaftDirection) < headStart) continue;
+                headVertices.Add(vertex);
+                headCenter += vertex;
+            }
+
+            headCenter /= Mathf.Max(1, headVertices.Count);
+            Vector3 bladeAxis = FindLargestPlanarAxis(
+                headVertices,
+                headCenter,
+                shaftDirection);
+            float negativeExtent = 0f;
+            float positiveExtent = 0f;
+            foreach (Vector3 vertex in headVertices)
+            {
+                float extent = Vector3.Dot(vertex - headCenter, bladeAxis);
+                negativeExtent = Mathf.Min(negativeExtent, extent);
+                positiveExtent = Mathf.Max(positiveExtent, extent);
+            }
+
+            if (-negativeExtent > positiveExtent)
+            {
+                bladeAxis = -bladeAxis;
+                positiveExtent = -negativeExtent;
+            }
+
+            float contactStart = positiveExtent * 0.88f;
+            contactPoint = Vector3.zero;
+            int contactCount = 0;
+            foreach (Vector3 vertex in headVertices)
+            {
+                if (Vector3.Dot(vertex - headCenter, bladeAxis) < contactStart) continue;
+                contactPoint += vertex;
+                contactCount++;
+            }
+
+            contactPoint = contactCount > 0
+                ? contactPoint / contactCount
+                : headCenter + bladeAxis * positiveExtent;
+            bladeNormal = Vector3.Cross(shaftDirection, bladeAxis).normalized;
+        }
+
+        private static Vector3 FindLargestPlanarAxis(
+            List<Vector3> vertices,
+            Vector3 center,
+            Vector3 planeNormal)
+        {
+            Vector3 axis = Vector3.ProjectOnPlane(Vector3.right, planeNormal).normalized;
+            if (axis.sqrMagnitude < 0.0001f)
+            {
+                axis = Vector3.ProjectOnPlane(Vector3.forward, planeNormal).normalized;
+            }
+
+            for (int iteration = 0; iteration < 20; iteration++)
+            {
+                Vector3 next = Vector3.zero;
+                foreach (Vector3 vertex in vertices)
+                {
+                    Vector3 delta = Vector3.ProjectOnPlane(vertex - center, planeNormal);
+                    next += delta * Vector3.Dot(delta, axis);
+                }
+
+                next = Vector3.ProjectOnPlane(next, planeNormal);
+                if (next.sqrMagnitude < 0.0001f) break;
+                axis = next.normalized;
+            }
+
+            return axis;
+        }
+
         private static void AddCapsuleTierAlias(
             List<HeldItemPrefabTable.Entry> entries,
             string shabbyItemId,
