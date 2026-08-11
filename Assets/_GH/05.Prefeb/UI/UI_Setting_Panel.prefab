@@ -90,6 +90,7 @@ GameObject:
   - component: {fileID: 3822084517656489858}
   - component: {fileID: 912996863556042772}
   - component: {fileID: 9036069710898929489}
+  - component: {fileID: 5262457691257134390}
   m_Layer: 5
   m_Name: Btn_Exit
   m_TagString: Untagged
@@ -112,10 +113,10 @@ RectTransform:
   - {fileID: 7393009088910364093}
   m_Father: {fileID: 1209937781892474753}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 0, y: 0}
+  m_AnchorMin: {x: 0, y: 1}
+  m_AnchorMax: {x: 0, y: 1}
+  m_AnchoredPosition: {x: 180, y: -202.5}
+  m_SizeDelta: {x: 330, y: 100}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &2132772362546002845
 CanvasRenderer:
@@ -199,7 +200,7 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 9036069710898929489}
+      - m_Target: {fileID: 5262457691257134390}
         m_TargetAssemblyTypeName: SceneLoadiing, Assembly-CSharp
         m_MethodName: loadScene
         m_Mode: 5
@@ -212,6 +213,18 @@ MonoBehaviour:
           m_BoolArgument: 0
         m_CallState: 2
 --- !u!114 &9036069710898929489
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2221878769307805353}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 526368bd9d9b08d4bbb354e41c9bef6e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SceneLoadiing
+--- !u!114 &5262457691257134390
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -240,7 +253,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &386894622511168291
 RectTransform:
   m_ObjectHideFlags: 0
@@ -649,10 +662,10 @@ RectTransform:
   - {fileID: 5370588338699495876}
   m_Father: {fileID: 1209937781892474753}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 0, y: 0}
+  m_AnchorMin: {x: 0, y: 1}
+  m_AnchorMax: {x: 0, y: 1}
+  m_AnchoredPosition: {x: 180, y: -77.5}
+  m_SizeDelta: {x: 330, y: 100}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &5677443609699786519
 CanvasRenderer:
