@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using DG.Tweening;
 using HDY.Item;
 using HDY.Inventory;
 using HDY.UI;
@@ -55,6 +56,33 @@ namespace HDY.Forge
     /// 채로 승급 탭으로 수동 전환하면 그 아이템이 승급 조건을 만족하지 않아도 가운데 슬롯에 그대로 남아
     /// 보이는 문제가 있었다. SwitchTab에서 새 탭 기준으로 자격을 다시 확인해서, 자격이 안 되면 선택을
     /// 지운다(자동 전환 케이스는 애초에 자격을 만족할 때만 일어나므로 영향 없음).
+    ///
+    /// [HDY 요청 - 헤더/재료 라벨 텍스트] panelHeaderText("도구 강화"/"도구 승급"), materialLabelText
+    /// ("강화 재료"/"승급 재료")를 탭 전환 시 SwitchTab에서 갱신한다. materialNameText는 선택된 재료
+    /// 아이템의 이름을 RefreshMiddlePanel에서 표시한다.
+    ///
+    /// [HDY 요청 - 활성 탭 표시 이미지] 각 탭 버튼마다 활성 상태를 나타내는 이미지(enhanceTabActiveImage 등)를
+    /// SetTabAlpha와 같은 타이밍에 SwitchTab에서 함께 켜고 끈다.
+    ///
+    /// [HDY 요청 - 과열 게이지 완전 교체] 기존 Slider(overheatSlider)를 제거하고 원형 게이지
+    /// (overheatGaugeImage, Image의 Fill Type: Radial 360 / Clockwise, 인스펙터에서 직접 설정)로
+    /// 완전히 대체했다. 값이 바뀔 때마다 DOTween(DOFillAmount)으로 overheatGaugeFillDuration(기본 0.3초)
+    /// 동안 부드럽게 채워진다(SetOverheatGauge). 선택 해제 등 리셋 상황에서는 즉시(immediate) 값을 맞춘다.
+    ///
+    /// [HDY 요청 - 실패 시 과열 상승분 표시] 강화/승급 실패로 과열이 오르면 overheatGainText에
+    /// "+50%"처럼 이번에 오른 수치를 표시하고, 페이드인 -> 위로 떠오름 -> 페이드아웃 연출로
+    /// overheatGainPopupDuration(기본 1초) 동안 보여준다(ShowOverheatGainPopup). 기준 위치를 Awake에서
+    /// 미리 캐싱해두고 매번 그 위치로 되돌린 뒤 시작하므로, 연속 실패해도 위치가 계속 위로 밀리지 않는다.
+    /// 오른 수치는 시도 직전에 저장해둔 lastDisplayedOverheatPercent와 결과의 OverheatPercent 차이로 계산한다.
+    ///
+    /// [HDY 요청 - 도움말 안내 패널] ContentSizeFitter가 붙은 공용 컨테이너(infoGuideContainer) 안에 강화/
+    /// 승급/연마/전승 안내 패널 4개가 전부 미리 배치되어 있고 평소엔 꺼져 있다. 강화/승급은 같은 info
+    /// 아이콘(enhancePromotionInfoTrigger)을 공유하며 지금 탭에 따라 강화/승급 안내 중 하나를 보여주고,
+    /// 연마(refinementInfoTrigger)/전승(inheritanceInfoTrigger)은 각자 고정된 안내만 보여준다. 위치는
+    /// 고정이라 호버 시 컨테이너와 해당 패널 하나만 켜고, 벗어나면 컨테이너를 끈다(ShowInfoGuide/
+    /// HideInfoGuide). 각 트리거는 Forge를 전혀 모르는 범용 컴포넌트(ForgeInfoHoverTriggerUI)라 이 클래스가
+    /// 이벤트를 구독해서 무엇을 보여줄지 직접 판단한다. 안내 문구 내용 자체는 도연님이 직접 채운다 - 이
+    /// 클래스는 켜고 끄는 로직과 컨테이너의 ContentSizeFitter 강제 재계산(LayoutRebuilder)만 담당한다.
     /// </summary>
     public class ForgeUI : MonoBehaviour
     {
@@ -76,6 +104,12 @@ namespace HDY.Forge
         [Range(0f, 1f)]
         [SerializeField] private float unselectedTabAlpha = 0.5f;
 
+        [Tooltip("각 탭 버튼의 활성 상태를 나타내는 별도 이미지(HDY 요청). 현재 열려있는 탭에 해당하는 것만 켜진다.")]
+        [SerializeField] private GameObject enhanceTabActiveImage;
+        [SerializeField] private GameObject promotionTabActiveImage;
+        [SerializeField] private GameObject refinementTabActiveImage;
+        [SerializeField] private GameObject inheritanceTabActiveImage;
+
         [Header("닫기 (선택)")]
         [SerializeField] private Button closeButton;
 
@@ -90,6 +124,8 @@ namespace HDY.Forge
 
         [Header("강화/승급 전용 - 가운데 패널 루트 (탭 전환 시 이 루트를 통째로 켜고 끔)")]
         [SerializeField] private GameObject enhancePromotionPanelRoot;
+        [Tooltip("\"도구 강화\"/\"도구 승급\" 헤더 텍스트(HDY 요청). 탭 전환 시 갱신된다.")]
+        [SerializeField] private TMP_Text panelHeaderText;
 
         [Header("가운데 - 선택 슬롯")]
         [SerializeField] private ForgeToolSlotUI selectedSlotDisplay;
@@ -98,13 +134,28 @@ namespace HDY.Forge
         [Tooltip("가운데에 현재 강화/승급 대상 도구의 이름을 표시하는 텍스트 (선택 없으면 비움)")]
         [SerializeField] private TMP_Text selectedItemNameText;
 
-        [Header("가운데 - 모루 과열")]
-        [SerializeField] private Slider overheatSlider;
+        [Header("가운데 - 모루 과열 (HDY 요청 - 원형 게이지로 완전 교체)")]
+        [Tooltip("Image의 Fill Type: Radial 360 / Fill Method: Clockwise로 설정된 원형 게이지. 기존 Slider를 완전히 대체한다.")]
+        [SerializeField] private Image overheatGaugeImage;
         [SerializeField] private TMP_Text overheatPercentText;
+        [Tooltip("과열 게이지가 채워지는 데 걸리는 시간(초). DOTween DOFillAmount로 부드럽게 애니메이션된다.")]
+        [SerializeField] private float overheatGaugeFillDuration = 0.3f;
+
+        [Header("가운데 - 실패 시 과열 상승분 표시 (HDY 요청)")]
+        [Tooltip("실패로 과열이 오르면 \"+50%\"처럼 표시되는 텍스트. 위치는 미리 배치해두면 된다(코드가 그 위치를 기준점으로 기억해서 매번 되돌아온다).")]
+        [SerializeField] private TMP_Text overheatGainText;
+        [Tooltip("오른 수치 텍스트가 화면에 보이는 총 시간(초). 페이드인/아웃 포함.")]
+        [SerializeField] private float overheatGainPopupDuration = 1f;
+        [Tooltip("오른 수치 텍스트가 위로 떠오르는 거리(픽셀).")]
+        [SerializeField] private float overheatGainPopupRiseDistance = 30f;
 
         [Header("가운데 - 확률/재료/골드")]
         [SerializeField] private TMP_Text successRateText;
+        [Tooltip("\"강화 재료\"/\"승급 재료\" 라벨 텍스트(HDY 요청). 탭 전환 시 갱신된다.")]
+        [SerializeField] private TMP_Text materialLabelText;
         [SerializeField] private Image materialIconImage;
+        [Tooltip("재료 아이템 이름 표시(HDY 요청).")]
+        [SerializeField] private TMP_Text materialNameText;
         [SerializeField] private TMP_Text materialCountText;
         [SerializeField] private TMP_Text goldCostText;
 
@@ -119,6 +170,20 @@ namespace HDY.Forge
         [SerializeField] private Color normalTextColor = Color.white;
         [SerializeField] private Color shortageTextColor = Color.red;
 
+        [Header("도움말 - 안내 패널 (HDY 요청, 고정 위치에서 켜고 끔)")]
+        [Tooltip("ContentSizeFitter가 붙은 공용 컨테이너 - 강화/승급/연마/전승 안내 패널 4개를 감싼다.")]
+        [SerializeField] private GameObject infoGuideContainer;
+        [SerializeField] private GameObject enhanceGuidePanel;
+        [SerializeField] private GameObject promotionGuidePanel;
+        [SerializeField] private GameObject refinementGuidePanel;
+        [SerializeField] private GameObject inheritanceGuidePanel;
+        [Tooltip("강화/승급 패널 쪽 info 아이콘 - 같은 아이콘을 공유하며, 지금 탭에 따라 강화/승급 안내 중 하나를 보여준다.")]
+        [SerializeField] private ForgeInfoHoverTriggerUI enhancePromotionInfoTrigger;
+        [Tooltip("연마 패널 쪽 info 아이콘 - 항상 연마 안내만 보여준다.")]
+        [SerializeField] private ForgeInfoHoverTriggerUI refinementInfoTrigger;
+        [Tooltip("전승 패널 쪽 info 아이콘 - 항상 전승 안내만 보여준다.")]
+        [SerializeField] private ForgeInfoHoverTriggerUI inheritanceInfoTrigger;
+
         [Header("연마/전승 전용 - 패널 (탭 전환 시 GameObject를 켜고 끔, 목록 클릭은 이 클래스가 전달해줌)")]
         [SerializeField] private GameObject refinementPanelRoot;
         [SerializeField] private ForgeUI_RefinementPanel refinementPanel;
@@ -132,6 +197,16 @@ namespace HDY.Forge
         private ForgeUITab currentTab = ForgeUITab.Enhance;
         private ItemStack selectedStack;
         private readonly List<ForgeToolSlotUI> spawnedSlots = new List<ForgeToolSlotUI>();
+
+        // [HDY 요청 - 과열 게이지 애니메이션] 진행 중인 트윈을 기억해뒀다가, 값이 또 바뀌면 이전 트윈부터
+        // 죽이고 새로 시작한다(겹쳐서 어색하게 움직이는 것을 방지).
+        private Tween overheatGaugeTween;
+        private Tween overheatGainTween;
+        private Vector2 overheatGainTextBasePosition;
+
+        // [HDY 요청 - 실패 시 과열 상승분 계산용] 직전에 화면에 표시했던 과열 수치. 시도 직전 값을 여기서
+        // 가져와서 결과값과 비교하면 "이번에 오른 만큼"을 알 수 있다.
+        private float lastDisplayedOverheatPercent;
 
         private void Awake()
         {
@@ -160,12 +235,62 @@ namespace HDY.Forge
             // 연마/전승은 각 패널이 직접 실행하므로, 실행 완료를 이벤트로 통보받아 하단 목록을 갱신한다.
             if (refinementPanel != null) refinementPanel.RefinementExecuted += RefreshList;
             if (inheritancePanel != null) inheritancePanel.InheritanceExecuted += RefreshList;
+
+            // [HDY 요청 - 도움말 안내 패널] 강화/승급은 같은 아이콘을 공유하며 지금 탭에 따라 보여줄 안내가
+            // 다르고, 연마/전승은 각자 고정된 안내만 보여준다.
+            if (enhancePromotionInfoTrigger != null)
+            {
+                enhancePromotionInfoTrigger.OnHoverEnter += HandleEnhancePromotionInfoHoverEnter;
+                enhancePromotionInfoTrigger.OnHoverExit += HideInfoGuide;
+            }
+
+            if (refinementInfoTrigger != null)
+            {
+                refinementInfoTrigger.OnHoverEnter += HandleRefinementInfoHoverEnter;
+                refinementInfoTrigger.OnHoverExit += HideInfoGuide;
+            }
+
+            if (inheritanceInfoTrigger != null)
+            {
+                inheritanceInfoTrigger.OnHoverEnter += HandleInheritanceInfoHoverEnter;
+                inheritanceInfoTrigger.OnHoverExit += HideInfoGuide;
+            }
+
+            // [HDY 요청 - 실패 시 과열 상승분 표시] 미리 배치해둔 위치를 기준점으로 캐싱해서, 매번 그 위치로
+            // 되돌린 뒤 애니메이션을 시작한다(연속 실패해도 위로 계속 밀리지 않도록).
+            if (overheatGainText != null)
+            {
+                overheatGainTextBasePosition = overheatGainText.rectTransform.anchoredPosition;
+            }
         }
 
         private void OnDestroy()
         {
             if (refinementPanel != null) refinementPanel.RefinementExecuted -= RefreshList;
             if (inheritancePanel != null) inheritancePanel.InheritanceExecuted -= RefreshList;
+
+            if (enhancePromotionInfoTrigger != null)
+            {
+                enhancePromotionInfoTrigger.OnHoverEnter -= HandleEnhancePromotionInfoHoverEnter;
+                enhancePromotionInfoTrigger.OnHoverExit -= HideInfoGuide;
+            }
+
+            if (refinementInfoTrigger != null)
+            {
+                refinementInfoTrigger.OnHoverEnter -= HandleRefinementInfoHoverEnter;
+                refinementInfoTrigger.OnHoverExit -= HideInfoGuide;
+            }
+
+            if (inheritanceInfoTrigger != null)
+            {
+                inheritanceInfoTrigger.OnHoverEnter -= HandleInheritanceInfoHoverEnter;
+                inheritanceInfoTrigger.OnHoverExit -= HideInfoGuide;
+            }
+
+            // [HDY 요청 - 과열 게이지/실패 팝업 애니메이션] 이 오브젝트가 파괴될 때 진행 중인 트윈이 남아있으면
+            // 파괴된 대상을 계속 건드리려다 에러가 날 수 있어 확실히 정리한다.
+            overheatGaugeTween?.Kill();
+            overheatGainTween?.Kill();
         }
 
         private void OnEnable()
@@ -225,6 +350,12 @@ namespace HDY.Forge
             SetTabAlpha(refinementTabGroup, tab == ForgeUITab.Refinement);
             SetTabAlpha(inheritanceTabGroup, tab == ForgeUITab.Inheritance);
 
+            // [HDY 요청 - 활성 탭 표시 이미지] 지금 열려있는 탭에 해당하는 이미지만 켠다.
+            if (enhanceTabActiveImage != null) enhanceTabActiveImage.SetActive(tab == ForgeUITab.Enhance);
+            if (promotionTabActiveImage != null) promotionTabActiveImage.SetActive(tab == ForgeUITab.Promotion);
+            if (refinementTabActiveImage != null) refinementTabActiveImage.SetActive(tab == ForgeUITab.Refinement);
+            if (inheritanceTabActiveImage != null) inheritanceTabActiveImage.SetActive(tab == ForgeUITab.Inheritance);
+
             bool isEnhanceOrPromotion = tab == ForgeUITab.Enhance || tab == ForgeUITab.Promotion;
 
             // 강화/승급 전용 가운데 패널만 탭에 따라 켜고 끈다. 하단 목록(slotListContent)은
@@ -236,10 +367,16 @@ namespace HDY.Forge
 
             if (isEnhanceOrPromotion)
             {
+                bool isEnhanceTab = tab == ForgeUITab.Enhance;
+
                 if (actionButtonLabel != null)
                 {
-                    actionButtonLabel.text = tab == ForgeUITab.Enhance ? "강화하기" : "승급하기";
+                    actionButtonLabel.text = isEnhanceTab ? "강화하기" : "승급하기";
                 }
+
+                // [HDY 요청 - 헤더/재료 라벨 텍스트]
+                if (panelHeaderText != null) panelHeaderText.text = isEnhanceTab ? "도구 강화" : "도구 승급";
+                if (materialLabelText != null) materialLabelText.text = isEnhanceTab ? "강화 재료" : "승급 재료";
 
                 // 강화<->승급 탭 전환 시, 현재 선택된 아이템이 "새 탭" 기준으로도 자격이 되는지 재검증한다.
                 // 자격이 안 되면 선택을 지운다 - 10강 달성으로 인한 자동 전환은 그 시점에 이미 자격을
@@ -398,10 +535,11 @@ namespace HDY.Forge
                 if (selectedItemNameText != null) selectedItemNameText.text = string.Empty;
                 SetActionButtonInteractable(false);
 
-                if (overheatSlider != null) overheatSlider.value = 0f;
+                SetOverheatGauge(0f, immediate: true);
                 if (overheatPercentText != null) overheatPercentText.text = "0%";
                 if (successRateText != null) successRateText.text = "-";
                 if (materialIconImage != null) materialIconImage.enabled = false;
+                if (materialNameText != null) materialNameText.text = "-";
                 if (materialCountText != null) materialCountText.text = "-";
                 if (goldCostText != null) goldCostText.text = "-";
                 return;
@@ -418,7 +556,7 @@ namespace HDY.Forge
             var actionType = currentTab == ForgeUITab.Enhance ? ForgeActionType.Enhance : ForgeActionType.Promotion;
             var preview = forgeManager.GetPreview(selectedStack, actionType);
 
-            if (overheatSlider != null) overheatSlider.value = preview.OverheatPercent;
+            SetOverheatGauge(preview.OverheatPercent, immediate: false);
             if (overheatPercentText != null) overheatPercentText.text = FormatPercent(preview.OverheatPercent);
 
             if (successRateText != null)
@@ -434,6 +572,12 @@ namespace HDY.Forge
             {
                 materialIconImage.sprite = materialItemData != null ? materialItemData.ItemIcon : null;
                 materialIconImage.enabled = materialItemData != null && materialItemData.ItemIcon != null;
+            }
+
+            // [HDY 요청 - 재료 이름 노출]
+            if (materialNameText != null)
+            {
+                materialNameText.text = materialItemData != null ? materialItemData.ItemName : string.Empty;
             }
 
             bool materialShortage = preview.MaterialOwned < preview.MaterialCost;
@@ -470,11 +614,21 @@ namespace HDY.Forge
         {
             if (selectedStack == null || selectedStack.IsEmpty || forgeManager == null) return;
 
+            // [HDY 요청 - 실패 시 과열 상승분 계산용] 시도 직전에 화면에 표시되어 있던 과열 수치를 기준으로 잡아둔다.
+            float overheatBeforeAttempt = lastDisplayedOverheatPercent;
+
             var outcome = currentTab == ForgeUITab.Enhance
                 ? forgeManager.TryEnhance(selectedStack)
                 : forgeManager.TryPromote(selectedStack);
 
             if (!outcome.Attempted) return;
+
+            // [HDY 요청 - 실패 시 과열 상승분 표시] 과열이 올랐다면(=이번 시도가 실패해서 충전됐다면) "+n%" 팝업을 띄운다.
+            float overheatDelta = outcome.OverheatPercent - overheatBeforeAttempt;
+            if (overheatDelta > 0f)
+            {
+                ShowOverheatGainPopup(overheatDelta);
+            }
 
             if (currentTab == ForgeUITab.Enhance)
             {
@@ -502,6 +656,106 @@ namespace HDY.Forge
         private static string FormatPercent(float value01)
         {
             return $"{value01 * 100f:0.#}%";
+        }
+
+        /// <summary>
+        /// [HDY 요청 - 과열 게이지 완전 교체] Slider 대신 Image(Fill Type: Radial 360, Clockwise)로 교체했다.
+        /// DOTween(DOFillAmount)으로 overheatGaugeFillDuration(기본 0.3초) 동안 부드럽게 채워지는 연출을
+        /// 준다. immediate=true면(선택 해제 등 리셋 상황) 애니메이션 없이 즉시 값을 맞춘다. 값이 또 바뀌면
+        /// 진행 중이던 트윈부터 죽이고 새로 시작한다.
+        /// </summary>
+        private void SetOverheatGauge(float value01, bool immediate)
+        {
+            lastDisplayedOverheatPercent = value01;
+
+            if (overheatGaugeImage == null) return;
+
+            overheatGaugeTween?.Kill();
+
+            if (immediate)
+            {
+                overheatGaugeImage.fillAmount = value01;
+            }
+            else
+            {
+                overheatGaugeTween = overheatGaugeImage.DOFillAmount(value01, overheatGaugeFillDuration).SetEase(Ease.OutQuad);
+            }
+        }
+
+        /// <summary>
+        /// [HDY 요청 - 실패 시 과열 상승분 표시] "+50%"처럼 이번에 오른 과열 수치를 overheatGainText에
+        /// 표시하고, 페이드인 -> 위로 떠오름 -> 페이드아웃 연출로 overheatGainPopupDuration(기본 1초) 동안
+        /// 보여준다. 매번 Awake에서 캐싱해둔 기준 위치(overheatGainTextBasePosition)로 되돌린 뒤 다시
+        /// 시작하므로, 연속으로 실패해도 위치가 계속 위로 밀리지 않는다.
+        /// </summary>
+        private void ShowOverheatGainPopup(float delta01)
+        {
+            if (overheatGainText == null || delta01 <= 0f) return;
+
+            overheatGainTween?.Kill();
+
+            overheatGainText.text = $"+{delta01 * 100f:0.#}%";
+            overheatGainText.rectTransform.anchoredPosition = overheatGainTextBasePosition;
+
+            var color = overheatGainText.color;
+            color.a = 0f;
+            overheatGainText.color = color;
+
+            const float fadeInDuration = 0.15f;
+            const float fadeOutDuration = 0.3f;
+            float fadeOutStart = Mathf.Max(fadeInDuration, overheatGainPopupDuration - fadeOutDuration);
+
+            var sequence = DOTween.Sequence();
+            sequence.Append(overheatGainText.DOFade(1f, fadeInDuration));
+            sequence.Join(overheatGainText.rectTransform.DOAnchorPosY(
+                overheatGainTextBasePosition.y + overheatGainPopupRiseDistance, overheatGainPopupDuration).SetEase(Ease.OutQuad));
+            sequence.Insert(fadeOutStart, overheatGainText.DOFade(0f, fadeOutDuration));
+
+            overheatGainTween = sequence;
+        }
+
+        // [HDY 요청 - 도움말 안내 패널] 강화/승급은 같은 아이콘을 공유하므로, 호버 시점의 currentTab을 보고
+        // 강화/승급 안내 중 하나를 고른다. 연마/전승은 각자 고정된 안내만 보여준다.
+        private void HandleEnhancePromotionInfoHoverEnter()
+        {
+            ShowInfoGuide(currentTab == ForgeUITab.Enhance ? enhanceGuidePanel : promotionGuidePanel);
+        }
+
+        private void HandleRefinementInfoHoverEnter()
+        {
+            ShowInfoGuide(refinementGuidePanel);
+        }
+
+        private void HandleInheritanceInfoHoverEnter()
+        {
+            ShowInfoGuide(inheritanceGuidePanel);
+        }
+
+        /// <summary>
+        /// [HDY 요청 - 도움말 안내 패널] 공용 컨테이너(infoGuideContainer, ContentSizeFitter 붙음)를 켜고,
+        /// 강화/승급/연마/전승 안내 패널 4개 중 panel로 넘어온 것 하나만 활성화한다(나머지는 비활성화).
+        /// 컨테이너 활성화 직후 ContentSizeFitter가 자식 크기에 맞춰 다시 계산되도록 강제로 즉시 레이아웃을
+        /// 다시 계산한다(MemSlotUI에 적용했던 것과 동일한 이유 - 다음 레이아웃 패스 전까지 옛 크기로 남아있는
+        /// 문제 방지).
+        /// </summary>
+        private void ShowInfoGuide(GameObject panel)
+        {
+            if (infoGuideContainer != null) infoGuideContainer.SetActive(true);
+
+            if (enhanceGuidePanel != null) enhanceGuidePanel.SetActive(enhanceGuidePanel == panel);
+            if (promotionGuidePanel != null) promotionGuidePanel.SetActive(promotionGuidePanel == panel);
+            if (refinementGuidePanel != null) refinementGuidePanel.SetActive(refinementGuidePanel == panel);
+            if (inheritanceGuidePanel != null) inheritanceGuidePanel.SetActive(inheritanceGuidePanel == panel);
+
+            if (infoGuideContainer != null && infoGuideContainer.transform is RectTransform containerRect)
+            {
+                LayoutRebuilder.ForceRebuildLayoutImmediate(containerRect);
+            }
+        }
+
+        private void HideInfoGuide()
+        {
+            if (infoGuideContainer != null) infoGuideContainer.SetActive(false);
         }
     }
 }

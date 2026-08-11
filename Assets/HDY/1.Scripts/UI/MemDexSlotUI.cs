@@ -14,6 +14,8 @@ namespace HDY.UI
     /// - ActiveImage(배치 활성 표시)가 없다 - 도감 항목은 "배치"라는 개념 자체가 없음.
     /// - 드래그앤드롭(슬롯 교체)이 없다 - 순서를 바꿀 "내 소유 데이터"가 아니라 읽기 전용 카탈로그이므로.
     /// 아이콘(MemIconRenderer)과 Mem스탯/티어 표시(MemStatDisplayInfo)는 MemSlotUI와 동일한 방식으로 재사용한다.
+    /// [HDY 요청] memStatPanel(MemStatIcon/MemStatText를 감싸는 패널)도 MemSlotUI와 동일하게 statInfo.IsVisible
+    /// 기준으로 함께 숨긴다 - 정렬 중이 아니거나 id 정렬이면 아이콘/텍스트뿐 아니라 패널 자체도 꺼진다.
     ///
     /// [HDY 요청 - 최초 포획 실루엣] MemDexRecordManager에 최초 포획 기록이 없는(아직 한 번도 포획한 적
     /// 없는) 종은 아이콘을 검게 틴트해서 실루엣처럼 보이게 한다. 아이콘 스프라이트(모양) 자체는 그대로
@@ -28,6 +30,8 @@ namespace HDY.UI
         [SerializeField] private Image iconImage;
         [SerializeField] private Image memStatIcon;
         [SerializeField] private TMP_Text memStatText;
+        [Tooltip("MemStatIcon/MemStatText를 감싸는 패널(HDY 요청). 정렬 중이 아니거나 id 정렬일 때(statInfo.IsVisible=false) 이 패널도 함께 숨긴다.")]
+        [SerializeField] private GameObject memStatPanel;
 
         private MemData cachedData;
 
@@ -90,9 +94,25 @@ namespace HDY.UI
             iconImage.color = isDiscovered ? Color.white : Color.black;
         }
 
-        /// <summary>MemStatIcon/MemStatText를 statInfo에 맞게 켜고 끈다. 스탯/티어 정렬 중이 아니면 둘 다 감춘다.</summary>
+        /// <summary>
+        /// MemStatIcon/MemStatText/memStatPanel을 statInfo에 맞게 켜고 끈다. 스탯/티어 정렬 중이 아니거나
+        /// id 정렬이면(statInfo.IsVisible=false) 셋 다 감춘다(HDY 요청 - memStatPanel도 함께 숨김, MemSlotUI와 동일).
+        ///
+        /// [HDY 요청 - ContentSizeFitter 갱신] memStatText/memStatPanel에 ContentSizeFitter가 붙어있으면,
+        /// 텍스트 내용이나 활성 상태가 바뀐 직후 자동으로는 다음 레이아웃 패스가 되어서야 크기를 다시
+        /// 계산한다 - 그 사이 한 프레임 동안 옛 크기로 남아있어(특히 정렬 기준을 바꿀 때마다 숫자 자릿수가
+        /// 바뀌면) 패널이 텍스트보다 좁거나 넓게 잘못 표시되는 문제가 있었다. 그래서 여기서 강제로 즉시 다시
+        /// 계산한다 - memStatText 자신의 크기부터 먼저 갱신한 뒤(자기 텍스트 내용 기준), 그 크기에 의존할 수
+        /// 있는 memStatPanel을 그다음에 갱신한다(순서가 바뀌면 패널이 갱신 전 텍스트 크기를 기준으로 계산될
+        /// 수 있음). MemSlotUI와 동일한 처리.
+        /// </summary>
         private void ApplyStatDisplay(MemStatDisplayInfo statInfo)
         {
+            if (memStatPanel != null)
+            {
+                memStatPanel.SetActive(statInfo.IsVisible);
+            }
+
             if (memStatIcon != null)
             {
                 memStatIcon.gameObject.SetActive(statInfo.IsVisible);
@@ -103,6 +123,16 @@ namespace HDY.UI
             {
                 memStatText.gameObject.SetActive(statInfo.IsVisible);
                 memStatText.text = statInfo.IsVisible ? statInfo.DisplayText : string.Empty;
+            }
+
+            if (memStatText != null)
+            {
+                LayoutRebuilder.ForceRebuildLayoutImmediate(memStatText.rectTransform);
+            }
+
+            if (memStatPanel != null && memStatPanel.transform is RectTransform panelRect)
+            {
+                LayoutRebuilder.ForceRebuildLayoutImmediate(panelRect);
             }
         }
 

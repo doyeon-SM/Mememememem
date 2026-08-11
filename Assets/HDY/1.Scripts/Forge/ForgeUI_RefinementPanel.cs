@@ -58,6 +58,8 @@ namespace HDY.Forge
 
         [Header("비용 / 실행")]
         [SerializeField] private Image stoneIconImage;
+        [Tooltip("연마석(재료) 이름 표시(HDY 요청).")]
+        [SerializeField] private TMP_Text stoneNameText;
         [SerializeField] private TMP_Text stoneCostText;
         [SerializeField] private TMP_Text goldCostText;
         [SerializeField] private Button executeButton;
@@ -190,6 +192,7 @@ namespace HDY.Forge
                 SetAllSlotRowsHidden();
                 SetExecuteInteractable(false);
                 if (stoneIconImage != null) stoneIconImage.enabled = false;
+                if (stoneNameText != null) stoneNameText.text = "-";
                 if (stoneCostText != null) stoneCostText.text = "-";
                 if (goldCostText != null) goldCostText.text = "-";
                 SetItemNameText(null);
@@ -273,14 +276,20 @@ namespace HDY.Forge
 
             var preview = forgeManager.GetRefinementPreview(selectedStack, lockedSlots);
 
+            var stoneData = !string.IsNullOrEmpty(preview.MaterialItemId) && catalogManager != null
+                ? catalogManager.FindItemData(preview.MaterialItemId)
+                : null;
+
             if (stoneIconImage != null)
             {
-                var stoneData = !string.IsNullOrEmpty(preview.MaterialItemId) && catalogManager != null
-                    ? catalogManager.FindItemData(preview.MaterialItemId)
-                    : null;
-
                 stoneIconImage.sprite = stoneData != null ? stoneData.ItemIcon : null;
                 stoneIconImage.enabled = stoneData != null && stoneData.ItemIcon != null;
+            }
+
+            // [HDY 요청 - 재료 이름 노출]
+            if (stoneNameText != null)
+            {
+                stoneNameText.text = stoneData != null ? stoneData.ItemName : string.Empty;
             }
 
             bool stoneShortage = preview.MaterialOwned < preview.MaterialCost;

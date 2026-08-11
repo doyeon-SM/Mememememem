@@ -41,7 +41,9 @@ namespace HDY.UI
     /// ActiveImage: 이 멤이 활성화(CapturedMemEntry.IsActive) 상태일 때 표시.
     /// MemStatIcon/MemStatText: 창고가 Mem스탯 또는 티어 기준으로 정렬되어 있을 때만 활성화되어, 그 아이콘과
     /// 값(스탯 숫자 또는 티어 앞글자)을 보여준다 (어떤 아이콘/값을 보여줄지는 MemStorageUI가 계산해서
-    /// MemStatDisplayInfo로 넘겨준다).
+    /// MemStatDisplayInfo로 넘겨준다). [HDY 요청] memStatPanel(둘을 감싸는 패널)도 같은 조건으로 함께
+    /// 숨긴다 - 정렬 중이 아니거나 id 정렬이면(statInfo.IsVisible=false) 아이콘/텍스트뿐 아니라 패널 자체도
+    /// 꺼져서 빈 패널이 남아있지 않는다.
     /// 드래그앤드롭으로 슬롯끼리 위치를 바꾸는 조작(마우스를 누른 채 끌어서 다른 슬롯에 놓기)도 이 클래스가 감지한다.
     /// 빈 슬롯으로도 멤을 옮길 수 있다 - 대상 슬롯이 비어있어도 유효한 이동으로 처리한다.
     /// 드래그 도중 휠로 페이지가 바뀔 수 있으므로(MemStorageUI_Grid), 실제 데이터 교체 판단에 필요한
@@ -71,6 +73,8 @@ namespace HDY.UI
         [SerializeField] private Image activeImage;
         [SerializeField] private Image memStatIcon;
         [SerializeField] private TMP_Text memStatText;
+        [Tooltip("MemStatIcon/MemStatText를 감싸는 패널(HDY 요청). 정렬 중이 아니거나 id 정렬일 때(statInfo.IsVisible=false) 이 패널도 함께 숨긴다.")]
+        [SerializeField] private GameObject memStatPanel;
 
         [Header("드래그 고스트 아이콘 (마우스를 따라다니는 임시 아이콘)")]
         [Tooltip("드래그 중임을 시각적으로 나타내기 위해 고스트 아이콘에 적용할 투명도(알파값). 0=완전 투명, 1=완전 불투명.")]
@@ -216,9 +220,25 @@ namespace HDY.UI
             iconImage.gameObject.SetActive(sprite != null);
         }
 
-        /// <summary>MemStatIcon/MemStatText를 statInfo에 맞게 켜고 끈다. 스탯/티어 정렬 중이 아니면 둘 다 감춘다.</summary>
+        /// <summary>
+        /// MemStatIcon/MemStatText/memStatPanel을 statInfo에 맞게 켜고 끈다. 스탯/티어 정렬 중이 아니거나
+        /// id 정렬이면(statInfo.IsVisible=false) 셋 다 감춘다(HDY 요청 - memStatPanel도 함께 숨김).
+        ///
+        /// [HDY 요청 - ContentSizeFitter 갱신] memStatText/memStatPanel에 ContentSizeFitter가 붙어있으면,
+        /// 텍스트 내용이나 활성 상태가 바뀐 직후 자동으로는 다음 레이아웃 패스가 되어서야 크기를 다시
+        /// 계산한다 - 그 사이 한 프레임 동안 옛 크기로 남아있어(특히 정렬 기준을 바꿀 때마다 숫자 자릿수가
+        /// 바뀌면) 패널이 텍스트보다 좁거나 넓게 잘못 표시되는 문제가 있었다. 그래서 여기서 강제로 즉시 다시
+        /// 계산한다 - memStatText 자신의 크기부터 먼저 갱신한 뒤(자기 텍스트 내용 기준), 그 크기에 의존할 수
+        /// 있는 memStatPanel을 그다음에 갱신한다(순서가 바뀌면 패널이 갱신 전 텍스트 크기를 기준으로 계산될
+        /// 수 있음).
+        /// </summary>
         private void ApplyStatDisplay(MemStatDisplayInfo statInfo)
         {
+            if (memStatPanel != null)
+            {
+                memStatPanel.SetActive(statInfo.IsVisible);
+            }
+
             if (memStatIcon != null)
             {
                 memStatIcon.gameObject.SetActive(statInfo.IsVisible);
@@ -229,6 +249,16 @@ namespace HDY.UI
             {
                 memStatText.gameObject.SetActive(statInfo.IsVisible);
                 memStatText.text = statInfo.IsVisible ? statInfo.DisplayText : string.Empty;
+            }
+
+            if (memStatText != null)
+            {
+                LayoutRebuilder.ForceRebuildLayoutImmediate(memStatText.rectTransform);
+            }
+
+            if (memStatPanel != null && memStatPanel.transform is RectTransform panelRect)
+            {
+                LayoutRebuilder.ForceRebuildLayoutImmediate(panelRect);
             }
         }
 
