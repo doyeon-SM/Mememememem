@@ -425,7 +425,6 @@ MonoBehaviour:
     Output: {fileID: 0}
   - Id: 37
     Clips:
-    - {fileID: 8300000, guid: ea9a236045f2d6b45afd460816620412, type: 3}
     - {fileID: 8300000, guid: 9103e53ccb1abd1499257d25df34a543, type: 3}
     - {fileID: 8300000, guid: 537b9e5bfc7bd4241a639227967314c4, type: 3}
     Volume: 0.6
@@ -450,6 +449,17 @@ MonoBehaviour:
   - Id: 39
     Clips:
     - {fileID: 8300000, guid: 015034ec4e15dc1448a28397ae5cfb05, type: 3}
+    Volume: 1
+    PitchMin: 0.96
+    PitchMax: 1.04
+    SpatialBlend: 1
+    Cooldown: 0
+    MaxVoices: 4
+    Loop: 0
+    Output: {fileID: 0}
+  - Id: 40
+    Clips:
+    - {fileID: 8300000, guid: ea9a236045f2d6b45afd460816620412, type: 3}
     Volume: 1
     PitchMin: 0.96
     PitchMax: 1.04
