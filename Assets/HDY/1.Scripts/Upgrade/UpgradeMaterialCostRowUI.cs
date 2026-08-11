@@ -14,7 +14,6 @@ namespace HDY.Upgrade
     {
         [SerializeField] private Image iconImage;
         [SerializeField] private TMP_Text nameText;
-        [SerializeField] private TMP_Text amountText;
 
         /// <summary>itemData를 카탈로그에서 찾지 못하면(null) 이름 대신 Item_ID를 그대로 표시한다.</summary>
         public void SetData(ItemData itemData, string itemId, int amount)
@@ -28,11 +27,7 @@ namespace HDY.Upgrade
             if (nameText != null)
             {
                 nameText.text = itemData != null ? itemData.ItemName : itemId;
-            }
-
-            if (amountText != null)
-            {
-                amountText.text = $"x{amount}";
+                nameText.text += $" X {amount}";
             }
         }
     }

@@ -11372,25 +11372,21 @@ MonoBehaviour:
   buildingName: {fileID: 915820902}
   buildingLevel: {fileID: 407238962}
   levelUp: {fileID: 109969722}
-  levelUpBtnText: {fileID: 0}
+  levelUpArrowIcon: {fileID: 0}
   memSlotImages:
   - {fileID: 2050517571}
   - {fileID: 2066315677}
   - {fileID: 1973154711}
   - {fileID: 432954864}
   - {fileID: 1807197104}
-  defaultMode: {fileID: 31080661}
-  creatingMode: {fileID: 0}
   creatingItem: {fileID: 31444479}
-  completeCreateCount: {fileID: 1678711156}
-  diamondBGBtn: {fileID: 760448504}
   creatingItemName: {fileID: 49776047}
   productionSpeed: {fileID: 798965650}
   progressBar: {fileID: 1029843020}
   durationText: {fileID: 2139056373}
   statusText: {fileID: 0}
-  craftingSlotPrefab: {fileID: 6478490869400420258, guid: 7572834d7a4bc0c44a78d0803e28daaa, type: 3}
-  craftingSlotParent: {fileID: 0}
+  completeCreateCount: {fileID: 1678711156}
+  getBtn: {fileID: 0}
 --- !u!1 &1022871354
 GameObject:
   m_ObjectHideFlags: 0
@@ -15758,49 +15754,37 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 330022879898062252, guid: ef238d4efe29ca5409489bde2ca6973f, type: 3}
       propertyPath: m_AnchorMax.y
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 330022879898062252, guid: ef238d4efe29ca5409489bde2ca6973f, type: 3}
       propertyPath: m_AnchorMin.y
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 330022879898062252, guid: ef238d4efe29ca5409489bde2ca6973f, type: 3}
+      propertyPath: m_SizeDelta.y
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 330022879898062252, guid: ef238d4efe29ca5409489bde2ca6973f, type: 3}
       propertyPath: m_AnchoredPosition.x
-      value: 0
+      value: 250
       objectReference: {fileID: 0}
     - target: {fileID: 330022879898062252, guid: ef238d4efe29ca5409489bde2ca6973f, type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: 0
+      value: -259.5
       objectReference: {fileID: 0}
-    - target: {fileID: 2413643238649643621, guid: ef238d4efe29ca5409489bde2ca6973f, type: 3}
+    - target: {fileID: 1575823559630425622, guid: ef238d4efe29ca5409489bde2ca6973f, type: 3}
       propertyPath: m_AnchorMax.y
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 2413643238649643621, guid: ef238d4efe29ca5409489bde2ca6973f, type: 3}
+    - target: {fileID: 1575823559630425622, guid: ef238d4efe29ca5409489bde2ca6973f, type: 3}
       propertyPath: m_AnchorMin.y
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 2413643238649643621, guid: ef238d4efe29ca5409489bde2ca6973f, type: 3}
+    - target: {fileID: 1575823559630425622, guid: ef238d4efe29ca5409489bde2ca6973f, type: 3}
       propertyPath: m_AnchoredPosition.x
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 2413643238649643621, guid: ef238d4efe29ca5409489bde2ca6973f, type: 3}
-      propertyPath: m_AnchoredPosition.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 3132432819168418562, guid: ef238d4efe29ca5409489bde2ca6973f, type: 3}
-      propertyPath: m_AnchorMax.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 3132432819168418562, guid: ef238d4efe29ca5409489bde2ca6973f, type: 3}
-      propertyPath: m_AnchorMin.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 3132432819168418562, guid: ef238d4efe29ca5409489bde2ca6973f, type: 3}
-      propertyPath: m_AnchoredPosition.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 3132432819168418562, guid: ef238d4efe29ca5409489bde2ca6973f, type: 3}
+    - target: {fileID: 1575823559630425622, guid: ef238d4efe29ca5409489bde2ca6973f, type: 3}
       propertyPath: m_AnchoredPosition.y
       value: 0
       objectReference: {fileID: 0}
@@ -15848,16 +15832,28 @@ PrefabInstance:
       propertyPath: m_AnchoredPosition.y
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 6043910427144445527, guid: ef238d4efe29ca5409489bde2ca6973f, type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6043910427144445527, guid: ef238d4efe29ca5409489bde2ca6973f, type: 3}
+      propertyPath: m_AnchorMin.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6043910427144445527, guid: ef238d4efe29ca5409489bde2ca6973f, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6043910427144445527, guid: ef238d4efe29ca5409489bde2ca6973f, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 6166346469825682951, guid: ef238d4efe29ca5409489bde2ca6973f, type: 3}
       propertyPath: m_AnchorMax.x
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 6166346469825682951, guid: ef238d4efe29ca5409489bde2ca6973f, type: 3}
       propertyPath: m_AnchorMax.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6166346469825682951, guid: ef238d4efe29ca5409489bde2ca6973f, type: 3}
-      propertyPath: m_SizeDelta.x
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 6207184272087604963, guid: ef238d4efe29ca5409489bde2ca6973f, type: 3}
@@ -15940,24 +15936,12 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 6790221560480719829, guid: ef238d4efe29ca5409489bde2ca6973f, type: 3}
-      propertyPath: m_AnchorMax.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6790221560480719829, guid: ef238d4efe29ca5409489bde2ca6973f, type: 3}
-      propertyPath: m_AnchorMin.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6790221560480719829, guid: ef238d4efe29ca5409489bde2ca6973f, type: 3}
-      propertyPath: m_AnchoredPosition.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6790221560480719829, guid: ef238d4efe29ca5409489bde2ca6973f, type: 3}
-      propertyPath: m_AnchoredPosition.y
-      value: 0
-      objectReference: {fileID: 0}
     - target: {fileID: 6963905965909735741, guid: ef238d4efe29ca5409489bde2ca6973f, type: 3}
       propertyPath: m_SizeDelta.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7048204916085264549, guid: ef238d4efe29ca5409489bde2ca6973f, type: 3}
+      propertyPath: m_SizeDelta.y
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 7444649457119313439, guid: ef238d4efe29ca5409489bde2ca6973f, type: 3}
@@ -16921,38 +16905,32 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CraftingPanelUI
   buildingName: {fileID: 2047887844}
+  centerMemModeObject: {fileID: 0}
   singleMemSlot: {fileID: 1226089836}
-  defaultModeObject: {fileID: 2035392909}
-  recipeGridParent: {fileID: 1284124135}
-  recipeSlotPrefab: {fileID: 925688358971106770, guid: c10158d42f03c3044a0372260d433b25, type: 3}
-  selectProductModeObject: {fileID: 1729986133}
+  centerSelectedRecipeModeObject: {fileID: 0}
   selectionImage: {fileID: 1953500676}
   selectionName: {fileID: 1794573755}
+  bottomDefaultModeObject: {fileID: 140316932}
+  recipeGridParent: {fileID: 1284124135}
+  recipeSlotPrefab: {fileID: 925688358971106770, guid: c10158d42f03c3044a0372260d433b25, type: 3}
+  bottomSelectProductModeObject: {fileID: 525715049}
   requiredListParent: {fileID: 1795377020}
   requireMaterialPrefab: {fileID: 2326199014259156271, guid: 49fc175a31055014381d578a1d9e4670, type: 3}
   productAmountText: {fileID: 1040401844}
-  btnMin: {fileID: 1726706540}
   btnMinus: {fileID: 1033930923}
   btnPlus: {fileID: 1366673791}
-  btnMax: {fileID: 278930874}
-  quantitySlider: {fileID: 391927535}
-  craftingModeObject: {fileID: 1439318325}
-  craftingItemIcon: {fileID: 712794734}
-  craftingItemName: {fileID: 1098142260}
-  collectRewardBtn: {fileID: 1582687081}
-  completeCountText: {fileID: 72661338}
-  bottomDefaultModeObject: {fileID: 140316932}
-  selectGuideText: {fileID: 277850068}
-  bottomSelectProductModeObject: {fileID: 525715049}
-  craftingDurationText: {fileID: 149227140}
   reSelectBtn: {fileID: 318424107}
   craftBtn: {fileID: 239823329}
   bottomCraftingModeObject: {fileID: 2030071538}
+  craftingItemIcon: {fileID: 712794734}
+  craftingItemIconButton: {fileID: 0}
+  craftingItemName: {fileID: 1098142260}
   progressBar: {fileID: 697947138}
   durationText: {fileID: 330642502}
   craftingStatusText: {fileID: 0}
+  craftingSpeedText: {fileID: 0}
+  craftingQuantityText: {fileID: 0}
   cancelBtn: {fileID: 2043488253}
-  getBtn: {fileID: 573990341}
 --- !u!1 &1534348711
 GameObject:
   m_ObjectHideFlags: 0

@@ -82,21 +82,19 @@ namespace HDY.Inventory
 
         public string GetUpgradeTitle()
         {
-            return "인벤토리 확장";
+            return "가방 확장";
         }
 
-        /// <summary>확인 버튼 라벨에 그대로 들어가는 짧은 문구. 최대치면 "MAX", 아니면 "현재칸수 → 다음칸수".</summary>
-        public string GetUpgradeDescription()
+        /// <summary>[HDY 요청] 팝업 중간에 표시할 문구. 최대치면 "MAX", 아니면 "추가 5칸 확장 비용".</summary>
+        public string GetUpgradeMiddleText()
         {
-            if (playerInventory == null) return string.Empty;
+            return CanUpgrade() ? "추가 5칸 확장 비용" : "MAX";
+        }
 
-            if (!CanUpgrade())
-            {
-                return "MAX";
-            }
-
-            int next = Mathf.Min(playerInventory.MaxInventorySlotCount, playerInventory.UnlockedInventorySlotCount + playerInventory.SlotsPerInventoryUpgrade);
-            return $"{playerInventory.UnlockedInventorySlotCount}칸 → {next}칸";
+        /// <summary>[HDY 요청] 확인 버튼에 표시할 고정 문구.</summary>
+        public string GetUpgradeButtonText()
+        {
+            return "확장";
         }
 
         /// <summary>UpgradePopupUI가 비용 지불을 마친 뒤 호출한다. 여기서는 순수하게 칸 언락만 담당한다.</summary>
