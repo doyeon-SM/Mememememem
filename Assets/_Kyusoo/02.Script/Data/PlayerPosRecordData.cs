@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -13,8 +14,19 @@ public class PlayerPosRecordData : MonoBehaviour, IRecord
     private bool hasValidKnownPosition = false;
     private CharacterController cachedController;
 
+    [Header("자동 저장 설정")]
+    [SerializeField] private float autoSaveInterval = 30f; // 30초마다 위치 자동 저장
+
+    private bool isDirty = false; // 위치 변동 여부 플래그
+    private Coroutine autoSaveRoutine;
+
     // 🌟 위치 저장 대상 씬 목록 (Territory는 제외)
     private readonly List<string> targetScenes = new List<string> { "Main_World_3", "Main_World_Cave" };
+
+    private void OnEnable()
+    {
+        StartAutoSaveRoutine();
+    }
 
     private void Update()
     {
@@ -28,18 +40,75 @@ public class PlayerPosRecordData : MonoBehaviour, IRecord
 
             if (cachedController != null)
             {
-                lastKnownPosition = cachedController.transform.position;
-                hasValidKnownPosition = true;
+                // 위치가 일정 거리 이상 변했을 때만 Dirty 플래그 세팅
+                if (Vector3.SqrMagnitude(cachedController.transform.position - lastKnownPosition) > 0.01f)
+                {
+                    lastKnownPosition = cachedController.transform.position;
+                    hasValidKnownPosition = true;
+                    isDirty = true;
+                }
             }
+        }
+    }
+
+    private void OnDisable()
+    {
+        StopAutoSaveRoutine();
+
+        // 씬 전환/비활성화 시점에 변경된 위치가 있다면 즉시 저장
+        if (isDirty && hasValidKnownPosition && IsValidTargetScene(SceneManager.GetActiveScene().name))
+        {
+            SaveData(RecordManager.Instance?.SaveFilePath);
         }
     }
 
     private void OnApplicationQuit()
     {
-        // 앱 종료 시점에 저장 대상 씬이면 위치 저장 수행
-        if (IsValidTargetScene(SceneManager.GetActiveScene().name) && hasValidKnownPosition)
+        // 정상 종료 시 저장
+        if (isDirty && hasValidKnownPosition && IsValidTargetScene(SceneManager.GetActiveScene().name))
         {
             SaveData(RecordManager.Instance?.SaveFilePath);
+        }
+    }
+
+    private void OnApplicationPause(bool pauseStatus)
+    {
+        // 모바일/PC 창 이탈 및 백그라운드 전환 시 강제 종료 대비 즉시 저장
+        if (pauseStatus && isDirty && hasValidKnownPosition && IsValidTargetScene(SceneManager.GetActiveScene().name))
+        {
+            SaveData(RecordManager.Instance?.SaveFilePath);
+        }
+    }
+
+    private void StartAutoSaveRoutine()
+    {
+        StopAutoSaveRoutine();
+        autoSaveRoutine = StartCoroutine(AutoSaveRoutine());
+    }
+
+    private void StopAutoSaveRoutine()
+    {
+        if (autoSaveRoutine != null)
+        {
+            StopCoroutine(autoSaveRoutine);
+            autoSaveRoutine = null;
+        }
+    }
+
+    /// <summary>
+    /// 강제 종료 손실을 방지하기 위한 주기적 위치 자동 저장
+    /// </summary>
+    private IEnumerator AutoSaveRoutine()
+    {
+        var wait = new WaitForSeconds(autoSaveInterval);
+        while (true)
+        {
+            yield return wait;
+
+            if (isDirty && hasValidKnownPosition && IsValidTargetScene(SceneManager.GetActiveScene().name))
+            {
+                SaveData(RecordManager.Instance?.SaveFilePath);
+            }
         }
     }
 
@@ -99,6 +168,7 @@ public class PlayerPosRecordData : MonoBehaviour, IRecord
         currentData.lastSaveTime = DateTime.UtcNow.ToString("o");
 
         File.WriteAllText(saveFilePath, JsonUtility.ToJson(currentData, true));
+        isDirty = false; // 저장 완료 시 Dirty 해제
         Debug.Log($"<color=lime>[PlayerPosRecordData]</color> 📍 [{currentSceneName}] 플레이어 좌표 저장 완료: {lastKnownPosition}");
     }
 
@@ -129,14 +199,12 @@ public class PlayerPosRecordData : MonoBehaviour, IRecord
             lastKnownPosition = targetPosition;
             hasValidKnownPosition = true;
             cachedController = controller;
+            isDirty = false;
 
             Debug.Log($"<color=cyan>[PlayerPosRecordData]</color> 📍 [{currentSceneName}] 플레이어 위치 복구 완료: {targetPosition}");
         }
     }
 
-    /// <summary>
-    /// 저장 대상 씬(Main_World_3, Main_World_Cave 등)인지 검사 (Territory 등은 false)
-    /// </summary>
     private bool IsValidTargetScene(string sceneName)
     {
         if (string.IsNullOrEmpty(sceneName)) return false;

@@ -17,47 +17,47 @@ public class ProductionPanelUI : MonoBehaviour
     [SerializeField] private TextMeshProUGUI buildingName;
     [SerializeField] private TextMeshProUGUI buildingLevel;
     [SerializeField] private Button levelUp;
-    [SerializeField] private TextMeshProUGUI levelUpBtnText;
+    [SerializeField] private GameObject levelUpArrowIcon; // 🌟 레벨업 버튼 내부의 화살표/세모 아이콘
 
     [Header("중앙 패널 - Center")]
     [SerializeField] private MemSlotUI[] memSlotImages = new MemSlotUI[5];
-    [SerializeField] private GameObject defaultMode;
-    [SerializeField] private GameObject creatingMode;
-    [SerializeField] private Image creatingItem;
-    [SerializeField] private TextMeshProUGUI completeCreateCount;
-    [SerializeField] private Button diamondBGBtn;
 
     [Header("중앙 패널 - Bottom")]
+    [SerializeField] private Image creatingItem;
     [SerializeField] private TextMeshProUGUI creatingItemName;
     [SerializeField] private TextMeshProUGUI productionSpeed;
     [SerializeField] private Slider progressBar;
     [SerializeField] private TextMeshProUGUI durationText;
     [SerializeField] private TextMeshProUGUI statusText;
-
-    [Header("제작할 아이템 관련 정보")]
-    [SerializeField] private GameObject craftingSlotPrefab;
-    [SerializeField] private Transform craftingSlotParent;
+    [SerializeField] private TextMeshProUGUI completeCreateCount;
+    [SerializeField] private Button getBtn;
 
     public ProductionFacilityRuntime TargetFacility => targetFacility;
     private ProductionFacilityRuntime targetFacility;
 
     private Sequence dotsSequence;
     private bool isAnimatingDots = false;
-    private string currentStatusPrefix = ""; // 🌟 상태 프리픽스 추적 변수
+    private string currentStatusPrefix = "";
 
     private void Awake()
     {
         if (Instance == null) Instance = this;
         else Destroy(gameObject);
 
-        if (diamondBGBtn != null) diamondBGBtn.onClick.AddListener(OnClickCollectReward);
+        if (getBtn != null) getBtn.onClick.AddListener(OnClickCollectReward);
         if (levelUp != null) levelUp.onClick.AddListener(OnClickLevelUp);
 
         InitializeSlotIndexes();
     }
 
+    private void OnEnable()
+    {
+        ProductionFacilityRuntime.OnMemDeploymentChanged += RefreshStaticUI;
+    }
+
     private void OnDisable()
     {
+        ProductionFacilityRuntime.OnMemDeploymentChanged -= RefreshStaticUI;
         StopDotsAnimation();
     }
 
@@ -72,9 +72,6 @@ public class ProductionPanelUI : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// 배치된 모든 멤의 배고픔량이 0 이하(또는 IsStarving)인지 검사
-    /// </summary>
     private bool IsAllDeployedMemsStarving()
     {
         if (targetFacility == null || targetFacility.DeployedMemEntries == null || targetFacility.DeployedMemEntries.Count == 0)
@@ -92,7 +89,11 @@ public class ProductionPanelUI : MonoBehaviour
         bool isStorageFull = targetFacility.currentStorageCount >= targetFacility.maxStorageCount;
         int currentSatiety = ConsumeFoodSystem.Instance != null ? ConsumeFoodSystem.Instance.CurrentSatiety : 0;
 
-        // 1. 멤 미배치
+        if (getBtn != null)
+        {
+            getBtn.interactable = targetFacility.currentStorageCount > 0;
+        }
+
         if (isNoMem)
         {
             StopDotsAnimation();
@@ -103,21 +104,18 @@ public class ProductionPanelUI : MonoBehaviour
             }
             if (progressBar != null) progressBar.value = 0f;
             if (durationText != null) durationText.text = "0%";
-            if (productionSpeed != null) productionSpeed.text = "생산속도: - 초(개당)";
+            if (productionSpeed != null) productionSpeed.text = "- 초 (개당)";
         }
-        // 2. 가동 중지 (배치된 멤 모두 허기량 0)
         else if (isAllStarving)
         {
             if (progressBar != null) progressBar.value = 0f;
             if (durationText != null) durationText.text = "0%";
-            if (productionSpeed != null) productionSpeed.text = "생산속도: - 초(개당)";
+            if (productionSpeed != null) productionSpeed.text = "- 초 (개당)";
 
-            // 🌟 2-1. 굶고 있지만 음식창고에 음식을 채워 넣은 경우 (급식 진행/대기)
             if (currentSatiety > 0)
             {
                 StartDotsAnimation("음식 보충중");
             }
-            // 🌟 2-2. 창고에 음식도 완전히 없는 경우
             else
             {
                 StopDotsAnimation();
@@ -128,7 +126,6 @@ public class ProductionPanelUI : MonoBehaviour
                 }
             }
         }
-        // 3. 보관함 가득 참
         else if (isStorageFull)
         {
             StopDotsAnimation();
@@ -139,40 +136,30 @@ public class ProductionPanelUI : MonoBehaviour
             }
             if (progressBar != null) progressBar.value = 1f;
             if (durationText != null) durationText.text = "100%";
+            if (productionSpeed != null) productionSpeed.text = $"{targetFacility.totalRequiredTime:F1}초 (개당)";
         }
-        // 4. 정상 생산 진행 중 (허기 상태 해제됨)
         else
         {
-            float progressNormalized = targetFacility.totalRequiredTime > 0f ? (targetFacility.currentProgressTime / targetFacility.totalRequiredTime) : 0f;
+            float progressNormalized = targetFacility.totalRequiredTime > 0f ? Mathf.Clamp01(targetFacility.currentProgressTime / targetFacility.totalRequiredTime) : 0f;
             if (progressBar != null) progressBar.value = progressNormalized;
-            if (durationText != null) durationText.text = $"{Mathf.Clamp(progressNormalized * 100f, 0f, 100f):F0}%";
-            if (productionSpeed != null) productionSpeed.text = $"생산속도: {targetFacility.totalRequiredTime:F1}초(개당)";
+            if (durationText != null) durationText.text = $"{progressNormalized * 100f:F0}%";
+            if (productionSpeed != null) productionSpeed.text = $"{targetFacility.totalRequiredTime:F1}초 (개당)";
 
-            StartDotsAnimation(); // 기본 아이템이름 + "생산중"
+            StartDotsAnimation();
         }
 
         UpdateStorageText();
     }
 
-    /// <summary>
-    /// 🌟 customPrefix 인자를 받아 "음식 보충중" 또는 "[아이템명] 생산중" 다변화 애니메이션 지원
-    /// </summary>
     private void StartDotsAnimation(string customPrefix = null)
     {
         string prefix = customPrefix;
 
         if (string.IsNullOrEmpty(prefix))
         {
-            string itemName = "";
-            if (targetFacility != null && !string.IsNullOrEmpty(targetFacility.craftingItem))
-            {
-                ItemData targetItemData = FindItemDataInCatalog(targetFacility.craftingItem);
-                if (targetItemData != null) itemName = targetItemData.ItemName;
-            }
-            prefix = string.IsNullOrEmpty(itemName) ? "생산중" : $"{itemName} 생산중";
+            prefix = "생산중";
         }
 
-        // 이미 동일한 접두사로 애니메이션 재생 중이면 재시작 방지
         if (isAnimatingDots && currentStatusPrefix == prefix) return;
 
         currentStatusPrefix = prefix;
@@ -242,14 +229,15 @@ public class ProductionPanelUI : MonoBehaviour
             memSlotImages[i].RefreshStatus(isUnlocked, placedMemData, placedEntryData);
         }
 
+        // 🌟 [핵심 수정] 최대 레벨을 3으로 변경 및 화살표 세모 제거
         if (levelUp != null)
         {
-            bool isMax = targetFacility.currentLevel >= 5;
+            bool isMax = targetFacility.currentLevel >= 3;
             levelUp.interactable = !isMax;
 
-            if (levelUpBtnText != null)
+            if (levelUpArrowIcon != null)
             {
-                levelUpBtnText.text = isMax ? "Lv.Max" : "레벨업";
+                levelUpArrowIcon.SetActive(!isMax);
             }
         }
     }
@@ -280,7 +268,6 @@ public class ProductionPanelUI : MonoBehaviour
     private void DisplayProduction()
     {
         if (targetFacility == null) return;
-        if (defaultMode != null) defaultMode.SetActive(true);
 
         if (!string.IsNullOrEmpty(targetFacility.craftingItem))
         {
