@@ -1104,7 +1104,7 @@ namespace HDY.Tutorial
                 return;
             }
 
-            dialogueUI.ShowLine(current.dialogueLines[currentDialogueLineIndex].text);
+            dialogueUI.ShowLine(current.dialogueLines[currentDialogueLineIndex].text, current.triggerType);
             SetDialogueInputBlock(true);
         }
 

@@ -54,18 +54,16 @@ namespace HDY.UI
     /// 시작 버튼(actionButton)은 CanStart(zone)이 IsZoneAvailable을 이미 검사하므로 별도 처리 없이도 자동으로
     /// 비활성화된다 - 이 안내 이미지는 그 사실을 화면에 보여주는 역할과, 슬롯 드래그 배치 자체를 막는 역할을 겸한다.
     ///
-    /// [보상 아이콘 그리드 - 동적 생성] rewardIconGridParent(GridLayoutGroup 부착)에 rewardIconPrefab을 지역의
-    /// 보상 개수만큼 Instantiate한다. 표시되는 최대수량 텍스트는 항상 ExplorationRuntime.GetBonusRatio(현재 배치된
-    /// 멤들의 탐험레벨 합/요구치 비율)를 반영한 값이라, 멤을 배치/해제할 때마다(RefreshCurrentZoneDisplay 호출 시)
-    /// 다시 계산되어 화면에 반영된다. 보상이 9개(MaxVisibleRewardSlots)를 초과하면 마지막 한 칸을 "..." 오버플로우
-    /// 표시로 바꾸고, 그 칸에 마우스를 올리면(ExplorationRewardIconUI.OnPointerEntered) 남은 보상 목록을
-    /// rewardOverflowPopup 안의 그리드(rewardOverflowPopupGridParent)에 같은 프리팹으로 채워 보여준다.
+    /// [보상 아이콘 그리드 - 동적 생성, HDY 요청으로 스크롤 뷰 전환] rewardIconGridParent(GridLayoutGroup 부착,
+    /// 스크롤 뷰의 Content)에 rewardIconPrefab을 지역의 보상 개수만큼 전부 Instantiate한다(개수 제한 없음).
+    /// 표시되는 최대수량 텍스트는 항상 ExplorationRuntime.GetBonusRatio(현재 배치된 멤들의 탐험레벨 합/요구치
+    /// 비율)를 반영한 값이라, 멤을 배치/해제할 때마다(RefreshCurrentZoneDisplay 호출 시) 다시 계산되어 화면에
+    /// 반영된다. 예전에는 9개를 넘으면 마지막 칸을 "..." 오버플로우 표시로 바꾸고 마우스를 올리면 별도 팝업에
+    /// 나머지를 보여줬지만, 이제 그 제한 없이 전부 채우고 스크롤로 넘겨보는 방식으로 바뀌어서 관련 필드/메서드를
+    /// 전부 제거했다. rewardScrollRect가 있으면 지역이 바뀔 때마다 스크롤 위치를 처음(0)으로 되돌린다.
     /// </summary>
     public class ExplorationPanelUI : MonoBehaviour
     {
-        private const int MaxVisibleRewardSlots = 9;
-        private const int NormalRewardSlotCount = MaxVisibleRewardSlots - 1; // 8 - 나머지 1칸은 "..." 오버플로우용
-
         [Header("데이터 참조")]
         [SerializeField] private ExplorationZoneData[] zones;
         [SerializeField] private ExplorationRuntime runtime;
@@ -80,16 +78,13 @@ namespace HDY.UI
         [SerializeField] private Button prevZoneButton;
         [SerializeField] private Button nextZoneButton;
 
-        [Header("보상 아이콘 그리드 (동적 생성)")]
+        [Header("보상 아이콘 그리드 (동적 생성 - 스크롤 뷰, HDY 요청)")]
         [Tooltip("보상 아이콘 한 칸의 프리팹(ExplorationRewardIconUI).")]
         [SerializeField] private ExplorationRewardIconUI rewardIconPrefab;
-        [Tooltip("보상 아이콘들이 자동 생성될 부모. GridLayoutGroup이 붙어있어야 한다.")]
+        [Tooltip("보상 아이콘들이 자동 생성될 부모(스크롤 뷰의 Content). GridLayoutGroup이 붙어있어야 한다.")]
         [SerializeField] private Transform rewardIconGridParent;
-
-        [Header("보상 초과 목록 팝업 (보상이 9개 초과일 때 마지막 칸에 마우스를 올리면 표시)")]
-        [SerializeField] private GameObject rewardOverflowPopup;
-        [Tooltip("팝업 안에서 남은 보상 아이콘들이 자동 생성될 부모. GridLayoutGroup이 붙어있어야 한다.")]
-        [SerializeField] private Transform rewardOverflowPopupGridParent;
+        [Tooltip("지역이 바뀔 때 스크롤 위치를 처음으로 되돌리는 데 사용. 비워둬도 동작에는 지장 없음(선택 사항).")]
+        [SerializeField] private ScrollRect rewardScrollRect;
 
         [Header("탐험대 5슬롯")]
         [SerializeField] private MemSlotUI[] memSlots = new MemSlotUI[5];
@@ -121,9 +116,8 @@ namespace HDY.UI
         // 드래그가 스왑/취소 중 하나로 이미 처리됐는지(OnSlotDragEnded에서 중복 처리 방지용).
         private bool dragHandledAsSwapOrRemoval;
 
-        // 매 갱신마다 새로 Instantiate/Destroy하는 보상 아이콘 인스턴스들(메인 그리드 / 오버플로우 팝업 각각 별도 보관).
+        // 매 갱신마다 새로 Instantiate/Destroy하는 보상 아이콘 인스턴스들.
         private readonly List<ExplorationRewardIconUI> spawnedRewardIcons = new List<ExplorationRewardIconUI>();
-        private readonly List<ExplorationRewardIconUI> spawnedOverflowPopupIcons = new List<ExplorationRewardIconUI>();
 
         private ExplorationZoneData CurrentZone =>
             (zones != null && zones.Length > 0)
@@ -157,8 +151,6 @@ namespace HDY.UI
             if (prevZoneButton != null) prevZoneButton.onClick.AddListener(GoToPrevZone);
             if (nextZoneButton != null) nextZoneButton.onClick.AddListener(GoToNextZone);
             if (actionButton != null) actionButton.onClick.AddListener(HandleActionButtonClicked);
-
-            HideRewardOverflowPopup();
         }
 
         private void OnEnable()
@@ -257,39 +249,30 @@ namespace HDY.UI
         }
 
         /// <summary>
-        /// 지역 카드에 보상 아이템 아이콘 + (보너스 배율이 반영된) 최대수량을 GridLayoutGroup에 동적으로 채운다.
-        /// 보상이 MaxVisibleRewardSlots(9)개를 초과하면 앞의 NormalRewardSlotCount(8)개만 정상 표시하고, 마지막
-        /// 한 칸은 "..." 오버플로우 표시로 바꾼 뒤 그 칸에 마우스를 올리면 남은 보상 목록을 팝업으로 보여준다.
+        /// [HDY 요청 - 스크롤 뷰 전환] 지역 카드에 보상 아이템 아이콘 + (보너스 배율이 반영된) 최대수량을
+        /// GridLayoutGroup(스크롤 뷰의 Content)에 전부 동적으로 채운다. 예전처럼 개수를 잘라 "..." 오버플로우
+        /// 칸으로 대체하지 않고, 많으면 스크롤로 넘겨보는 방식이라 여기서는 그냥 전부 채우기만 한다.
         /// </summary>
         private void RefreshRewardPreview(ExplorationZoneData zone)
         {
             ClearSpawnedIcons(spawnedRewardIcons);
-            HideRewardOverflowPopup();
+
+            if (rewardScrollRect != null)
+            {
+                rewardScrollRect.horizontalNormalizedPosition = 0f;
+                rewardScrollRect.verticalNormalizedPosition = 1f; // 세로 스크롤 기준 "맨 위"는 1이 처음이다.
+            }
 
             if (rewardIconPrefab == null || rewardIconGridParent == null) return;
             if (zone.rewards == null || zone.rewards.Count == 0) return;
 
             float ratio = runtime != null ? runtime.GetBonusRatio(zone) : 1f;
-            int totalCount = zone.rewards.Count;
-            bool hasOverflow = totalCount > MaxVisibleRewardSlots;
-            int normalCount = hasOverflow ? NormalRewardSlotCount : totalCount;
 
-            for (int i = 0; i < normalCount; i++)
+            for (int i = 0; i < zone.rewards.Count; i++)
             {
                 var instance = Instantiate(rewardIconPrefab, rewardIconGridParent);
                 ApplyRewardVisual(instance, zone.rewards[i], ratio);
                 spawnedRewardIcons.Add(instance);
-            }
-
-            if (hasOverflow)
-            {
-                var overflowInstance = Instantiate(rewardIconPrefab, rewardIconGridParent);
-                overflowInstance.SetOverflowIndicator();
-                spawnedRewardIcons.Add(overflowInstance);
-
-                int overflowStartIndex = normalCount;
-                overflowInstance.OnPointerEntered += () => ShowRewardOverflowPopup(zone, overflowStartIndex, ratio);
-                overflowInstance.OnPointerExited += HideRewardOverflowPopup;
             }
         }
 
@@ -305,30 +288,8 @@ namespace HDY.UI
             }
 
             int scaledMax = Mathf.Max(reward.minAmount, Mathf.RoundToInt(reward.maxAmount * ratio));
+            string itemName = itemData != null ? itemData.ItemName : reward.itemId;
             instance.SetItem(itemData != null ? itemData.ItemIcon : null, scaledMax.ToString());
-        }
-
-        /// <summary>오버플로우 칸에 마우스를 올렸을 때, 남은 보상(startIndex부터 끝까지)을 같은 프리팹으로 팝업 그리드에 채워 보여준다.</summary>
-        private void ShowRewardOverflowPopup(ExplorationZoneData zone, int startIndex, float ratio)
-        {
-            if (rewardOverflowPopup == null || rewardOverflowPopupGridParent == null || rewardIconPrefab == null) return;
-            if (zone.rewards == null) return;
-
-            ClearSpawnedIcons(spawnedOverflowPopupIcons);
-
-            for (int i = startIndex; i < zone.rewards.Count; i++)
-            {
-                var instance = Instantiate(rewardIconPrefab, rewardOverflowPopupGridParent);
-                ApplyRewardVisual(instance, zone.rewards[i], ratio);
-                spawnedOverflowPopupIcons.Add(instance);
-            }
-
-            rewardOverflowPopup.SetActive(true);
-        }
-
-        private void HideRewardOverflowPopup()
-        {
-            if (rewardOverflowPopup != null) rewardOverflowPopup.SetActive(false);
         }
 
         /// <summary>Instantiate로 만들어둔 보상 아이콘 인스턴스들을 전부 Destroy하고 목록을 비운다(다시 그리기 전 정리용).</summary>
