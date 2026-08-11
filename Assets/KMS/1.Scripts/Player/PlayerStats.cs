@@ -35,6 +35,7 @@ namespace KMS
         public KMSFoodEffectController FoodEffects => foodEffects;
         public bool IsAlive { get; private set; } = true;
         public bool IsInvulnerable { get; private set; }
+        public PlayerDamageType LastDamageType { get; private set; } = PlayerDamageType.Generic;
 
         public event Action<float, float> HealthChanged;
         public event Action<float, float> HungerChanged;
@@ -107,6 +108,7 @@ namespace KMS
             if (!IsAlive || (!ignoreInvulnerability && IsInvulnerable) || amount <= 0f) return;
 
             CurrentHealth = Mathf.Max(0f, CurrentHealth - amount);
+            LastDamageType = damageType;
             Damaged?.Invoke(amount);
             DamageReceived?.Invoke(amount, damageType);
             HealthChanged?.Invoke(CurrentHealth, maxHealth);
@@ -195,6 +197,18 @@ namespace KMS
         public bool HasHunger(float amount)
         {
             return CurrentHunger >= amount;
+        }
+
+        /// <summary>
+        /// Consumes hunger only when the full requested amount is available.
+        /// Use this for transactional costs that must not partially drain hunger.
+        /// </summary>
+        public bool TryConsumeHungerExact(float amount)
+        {
+            if (amount <= 0f) return true;
+            if (!HasHunger(amount)) return false;
+
+            return ConsumeHunger(amount);
         }
 
         public float RestoreHunger(float amount)

@@ -7,17 +7,31 @@ namespace HDY.Upgrade
     /// [흐름] UpgradePopupUI.Show(target) 호출 -> CanUpgrade()/GetUpgradeCost()로 팝업에 표시할 내용을 계산
     /// -> 확인 버튼 클릭 시 팝업이 비용(골드/재료)을 확인하고 차감까지 마치면 ApplyUpgrade()를 호출한다.
     /// 즉 ApplyUpgrade()가 호출되는 시점에는 비용 지불이 이미 끝난 상태이므로, 구현체는 실제 효과만 적용하면 된다.
+    ///
+    /// [HDY 요청 - 헤더/미들/버튼 텍스트 분리] 팝업 텍스트 자리가 제목(헤더) 하나뿐이었는데, 업그레이드마다
+    /// 다른 문구를 보여줄 수 있도록 미들 텍스트와 버튼 텍스트를 분리했다. 예전에는 GetUpgradeDescription()
+    /// 하나가 확인 버튼 라벨에 \"2 → 3\"처럼 동적인 값을 표시했는데, 이제 그 역할은 GetUpgradeMiddleText()가
+    /// 맡고, GetUpgradeDescription()은 GetUpgradeButtonText()로 이름이 바뀌면서 \"확장\"/\"해금\"/\"강화\"처럼
+    /// 최대치 여부와 무관하게 항상 같은 고정 문구만 반환하도록 역할이 명확해졌다(버튼의 활성/비활성 표시는
+    /// interactable로 이미 따로 처리되므로 문구 자체가 바뀔 필요는 없다).
     /// </summary>
     public interface IUpgradable
     {
-        /// <summary>팝업 상단에 표시할 제목 (예: "멤창고 페이지 확장").</summary>
+        /// <summary>팝업 상단에 표시할 제목 (예: "창고 확장").</summary>
         string GetUpgradeTitle();
 
         /// <summary>
-        /// 확인(업그레이드) 버튼에 표시할 짧은 설명 (예: "2 → 3"). 팝업에 별도 설명 영역이 없고 버튼 라벨로
-        /// 바로 쓰이므로, 한 줄에 들어갈 만큼 짧게 반환해야 한다. 자세한 설명이 필요하면 GetUpgradeTitle 쪽에서 다룬다.
+        /// [HDY 요청] 팝업 중간에 표시할 설명 문구 (예: "추가 10칸 확장 비용", 최대치면 "MAX"). 화면에 실제로
+        /// 연결되는 텍스트 오브젝트는 UpgradePopupUI.middleText다.
         /// </summary>
-        string GetUpgradeDescription();
+        string GetUpgradeMiddleText();
+
+        /// <summary>
+        /// [HDY 요청] 확인(업그레이드) 버튼에 표시할 고정 문구(예: "확장", "해금", "강화"). 최대치 여부와
+        /// 무관하게 항상 같은 문구를 반환한다 - 버튼의 활성/비활성(interactable)은 팝업이 CanUpgrade()로
+        /// 별도 처리하므로 문구 자체를 바꿀 필요는 없다.
+        /// </summary>
+        string GetUpgradeButtonText();
 
         /// <summary>지금 업그레이드를 시도할 수 있는 상태인지(이미 최대치에 도달했다면 false).</summary>
         bool CanUpgrade();

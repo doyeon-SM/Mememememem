@@ -9,6 +9,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 7822570432868888126}
+  - component: {fileID: 1292712838785031564}
   m_Layer: 0
   m_Name: Held_DecentAxe
   m_TagString: Untagged
@@ -32,6 +33,21 @@ Transform:
   - {fileID: 4937143306387731705}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1292712838785031564
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5312582340529594595}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d7afe5b5d7dd4e0986540794638ec55d, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::KMS.HeldToolContactGeometry
+  shaftDirectionLocal: {x: 0.5156173, y: 0.152001, z: -0.84322864}
+  bladeContactPointLocal: {x: 0.0014348271, y: 0.0026562558, z: -0.43692183}
+  bladeNormalLocal: {x: -0.15193258, y: 0.9847627, z: 0.08461031}
 --- !u!1001 &4832073025284035346
 PrefabInstance:
   m_ObjectHideFlags: 0

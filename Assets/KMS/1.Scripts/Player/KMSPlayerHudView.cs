@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using HDY.Item;
 using TMPro;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace KMS
@@ -42,7 +43,15 @@ namespace KMS
         [SerializeField] private GameObject throwGuide;
         [SerializeField] private GameObject defeatOverlay;
         [SerializeField] private TMP_Text defeatMessageText;
+        [SerializeField] private TMP_Text respawnGuidanceText;
         [SerializeField] private Button respawnButton;
+        [SerializeField] private TMP_FontAsset deathFont;
+        [SerializeField] private Sprite deathTitleIconSprite;
+        [SerializeField] private Sprite respawnButtonIconSprite;
+        [SerializeField] private Sprite deathDividerSprite;
+        [SerializeField] private Sprite respawnButtonBackgroundSprite;
+        [SerializeField, Min(0f)] private float deathOverlayDelay = 0.65f;
+        [SerializeField, Min(0f)] private float deathOverlayFadeDuration = 0.35f;
 
         [Header("Item Obtained Toasts")]
         [SerializeField] private RectTransform itemObtainedToastContainer;
@@ -58,10 +67,15 @@ namespace KMS
         public Button MapButton => mapButton;
         public Button RespawnButton => respawnButton;
 
-        private readonly List<Image> hungerEffectSegmentImages = new List<Image>();
+        private readonly List<KMSHungerSegmentGraphic> hungerEffectSegmentGraphics =
+            new List<KMSHungerSegmentGraphic>();
         private readonly List<ActiveItemObtainedToast> itemObtainedToasts = new List<ActiveItemObtainedToast>();
         private readonly List<GameObject> hungerRestorePopups = new List<GameObject>();
         private Coroutine hungerRestoreRoutine;
+        private Coroutine deathPresentationRoutine;
+        private CanvasGroup deathCanvasGroup;
+        private Image deathTitleIconImage;
+        private Image respawnButtonIconImage;
         private bool hungerInitialized;
         private float displayedHunger;
         private float displayedMaxHunger;
@@ -92,7 +106,8 @@ namespace KMS
 
             SetThrowGuideVisible(false);
             EnsureRespawnButton();
-            SetDefeatOverlayVisible(false, string.Empty);
+            ConfigureDeathPresentation();
+            HideDeathPresentation();
             UpdateResponsiveLayout();
         }
 
@@ -121,6 +136,11 @@ namespace KMS
 
         private void OnDisable()
         {
+            if (deathPresentationRoutine != null)
+            {
+                StopCoroutine(deathPresentationRoutine);
+                deathPresentationRoutine = null;
+            }
             ResetHungerFeedback();
             ClearItemObtainedToasts();
         }
@@ -425,15 +445,37 @@ namespace KMS
             if (throwGuide != null) throwGuide.SetActive(visible);
         }
 
-        public void SetDefeatOverlayVisible(bool visible, string message)
+        public void ShowDeathPresentation(bool showWayPointGuidance)
         {
-            if (defeatMessageText != null) defeatMessageText.text = message;
-            if (respawnButton != null) respawnButton.interactable = visible;
-            if (defeatOverlay != null)
+            ConfigureDeathPresentation();
+            if (defeatMessageText != null) defeatMessageText.text = "캐릭터 사망";
+            if (respawnGuidanceText != null)
             {
-                defeatOverlay.SetActive(visible);
-                if (visible) defeatOverlay.transform.SetAsLastSibling();
+                respawnGuidanceText.text = "등록된 웨이포인트 중,\n가장 가까운 곳에서 부활합니다.";
+                respawnGuidanceText.gameObject.SetActive(showWayPointGuidance);
             }
+            SetRespawnButtonText("부활");
+            SetRespawnButtonPosition(showWayPointGuidance);
+            if (respawnButton != null) respawnButton.interactable = false;
+
+            if (deathPresentationRoutine != null)
+            {
+                StopCoroutine(deathPresentationRoutine);
+            }
+            deathPresentationRoutine = StartCoroutine(ShowDeathPresentationRoutine());
+        }
+
+        public void HideDeathPresentation()
+        {
+            if (deathPresentationRoutine != null)
+            {
+                StopCoroutine(deathPresentationRoutine);
+                deathPresentationRoutine = null;
+            }
+
+            if (respawnButton != null) respawnButton.interactable = false;
+            if (deathCanvasGroup != null) deathCanvasGroup.alpha = 0f;
+            if (defeatOverlay != null) defeatOverlay.SetActive(false);
         }
 
         public void ShowNotification(string message, float duration)
@@ -544,6 +586,217 @@ namespace KMS
             label.color = new Color32(25, 25, 25, 255);
         }
 
+        private void ConfigureDeathPresentation()
+        {
+            if (defeatOverlay == null) return;
+
+            Image background = defeatOverlay.GetComponent<Image>();
+            if (background != null) background.color = new Color32(0, 0, 0, 180);
+
+            deathCanvasGroup = defeatOverlay.GetComponent<CanvasGroup>();
+            if (deathCanvasGroup == null) deathCanvasGroup = defeatOverlay.AddComponent<CanvasGroup>();
+
+            Transform countdown = defeatOverlay.transform.Find("CountdownText");
+            if (countdown != null) countdown.gameObject.SetActive(false);
+
+            if (respawnGuidanceText == null)
+            {
+                Transform existing = defeatOverlay.transform.Find("RespawnGuidanceText");
+                if (existing != null) respawnGuidanceText = existing.GetComponent<TMP_Text>();
+            }
+
+            if (respawnGuidanceText == null)
+            {
+                GameObject guidanceObject = new GameObject(
+                    "RespawnGuidanceText",
+                    typeof(RectTransform),
+                    typeof(TextMeshProUGUI));
+                guidanceObject.transform.SetParent(defeatOverlay.transform, false);
+                respawnGuidanceText = guidanceObject.GetComponent<TextMeshProUGUI>();
+            }
+
+            ConfigureDeathText(defeatMessageText, 22f, new Vector2(12f, 48f), new Vector2(160f, 40f));
+            ConfigureDeathText(respawnGuidanceText, 18f, new Vector2(0f, -28f), new Vector2(420f, 56f));
+
+            deathTitleIconImage = EnsureDeathImage(
+                "DeathTitleIcon",
+                deathTitleIconSprite,
+                defeatOverlay.transform,
+                new Vector2(-70f, 48f),
+                new Vector2(24f, 24f));
+
+            Transform divider = defeatOverlay.transform.Find("MessageDivider");
+            if (divider != null)
+            {
+                divider.gameObject.SetActive(true);
+                Image dividerImage = divider.GetComponent<Image>();
+                if (dividerImage != null)
+                {
+                    dividerImage.sprite = deathDividerSprite;
+                    dividerImage.type = Image.Type.Sliced;
+                    dividerImage.color = new Color32(255, 255, 255, 235);
+                    dividerImage.raycastTarget = false;
+                    dividerImage.pixelsPerUnitMultiplier = 25f;
+                }
+                RectTransform dividerRect = divider.GetComponent<RectTransform>();
+                if (dividerRect != null)
+                {
+                    dividerRect.anchorMin = dividerRect.anchorMax = new Vector2(0.5f, 0.5f);
+                    dividerRect.pivot = new Vector2(0.5f, 0.5f);
+                    dividerRect.anchoredPosition = new Vector2(0f, 15f);
+                    dividerRect.sizeDelta = new Vector2(170f, 3f);
+                }
+            }
+
+            if (respawnButton != null)
+            {
+                RectTransform buttonRect = respawnButton.GetComponent<RectTransform>();
+                if (buttonRect != null)
+                {
+                    buttonRect.sizeDelta = new Vector2(150f, 46f);
+                }
+
+                Image buttonBackground = respawnButton.GetComponent<Image>();
+                if (buttonBackground != null)
+                {
+                    buttonBackground.sprite = respawnButtonBackgroundSprite;
+                    buttonBackground.type = Image.Type.Sliced;
+                    buttonBackground.color = new Color32(255, 255, 255, 100);
+                    buttonBackground.pixelsPerUnitMultiplier = 12f;
+                }
+                Outline outline = respawnButton.GetComponent<Outline>();
+                if (outline != null) outline.enabled = false;
+
+                TMP_Text buttonLabel = respawnButton.GetComponentInChildren<TMP_Text>(true);
+                if (buttonLabel != null)
+                {
+                    if (deathFont != null) buttonLabel.font = deathFont;
+                    buttonLabel.fontSize = 18f;
+                    buttonLabel.fontStyle = FontStyles.Bold;
+                    buttonLabel.color = Color.white;
+                    RectTransform labelRect = buttonLabel.rectTransform;
+                    labelRect.offsetMin = new Vector2(30f, 0f);
+                    labelRect.offsetMax = Vector2.zero;
+                }
+
+                respawnButtonIconImage = EnsureDeathImage(
+                    "RespawnIcon",
+                    respawnButtonIconSprite,
+                    respawnButton.transform,
+                    new Vector2(-38f, 0f),
+                    new Vector2(24f, 24f));
+            }
+
+            if (deathTitleIconImage != null) deathTitleIconImage.transform.SetAsLastSibling();
+            if (defeatMessageText != null) defeatMessageText.transform.SetAsLastSibling();
+            if (divider != null) divider.SetAsLastSibling();
+            if (respawnGuidanceText != null) respawnGuidanceText.transform.SetAsLastSibling();
+            if (respawnButton != null) respawnButton.transform.SetAsLastSibling();
+        }
+
+        private Image EnsureDeathImage(
+            string objectName,
+            Sprite sprite,
+            Transform parent,
+            Vector2 position,
+            Vector2 size)
+        {
+            if (parent == null) return null;
+            Transform existing = parent.Find(objectName);
+            Image image = existing != null ? existing.GetComponent<Image>() : null;
+            if (image == null)
+            {
+                GameObject imageObject = new GameObject(objectName, typeof(RectTransform), typeof(Image));
+                imageObject.transform.SetParent(parent, false);
+                image = imageObject.GetComponent<Image>();
+            }
+
+            image.sprite = sprite;
+            image.color = Color.white;
+            image.preserveAspect = true;
+            image.raycastTarget = false;
+            image.gameObject.SetActive(sprite != null);
+
+            RectTransform rect = image.rectTransform;
+            rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = position;
+            rect.sizeDelta = size;
+            return image;
+        }
+
+        private void SetRespawnButtonPosition(bool showWayPointGuidance)
+        {
+            if (respawnButton == null) return;
+            RectTransform rect = respawnButton.GetComponent<RectTransform>();
+            if (rect != null)
+            {
+                rect.anchoredPosition = new Vector2(0f, showWayPointGuidance ? -92f : -42f);
+            }
+        }
+
+        private void ConfigureDeathText(
+            TMP_Text text,
+            float fontSize,
+            Vector2 position,
+            Vector2 size)
+        {
+            if (text == null) return;
+            if (deathFont != null) text.font = deathFont;
+            text.fontSize = fontSize;
+            text.fontStyle = FontStyles.Bold;
+            text.color = Color.white;
+            text.alignment = TextAlignmentOptions.Center;
+
+            RectTransform rect = text.rectTransform;
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = position;
+            rect.sizeDelta = size;
+        }
+
+        private void SetRespawnButtonText(string value)
+        {
+            if (respawnButton == null) return;
+            TMP_Text label = respawnButton.GetComponentInChildren<TMP_Text>(true);
+            if (label != null) label.text = value;
+        }
+
+        private IEnumerator ShowDeathPresentationRoutine()
+        {
+            if (defeatOverlay == null) yield break;
+
+            defeatOverlay.SetActive(false);
+            if (deathOverlayDelay > 0f)
+            {
+                yield return new WaitForSecondsRealtime(deathOverlayDelay);
+            }
+
+            defeatOverlay.SetActive(true);
+            defeatOverlay.transform.SetAsLastSibling();
+            deathCanvasGroup.alpha = deathOverlayFadeDuration > 0f ? 0f : 1f;
+
+            float elapsed = 0f;
+            while (elapsed < deathOverlayFadeDuration)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                deathCanvasGroup.alpha = Mathf.Clamp01(elapsed / deathOverlayFadeDuration);
+                yield return null;
+            }
+
+            deathCanvasGroup.alpha = 1f;
+            if (respawnButton != null)
+            {
+                respawnButton.interactable = true;
+                if (EventSystem.current != null)
+                {
+                    EventSystem.current.SetSelectedGameObject(respawnButton.gameObject);
+                }
+            }
+            deathPresentationRoutine = null;
+        }
+
         private IEnumerator RunItemObtainedToastLifetime(
             ActiveItemObtainedToast toast,
             float visibleDuration,
@@ -634,22 +887,36 @@ namespace KMS
             int requiredCount = foodEffects != null ? foodEffects.FoodSegments.Count : 0;
             EnsureHungerEffectSegmentCount(requiredCount);
 
-            float cursor = 0f;
-            for (int i = 0; i < hungerEffectSegmentImages.Count; i++)
+            float trackedSatiety = 0f;
+            if (foodEffects != null)
             {
-                Image image = hungerEffectSegmentImages[i];
-                if (image == null) continue;
+                for (int i = 0; i < foodEffects.FoodSegments.Count; i++)
+                {
+                    KMSFoodEffectSegment trackedSegment = foodEffects.FoodSegments[i];
+                    if (trackedSegment != null)
+                    {
+                        trackedSatiety += Mathf.Max(0f, trackedSegment.RemainingSatiety);
+                    }
+                }
+            }
+            float visibleEnd = maxHunger > 0f ? Mathf.Clamp01(trackedSatiety / maxHunger) : 0f;
+
+            float cursor = 0f;
+            for (int i = 0; i < hungerEffectSegmentGraphics.Count; i++)
+            {
+                KMSHungerSegmentGraphic graphic = hungerEffectSegmentGraphics[i];
+                if (graphic == null) continue;
 
                 if (i >= requiredCount || maxHunger <= 0f)
                 {
-                    image.gameObject.SetActive(false);
+                    graphic.gameObject.SetActive(false);
                     continue;
                 }
 
                 KMSFoodEffectSegment segment = foodEffects.FoodSegments[i];
                 if (segment == null || segment.RemainingSatiety <= 0f)
                 {
-                    image.gameObject.SetActive(false);
+                    graphic.gameObject.SetActive(false);
                     continue;
                 }
 
@@ -660,17 +927,18 @@ namespace KMS
                 if (segment.Effects.Count == 0)
                 {
                     // 효과 없는(포만감만) 세그먼트: cursor는 이미 전진했으므로 뒤 세그먼트 위치는 정확하다.
-                    image.gameObject.SetActive(false);
+                    graphic.gameObject.SetActive(false);
                     continue;
                 }
 
-                RectTransform rect = image.rectTransform;
+                RectTransform rect = graphic.rectTransform;
                 rect.anchorMin = new Vector2(start, 0f);
                 rect.anchorMax = new Vector2(end, 1f);
                 rect.anchoredPosition = Vector2.zero;
                 rect.sizeDelta = Vector2.zero;
-                image.color = GetFoodEffectColor(segment);
-                image.gameObject.SetActive(end > start);
+                graphic.color = GetFoodEffectColor(segment);
+                graphic.SetRoundedEnds(start <= 0.0001f, end >= visibleEnd - 0.0001f);
+                graphic.gameObject.SetActive(end > start);
             }
         }
 
@@ -678,32 +946,30 @@ namespace KMS
         {
             if (hungerFill == null || hungerFill.rectTransform.parent == null) return;
 
-            while (hungerEffectSegmentImages.Count < count)
+            while (hungerEffectSegmentGraphics.Count < count)
             {
                 var segmentObject = new GameObject(
-                    $"FoodEffectSegment_{hungerEffectSegmentImages.Count}",
+                    $"FoodEffectSegment_{hungerEffectSegmentGraphics.Count}",
                     typeof(RectTransform),
                     typeof(CanvasRenderer),
-                    typeof(Image));
+                    typeof(KMSHungerSegmentGraphic));
                 segmentObject.layer = hungerFill.gameObject.layer;
                 segmentObject.transform.SetParent(hungerFill.rectTransform.parent, false);
 
-                Image image = segmentObject.GetComponent<Image>();
-                image.raycastTarget = false;
-                image.maskable = hungerFill.maskable;
-                image.sprite = null;
-                image.type = Image.Type.Simple;
-                hungerEffectSegmentImages.Add(image);
+                KMSHungerSegmentGraphic graphic = segmentObject.GetComponent<KMSHungerSegmentGraphic>();
+                graphic.raycastTarget = false;
+                graphic.maskable = hungerFill.maskable;
+                hungerEffectSegmentGraphics.Add(graphic);
             }
 
             int firstSibling = hungerFill.transform.GetSiblingIndex() + 1;
-            for (int i = 0; i < hungerEffectSegmentImages.Count; i++)
+            for (int i = 0; i < hungerEffectSegmentGraphics.Count; i++)
             {
-                Image image = hungerEffectSegmentImages[i];
-                if (image != null)
+                KMSHungerSegmentGraphic graphic = hungerEffectSegmentGraphics[i];
+                if (graphic != null)
                 {
-                    image.transform.SetSiblingIndex(
-                        Mathf.Min(firstSibling + i, image.transform.parent.childCount - 1));
+                    graphic.transform.SetSiblingIndex(
+                        Mathf.Min(firstSibling + i, graphic.transform.parent.childCount - 1));
                 }
             }
         }

@@ -63,7 +63,7 @@ namespace KMS
 
         [Header("Ladder")]
         [SerializeField] private float ladderClimbSpeed = 3f;
-        [SerializeField] private float ladderSlideDownSpeed = 1.2f;
+        [SerializeField] private float ladderSlideDownSpeed = 2.4f;
         [SerializeField] private float ladderSnapSpeed = 12f;
         [SerializeField] private float ladderInputThreshold = 0.1f;
         [SerializeField, Min(0.01f)] private float ladderAnimationCycleDuration = 0.7666667f;
@@ -101,6 +101,7 @@ namespace KMS
         private float verticalVelocity;
         private float maximumDownwardSpeed;
         private bool suppressNextLanding = true;
+        private bool wasGroundedByController;
         private float rotationVelocity;
         private float coyoteTimer;
         private float jumpBufferTimer;
@@ -160,6 +161,7 @@ namespace KMS
 
             ResetStepVisual();
             ResetFallTracking(true);
+            wasGroundedByController = false;
             IsGrounded = false;
         }
 
@@ -222,6 +224,7 @@ namespace KMS
             characterController.enabled = wasEnabled;
 
             ResetFallTracking(true);
+            wasGroundedByController = false;
             IsGrounded = false;
         }
 
@@ -294,6 +297,7 @@ namespace KMS
             jumpBufferTimer = 0f;
             ResetMovementForces();
             ResetFallTracking(true);
+            wasGroundedByController = false;
             IsGrounded = false;
         }
 
@@ -311,6 +315,7 @@ namespace KMS
             coyoteTimer = 0f;
             jumpBufferTimer = 0f;
             ResetFallTracking(true);
+            wasGroundedByController = false;
             IsGrounded = false;
 
             Vector3 ladderPoint = activeLadder.GetClosestPointOnPath(transform.position);
@@ -350,11 +355,12 @@ namespace KMS
                 spherePosition,
                 groundedRadius,
                 groundLayers,
-                QueryTriggerInteraction.Ignore);
+                QueryTriggerInteraction.Ignore)
+                || wasGroundedByController;
 
             if (!wasGrounded && groundedNow)
             {
-                float impactSpeed = Mathf.Max(maximumDownwardSpeed, Mathf.Max(0f, -verticalVelocity));
+                float impactSpeed = maximumDownwardSpeed;
                 bool shouldNotify = !suppressNextLanding;
 
                 ResetFallTracking(false);
@@ -440,16 +446,25 @@ namespace KMS
             verticalVelocity += gravity * Time.deltaTime;
             externalVelocity = Vector3.Lerp(externalVelocity, Vector3.zero, externalForceDecay * Time.deltaTime);
 
-            if (!IsGrounded && verticalVelocity < 0f)
-            {
-                maximumDownwardSpeed = Mathf.Max(maximumDownwardSpeed, -verticalVelocity);
-            }
-
             Vector3 horizontalVelocity = hasMoveInput ? moveDirection * CurrentSpeed : Vector3.zero;
             Vector3 velocity = horizontalVelocity + externalVelocity + Vector3.up * verticalVelocity;
 
             float previousHeight = transform.position.y;
-            characterController.Move(velocity * Time.deltaTime);
+            CollisionFlags collisionFlags = characterController.Move(velocity * Time.deltaTime);
+            wasGroundedByController = (collisionFlags & CollisionFlags.Below) != 0;
+
+            float actualVerticalSpeed = Time.deltaTime > 0f
+                ? (transform.position.y - previousHeight) / Time.deltaTime
+                : 0f;
+
+            // Track actual downward movement instead of the requested gravity velocity.
+            // A CharacterController can remain caught on a ledge while its requested
+            // vertical velocity keeps growing; treating that value as impact speed
+            // causes severe damage after stepping down from a very small height.
+            if (!IsGrounded && !wasGroundedByController && actualVerticalSpeed < 0f)
+            {
+                maximumDownwardSpeed = Mathf.Max(maximumDownwardSpeed, -actualVerticalSpeed);
+            }
 
             float upwardStep = transform.position.y - previousHeight;
             if (IsGrounded

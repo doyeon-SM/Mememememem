@@ -1927,7 +1927,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 5
+  m_text: ''
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 4b7ce8b83d56017438c4d21b29279bd6, type: 2}
   m_sharedMaterial: {fileID: -9093974215444635951, guid: 4b7ce8b83d56017438c4d21b29279bd6, type: 2}
@@ -2658,7 +2658,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
-  m_Color: {r: 0, g: 0, b: 0, a: 0.8}
+  m_Color: {r: 0, g: 0, b: 0, a: 0.7058824}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -4159,7 +4159,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Respawn
+  m_text: 부활
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 4b7ce8b83d56017438c4d21b29279bd6, type: 2}
   m_sharedMaterial: {fileID: -9093974215444635951, guid: 4b7ce8b83d56017438c4d21b29279bd6, type: 2}
@@ -5460,7 +5460,15 @@ MonoBehaviour:
   throwGuide: {fileID: 2077198469279828025}
   defeatOverlay: {fileID: 2101054437610673390}
   defeatMessageText: {fileID: 6906614932595227660}
+  respawnGuidanceText: {fileID: 0}
   respawnButton: {fileID: 3803678991966125622}
+  deathFont: {fileID: 11400000, guid: 524c8ffa2a0e2414e9cab89410b20246, type: 2}
+  deathTitleIconSprite: {fileID: 21300000, guid: 440d7eced7067c94e97ffea55c237cb6, type: 3}
+  respawnButtonIconSprite: {fileID: 21300000, guid: 929b9b48c4df0e141aa2eac66537f940, type: 3}
+  deathDividerSprite: {fileID: 21300000, guid: 9109d18ad586e1f49b31eaea40662492, type: 3}
+  respawnButtonBackgroundSprite: {fileID: 21300000, guid: 6f26b2434055f404d8d9c0b82e4de90f, type: 3}
+  deathOverlayDelay: 0.65
+  deathOverlayFadeDuration: 0.35
   itemObtainedToastContainer: {fileID: 4216698365653790354}
   itemObtainedToastTemplate: {fileID: 3912662885154496213}
   survivalWidthRatio: 0.42
@@ -6749,7 +6757,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: RESPAWN IN
+  m_text: 쓰러졌습니다
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 4b7ce8b83d56017438c4d21b29279bd6, type: 2}
   m_sharedMaterial: {fileID: -9093974215444635951, guid: 4b7ce8b83d56017438c4d21b29279bd6, type: 2}

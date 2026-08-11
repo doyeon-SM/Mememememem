@@ -48,8 +48,8 @@ namespace KMS.EditorTools
             new ToolStateDefinition(
                 "Tool_Hoe",
                 ToolMotionType.Hoe,
-                "Assets/KMS/4.Animation/Dodo/Clips/Tool_Animation/hoe.anim",
-                0.60f),
+                "Assets/KMS/4.Animation/Dodo/Clips/Tool_Animation/axe.anim",
+                0.39f),
             new ToolStateDefinition(
                 "Tool_Pickaxe",
                 ToolMotionType.Pickaxe,

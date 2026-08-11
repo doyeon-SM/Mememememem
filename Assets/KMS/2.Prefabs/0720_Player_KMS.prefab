@@ -2959,7 +2959,7 @@ MonoBehaviour:
   jumpBufferTime: 0.12
   groundLayers:
     serializedVersion: 2
-    m_Bits: 247
+    m_Bits: 33554679
   groundedOffset: -0.12
   groundedRadius: 0.28
   moveHungerCostPerSecond: 0
@@ -2967,7 +2967,7 @@ MonoBehaviour:
   sprintHungerCostPerSecond: 0.25
   externalForceDecay: 8
   ladderClimbSpeed: 3
-  ladderSlideDownSpeed: 1.2
+  ladderSlideDownSpeed: 2.4
   ladderSnapSpeed: 12
   ladderInputThreshold: 0.1
   ladderAnimationCycleDuration: 0.7666667
@@ -2997,6 +2997,8 @@ MonoBehaviour:
   positionSmoothTime: 0
   aimFovReduction: 5
   zoomSmoothTime: 0.2
+  aimShoulderOffset: {x: 0.7, y: 0.15, z: 0.25}
+  aimShoulderSmoothTime: 0.2
   avoidClipping: 1
   collisionRadius: 0.2
   collisionBuffer: 0.1
@@ -3157,6 +3159,8 @@ MonoBehaviour:
   recoveryInterval: 4
   healthPerTick: 20
   hungerCostPerTick: 10
+  minimumHungerReserve: 10
+  recoveryDelayAfterEating: 2
   logRecovery: 0
 --- !u!114 &5163941127334908272
 MonoBehaviour:
@@ -3267,6 +3271,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::KMS.KMSMemCaptureFocusController
   inventory: {fileID: 9124669202358280069}
   view: {fileID: 6812409213719045062}
+  trajectoryPreview: {fileID: 816496616688076247}
   cameraTransform: {fileID: 0}
   maxFocusDistance: 30
   focusLayers:
@@ -3287,14 +3292,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9f9b65cbd78449a0a835743b55da028b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::KMS.KMSMemCaptureFocusView
-  backgroundSprite: {fileID: 21300000, guid: 56be09f0a13daec40b94fe81070d4435, type: 3}
-  fontAsset: {fileID: 11400000, guid: 4b7ce8b83d56017438c4d21b29279bd6, type: 2}
-  panelColor: {r: 1, g: 1, b: 1, a: 0.94}
-  nameColor: {r: 0.08, g: 0.08, b: 0.08, a: 1}
-  messageColor: {r: 0.35, g: 0.35, b: 0.35, a: 1}
-  lowRateColor: {r: 0.93, g: 0.38, b: 0.16, a: 1}
-  highRateColor: {r: 0.12, g: 0.65, b: 0.25, a: 1}
-  panelSize: {x: 230, y: 72}
+  backgroundSprite: {fileID: 21300000, guid: a9016a79bbca3a04980ad5de28e24588, type: 3}
+  fontAsset: {fileID: 11400000, guid: f0893b31f4bc9f84291aaa3b12d930b7, type: 2}
+  panelColor: {r: 0, g: 0, b: 0, a: 0.5882353}
+  titleColor: {r: 1, g: 1, b: 1, a: 1}
+  valueColor: {r: 1, g: 1, b: 1, a: 1}
+  panelSize: {x: 160, y: 128}
   worldYOffset: 0.28
   diagonalScreenOffset: {x: 155, y: 28}
   sideSwitchDeadZone: 100
@@ -3328,6 +3331,8 @@ MonoBehaviour:
   respawnLocationMode: 0
   respawnHealthPercent: 1
   respawnInvulnerabilityDuration: 2
+  musicDuckFadeDuration: 0.6
+  deathMusicMultiplier: 0.33333334
 --- !u!114 &8140761256497828183
 MonoBehaviour:
   m_ObjectHideFlags: 0

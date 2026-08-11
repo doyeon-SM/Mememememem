@@ -88,7 +88,7 @@ public class ProductionFacilityRuntime : MonoBehaviour
     }
 
     /// <summary>
-    /// 레벨업 시 멤 슬롯 한 칸 추가 해금 (최대 5레벨)
+    /// 레벨업 시 멤 슬롯 해금 및 UI/이벤트 동기화
     /// </summary>
     public void LevelUp()
     {
@@ -133,7 +133,6 @@ public class ProductionFacilityRuntime : MonoBehaviour
         float baseDuration = baseProductionTime;
         float newTotalTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, addMems);
 
-        // 🌟 [수정] 진행 소요 시간을 먼저 구한 뒤 기존 진행 시간을 보존
         if (totalRequiredTime > 0f && currentProgressTime > 0f)
         {
             float currentProgressPercent = currentProgressTime / totalRequiredTime;
@@ -150,15 +149,6 @@ public class ProductionFacilityRuntime : MonoBehaviour
         }
 
         bool isAnyMemStarving = DeployedMemEntries.Any(e => e != null && (e.IsStarving || e.CurrentHunger <= 0));
-
-        if (!isAnyMemStarving)
-        {
-            SetProducingActive(true);
-        }
-        else
-        {
-            SetProducingActive(false);
-        }
         SetProducingActive(!isAnyMemStarving);
     }
 
@@ -221,7 +211,7 @@ public class ProductionFacilityRuntime : MonoBehaviour
             }
         }
 
-        if(addMemEntries.Count == 0)
+        if (addMemEntries.Count == 0)
         {
             SetProducingActive(false);
         }
@@ -256,7 +246,7 @@ public class ProductionFacilityRuntime : MonoBehaviour
         if (targetItemData == null) return;
 
         int amountToCollect = currentStorageCount;
-        
+
         WarehouseInventory warehouse = FindFirstObjectByType<WarehouseInventory>();
         if (warehouse != null)
         {

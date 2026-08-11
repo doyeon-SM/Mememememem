@@ -31,9 +31,11 @@ namespace KMS.Audio
         private AudioSource musicSourceB;
         private AudioSource activeMusicSource;
         private Coroutine musicFadeRoutine;
+        private Coroutine musicDuckRoutine;
         private int sourceReplacementIndex;
         private float sfxVolume = 1f;
         private float musicVolume = 1f;
+        private float musicDuckMultiplier = 1f;
 
         public static KMSAudioService Instance => EnsureInstance();
         public static bool HasInstance => instance != null;
@@ -205,8 +207,28 @@ namespace KMS.Audio
                     SceneManager.GetActiveScene().name,
                     out KMSSceneMusicEntry entry))
             {
-                service.activeMusicSource.volume = entry.Volume * service.musicVolume;
+                service.activeMusicSource.volume =
+                    entry.Volume * service.musicVolume * service.musicDuckMultiplier;
             }
+        }
+
+        /// <summary>
+        /// Temporarily scales scene music without changing the player's saved music setting.
+        /// A multiplier of 1 restores the configured scene volume.
+        /// </summary>
+        public static void SetTemporaryMusicDuck(float multiplier, float fadeSeconds)
+        {
+            KMSAudioService service = EnsureInstance();
+            if (service == null) return;
+
+            multiplier = Mathf.Clamp01(multiplier);
+            if (service.musicDuckRoutine != null)
+            {
+                service.StopCoroutine(service.musicDuckRoutine);
+            }
+
+            service.musicDuckRoutine = service.StartCoroutine(
+                service.FadeMusicDuck(multiplier, fadeSeconds));
         }
 
         public void RefreshCurrentSceneMusic()
@@ -370,7 +392,7 @@ namespace KMS.Audio
             {
                 activeMusicSource.outputAudioMixerGroup = entry.Output;
                 activeMusicSource.loop = entry.Loop;
-                activeMusicSource.volume = entry.Volume * musicVolume;
+                activeMusicSource.volume = entry.Volume * musicVolume * musicDuckMultiplier;
                 return;
             }
 
@@ -389,8 +411,51 @@ namespace KMS.Audio
             StartMusicFade(
                 outgoing,
                 incoming,
-                entry.Volume * musicVolume,
+                entry.Volume * musicVolume * musicDuckMultiplier,
                 entry.FadeSeconds);
+        }
+
+        private IEnumerator FadeMusicDuck(float targetMultiplier, float fadeSeconds)
+        {
+            float startMultiplier = musicDuckMultiplier;
+            float duration = Mathf.Max(0f, fadeSeconds);
+
+            if (duration <= 0f)
+            {
+                musicDuckMultiplier = targetMultiplier;
+                ApplyCurrentMusicVolume();
+                musicDuckRoutine = null;
+                yield break;
+            }
+
+            float elapsed = 0f;
+            while (elapsed < duration)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                musicDuckMultiplier = Mathf.Lerp(
+                    startMultiplier,
+                    targetMultiplier,
+                    Mathf.Clamp01(elapsed / duration));
+                ApplyCurrentMusicVolume();
+                yield return null;
+            }
+
+            musicDuckMultiplier = targetMultiplier;
+            ApplyCurrentMusicVolume();
+            musicDuckRoutine = null;
+        }
+
+        private void ApplyCurrentMusicVolume()
+        {
+            if (activeMusicSource == null
+                || !catalog.TryGetSceneMusic(
+                    SceneManager.GetActiveScene().name,
+                    out KMSSceneMusicEntry entry))
+            {
+                return;
+            }
+
+            activeMusicSource.volume = entry.Volume * musicVolume * musicDuckMultiplier;
         }
 
         private void FadeOutCurrentMusic(float fadeSeconds)
