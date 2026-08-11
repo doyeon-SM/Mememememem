@@ -51,13 +51,15 @@ namespace HDY.Inventory
     /// 서로 다른 커서(든 아이템) 상태를 유지하면서도 그리드 관련 로직은 하나로 관리되게 했다. 이 클래스
     /// 자체는 창고(Storage) 처리와 여러 그룹을 넘나드는 통합 커서, Shift/Ctrl 단축 이동만 직접 담당한다.
     ///
-    /// [HDY 요청 - 업그레이드 버튼 좌표 이동] inventoryUpgradeButton은 이 화면(WarehouseUI)에서만 다음에
-    /// 언락될 칸 위치로 직접 이동한다(InventoryUI 쪽은 아직 이 기능이 없어 PlayerInventoryGridController에는
-    /// 넣지 않았다). P_InventoryGrid는 700x420(10x6칸, 칸당 70x70 고정)이고, 버튼은 350x70(5칸 폭) 크기에
-    /// anchor/pivot이 top-left(0,1)로 인스펙터에 미리 설정되어 있다는 전제로 anchoredPosition만 계산해서
-    /// 넣는다. 다음 언락 인덱스(UnlockedInventorySlotCount)를 10(그리드 너비)으로 나눈 몫/나머지가 각각
-    /// 행/열이 되고, slotsPerInventoryUpgrade가 5라서 항상 열 0 또는 5에서 시작해 행 경계를 걸치지 않는다.
-    /// 더 이상 언락할 칸이 없으면(최대치) 버튼 자체를 비활성화한다.
+    /// [HDY 요청 - 디자인 수정에 따른 업그레이드 버튼 배치 변경] 두 업그레이드 버튼의 배치 방식이
+    /// 서로 다르게 바뀌었다:
+    /// - 창고(upgradeButton): storageContentParent(스크롤 뷰의 그리드) 안에 미리 배치해둔 자식으로 취급한다.
+    ///   좌표 계산이 전혀 없고, EnsureStorageSlotCount가 슬롯을 추가로 Instantiate할 때마다 버튼을
+    ///   SetAsLastSibling으로 맨 끝으로 밀어서 "항상 마지막 그리드 칸"에 자연스럽게 위치하도록 한다(실제
+    ///   좌표는 GridLayoutGroup이 알아서 계산).
+    /// - 인벤토리(inventoryUpgradeButton): 더 이상 다음 언락 칸으로 움직이지 않는다. 인스펙터에 미리
+    ///   배치해둔 고정 위치에 항상 그대로 있고, 코드는 더 이상 언락할 칸이 없을 때(최대치) 활성/비활성만
+    ///   토글한다(RefreshInventoryUpgradeButtonState) - 좌표 계산 코드는 전부 제거했다.
     ///
     /// [버그 수정 - 패널 재사용 대응] UIManager가 이 패널을 열 때마다 새로 Instantiate/Destroy하지 않고,
     /// 미리 만들어둔 인스턴스를 SetActive로 껐다 켰다 하는 방식으로 바뀌었다. 그래서 Start()는 오브젝트
@@ -100,9 +102,6 @@ namespace HDY.Inventory
         [SerializeField] private InventoryUpgrade inventoryUpgrade;
         [Tooltip("아직 언락되지 않은 인벤토리 칸의 표시 투명도(0~1). 낮을수록 더 흐리게(회색처럼) 보인다.")]
         [SerializeField] [Range(0f, 1f)] private float lockedSlotAlpha = 0.35f;
-
-        /// <summary>P_InventoryGrid(700x420, 10x6칸) 기준 한 칸의 가로/세로 크기(고정값).</summary>
-        private const float InventoryUpgradeButtonCellSize = 70f;
 
         [Header("퀵슬롯 (오른쪽 맨 아래, 10칸 - 슬롯은 씬에 미리 배치)")]
         [SerializeField] private Transform quickSlotRoot;
@@ -817,7 +816,7 @@ namespace HDY.Inventory
         {
             Debug.Log("[WarehouseUI] OnInventorySlotCountChanged 수신 -> 인벤토리 슬롯 잠금 상태 갱신");
             gridController.RefreshInventorySlotLocks();
-            RepositionInventoryUpgradeButton();
+            RefreshInventoryUpgradeButtonState();
         }
 
         private void HandleInventorySortRequested(InventorySortCriteria criteria)
@@ -833,31 +832,16 @@ namespace HDY.Inventory
         }
 
         /// <summary>
-        /// [HDY 요청 - 업그레이드 버튼 좌표 이동] inventoryUpgradeButton을 다음에 언락될 칸 위치로 옮긴다.
-        /// P_InventoryGrid는 700x420(10x6칸, 칸당 70x70 고정)이고, 버튼은 anchor/pivot이 top-left(0,1)로
-        /// 이미 설정되어 있다는 전제로 anchoredPosition만 계산한다. 더 이상 언락할 칸이 없으면(최대치)
-        /// 버튼 자체를 비활성화한다.
+        /// [HDY 요청 - 좌표 계산 삭제] inventoryUpgradeButton은 이제 인스펙터에 미리 배치해둔 고정 위치에
+        /// 항상 그대로 있다 - 더 이상 다음 언락 칸으로 옮기지 않는다. 이 메서드는 더 이상 언락할 칸이
+        /// 없을 때(최대치)만 버튼을 비활성화하는 역할만 남았다.
         /// </summary>
-        private void RepositionInventoryUpgradeButton()
+        private void RefreshInventoryUpgradeButtonState()
         {
             if (inventoryUpgradeButton == null || playerInventory == null) return;
 
-            int nextIndex = playerInventory.UnlockedInventorySlotCount;
-            int maxCount = playerInventory.MaxInventorySlotCount;
-            bool isMaxed = nextIndex >= maxCount;
-
+            bool isMaxed = playerInventory.UnlockedInventorySlotCount >= playerInventory.MaxInventorySlotCount;
             inventoryUpgradeButton.gameObject.SetActive(!isMaxed);
-            if (isMaxed) return;
-
-            int columns = playerInventory.inventory.width;
-            int row = nextIndex / columns;
-            int col = nextIndex % columns;
-
-            var rect = inventoryUpgradeButton.transform as RectTransform;
-            if (rect != null)
-            {
-                rect.anchoredPosition = new Vector2(col * InventoryUpgradeButtonCellSize, -(row * InventoryUpgradeButtonCellSize));
-            }
         }
 
         // ===================== 슬롯 바인딩 (창고 전용 - 인벤토리/퀵슬롯은 gridController가 담당) =====================
@@ -891,6 +875,15 @@ namespace HDY.Inventory
             }
 
             storageSlots = grown;
+
+            // [HDY 요청 - 창고 업그레이드 버튼을 그리드 마지막 칸으로] upgradeButton은 storageContentParent
+            // 안에 미리 배치해둔 그리드 자식이다. 슬롯을 새로 Instantiate하면 하이어라키상 버튼보다 뒤에
+            // 추가되어 버튼이 슬롯들 사이에 끼어버리므로, 슬롯을 다 채운 뒤 버튼을 맨 끝으로 다시 밀어서
+            // 항상 마지막 그리드 칸에 위치하게 한다(좌표 계산 없이 GridLayoutGroup이 알아서 배치).
+            if (upgradeButton != null)
+            {
+                upgradeButton.transform.SetAsLastSibling();
+            }
         }
 
         // ===================== 갱신 =====================
@@ -903,7 +896,7 @@ namespace HDY.Inventory
             gridController.RefreshSelectedQuickSlot(playerInventory.selectedQuickSlotIndex);
             trashController.Refresh();
             gridController.RefreshInventorySlotLocks();
-            RepositionInventoryUpgradeButton();
+            RefreshInventoryUpgradeButtonState();
         }
 
         private void RefreshStorageSlots()

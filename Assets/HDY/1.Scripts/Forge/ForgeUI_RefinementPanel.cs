@@ -75,6 +75,9 @@ namespace HDY.Forge
         /// <summary>연마를 실제로 시도했을 때(재료/골드 충분 - 결과와 무관하게 항상 무언가 바뀜) 발생. ForgeUI가 하단 목록 갱신에 사용한다.</summary>
         public event Action RefinementExecuted;
 
+        /// <summary>[HDY 요청 - 하단 목록 상태 표시] 지금 연마 대상으로 선택된 도구. ForgeUI가 하단 목록에서 "연마 중" 표시를 켤 대상을 판단하는 데 쓴다.</summary>
+        public ItemStack SelectedStack => selectedStack;
+
         private ItemStack selectedStack;
         private readonly bool[] lockedSlots = new bool[5];
 
@@ -194,7 +197,11 @@ namespace HDY.Forge
                 if (stoneIconImage != null) stoneIconImage.enabled = false;
                 if (stoneNameText != null) stoneNameText.text = "-";
                 if (stoneCostText != null) stoneCostText.text = "-";
-                if (goldCostText != null) goldCostText.text = "-";
+                if (goldCostText != null)
+                {
+                    goldCostText.text = "-";
+                    LayoutRebuilder.ForceRebuildLayoutImmediate(goldCostText.rectTransform);
+                }
                 SetItemNameText(null);
                 return;
             }
@@ -304,6 +311,11 @@ namespace HDY.Forge
             {
                 goldCostText.text = $"{preview.GoldOwned} / {preview.GoldCost}";
                 goldCostText.color = goldShortage ? shortageTextColor : normalTextColor;
+
+                // [HDY 요청 - 버그 수정] goldCostText에 ContentSizeFitter가 붙어있어서, 특히 처음 값이
+                // 채워질 때 다음 레이아웃 패스 전까지 압축된 옛 크기로 남아 텍스트가 이상한 위치에 보이는
+                // 문제가 있었다 - 강제로 즉시 다시 계산한다.
+                LayoutRebuilder.ForceRebuildLayoutImmediate(goldCostText.rectTransform);
             }
 
             bool canExecute = preview.BlockReason == RefinementFailReason.None && !stoneShortage && !goldShortage;

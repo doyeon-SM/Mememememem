@@ -69,6 +69,13 @@ namespace HDY.Tutorial
     /// 입력(이동/좌클릭 채집·공격/점프/핫바 등)을 막는다(SetDialogueInputBlock 참고). 상자(Chest)와
     /// 웨이포인트석(WayPointStone)은 전부 F(PlayerInteraction)로 여는 구조라, 이 차단 하나로 "대사 중에
     /// 미리 상자를 열거나 웨이포인트를 등록해서 튜토리얼 진행이 꼬이는" 문제까지 함께 막힌다.
+    ///
+    /// [HDY 요청 - 영지에서 F키로 보상을 못 받는 버그 수정] HandleSceneLoaded는 씬 전환 시 playerInput을
+    /// 찾아 InteractPressed를 딱 한 번만 구독한다. 영지 씬은 플레이어(PlayerInput)가 씬 로드 시점에
+    /// 아직 스폰되지 않은 경우가 있어(탐험 씬과 스폰 타이밍이 다름), 그 순간 못 찾으면 구독 자체가
+    /// 비어있는 채로 남고 이후 아무도 다시 구독을 시도해주지 않아 클릭은 되는데 F키만 먹통이 되는
+    /// 문제가 있었다. Update()에서 playerInput이 비어있을 때만 가볍게 매 프레임 재확인해서, 플레이어가
+    /// 늦게 나타나도 자동으로 다시 연결되도록 방어 코드를 추가했다.
     /// </summary>
     public class TutorialManager : MonoBehaviour
     {
@@ -253,6 +260,18 @@ namespace HDY.Tutorial
         /// </summary>
         private void Update()
         {
+            // [HDY 요청 - 영지에서 F키 안 되는 버그 수정] playerInput을 아직 못 찾았으면(씬 로드 시점에
+            // 플레이어가 늦게 스폰된 경우 등) 매 프레임 가볍게 재시도한다 - 찾아지는 즉시 InteractPressed를
+            // 다시 구독해서, 클릭만 되고 F키는 영영 안 먹는 상태가 되지 않도록 한다.
+            if (playerInput == null)
+            {
+                EnsureReferences();
+                if (playerInput != null)
+                {
+                    SubscribeInteractInput();
+                }
+            }
+
             if (!isDialogueInputBlockActive) return;
             if (Keyboard.current == null) return;
 

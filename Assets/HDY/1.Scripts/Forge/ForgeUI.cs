@@ -75,6 +75,14 @@ namespace HDY.Forge
     /// 미리 캐싱해두고 매번 그 위치로 되돌린 뒤 시작하므로, 연속 실패해도 위치가 계속 위로 밀리지 않는다.
     /// 오른 수치는 시도 직전에 저장해둔 lastDisplayedOverheatPercent와 결과의 OverheatPercent 차이로 계산한다.
     ///
+    /// [HDY 요청 - 하단 슬롯 상태 표시 이미지] RefreshList()에서 매 항목마다 IsStackInUse로 "지금 강화/
+    /// 승급/연마 중이거나 전승 대기 중(재료/대상으로 선택됨)"인지 판단해서 ForgeToolSlotUI.SetInUseIndicator를
+    /// 켜고 끈다. 강화/승급은 이 클래스의 selectedStack, 연마는 refinementPanel.SelectedStack, 전승은
+    /// inheritancePanel.MaterialStack/TargetStack을 각각 기준으로 삼는다(선택 상태를 들고 있는 쪽이 서로
+    /// 다른 클래스라 각 패널에 읽기 전용 프로퍼티를 노출해뒀다). 전승 탭에서는 추가로
+    /// IsBlockedForInheritance로, 이미 재료가 선택된 상태에서 ObjectType이 달라 대상으로 고를 수 없는
+    /// 도구에 SetInheritanceBlockedIndicator를 켠다(재료 자신은 "불가"가 아니라 "사용 중"으로 표시됨).
+    ///
     /// [HDY 요청 - 도움말 안내 패널] ContentSizeFitter가 붙은 공용 컨테이너(infoGuideContainer) 안에 강화/
     /// 승급/연마/전승 안내 패널 4개가 전부 미리 배치되어 있고 평소엔 꺼져 있다. 강화/승급은 같은 info
     /// 아이콘(enhancePromotionInfoTrigger)을 공유하며 지금 탭에 따라 강화/승급 안내 중 하나를 보여주고,
@@ -258,9 +266,16 @@ namespace HDY.Forge
 
             // [HDY 요청 - 실패 시 과열 상승분 표시] 미리 배치해둔 위치를 기준점으로 캐싱해서, 매번 그 위치로
             // 되돌린 뒤 애니메이션을 시작한다(연속 실패해도 위로 계속 밀리지 않도록).
+            // [HDY 요청 - 버그 수정] 씬에 배치된 원래 알파값이 그대로 남아있으면 패널을 열자마자 이 텍스트가
+            // 보여버리는 문제가 있었다 - 처음엔 반드시 꺼진(알파 0) 상태로 시작해야 하므로 여기서 명시적으로
+            // 맞춰준다(ShowOverheatGainPopup이 호출되기 전까지는 계속 이 상태로 남는다).
             if (overheatGainText != null)
             {
                 overheatGainTextBasePosition = overheatGainText.rectTransform.anchoredPosition;
+
+                var initialColor = overheatGainText.color;
+                initialColor.a = 0f;
+                overheatGainText.color = initialColor;
             }
         }
 
@@ -409,9 +424,14 @@ namespace HDY.Forge
             for (int i = 0; i < entries.Count; i++)
             {
                 var slot = GetOrCreateSlot(i);
-                var displayData = catalogManager != null ? catalogManager.FindItemData(entries[i].stack.itemId) : null;
-                slot.Bind(entries[i].stack, displayData);
+                var stack = entries[i].stack;
+                var displayData = catalogManager != null ? catalogManager.FindItemData(stack.itemId) : null;
+                slot.Bind(stack, displayData);
                 slot.gameObject.SetActive(true);
+
+                // [HDY 요청 - 하단 슬롯 상태 표시 이미지]
+                slot.SetInUseIndicator(IsStackInUse(stack));
+                slot.SetInheritanceBlockedIndicator(currentTab == ForgeUITab.Inheritance && IsBlockedForInheritance(stack));
             }
 
             for (int i = entries.Count; i < spawnedSlots.Count; i++)
@@ -514,6 +534,10 @@ namespace HDY.Forge
                     inheritancePanel?.HandleToolSelected(slot.BoundStack);
                     break;
             }
+
+            // [HDY 요청 - 하단 슬롯 상태 표시 이미지] 연마/전승은 선택 상태를 각 패널이 들고 있어서 이 클래스가
+            // 클릭만으로는 알 수 없다 - 위에서 넘겨준 뒤 다시 목록을 그려서 최신 선택 상태를 반영한다.
+            RefreshList();
         }
 
         private void ClearSelection()
@@ -541,7 +565,11 @@ namespace HDY.Forge
                 if (materialIconImage != null) materialIconImage.enabled = false;
                 if (materialNameText != null) materialNameText.text = "-";
                 if (materialCountText != null) materialCountText.text = "-";
-                if (goldCostText != null) goldCostText.text = "-";
+                if (goldCostText != null)
+                {
+                    goldCostText.text = "-";
+                    LayoutRebuilder.ForceRebuildLayoutImmediate(goldCostText.rectTransform);
+                }
                 return;
             }
 
@@ -592,6 +620,11 @@ namespace HDY.Forge
             {
                 goldCostText.text = $"{preview.GoldOwned} / {preview.GoldCost}";
                 goldCostText.color = goldShortage ? shortageTextColor : normalTextColor;
+
+                // [HDY 요청 - 버그 수정] goldCostText에 ContentSizeFitter가 붙어있어서, 특히 처음 값이
+                // 채워질 때(그 전까지 비활성 상태였다가 켜지는 등) 다음 레이아웃 패스 전까지 압축된 옛
+                // 크기로 남아 텍스트가 이상한 위치에 보이는 문제가 있었다 - 강제로 즉시 다시 계산한다.
+                LayoutRebuilder.ForceRebuildLayoutImmediate(goldCostText.rectTransform);
             }
 
             bool canExecute = preview.BlockReason == ForgeFailReason.None && !materialShortage && !goldShortage;
@@ -756,6 +789,49 @@ namespace HDY.Forge
         private void HideInfoGuide()
         {
             if (infoGuideContainer != null) infoGuideContainer.SetActive(false);
+        }
+
+        /// <summary>
+        /// [HDY 요청 - 하단 슬롯 상태 표시 이미지] 지금 탭 기준으로 이 stack이 "사용 중"(강화/승급 대상으로
+        /// 선택됨, 연마 대상으로 선택됨, 전승 재료/대상으로 선택됨)인지 판단한다. 참조 동일성(같은 ItemStack
+        /// 인스턴스)으로 비교한다 - 슬롯 표시는 원본 참조를 그대로 들고 있으므로 안전하다.
+        /// </summary>
+        private bool IsStackInUse(ItemStack stack)
+        {
+            switch (currentTab)
+            {
+                case ForgeUITab.Enhance:
+                case ForgeUITab.Promotion:
+                    return ReferenceEquals(stack, selectedStack);
+                case ForgeUITab.Refinement:
+                    return refinementPanel != null && ReferenceEquals(stack, refinementPanel.SelectedStack);
+                case ForgeUITab.Inheritance:
+                    return inheritancePanel != null &&
+                           (ReferenceEquals(stack, inheritancePanel.MaterialStack) || ReferenceEquals(stack, inheritancePanel.TargetStack));
+                default:
+                    return false;
+            }
+        }
+
+        /// <summary>
+        /// [HDY 요청 - 전승불가 표시] 전승 탭에서, 이미 재료가 선택된 상태에서 이 stack의 ObjectType이 재료와
+        /// 달라 대상으로 선택할 수 없는 경우 true. 재료가 아직 없으면(비교 대상이 없으므로) 항상 false이고,
+        /// 재료 자신도 false(그건 IsStackInUse가 "사용 중"으로 따로 표시한다). ForgeUI_InheritancePanel의
+        /// IsSameObjectType과 같은 기준(ItemData.ObjectType)이다.
+        /// </summary>
+        private bool IsBlockedForInheritance(ItemStack stack)
+        {
+            if (inheritancePanel == null || catalogManager == null) return false;
+
+            var material = inheritancePanel.MaterialStack;
+            if (material == null || material.IsEmpty) return false;
+            if (ReferenceEquals(stack, material)) return false;
+
+            var materialData = catalogManager.FindItemData(material.itemId);
+            var candidateData = catalogManager.FindItemData(stack.itemId);
+            if (materialData == null || candidateData == null) return false;
+
+            return materialData.ObjectType != candidateData.ObjectType;
         }
     }
 }
