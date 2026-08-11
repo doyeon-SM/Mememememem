@@ -14,7 +14,7 @@ public class MemSlotUI : MonoBehaviour, IDropHandler, IPointerClickHandler
     [SerializeField] private Image stat;
     [SerializeField] private TextMeshProUGUI statText;
     [SerializeField] private Button slotButton;
-    [SerializeField] private Image activeIcon; 
+    [SerializeField] private Image activeIcon;
 
     [Header("스탯 아이콘 매핑")]
     [SerializeField] private Sprite craftingStatIcon;
@@ -61,12 +61,7 @@ public class MemSlotUI : MonoBehaviour, IDropHandler, IPointerClickHandler
 
     public void OnPointerClick(PointerEventData eventData)
     {
-        if (eventData.button == PointerEventData.InputButton.Left)
-        {
-            ExecuteSlotReleaseProcess();
-        }
-
-        if (eventData.button == PointerEventData.InputButton.Right)
+        if (eventData.button == PointerEventData.InputButton.Left || eventData.button == PointerEventData.InputButton.Right)
         {
             ExecuteSlotReleaseProcess();
         }
@@ -78,34 +73,13 @@ public class MemSlotUI : MonoBehaviour, IDropHandler, IPointerClickHandler
 
         MonoBehaviour activePanel = GetCurrentActivePanel();
 
-        if (activePanel is ProductionPanelUI prodPanel)
-        {
-            prodPanel.TryRemoveMemFromUI(currentPlacedMem);
-        }
-        else if (activePanel is CraftingPanelUI craftPanel)
-        {
-            craftPanel.TryRemoveMemFromUI(currentPlacedMem);
-        }
-        else if (activePanel is RanchPanelUI ranchPanel)
-        {
-            ranchPanel.TryRemoveMemFromUI(currentPlacedMem);
-        }
-        else if (activePanel is GeneratorPanelUI genPanel)
-        {
-            genPanel.TryRemoveMemFromUI(currentPlacedMem);
-        }
-        else if (activePanel is TransportPanelUI transPanel)
-        {
-            transPanel.TryRemoveMemFromUI(currentPlacedMem);
-        }
-        else if (activePanel is CampFirePanelUI campFirePanel)
-        {
-            campFirePanel.TryRemoveMemFromUI(currentPlacedMem);
-        }
-        else if (activePanel is KitchenPanelUI kitchenPanel)
-        {
-            kitchenPanel.TryRemoveMemFromUI(currentPlacedMem);
-        }
+        if (activePanel is ProductionPanelUI prodPanel) prodPanel.TryRemoveMemFromUI(currentPlacedMem);
+        else if (activePanel is CraftingPanelUI craftPanel) craftPanel.TryRemoveMemFromUI(currentPlacedMem);
+        else if (activePanel is RanchPanelUI ranchPanel) ranchPanel.TryRemoveMemFromUI(currentPlacedMem);
+        else if (activePanel is GeneratorPanelUI genPanel) genPanel.TryRemoveMemFromUI(currentPlacedMem);
+        else if (activePanel is TransportPanelUI transPanel) transPanel.TryRemoveMemFromUI(currentPlacedMem);
+        else if (activePanel is CampFirePanelUI campFirePanel) campFirePanel.TryRemoveMemFromUI(currentPlacedMem);
+        else if (activePanel is KitchenPanelUI kitchenPanel) kitchenPanel.TryRemoveMemFromUI(currentPlacedMem);
     }
 
     public void RefreshStatus(bool unlocked, MemData memData, CapturedMemEntry entryData)
@@ -159,31 +133,22 @@ public class MemSlotUI : MonoBehaviour, IDropHandler, IPointerClickHandler
                 {
                     iconImage.sprite = null;
                     iconImage.color = new Color(1f, 1f, 1f, 100f / 255f);
-                }
-
-                if (stat != null)
-                {
-                    stat.sprite = null;
-                    stat.color = new Color(1f, 1f, 1f, 100f / 255f);
-                    statText.text = "0";
+                    iconImage.gameObject.SetActive(true);
                 }
 
                 if (activeIcon != null)
                 {
                     activeIcon.gameObject.SetActive(false);
                 }
+
+                // 🌟 [핵심 수정] 해금된 빈 슬롯도 스탯 아이콘과 "0" 텍스트를 첫 슬롯과 동일하게 출력
+                UpdateStatDisplay();
             }
         }
     }
 
     private void UpdateStatDisplay()
     {
-        if (currentPlacedMem == null)
-        {
-            ApplyStatDisplay(null, string.Empty);
-            return;
-        }
-
         BuildingType? buildingType = null;
         MonoBehaviour activePanel = GetCurrentActivePanel();
 
@@ -219,14 +184,14 @@ public class MemSlotUI : MonoBehaviour, IDropHandler, IPointerClickHandler
         if (buildingType.HasValue)
         {
             ProductionStatType requiredStat = ProductionCalculator.GetRequiredStatType(buildingType.Value);
-            int statValue = currentPlacedMem.productionStats.GetStat(requiredStat);
             Sprite statIcon = GetStatIcon(requiredStat);
+            int statValue = (currentPlacedMem != null) ? currentPlacedMem.productionStats.GetStat(requiredStat) : 0;
 
             ApplyStatDisplay(statIcon, statValue.ToString());
         }
         else
         {
-            ApplyStatDisplay(null, string.Empty);
+            ApplyStatDisplay(null, "0");
         }
     }
 
@@ -284,13 +249,14 @@ public class MemSlotUI : MonoBehaviour, IDropHandler, IPointerClickHandler
         MonoBehaviour activePanel = GetCurrentActivePanel();
         if (activePanel == null) return;
 
-        Object targetRuntime = GetRuntimeFromPanel(activePanel);
-
-        if (targetRuntime is RanchFacilityRuntime && !isUnlocked)
+        // 🌟 [핵심 수정] 잠긴 슬롯이라면 드롭 배치 거부
+        if (!isUnlocked)
         {
-            Debug.LogWarning($"[MemSlotUI] 잠겨있는 목장 슬롯입니다. (인덱스: {SlotIndex})");
+            Debug.LogWarning($"[MemSlotUI] 잠겨있는 슬롯입니다. (인덱스: {SlotIndex})");
             return;
         }
+
+        Object targetRuntime = GetRuntimeFromPanel(activePanel);
 
         if (eventData.pointerDrag != null && eventData.pointerDrag.TryGetComponent<HDY.UI.MemSlotUI>(out HDY.UI.MemSlotUI draggedSlot))
         {
@@ -371,7 +337,6 @@ public class MemSlotUI : MonoBehaviour, IDropHandler, IPointerClickHandler
         if (panel is CampFirePanelUI campFire) return campFire.TargetFacility;
         if (panel is KitchenPanelUI kitchen) return kitchen.TargetFacility;
 
-        Debug.Log($"[Panel 확인하기 {panel}]");
         return null;
     }
 }
