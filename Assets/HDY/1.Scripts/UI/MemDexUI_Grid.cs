@@ -14,6 +14,11 @@ namespace HDY.UI
     /// 그래서 슬롯을 씬에 미리 배치하지 않고, 필요한 만큼 런타임에 Instantiate한다(재료 비용 슬롯을
     /// 만들 때 쓴 것과 동일한 "필요한 만큼 생성 후 재사용" 패턴). contentParent에는 GridLayoutGroup이
     /// Constraint=Fixed Column Count, Constraint Count=5로 설정되어 있어야 5열로 줄바꿈된다.
+    ///
+    /// [HDY 요청 - 선택 표시] SetSelected(data)로 지정된 MemData와 참조가 일치하는 슬롯 하나에만
+    /// MemDexSlotUI.SetSelected(true)를 켜고 나머지는 전부 끈다(ApplySelectionToSlots). 정렬 등으로
+    /// Populate가 다시 호출돼도 selectedData는 그대로 기억하고 있다가 끝에서 다시 적용하므로, 정렬 순서가
+    /// 바뀌어도 선택 표시가 같은 데이터를 계속 따라간다.
     /// </summary>
     public class MemDexUI_Grid : MonoBehaviour
     {
@@ -23,6 +28,10 @@ namespace HDY.UI
         [SerializeField] private MemDexSlotUI slotPrefab;
 
         private readonly List<MemDexSlotUI> spawnedSlots = new List<MemDexSlotUI>();
+
+        // [HDY 요청 - 선택 표시] 지금 선택된 것으로 표시해야 할 데이터. Populate가 다시 호출돼도(정렬 등)
+        // 이 값은 유지되며, Populate 끝에서 다시 적용한다.
+        private MemData selectedData;
 
         /// <summary>슬롯이 클릭되었을 때 발생. MemDexUI(컨트롤러)가 구독해서 정보 패널로 전달한다.</summary>
         public event Action<MemData> OnSlotClicked;
@@ -77,7 +86,26 @@ namespace HDY.UI
 
             Debug.Log($"[MemDexUI_Grid] Populate 완료: {count}개 항목");
 
+            ApplySelectionToSlots();
             ResetScrollToTop();
+        }
+
+        /// <summary>
+        /// [HDY 요청 - 선택 표시] 지금부터 data로 넘어온 항목의 슬롯만 선택 표시를 켠다(null이면 전부 끔).
+        /// MemDexUI가 슬롯 클릭을 받아 정보 패널을 갱신할 때 함께 호출한다.
+        /// </summary>
+        public void SetSelected(MemData data)
+        {
+            selectedData = data;
+            ApplySelectionToSlots();
+        }
+
+        private void ApplySelectionToSlots()
+        {
+            foreach (var slot in spawnedSlots)
+            {
+                slot.SetSelected(selectedData != null && ReferenceEquals(slot.BoundData, selectedData));
+            }
         }
 
         private void HandleSlotClicked(MemData data)

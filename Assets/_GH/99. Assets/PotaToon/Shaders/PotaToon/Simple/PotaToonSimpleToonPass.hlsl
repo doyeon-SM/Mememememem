@@ -239,7 +239,8 @@ half4 frag(VertexOutput i, half facing : VFACE) : SV_TARGET
     finalColor += indirectLighting;
 
     half3 lighting = directLighting + indirectLighting;
-    finalColor = min(finalColor, finalBaseColor * _MaxToonBrightness + midTone);
+    half safeMaxToonBrightness = _MaxToonBrightness > 0.0 ? (half)_MaxToonBrightness : 10.0h;
+    finalColor = min(finalColor, finalBaseColor * safeMaxToonBrightness + midTone);
 
     half3 totalMatcapAddColor = 0;
     half3 totalMatcapMultiplyColor = 1;

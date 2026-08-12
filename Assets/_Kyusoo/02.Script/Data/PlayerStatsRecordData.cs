@@ -95,10 +95,13 @@ public class PlayerStatsRecordData : MonoBehaviour, IRecord
 
         if (stats != null)
         {
+            PlayerStatsSaveData capturedStats = stats.CaptureSaveData();
+
             currentData.playerInfo.maxHealth = stats.MaxHealth;
             currentData.playerInfo.maxHunger = stats.MaxHunger;
-            currentData.playerInfo.currentHealth = stats.CurrentHealth;
-            currentData.playerInfo.currentHunger = stats.CurrentHunger;
+            currentData.playerInfo.currentHealth = capturedStats.currentHealth;
+            currentData.playerInfo.currentHunger = capturedStats.currentHunger;
+            currentData.playerInfo.foodEffects = capturedStats.foodEffects;
         }
 
         File.WriteAllText(saveFilePath, JsonUtility.ToJson(currentData, true));
@@ -115,9 +118,9 @@ public class PlayerStatsRecordData : MonoBehaviour, IRecord
             targetPlayerStats.RestoreSaveData(new PlayerStatsSaveData
             {
                 currentHealth = saveData.playerInfo.currentHealth,
-                currentHunger = saveData.playerInfo.currentHunger
+                currentHunger = saveData.playerInfo.currentHunger,
+                foodEffects = saveData.playerInfo.foodEffects
             });
         }
-
     }
 }

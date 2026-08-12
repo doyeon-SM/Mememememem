@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -21,6 +22,16 @@ namespace HDY.UI
     /// 멤 창고 정렬 버튼 8개를 담당.
     /// 버튼 클릭을 감지해서 OnSortRequested 이벤트로 상위(MemStorageUI)에 알리기만 한다.
     /// 실제 정렬 로직(카탈로그 조회, 비교, 재배치)은 MemStorageUI(컨트롤러)가 담당한다.
+    ///
+    /// [HDY 요청 - 버튼 사이 구분 이미지] 버튼 8개 사이사이에 구분 이미지 7개(sortButtonSeparatorImages)가
+    /// 배치되어 있다. HideSortButtonsExcept로 버튼이 3개(MemId/Tier/스탯1종)만 남으면 구분 이미지도 2개만
+    /// 켜고 나머지 5개는 끈다(SetSeparatorImagesVisible). ShowAllSortButtons로 8개가 전부 보이면 구분
+    /// 이미지도 7개 전부 켠다.
+    ///
+    /// [HDY 요청 - 정렬 버튼 알파 강조] 버튼을 클릭하면 그 버튼의 targetGraphic 알파를 1(불투명)로,
+    /// 나머지 버튼들은 inactiveSortButtonAlpha(기본 0.4)로 낮춘다(UpdateButtonAlphas) - 지금 어떤 기준으로
+    /// 정렬 중인지 한눈에 보여주기 위함이다. 아직 한 번도 클릭하지 않은 최초 상태(currentSortCriteria가
+    /// null)에서는 8개 전부 inactiveSortButtonAlpha로 시작한다.
     /// </summary>
     public class MemStorageUI_Sort : MonoBehaviour
     {
@@ -33,6 +44,26 @@ namespace HDY.UI
         [SerializeField] private Button sortByTransportButton;   // 이동 내림차순(높은순)
         [SerializeField] private Button sortByFarmingButton;     // 생산 내림차순(높은순)
         [SerializeField] private Button sortByExplorationButton; // 탐험 내림차순(높은순)
+
+        [Header("버튼 사이 구분 이미지 (총 7개, 8개 버튼 사이사이에 배치, HDY 요청)")]
+        [Tooltip("정렬 버튼 8개 사이에 놓인 구분 이미지 7개. ShowAllSortButtons()에서는 7개 다 켜지고, HideSortButtonsExcept()로 3개(MemId/Tier/스탯1종)만 남을 때는 이 중 2개만 켜고 나머지 5개는 끈다 - 버튼이 3개면 사이 간격도 2개면 충분하다(레이아웃 그룹으로 자동 정렬되는 걸 가정, 어떤 이미지가 켜지는지는 상관없고 켜지는 개수만 맞으면 된다).")]
+        [SerializeField] private Image[] sortButtonSeparatorImages = new Image[7];
+
+        [Header("정렬 버튼 알파 강조 (HDY 요청)")]
+        [Tooltip("정렬 중인(마지막으로 클릭된) 버튼은 알파 1, 나머지 버튼들은 이 값으로 낮춘다.")]
+        [SerializeField] private float inactiveSortButtonAlpha = 0.4f;
+
+        /// <summary>클릭에 대응하는 버튼-기준 쌍. 버튼 알파를 일괄 갱신할 때(UpdateButtonAlphas) 순회한다.</summary>
+        private struct SortButtonEntry
+        {
+            public Button Button;
+            public MemSortCriteria Criteria;
+        }
+
+        private readonly List<SortButtonEntry> sortButtonEntries = new List<SortButtonEntry>();
+
+        // 마지막으로 클릭된(=현재 정렬 중인) 기준. 아직 한 번도 클릭하지 않았으면 null(8개 전부 비활성 알파).
+        private MemSortCriteria? currentSortCriteria;
 
         /// <summary>정렬 버튼이 클릭되었을 때 발생. MemStorageUI(컨트롤러)가 구독해서 실제 정렬을 수행한다.</summary>
         public event Action<MemSortCriteria> OnSortRequested;
@@ -47,6 +78,9 @@ namespace HDY.UI
             Bind(sortByTransportButton, MemSortCriteria.Transport);
             Bind(sortByFarmingButton, MemSortCriteria.Farming);
             Bind(sortByExplorationButton, MemSortCriteria.Exploration);
+
+            // [HDY 요청] 아직 아무 것도 클릭하지 않은 최초 상태 - 8개 전부 비활성 알파로 시작한다.
+            UpdateButtonAlphas();
         }
 
         private void Bind(Button button, MemSortCriteria criteria)
@@ -57,7 +91,15 @@ namespace HDY.UI
                 return;
             }
 
-            button.onClick.AddListener(() => OnSortRequested?.Invoke(criteria));
+            sortButtonEntries.Add(new SortButtonEntry { Button = button, Criteria = criteria });
+
+            button.onClick.AddListener(() =>
+            {
+                // [HDY 요청 - 정렬 버튼 알파 강조] 클릭된 버튼만 알파 1, 나머지는 inactiveSortButtonAlpha로.
+                currentSortCriteria = criteria;
+                UpdateButtonAlphas();
+                OnSortRequested?.Invoke(criteria);
+            });
         }
 
         /// <summary>
@@ -80,6 +122,10 @@ namespace HDY.UI
             SetButtonVisible(sortByFarmingButton, keepCriteria == MemSortCriteria.Farming);
             SetButtonVisible(sortByExplorationButton, keepCriteria == MemSortCriteria.Exploration);
 
+            // [HDY 요청] 버튼이 3개(MemId/Tier/스탯1종)만 남으면 사이 구분 이미지도 2개만 있으면 충분하다.
+            // 7개 중 5개는 끈다.
+            SetSeparatorImagesVisible(2);
+
             Debug.Log($"[MemStorageUI_Sort] 정렬 버튼 숨기기 적용: {ms} + Tier + MemId만 표시");
         }
 
@@ -97,6 +143,9 @@ namespace HDY.UI
             SetButtonVisible(sortByTransportButton, true);
             SetButtonVisible(sortByFarmingButton, true);
             SetButtonVisible(sortByExplorationButton, true);
+
+            // [HDY 요청] 버튼 8개가 전부 보이면 사이 구분 이미지도 7개 전부 켠다.
+            SetSeparatorImagesVisible(sortButtonSeparatorImages != null ? sortButtonSeparatorImages.Length : 0);
 
             Debug.Log("[MemStorageUI_Sort] 정렬 버튼 8개 전부 표시");
         }
@@ -122,6 +171,47 @@ namespace HDY.UI
             {
                 button.gameObject.SetActive(visible);
             }
+        }
+
+        /// <summary>
+        /// [HDY 요청] 버튼 사이 구분 이미지 중 배열 앞에서부터 visibleCount개만 켜고 나머지는 끈다.
+        /// 버튼들이 레이아웃 그룹으로 자동 배치된다고 가정하므로 어떤 이미지가 켜지는지는 상관없고
+        /// 켜지는 개수만 맞으면 된다.
+        /// </summary>
+        private void SetSeparatorImagesVisible(int visibleCount)
+        {
+            if (sortButtonSeparatorImages == null) return;
+
+            for (int i = 0; i < sortButtonSeparatorImages.Length; i++)
+            {
+                if (sortButtonSeparatorImages[i] == null) continue;
+                sortButtonSeparatorImages[i].gameObject.SetActive(i < visibleCount);
+            }
+        }
+
+        /// <summary>
+        /// [HDY 요청 - 정렬 버튼 알파 강조] currentSortCriteria와 일치하는 버튼은 알파 1(불투명), 나머지는
+        /// inactiveSortButtonAlpha로 낮춘다. currentSortCriteria가 null이면(아직 클릭한 적 없음) 8개 전부
+        /// inactiveSortButtonAlpha가 된다.
+        /// </summary>
+        private void UpdateButtonAlphas()
+        {
+            for (int i = 0; i < sortButtonEntries.Count; i++)
+            {
+                var entry = sortButtonEntries[i];
+                bool isActive = currentSortCriteria.HasValue && currentSortCriteria.Value == entry.Criteria;
+                SetButtonAlpha(entry.Button, isActive ? 1f : inactiveSortButtonAlpha);
+            }
+        }
+
+        /// <summary>버튼의 targetGraphic(보통 버튼 배경 Image)의 알파만 바꾼다. 색상 자체는 건드리지 않는다.</summary>
+        private static void SetButtonAlpha(Button button, float alpha)
+        {
+            if (button == null || button.targetGraphic == null) return;
+
+            var color = button.targetGraphic.color;
+            color.a = alpha;
+            button.targetGraphic.color = color;
         }
     }
 }

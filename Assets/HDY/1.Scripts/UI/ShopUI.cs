@@ -93,15 +93,28 @@ namespace HDY.UI
     /// 마지막에 추가), 팝업은 해금된 레시피들을 전부 보여준 뒤 환불 안내가 마지막에 나오는 순서로
     /// 진행된다. 재료로 구매하도록 설정된 경우(HasMaterialCost)는 IMaterialInventory에 재료를 돌려주는
     /// API가 없어 자동 환불을 지원하지 않는다 - 골드 전용 판매를 전제로 한다.
+    ///
+    /// [HDY 요청 - 해금 가능한 레시피가 없으면 구매 자체를 막음] GetBuyMaxQuantity가 cook_recipebook에
+    /// 한해 재고/골드 계산보다 먼저 CookRecipeUnlockManager.HasUnlockableRecipeRemaining()을 확인해서,
+    /// 해금 가능한 레시피가 카탈로그에 하나도 남지 않았으면 무조건 0을 반환한다 - 거래 팝업의 확인
+    /// 버튼은 수량 0일 때 비활성화되므로(공용 규칙) 구매 자체가 막힌다. 위의 사후 환불 로직은 그대로
+    /// 남겨뒀다 - 구매창이 열려있는 동안 다른 경로로 마지막 레시피가 먼저 해금되는 등의 경합 상황에서도
+    /// 안전하게 처리하기 위한 이중 방어다.
     /// </summary>
     public class ShopUI : MonoBehaviour
     {
-        /// <summary>상점 이동 탭 버튼 하나와 그 버튼이 여는 상점을 짝짓는 항목.</summary>
+        /// <summary>
+        /// 상점 이동 탭 버튼 하나와 그 버튼이 여는 상점을 짝짓는 항목.
+        /// [HDY 요청 - 선택 표시 이미지] selectedImage는 버튼 안에 미리 배치해둔 "지금 이 상점을 보고
+        /// 있다"는 표시 이미지다. RefreshShopEntryButtons가 entry.shop == currentShop인 항목만 활성화하고
+        /// 나머지는 비활성화한다(interactable=false로 회색 표시하는 것과는 별개의 추가 표시).
+        /// </summary>
         [Serializable]
         private class ShopEntry
         {
             public Button button;
             public ShopData shop;
+            public Image selectedImage;
         }
 
         public static ShopUI Instance { get; private set; }
@@ -251,7 +264,7 @@ namespace HDY.UI
             if (restockCountdownText == null || stockManager == null) return;
 
             var remaining = stockManager.GetTimeUntilRestock(currentShop);
-            restockCountdownText.text = $"{(int)remaining.TotalMinutes:00}:{remaining.Seconds:00}";
+            restockCountdownText.text = "상점 초기화까지 남은 시간 : " + $"{(int)remaining.TotalMinutes:00}:{remaining.Seconds:00}";
         }
 
         /// <summary>
@@ -282,13 +295,21 @@ namespace HDY.UI
             if (popupRoot != null) popupRoot.SetActive(false);
         }
 
-        /// <summary>지금 보고 있는 상점의 이동 탭 버튼만 interactable=false로 회색 표시한다.</summary>
+        /// <summary>
+        /// 지금 보고 있는 상점의 이동 탭 버튼만 interactable=false로 회색 표시하고, 그 버튼 안의
+        /// selectedImage도 함께 활성화한다(HDY 요청). Open()이 이 메서드를 호출하므로 상점이 처음
+        /// 열릴 때도 자연스럽게 반영된다.
+        /// </summary>
         private void RefreshShopEntryButtons()
         {
             foreach (var entry in shopEntries)
             {
                 if (entry == null || entry.button == null) continue;
-                entry.button.interactable = entry.shop != currentShop;
+
+                bool isCurrent = entry.shop == currentShop;
+                entry.button.interactable = !isCurrent;
+
+                if (entry.selectedImage != null) entry.selectedImage.gameObject.SetActive(isCurrent);
             }
         }
 
@@ -356,6 +377,18 @@ namespace HDY.UI
         /// </summary>
         private int GetBuyMaxQuantity(ShopItemData itemData)
         {
+            // [HDY 요청 - 해금 가능한 레시피가 없으면 구매 자체를 막음] 재고/골드 계산보다 먼저 확인한다.
+            // 기존 TryUnlockRandom의 방어 코드(후보 0개면 실패)와 같은 기준을, 실제로 해금하지 않는
+            // HasUnlockableRecipeRemaining으로 부작용 없이 미리 확인한다.
+            if (itemData.Item_ID == CookRecipeBookItemId)
+            {
+                cookRecipeUnlockManager = CookRecipeUnlockManager.Resolve(cookRecipeUnlockManager);
+                if (cookRecipeUnlockManager != null && !cookRecipeUnlockManager.HasUnlockableRecipeRemaining())
+                {
+                    return 0;
+                }
+            }
+
             int stock = stockManager != null ? stockManager.GetPurchaseStock(itemData) : 0;
             if (stock <= 0) return 0;
 

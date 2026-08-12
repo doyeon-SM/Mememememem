@@ -65,20 +65,21 @@ public class FoodWarehouseUpgrade : MonoBehaviour, IUpgradable
 
     public string GetUpgradeTitle()
     {
-        return "음식 창고 확장";
+        return "밥통 확장";
     }
 
-    public string GetUpgradeDescription()
+    // [HDY 요청] 팝업 중간에 표시할 문구. 최대치면 "MAX", 아니면 "추가 1칸 확장 비용".
+    public string GetUpgradeMiddleText()
     {
         if (foodWarehouseUI == null) return string.Empty;
 
-        if (!CanUpgrade())
-        {
-            return "MAX";
-        }
+        return CanUpgrade() ? "추가 1칸 확장 비용" : "MAX";
+    }
 
-        int currentSlots = foodWarehouseUI.GetTotalFoodStorageSlotCount();
-        return $"{currentSlots}칸 → {currentSlots + 1}칸";
+    // [HDY 요청] 확인 버튼에 표시할 고정 문구.
+    public string GetUpgradeButtonText()
+    {
+        return "확장";
     }
 
     /// <summary>

@@ -3,9 +3,12 @@ using HDY.Inventory;
 using HDY.Item;
 using HDY.Mem;
 using HDY.Recipe;
+using KMS.Audio;
 using MemSystem.Data;
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 public class ProductionFacilityRuntime : MonoBehaviour
@@ -28,6 +31,9 @@ public class ProductionFacilityRuntime : MonoBehaviour
     [Header("배치된 멤 데이터")]
     [SerializeField] private List<MemData> addMems = new List<MemData>();
     [SerializeField] private List<CapturedMemEntry> addMemEntries = new List<CapturedMemEntry>();
+
+    private Coroutine soundRoutine;
+
     public List<MemData> DeployedMems => addMems;
     public List<CapturedMemEntry> DeployedMemEntries => addMemEntries;
 
@@ -82,7 +88,7 @@ public class ProductionFacilityRuntime : MonoBehaviour
     }
 
     /// <summary>
-    /// 레벨업 시 멤 슬롯 한 칸 추가 해금 (최대 5레벨)
+    /// 레벨업 시 멤 슬롯 해금 및 UI/이벤트 동기화
     /// </summary>
     public void LevelUp()
     {
@@ -101,7 +107,11 @@ public class ProductionFacilityRuntime : MonoBehaviour
 
     private void Update()
     {
-        if (!isProducing) return;
+        if (!isProducing)
+        {
+            SetProducingActive(false);
+            return;
+        }
         if (currentStorageCount >= maxStorageCount) return;
 
         currentProgressTime += Time.deltaTime;
@@ -115,7 +125,7 @@ public class ProductionFacilityRuntime : MonoBehaviour
     {
         if (string.IsNullOrEmpty(craftingItem) || addMems.Count == 0)
         {
-            isProducing = false;
+            SetProducingActive(false);
             currentProgressTime = 0f;
             return;
         }
@@ -123,7 +133,6 @@ public class ProductionFacilityRuntime : MonoBehaviour
         float baseDuration = baseProductionTime;
         float newTotalTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, addMems);
 
-        // 🌟 [수정] 진행 소요 시간을 먼저 구한 뒤 기존 진행 시간을 보존
         if (totalRequiredTime > 0f && currentProgressTime > 0f)
         {
             float currentProgressPercent = currentProgressTime / totalRequiredTime;
@@ -139,14 +148,8 @@ public class ProductionFacilityRuntime : MonoBehaviour
             }
         }
 
-        if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
-        {
-            SetProducingActive(true);
-        }
-        else
-        {
-            isProducing = false;
-        }
+        bool isAnyMemStarving = DeployedMemEntries.Any(e => e != null && (e.IsStarving || e.CurrentHunger <= 0));
+        SetProducingActive(!isAnyMemStarving);
     }
 
     public bool TryAddMem(MemData targetMem, CapturedMemEntry targetEntry)
@@ -207,6 +210,11 @@ public class ProductionFacilityRuntime : MonoBehaviour
                 MemAdded?.Invoke(buildingData.buildingType, removedMem, false, MemPositions);
             }
         }
+
+        if (addMemEntries.Count == 0)
+        {
+            SetProducingActive(false);
+        }
     }
 
     public void RemoveMem(MemData targetMem)
@@ -238,12 +246,15 @@ public class ProductionFacilityRuntime : MonoBehaviour
         if (targetItemData == null) return;
 
         int amountToCollect = currentStorageCount;
+
         WarehouseInventory warehouse = FindFirstObjectByType<WarehouseInventory>();
         if (warehouse != null)
         {
             int remaining = warehouse.AddItem(targetItemData, amountToCollect);
             currentStorageCount = remaining;
+            KMSAudioService.Play2D(GameSfxId.ItemObtained);
         }
+
         FacilityCollectManager.Instance?.NotifyFacilityChanged(this);
     }
 
@@ -256,18 +267,67 @@ public class ProductionFacilityRuntime : MonoBehaviour
 
     private void SetProducingActive(bool value)
     {
-        if (isProducing == value) return;
+        if (isProducing == value && (value && soundRoutine != null)) return;
         isProducing = value;
-        if (isProducing && buildingData != null)
+        string objName = gameObject.name;
+
+        if (isProducing)
         {
-            FacilityStarted?.Invoke(buildingData.buildingType, addMems, MemPositions);
+            if (soundRoutine != null) StopCoroutine(soundRoutine);
+            soundRoutine = StartCoroutine(FacilitySoundRoutine());
+
+            if (buildingData != null)
+                FacilityStarted?.Invoke(buildingData.buildingType, addMems, MemPositions);
         }
+        else
+        {
+            if (soundRoutine != null)
+            {
+                StopCoroutine(soundRoutine);
+                soundRoutine = null;
+            }
+
+            if (objName.Contains("Logging")) KMS.Audio.KMSAudioService.StopSfx(GameSfxId.Logging);
+            else if (objName.Contains("Mining")) KMS.Audio.KMSAudioService.StopSfx(GameSfxId.Mining);
+            else if (objName.Contains("Berry")) KMS.Audio.KMSAudioService.StopSfx(GameSfxId.Farm);
+            else if (objName.Contains("Wheat")) KMS.Audio.KMSAudioService.StopSfx(GameSfxId.WheatFarm);
+        }
+    }
+
+    private IEnumerator FacilitySoundRoutine()
+    {
+        string objName = gameObject.name;
+        float interval = objName.Contains("Mining") ? 1.5f : 2.0f;
+
+        while (isProducing)
+        {
+            PlayFacilitySfx();
+            yield return new WaitForSeconds(interval);
+        }
+    }
+
+    private void PlayFacilitySfx()
+    {
+        string objName = gameObject.name;
+        if (objName.Contains("Logging")) KMSAudioService.PlayAt(GameSfxId.Logging, transform.position);
+        else if (objName.Contains("Mining")) KMSAudioService.PlayAt(GameSfxId.Mining, transform.position);
+        else if (objName.Contains("Berry")) KMSAudioService.PlayAt(GameSfxId.Farm, transform.position);
+        else if (objName.Contains("Wheat")) KMSAudioService.PlayAt(GameSfxId.WheatFarm, transform.position);
+    }
+
+    private void StopFacilitySfx()
+    {
+        string objName = gameObject.name;
+        if (objName.Contains("Logging")) KMSAudioService.StopSfx(GameSfxId.Logging);
+        else if (objName.Contains("Mining")) KMSAudioService.StopSfx(GameSfxId.Mining);
+        else if (objName.Contains("Berry")) KMSAudioService.StopSfx(GameSfxId.Farm);
+        else if (objName.Contains("Wheat")) KMSAudioService.StopSfx(GameSfxId.WheatFarm);
     }
 
     public void StopWorkDueToStarvation()
     {
         if (!isProducing) return;
-        isProducing = false;
+        SetProducingActive(false);
         if (buildingData != null)
         {
             FacilityStopped?.Invoke(buildingData.buildingType, addMems, FacilityStopReason.Starvation, MemPositions);

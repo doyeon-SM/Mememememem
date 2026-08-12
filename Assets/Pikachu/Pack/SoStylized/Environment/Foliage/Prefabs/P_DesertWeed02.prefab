@@ -48,6 +48,22 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: -7511558181221131132, guid: 3a53d3bd87207bd47a98a996d4c4e8d7, type: 3}
+      propertyPath: m_CastShadows
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -7511558181221131132, guid: 3a53d3bd87207bd47a98a996d4c4e8d7, type: 3}
+      propertyPath: m_MotionVectors
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -7511558181221131132, guid: 3a53d3bd87207bd47a98a996d4c4e8d7, type: 3}
+      propertyPath: m_LightProbeUsage
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -7511558181221131132, guid: 3a53d3bd87207bd47a98a996d4c4e8d7, type: 3}
+      propertyPath: m_ReflectionProbeUsage
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: 3a53d3bd87207bd47a98a996d4c4e8d7, type: 3}
       propertyPath: m_Name
       value: P_DesertWeed02
@@ -55,5 +71,37 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 3a53d3bd87207bd47a98a996d4c4e8d7, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 6931574167194109666}
   m_SourcePrefab: {fileID: 100100000, guid: 3a53d3bd87207bd47a98a996d4c4e8d7, type: 3}
+--- !u!23 &7362249321794966383 stripped
+MeshRenderer:
+  m_CorrespondingSourceObject: {fileID: -7511558181221131132, guid: 3a53d3bd87207bd47a98a996d4c4e8d7, type: 3}
+  m_PrefabInstance: {fileID: 8208482541377785835}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &9019314431445480122 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: 3a53d3bd87207bd47a98a996d4c4e8d7, type: 3}
+  m_PrefabInstance: {fileID: 8208482541377785835}
+  m_PrefabAsset: {fileID: 0}
+--- !u!205 &6931574167194109666
+LODGroup:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9019314431445480122}
+  serializedVersion: 2
+  m_LocalReferencePoint: {x: 0.053703785, y: 0.57655096, z: -0.051045537}
+  m_Size: 1.9040296
+  m_FadeMode: 0
+  m_AnimateCrossFading: 0
+  m_LastLODIsBillboard: 0
+  m_LODs:
+  - screenRelativeHeight: 0.03
+    fadeTransitionWidth: 0
+    renderers:
+    - renderer: {fileID: 7362249321794966383}
+  m_Enabled: 1

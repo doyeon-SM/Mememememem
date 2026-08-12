@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
@@ -10,18 +11,29 @@ namespace HDY.Tutorial
     /// HDY.Item.ItemCatalogManager와 동일한 패턴 - Awake 시 시트를 읽어 CSV 행마다
     /// ScriptableObject.CreateInstance&lt;TutorialStepData&gt;()로 채운다.
     ///
-    /// [시트 컬럼] Step_ID, Trigger_Type, Trigger_Param, Dialogue_Lines, Objectives, Rewards, Highlight_Key
+    /// [시트 컬럼] Step_ID, Trigger_Type, Trigger_Param, Dialogue_Lines, Objectives, Rewards, Highlight_Key,
+    ///   Waiting_Hint, Quest_Title
     /// - Trigger_Type: TutorialTriggerType enum 이름 그대로 (Manual, SceneEnter, LevelReached,
     ///   ObjectSighted, MemSighted, WaypointSighted, ChestSighted, MemCaptured, ChestOpened,
     ///   WaypointUnlocked, UIPanelOpened)
     /// - Trigger_Param: 트리거 종류에 따라 의미가 다름 (SceneEnter=씬 이름 / LevelReached=레벨 숫자 /
     ///   UIPanelOpened=패널 식별 키 / 나머지=이후 배치의 바인더가 정의하는 값. 지금은 비워둬도 됨)
-    /// - Dialogue_Lines: 대사 여러 줄을 세미콜론(;)으로 구분. 예) "대사1;대사2;대사3"
-    /// - Objectives: "목표키:표시이름:목표수량" 형식을 세미콜론으로 여러 개 나열.
-    ///   예) "item_iron:철 주괴:1;item_woodplank:나무판자:1"
-    /// - Rewards: "아이템ID:수량" 형식을 세미콜론으로 여러 개 나열. 예) "item_baseblueprint:1"
+    /// - Dialogue_Lines: 대사 여러 줄을 세미콜론(;)으로 구분. 예) \"대사1;대사2;대사3\"
+    /// - Objectives: \"목표키:표시이름:목표수량\" 형식을 세미콜론으로 여러 개 나열.
+    ///   예) \"item_iron:철 주괴:1;item_woodplank:나무판자:1\"
+    /// - Rewards: \"아이템ID:수량\" 또는 \"아이템ID:수량:refined\" 형식을 세미콜론으로 여러 개 나열.
+    ///   예) \"item_baseblueprint:1;tool_shabby_axe:1:refined\". 특수 아이템ID \"gold\"는 인벤토리가 아니라
+    ///   TerritoryData.AddGold로 지급된다(예: \"gold:100\"). \"refined\"를 붙이면 지급 직후
+    ///   PlayerDefaultItemTest와 동일한 고정 연마(Rare/DamageIncrease/1)가 강제 적용된다
+    ///   (TutorialManager.GrantRewards 참고).
     /// - Highlight_Key: TutorialUIHighlightTarget에 등록된 UI 요소의 키. 비워두면 강조 없음(단, 시야
     ///   감지 트리거로 활성화된 스텝은 이 값이 비어있어도 감지된 월드 오브젝트를 자동으로 강조한다)
+    /// - Waiting_Hint: 이 스텝이 자기 트리거를 아직 만족 못해 \"대기 중\"인 동안 목표 HUD에 대신
+    ///   표시할 안내 문구. 예) \"멤 찾기\", \"상자 열기\". 비워두면 기존 대기 문구를 그대로 쓴다
+    ///   (TutorialManager.NoObjectiveText 참고). 보통 Manual/SceneEnter/LevelReached처럼 즉시
+    ///   활성화되는 트리거에는 대기 상태가 거의 없어 비워둬도 무방하다.
+    /// - Quest_Title: [예약] 보상이 있는 스텝에 한해 채우는 제목. 추후 제작될 보상 UI에서 사용할
+    ///   예정이며, 지금은 파싱만 하고 참조하는 런타임 로직은 없다. 모든 스텝에 채울 필요 없음.
     ///
     /// [순서 = 진행 순서] TerritoryExpansionSteps/RecipeUnlocks와 동일하게, 시트의 행 순서가 곧
     /// 튜토리얼 진행 순서다(포지셔널 인덱스 하드 제약) - 순서를 바꾸고 싶으면 시트에서 행을 옮기면 된다.
@@ -100,7 +112,11 @@ namespace HDY.Tutorial
             }
         }
 
-        /// <summary>시트 한 줄(컬럼 배열)을 런타임 TutorialStepData로 변환한다.</summary>
+        /// <summary>
+        /// 시트 한 줄(컬럼 배열)을 런타임 TutorialStepData로 변환한다. Waiting_Hint/Quest_Title(7,8번
+        /// 인덱스)은 나중에 추가된 컬럼이라, 옛 시트와의 호환을 위해 없으면(cols.Count가 모자라면)
+        /// 빈 문자열로 둔다.
+        /// </summary>
         private TutorialStepData ParseStepRow(List<string> cols)
         {
             var step = ScriptableObject.CreateInstance<TutorialStepData>();
@@ -112,6 +128,8 @@ namespace HDY.Tutorial
             step.objectives = ParseObjectives(cols[4]);
             step.rewards = ParseRewards(cols[5]);
             step.highlightKey = cols[6].Trim();
+            step.waitingHintText = cols.Count > 7 ? cols[7].Trim() : string.Empty;
+            step.questTitle = cols.Count > 8 ? cols[8].Trim() : string.Empty;
 
             return step;
         }
@@ -121,7 +139,7 @@ namespace HDY.Tutorial
             return System.Enum.TryParse(s.Trim(), out TutorialTriggerType value) ? value : TutorialTriggerType.Manual;
         }
 
-        /// <summary>"대사1;대사2;대사3" 형식을 파싱한다. 빈 문자열이면 빈 리스트를 반환한다.</summary>
+        /// <summary>\"대사1;대사2;대사3\" 형식을 파싱한다. 빈 문자열이면 빈 리스트를 반환한다.</summary>
         private static List<TutorialDialogueLine> ParseDialogueLines(string raw)
         {
             var lines = new List<TutorialDialogueLine>();
@@ -136,7 +154,7 @@ namespace HDY.Tutorial
             return lines;
         }
 
-        /// <summary>"item_iron:철 주괴:1;item_woodplank:나무판자:1" 형식을 파싱한다.</summary>
+        /// <summary>\"item_iron:철 주괴:1;item_woodplank:나무판자:1\" 형식을 파싱한다.</summary>
         private static List<TutorialObjectiveEntry> ParseObjectives(string raw)
         {
             var objectives = new List<TutorialObjectiveEntry>();
@@ -164,7 +182,12 @@ namespace HDY.Tutorial
             return objectives;
         }
 
-        /// <summary>"item_baseblueprint:1" 형식을 파싱한다.</summary>
+        /// <summary>
+        /// \"item_baseblueprint:1\" 또는 \"tool_shabby_axe:1:refined\" 형식을 파싱한다. 세 번째 값이
+        /// \"refined\"(대소문자 무관)이면 applyFixedToolRefinement를 켠다. \"gold:100\"처럼 itemId가 \"gold\"인
+        /// 항목도 이 메서드에서는 그냥 평범한 보상 항목으로 파싱되고, 실제 분기 처리는
+        /// TutorialManager.GrantRewards에서 한다.
+        /// </summary>
         private static List<TutorialRewardEntry> ParseRewards(string raw)
         {
             var rewards = new List<TutorialRewardEntry>();
@@ -175,14 +198,22 @@ namespace HDY.Tutorial
                 if (string.IsNullOrWhiteSpace(entry)) continue;
 
                 var parts = entry.Split(':');
-                if (parts.Length != 2) continue;
+                if (parts.Length != 2 && parts.Length != 3) continue;
 
                 if (!int.TryParse(parts[1].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var amount))
                 {
                     continue;
                 }
 
-                rewards.Add(new TutorialRewardEntry { itemId = parts[0].Trim(), amount = amount });
+                bool refined = parts.Length == 3 &&
+                    string.Equals(parts[2].Trim(), "refined", StringComparison.OrdinalIgnoreCase);
+
+                rewards.Add(new TutorialRewardEntry
+                {
+                    itemId = parts[0].Trim(),
+                    amount = amount,
+                    applyFixedToolRefinement = refined
+                });
             }
             return rewards;
         }
@@ -208,7 +239,7 @@ namespace HDY.Tutorial
                         if (i + 1 < line.Length && line[i + 1] == '"')
                         {
                             current.Append('"');
-                            i++; // 이스케이프된 큰따옴표(""") - 한 글자로 합쳐 담고 한 글자 더 건너뜀
+                            i++; // 이스케이프된 큰따옴표(\"\"\") - 한 글자로 합쳐 담고 한 글자 더 건너뜀
                         }
                         else
                         {

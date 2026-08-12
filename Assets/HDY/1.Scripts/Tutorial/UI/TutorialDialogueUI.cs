@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -21,6 +22,11 @@ namespace HDY.Tutorial
     /// 오브젝트 자체는 항상 활성 상태로 유지돼 등록이 끊기지 않는다. 별도 자식 오브젝트를 rootPanel로
     /// 지정한 경우엔 지금처럼 SetActive를 그대로 쓴다(이 스크립트가 붙은 오브젝트 자신은 그대로
     /// 켜져있으니 문제 없음).
+    ///
+    /// [HDY 요청 - 퀘스트 형태별 아이콘] questTypeIcons에 스프라이트 4개를 채워두면, ShowLine이 받은
+    /// TutorialTriggerType에 따라 questTypeIconImage의 스프라이트를 바꿔 보여준다
+    /// (GetQuestTypeIconIndex 참고: index0=Manual, index1=SceneEnter, index2=LevelReached,
+    /// index3=그 외 전부). 해당 인덱스에 스프라이트가 비어있으면 아이콘 자체를 숨긴다.
     /// </summary>
     public class TutorialDialogueUI : MonoBehaviour
     {
@@ -33,6 +39,12 @@ namespace HDY.Tutorial
         [Tooltip("대화창 전체를 켜고 끄는 루트. 비워두면 이 오브젝트 자신을 사용한다(그 경우 SetActive 대신 CanvasGroup으로 표시만 껐다 켠다).")]
         [SerializeField] private GameObject rootPanel;
         [SerializeField] private Button nextButton;
+
+        [Header("퀘스트 형태별 아이콘 (HDY 요청)")]
+        [Tooltip("스프라이트를 실제로 표시할 대상 Image.")]
+        [SerializeField] private Image questTypeIconImage;
+        [Tooltip("index0=Manual, index1=SceneEnter, index2=LevelReached, index3=그 외 전부(시야 감지/포획/상자 개봉/웨이포인트 해금/UI 패널 오픈 등). GetQuestTypeIconIndex 참고.")]
+        [SerializeField] private List<Sprite> questTypeIcons = new List<Sprite>(4);
 
         private bool rootPanelIsSelf;
         private CanvasGroup selfCanvasGroup;
@@ -47,6 +59,12 @@ namespace HDY.Tutorial
                 selfCanvasGroup = rootPanel.GetComponent<CanvasGroup>();
                 if (selfCanvasGroup == null) selfCanvasGroup = rootPanel.AddComponent<CanvasGroup>();
             }
+
+            // [HDY 요청 - 방어 코드] TutorialManager가 OnEnable에서 등록해줄 때까지(혹은 등록되더라도
+            // 아직 첫 스텝이 시작되기 전까지) 항상 숨김 상태로 시작한다. CanvasGroup 기본값
+            // (alpha=1, interactable=true, blocksRaycasts=true)을 그대로 두면, 특히 Title씬처럼 패널만
+            // 먼저 스폰되고 첫 스텝은 아직 대기 중인 상황에서 화면 전체 클릭이 막혀버린다.
+            SetVisible(false);
         }
 
         private void OnEnable()
@@ -85,11 +103,41 @@ namespace HDY.Tutorial
             tutorialManager?.AdvanceDialogue();
         }
 
-        /// <summary>TutorialManager가 현재 대사를 보여줄 때 호출한다.</summary>
-        public void ShowLine(string text)
+        /// <summary>
+        /// [HDY 요청 - 퀘스트 형태별 아이콘] TutorialTriggerType을 questTypeIcons 리스트의 인덱스(0~3)로
+        /// 매핑한다. index0=Manual, index1=SceneEnter, index2=LevelReached, index3=그 외 전부(시야 감지/
+        /// 포획/상자 개봉/웨이포인트 해금/UI 패널 오픈 등 - 아직 이 그룹을 더 세분화할 만큼 아이콘이
+        /// 충분하지 않아 하나로 묶었다). 원하는 분류가 다르면 이 매핑만 바꾸면 된다.
+        /// </summary>
+        private static int GetQuestTypeIconIndex(TutorialTriggerType triggerType)
+        {
+            switch (triggerType)
+            {
+                case TutorialTriggerType.Manual: return 0;
+                case TutorialTriggerType.SceneEnter: return 1;
+                case TutorialTriggerType.LevelReached: return 2;
+                default: return 3;
+            }
+        }
+
+        /// <summary>questTypeIconImage의 스프라이트를 트리거 종류에 맞는 것으로 바꾼다. 해당 인덱스가 비어있으면 아이콘을 숨긴다.</summary>
+        private void ApplyQuestTypeIcon(TutorialTriggerType triggerType)
+        {
+            if (questTypeIconImage == null) return;
+
+            int index = GetQuestTypeIconIndex(triggerType);
+            Sprite sprite = (questTypeIcons != null && index >= 0 && index < questTypeIcons.Count) ? questTypeIcons[index] : null;
+
+            questTypeIconImage.sprite = sprite;
+            questTypeIconImage.gameObject.SetActive(sprite != null);
+        }
+
+        /// <summary>TutorialManager가 현재 대사를 보여줄 때 호출한다. triggerType은 퀘스트 형태별 아이콘 선택에 쓰인다.</summary>
+        public void ShowLine(string text, TutorialTriggerType triggerType)
         {
             SetVisible(true);
             if (bodyText != null) bodyText.text = text;
+            ApplyQuestTypeIcon(triggerType);
         }
 
         /// <summary>대사가 끝나거나 스텝이 바뀔 때 TutorialManager가 호출한다.</summary>

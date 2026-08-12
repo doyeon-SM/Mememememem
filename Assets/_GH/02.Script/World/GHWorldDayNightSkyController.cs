@@ -22,6 +22,9 @@ namespace GH.World
         private const string DefaultNightSkyboxPath =
             "Assets/_GH/05.Prefeb/AssetsMesh/GH_DayNightSky/GH_NightSky.mat";
         private const string BlendShaderName = "GH/Skybox/Cubemap Blend";
+        private const string StarryNightBlendShaderName =
+            "GH/Skybox/Cubemap Starry Night Blend";
+        private const string DynamicStarrySkyShaderName = "Funly/Sky/StarrySky";
 
         private static readonly int DayTextureId = Shader.PropertyToID("_DayTex");
         private static readonly int NightTextureId = Shader.PropertyToID("_NightTex");
@@ -35,6 +38,12 @@ namespace GH.World
             Shader.PropertyToID("_DayVerticalOffset");
         private static readonly int NightVerticalOffsetId =
             Shader.PropertyToID("_NightVerticalOffset");
+        private static readonly int DayLowerSkyColorId =
+            Shader.PropertyToID("_DayLowerSkyColor");
+        private static readonly int LowerSkyWorldFadeId =
+            Shader.PropertyToID("_LowerSkyWorldFade");
+        private static readonly int LowerSkySourceFadeId =
+            Shader.PropertyToID("_LowerSkySourceFade");
         private static readonly int SourceCubemapId = Shader.PropertyToID("_Tex");
         private static readonly int SourceMainTextureId = Shader.PropertyToID("_MainTex");
 
@@ -116,13 +125,13 @@ namespace GH.World
             "낮 스카이박스가 완전히 보일 때 적용할 노출값입니다. 값을 높이면 하늘 전체가 밝아지고, " +
             "너무 높으면 구름의 밝은 부분이 하얗게 날아갈 수 있습니다.")]
         [Min(0f)]
-        [SerializeField] private float daySkyboxExposure = 1f;
+        [SerializeField] private float daySkyboxExposure = 1.05f;
 
         [Tooltip(
             "밤 스카이박스가 완전히 보일 때 적용할 노출값입니다. 밤이 너무 검으면 값을 올리고, " +
             "별이나 달이 너무 강하면 값을 낮춥니다.")]
         [Min(0f)]
-        [SerializeField] private float nightSkyboxExposure = 0.62f;
+        [SerializeField] private float nightSkyboxExposure = 0.85f;
 
         [Tooltip(
             "낮 스카이박스에 곱해지는 색상입니다. 기본 흰색은 기존 낮 색감을 그대로 유지합니다.")]
@@ -150,6 +159,18 @@ namespace GH.World
         [Tooltip("Moves the baked night sky upward in degrees when the value is positive.")]
         [Range(-25f, 25f)]
         [SerializeField] private float nightSkyboxVerticalOffset = 24f;
+
+        [Tooltip("Cloud-free color used below the world horizon. This prevents reflected clouds in the lower half of a panoramic cubemap from appearing on the ground.")]
+        [SerializeField] private Color dayLowerSkyColor =
+            new Color(0.10f, 0.305f, 0.491f, 1f);
+
+        [Tooltip("Degrees above the world horizon over which the day cubemap fades in. The area below the horizon always uses Day Lower Sky Color.")]
+        [Range(0.5f, 15f)]
+        [SerializeField] private float lowerSkyWorldFadeDegrees = 5f;
+
+        [Tooltip("Degrees used to hide the source cubemap's reflected lower hemisphere if framing moves it above the world horizon.")]
+        [Range(0.5f, 15f)]
+        [SerializeField] private float lowerSkySourceFadeDegrees = 6f;
 
         [Tooltip(
             "스카이박스의 시작 회전각입니다. 선택한 Cubemap에서 달, 구름, 밝은 부분이 보이는 방향을 " +
@@ -197,7 +218,7 @@ namespace GH.World
         [Tooltip(
             "낮 정오 구간에서 사용할 Directional Light의 최대 Intensity입니다. 실제 밝기는 이 값과 위 곡선의 값을 곱해 계산합니다.")]
         [Min(0f)]
-        [SerializeField] private float maximumDirectionalLightIntensity = 1f;
+        [SerializeField] private float maximumDirectionalLightIntensity = 1.2f;
 
         [Tooltip(
             "하루 진행도에 따른 Directional Light 색상입니다. 기본값은 아침의 따뜻한 색, 낮의 중성색, " +
@@ -219,7 +240,7 @@ namespace GH.World
             "완전한 밤에서 유지할 Directional Light 밝기 비율입니다. " +
             "밤에도 캐릭터와 지형 윤곽을 유지하기 위해 0보다 큰 값을 사용합니다.")]
         [Range(0f, 1f)]
-        [SerializeField] private float continuousNightLightRatio = 0.8f;
+        [SerializeField] private float continuousNightLightRatio = 0.42f;
 
         [Tooltip("낮에 사용할 중성 계열 조명 색상입니다.")]
         [SerializeField] private Color continuousDayLightColor =
@@ -228,7 +249,7 @@ namespace GH.World
         [Tooltip(
             "밤에 사용할 조명 색상입니다. 낮 색상과 큰 차이가 없는 따뜻한 중성색을 사용해 화면 전체가 파랗게 변하지 않도록 합니다.")]
         [SerializeField] private Color continuousNightLightColor =
-            new Color(1f, 0.956f, 0.84f, 1f);
+            new Color(0.78f, 0.84f, 1f, 1f);
 
         [Tooltip(
             "시간 점프나 디버그 값 변경 시 맵 조명값이 목표값까지 따라가는 실제 시간입니다. " +
@@ -243,21 +264,21 @@ namespace GH.World
 
         [Tooltip("월드 표면의 위쪽에 적용할 중성 환경광 색상입니다.")]
         [SerializeField] private Color neutralAmbientSkyColor =
-            new Color(0.24f, 0.23f, 0.21f, 1f);
+            new Color(0.30f, 0.29f, 0.27f, 1f);
 
         [Tooltip("월드 표면의 수평 방향에 적용할 중성 환경광 색상입니다.")]
         [SerializeField] private Color neutralAmbientEquatorColor =
-            new Color(0.15f, 0.145f, 0.135f, 1f);
+            new Color(0.20f, 0.195f, 0.18f, 1f);
 
         [Tooltip("월드 표면의 아래쪽에 적용할 중성 환경광 색상입니다.")]
         [SerializeField] private Color neutralAmbientGroundColor =
-            new Color(0.07f, 0.065f, 0.06f, 1f);
+            new Color(0.11f, 0.10f, 0.09f, 1f);
 
         [Tooltip(
             "밤에만 중성 환경광 색상의 밝기를 추가로 증폭하는 값입니다. " +
             "Directional Light가 지평선 아래로 내려가도 지형·캐릭터가 잘 보이도록 하며 낮 밝기에는 영향을 주지 않습니다.")]
         [Range(1f, 3f)]
-        [SerializeField] private float nightAmbientColorMultiplier = 1.35f;
+        [SerializeField] private float nightAmbientColorMultiplier = 1.25f;
 
         [Header("환경광과 반사")]
         [Tooltip(
@@ -267,19 +288,19 @@ namespace GH.World
 
         [Tooltip("낮의 환경광 강도입니다. 지형 그림자 영역의 기본 밝기에 영향을 줍니다.")]
         [Min(0f)]
-        [SerializeField] private float dayAmbientIntensity = 1f;
+        [SerializeField] private float dayAmbientIntensity = 1.15f;
 
         [Tooltip("밤의 환경광 강도입니다. 너무 낮으면 그림자 영역이 완전히 검게 뭉칠 수 있습니다.")]
         [Min(0f)]
-        [SerializeField] private float nightAmbientIntensity = 1.85f;
+        [SerializeField] private float nightAmbientIntensity = 1.25f;
 
         [Tooltip("낮의 스카이박스 반사 강도입니다. 금속 및 반사 재질이 낮 하늘을 얼마나 강하게 반영할지 결정합니다.")]
         [Min(0f)]
-        [SerializeField] private float dayReflectionIntensity = 1f;
+        [SerializeField] private float dayReflectionIntensity = 1.05f;
 
         [Tooltip("밤의 스카이박스 반사 강도입니다. 밤에도 재질 윤곽이 남도록 0보다 큰 값을 권장합니다.")]
         [Min(0f)]
-        [SerializeField] private float nightReflectionIntensity = 0.5f;
+        [SerializeField] private float nightReflectionIntensity = 0.85f;
 
         [Tooltip(
             "낮/밤 스카이박스가 섞이는 정확한 중간 지점의 환경광 밝기입니다. " +
@@ -514,7 +535,6 @@ namespace GH.World
             originalAmbientSkyColor = RenderSettings.ambientSkyColor;
             originalAmbientEquatorColor = RenderSettings.ambientEquatorColor;
             originalAmbientGroundColor = RenderSettings.ambientGroundColor;
-
             if (mainDirectionalLight != null)
             {
                 originalLightRotation = mainDirectionalLight.transform.rotation;
@@ -538,8 +558,18 @@ namespace GH.World
             }
 
             Texture dayTexture = GetSkyboxTexture(daySkyboxSource);
-            Texture nightTexture = GetSkyboxTexture(nightSkyboxSource);
-            if (blendSkyboxShader == null || dayTexture == null || nightTexture == null)
+            bool usesProceduralStarryNight =
+                IsProceduralStarrySkyMaterial(nightSkyboxSource);
+            Texture nightTexture = usesProceduralStarryNight
+                ? null
+                : GetSkyboxTexture(nightSkyboxSource);
+            Shader runtimeShader = usesProceduralStarryNight
+                ? Shader.Find(StarryNightBlendShaderName)
+                : blendSkyboxShader;
+
+            if (runtimeShader == null
+                || dayTexture == null
+                || (!usesProceduralStarryNight && nightTexture == null))
             {
                 if (!warnedInvalidSkybox)
                 {
@@ -554,15 +584,33 @@ namespace GH.World
             }
 
             warnedInvalidSkybox = false;
-            runtimeSkybox = new Material(blendSkyboxShader)
-            {
-                name = "GH Runtime Day Night Skybox",
-                hideFlags = HideFlags.HideAndDontSave
-            };
+            runtimeSkybox = usesProceduralStarryNight
+                ? new Material(nightSkyboxSource)
+                : new Material(runtimeShader);
+            runtimeSkybox.shader = runtimeShader;
+            runtimeSkybox.name = "GH Runtime Day Night Skybox";
+            runtimeSkybox.hideFlags = HideFlags.HideAndDontSave;
+
             runtimeSkybox.SetTexture(DayTextureId, dayTexture);
-            runtimeSkybox.SetTexture(NightTextureId, nightTexture);
+            if (!usesProceduralStarryNight)
+            {
+                runtimeSkybox.SetTexture(NightTextureId, nightTexture);
+            }
+
             runtimeSkybox.SetColor(TintId, daySkyboxTint);
             RenderSettings.skybox = runtimeSkybox;
+        }
+
+        private static bool IsProceduralStarrySkyMaterial(Material source)
+        {
+            if (source == null || source.shader == null)
+            {
+                return false;
+            }
+
+            string shaderName = source.shader.name;
+            return shaderName == DynamicStarrySkyShaderName
+                || shaderName == StarryNightBlendShaderName;
         }
 
         private static Texture GetSkyboxTexture(Material source)
@@ -641,6 +689,18 @@ namespace GH.World
                 runtimeSkybox.SetFloat(
                     NightVerticalOffsetId,
                     Mathf.Clamp(nightSkyboxVerticalOffset, -25f, 25f));
+                if (runtimeSkybox.HasProperty(DayLowerSkyColorId)
+                    && runtimeSkybox.HasProperty(LowerSkyWorldFadeId)
+                    && runtimeSkybox.HasProperty(LowerSkySourceFadeId))
+                {
+                    runtimeSkybox.SetColor(DayLowerSkyColorId, dayLowerSkyColor);
+                    runtimeSkybox.SetFloat(
+                        LowerSkyWorldFadeId,
+                        Mathf.Clamp(lowerSkyWorldFadeDegrees, 0.5f, 15f));
+                    runtimeSkybox.SetFloat(
+                        LowerSkySourceFadeId,
+                        Mathf.Clamp(lowerSkySourceFadeDegrees, 0.5f, 15f));
+                }
                 runtimeSkybox.SetColor(
                     TintId,
                     Color.Lerp(daySkyboxTint, nightSkyboxTint, currentNightBlend));
@@ -954,6 +1014,14 @@ namespace GH.World
             nightSkyboxScale = Mathf.Clamp(nightSkyboxScale, 0.4f, 1.25f);
             daySkyboxVerticalOffset = Mathf.Clamp(daySkyboxVerticalOffset, -25f, 25f);
             nightSkyboxVerticalOffset = Mathf.Clamp(nightSkyboxVerticalOffset, -25f, 25f);
+            lowerSkyWorldFadeDegrees = Mathf.Clamp(
+                lowerSkyWorldFadeDegrees,
+                0.5f,
+                15f);
+            lowerSkySourceFadeDegrees = Mathf.Clamp(
+                lowerSkySourceFadeDegrees,
+                0.5f,
+                15f);
             maximumDirectionalLightIntensity = Mathf.Max(0f, maximumDirectionalLightIntensity);
             continuousDayLightRatio = Mathf.Clamp01(continuousDayLightRatio);
             continuousNightLightRatio = Mathf.Clamp01(continuousNightLightRatio);

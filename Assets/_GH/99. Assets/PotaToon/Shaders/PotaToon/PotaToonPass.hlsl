@@ -306,7 +306,10 @@ half4 frag(VertexOutput i, half facing : VFACE, uint uSampleIdx : SV_SampleIndex
     half3 lighting = directLighting + indirectLighting;
     
     // Composition before global lighting
-    finalColor = min(finalColor, finalBaseColor * _MaxToonBrightness + midTone);
+    // The volume constrains this value to [1, 10]. Zero therefore means that no
+    // PotaToon renderer feature/character-shadow buffer initialized it this frame.
+    half safeMaxToonBrightness = _MaxToonBrightness > 0.0 ? (half)_MaxToonBrightness : 10.0h;
+    finalColor = min(finalColor, finalBaseColor * safeMaxToonBrightness + midTone);
 
     // Hair High Light
     if (_UseHairHighLight > 0)

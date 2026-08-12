@@ -2862,6 +2862,7 @@ Transform:
   - {fileID: 1698174090018927890}
   - {fileID: 4159892752608013163}
   - {fileID: 7095467059112644028}
+  - {fileID: 4956690031334135697}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!143 &7190759329429898678
@@ -2882,13 +2883,13 @@ CharacterController:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Height: 2.7
+  m_Height: 1.55
   m_Radius: 0.42
   m_SlopeLimit: 45
   m_StepOffset: 0.375
   m_SkinWidth: 0.03
   m_MinMoveDistance: 0
-  m_Center: {x: 0, y: 1.395, z: 0}
+  m_Center: {x: 0, y: 0.82, z: 0}
 --- !u!114 &2825149733357899923
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2942,8 +2943,8 @@ MonoBehaviour:
   rotationTransform: {fileID: 9028560332686509555}
   animator: {fileID: 1914156871709254916}
   directionMode: 2
-  moveSpeed: 4
-  sprintSpeed: 6
+  moveSpeed: 5
+  sprintSpeed: 8
   acceleration: 18
   deceleration: 22
   rotationSmoothTime: 0.08
@@ -2958,17 +2959,18 @@ MonoBehaviour:
   jumpBufferTime: 0.12
   groundLayers:
     serializedVersion: 2
-    m_Bits: 247
+    m_Bits: 33554679
   groundedOffset: -0.12
   groundedRadius: 0.28
-  moveHungerCostPerSecond: 0.1
-  jumpHungerCost: 0.8
-  sprintHungerCostPerSecond: 0.6
+  moveHungerCostPerSecond: 0
+  jumpHungerCost: 1
+  sprintHungerCostPerSecond: 0.25
   externalForceDecay: 8
   ladderClimbSpeed: 3
-  ladderSlideDownSpeed: 1.2
+  ladderSlideDownSpeed: 2.4
   ladderSnapSpeed: 12
   ladderInputThreshold: 0.1
+  ladderAnimationCycleDuration: 0.7666667
 --- !u!114 &540356905414934518
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2995,6 +2997,8 @@ MonoBehaviour:
   positionSmoothTime: 0
   aimFovReduction: 5
   zoomSmoothTime: 0.2
+  aimShoulderOffset: {x: 0.7, y: 0.15, z: 0.25}
+  aimShoulderSmoothTime: 0.2
   avoidClipping: 1
   collisionRadius: 0.2
   collisionBuffer: 0.1
@@ -3112,17 +3116,31 @@ MonoBehaviour:
   harvestDistance: 10
   harvestRadius: 0.45
   fallbackToolDamage: 1
-  baseToolUseCooldown: 1
+  baseToolUseCooldown: 0.7
   minimumToolUseCooldown: 0.1
-  memMeleeItemId: tool_shabby_club
+  memMeleeItemIds:
+  - tool_shabby_club
+  - tool_club
+  - tool_decent_club
+  memMeleeLayer:
+    serializedVersion: 2
+    m_Bits: 1024
+  memMeleeObstructionLayer:
+    serializedVersion: 2
+    m_Bits: 4294967295
   memMeleeDistance: 5
+  memMeleeHalfAngle: 55
+  memMeleeOriginHeight: 1
+  memMeleeVerticalTolerance: 1.5
   memMeleeHungerCost: 1
   memHitDustPool: {fileID: 0}
   drawDebugRay: 1
   drawSphereCastGizmo: 1
+  drawMemMeleeGizmo: 1
   debugMissColor: {r: 1, g: 0, b: 0, a: 1}
   debugHitColor: {r: 0, g: 1, b: 0, a: 1}
   sphereCastGizmoColor: {r: 1, g: 0.72, b: 0.1, a: 0.85}
+  memMeleeGizmoColor: {r: 0.2, g: 0.85, b: 1, a: 0.85}
   logHitTarget: 1
 --- !u!114 &5415274748756277863
 MonoBehaviour:
@@ -3138,9 +3156,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::KMS.PlayerHungerHealthRecovery
   stats: {fileID: 4191295553828768883}
   recoveryDelayAfterDamage: 1
-  recoveryInterval: 1
-  healthPerTick: 5
-  hungerCostPerTick: 5
+  recoveryInterval: 4
+  healthPerTick: 20
+  hungerCostPerTick: 10
+  minimumHungerReserve: 10
+  recoveryDelayAfterEating: 2
   logRecovery: 0
 --- !u!114 &5163941127334908272
 MonoBehaviour:
@@ -3174,6 +3194,7 @@ MonoBehaviour:
     m_Bits: 4294967295
   fallbackReleaseNormalizedTime: 0.2
   aimRotationSpeed: 720
+  maxThrowDuration: 2.5
 --- !u!114 &8642937105823619041
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3243,13 +3264,14 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 5320301024596143200}
-  m_Enabled: 0
+  m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 846f9bbc7192499cb2beca31ec1485cd, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::KMS.KMSMemCaptureFocusController
   inventory: {fileID: 9124669202358280069}
   view: {fileID: 6812409213719045062}
+  trajectoryPreview: {fileID: 816496616688076247}
   cameraTransform: {fileID: 0}
   maxFocusDistance: 30
   focusLayers:
@@ -3270,14 +3292,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9f9b65cbd78449a0a835743b55da028b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::KMS.KMSMemCaptureFocusView
-  backgroundSprite: {fileID: 21300000, guid: 56be09f0a13daec40b94fe81070d4435, type: 3}
-  fontAsset: {fileID: 11400000, guid: 4b7ce8b83d56017438c4d21b29279bd6, type: 2}
-  panelColor: {r: 1, g: 1, b: 1, a: 0.94}
-  nameColor: {r: 0.08, g: 0.08, b: 0.08, a: 1}
-  messageColor: {r: 0.35, g: 0.35, b: 0.35, a: 1}
-  lowRateColor: {r: 0.93, g: 0.38, b: 0.16, a: 1}
-  highRateColor: {r: 0.12, g: 0.65, b: 0.25, a: 1}
-  panelSize: {x: 230, y: 72}
+  backgroundSprite: {fileID: 21300000, guid: a9016a79bbca3a04980ad5de28e24588, type: 3}
+  fontAsset: {fileID: 11400000, guid: f0893b31f4bc9f84291aaa3b12d930b7, type: 2}
+  panelColor: {r: 0, g: 0, b: 0, a: 0.5882353}
+  titleColor: {r: 1, g: 1, b: 1, a: 1}
+  valueColor: {r: 1, g: 1, b: 1, a: 1}
+  panelSize: {x: 160, y: 128}
   worldYOffset: 0.28
   diagonalScreenOffset: {x: 155, y: 28}
   sideSwitchDeadZone: 100
@@ -3311,6 +3331,8 @@ MonoBehaviour:
   respawnLocationMode: 0
   respawnHealthPercent: 1
   respawnInvulnerabilityDuration: 2
+  musicDuckFadeDuration: 0.6
+  deathMusicMultiplier: 0.33333334
 --- !u!114 &8140761256497828183
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3326,6 +3348,7 @@ MonoBehaviour:
   inventory: {fileID: 9124669202358280069}
   movement: {fileID: 757377502652196312}
   animator: {fileID: 1914156871709254916}
+  toolAnimationController: {fileID: 0}
   handAnchor: {fileID: 0}
   prefabTable: {fileID: 11400000, guid: 2df0fe05f944de94394c1b2705430ece, type: 2}
   heldCapsuleScaleCompensation: 0.6666667
@@ -3350,6 +3373,7 @@ MonoBehaviour:
   - tool_club
   - tool_decent_club
   stateEntryTimeout: 0.75
+  stationarySpeedThreshold: 0.1
 --- !u!114 &7938680308663795052
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3363,8 +3387,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::KMS.KMSFoodEffectController
   stats: {fileID: 4191295553828768883}
-  normalSatiety: 0
-  effectSegments: []
+  segments: []
 --- !u!114 &6812409213719045063
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5799,3 +5822,65 @@ Transform:
   - {fileID: 2871527156986207347}
   m_Father: {fileID: 8585577169748222298}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1001 &5395936478488774411
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 9028560332686509555}
+    m_Modifications:
+    - target: {fileID: 1021055911243894938, guid: 5b6e41ab41c3b2641b9b8ac015be29e3, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1021055911243894938, guid: 5b6e41ab41c3b2641b9b8ac015be29e3, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1021055911243894938, guid: 5b6e41ab41c3b2641b9b8ac015be29e3, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1021055911243894938, guid: 5b6e41ab41c3b2641b9b8ac015be29e3, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 1021055911243894938, guid: 5b6e41ab41c3b2641b9b8ac015be29e3, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1021055911243894938, guid: 5b6e41ab41c3b2641b9b8ac015be29e3, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1021055911243894938, guid: 5b6e41ab41c3b2641b9b8ac015be29e3, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1021055911243894938, guid: 5b6e41ab41c3b2641b9b8ac015be29e3, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1021055911243894938, guid: 5b6e41ab41c3b2641b9b8ac015be29e3, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1021055911243894938, guid: 5b6e41ab41c3b2641b9b8ac015be29e3, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7315444368679905769, guid: 5b6e41ab41c3b2641b9b8ac015be29e3, type: 3}
+      propertyPath: m_Name
+      value: TutorialDightDetector
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 5b6e41ab41c3b2641b9b8ac015be29e3, type: 3}
+--- !u!4 &4956690031334135697 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 1021055911243894938, guid: 5b6e41ab41c3b2641b9b8ac015be29e3, type: 3}
+  m_PrefabInstance: {fileID: 5395936478488774411}
+  m_PrefabAsset: {fileID: 0}

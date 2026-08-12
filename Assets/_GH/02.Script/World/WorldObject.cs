@@ -4,8 +4,10 @@ using HDY.Item;
 using KGH.Data;
 using KMS.Harvesting;
 using KMS.InventoryDuped;
+using DG.Tweening;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 /// <summary>현재 장착 아이템으로 월드 오브젝트와 상호작용할 수 있는지 나타냅니다.</summary>
 public enum WorldObjectInteractionState
@@ -14,6 +16,7 @@ public enum WorldObjectInteractionState
     NoToolEquipped,
     WrongToolType,
     InsufficientToolGrade,
+    Growing,
     Depleted
 }
 
@@ -47,19 +50,18 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
     [Min(0f)] [SerializeField] private float respawnTime = 30f;
     [SerializeField] private CommonClass needGrade = CommonClass.Rare;
 
+    [Header("Spawn Fade Motion")]
+    [Tooltip("월드 오브젝트가 투명 상태에서 원래 모습으로 나타나는 시간입니다. 페이드 중에는 채집할 수 없습니다.")]
+    [FormerlySerializedAs("spawnGrowthDuration")]
+    [Range(0.25f, 10f)] [SerializeField] private float spawnFadeDuration = 3f;
+    [Tooltip("페이드 알파를 갱신하는 단계 수입니다. 낮을수록 CPU 부하는 줄고, 높을수록 더 부드럽습니다.")]
+    [Range(8, 60)] [SerializeField] private int spawnFadeSteps = 30;
+
     [Header("Tree Depletion Motion")]
-    [Tooltip("나무가 쓰러질 때 타격 반대 방향으로 주는 순간 속도입니다.")]
-    [Min(0f)] [SerializeField] private float treeFallPushSpeed = 1.2f;
-    [Tooltip("나무가 쓰러지도록 회전축에 주는 순간 각속도입니다.")]
-    [Min(0f)] [SerializeField] private float treeFallAngularSpeed = 2.4f;
-    [Tooltip("쓰러지기 시작한 직후 기존 바닥 접촉을 착지로 오인하지 않는 시간입니다.")]
-    [Min(0f)] [SerializeField] private float treeFallLandingGraceSeconds = 0.25f;
-    [Tooltip("처음 자세에서 이 각도 이상 기울고 바닥과 접촉하면 쓰러진 것으로 판정합니다.")]
-    [Range(10f, 89f)] [SerializeField] private float treeFallLandedAngle = 55f;
-    [Tooltip("충돌 판정을 받지 못한 나무도 이 시간이 지나면 제거하고 아이템을 생성합니다.")]
-    [Min(0.5f)] [SerializeField] private float treeFallTimeoutSeconds = 5f;
-    [Tooltip("나무가 쓰러지는 동안만 플레이어와의 충돌을 무시합니다. 바닥 충돌과 착지 판정은 유지됩니다.")]
-    [SerializeField] private bool ignorePlayerCollisionWhileTreeFalling = true;
+    [Tooltip("나무가 쓰러지는 연출 시간입니다. 아이템은 쓰러짐 시작과 동시에 생성됩니다.")]
+    [Range(1f, 1.5f)] [SerializeField] private float treeFallDuration = 1.25f;
+    [Tooltip("나무가 쓰러질 때 원래 자세에서 회전하는 각도입니다.")]
+    [Range(70f, 95f)] [SerializeField] private float treeFallAngle = 88f;
 
     [Header("Depletion Visual And Collision")]
     [Tooltip("비워 두면 이 오브젝트와 자식의 모든 Renderer를 자동으로 사용합니다.")]
@@ -75,6 +77,8 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
     [SerializeField] private Vector3 dropAreaOffset;
     [Tooltip("드롭 타원 전체 크기입니다. X는 월드 가로축, Y는 월드 Z축 크기로 사용합니다.")]
     [SerializeField] private Vector2 dropAreaSize = new Vector2(2.2f, 2.2f);
+    [Tooltip("큰 드롭 영역에 적용할 축소 비율입니다. 다중 드롭 공간 확보를 위해 각 축은 기존 2.2m 이하로 줄지 않습니다.")]
+    [Range(0.25f, 1f)] [SerializeField] private float dropLandingSpread = 0.5f;
     [Tooltip("유효한 바닥 위치를 찾기 위해 시도할 횟수입니다.")]
     [Min(1)] [SerializeField] private int dropPositionAttempts = 12;
     [Tooltip("드롭 위치 주변에 다른 오브젝트가 없어야 하는 반경입니다.")]
@@ -132,6 +136,15 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
     /// <summary>현재 고갈되어 상호작용할 수 없는지 나타냅니다.</summary>
     public bool IsDepleted => currentObjectHp <= 0;
 
+    /// <summary>현재 스폰 페이드가 진행되어 타격 판정이 잠겨 있는지 나타냅니다.</summary>
+    public bool IsSpawnFading =>
+        isSpawnHitLocked ||
+        isGrowing ||
+        (spawnFadeEffect != null && spawnFadeEffect.IsActive);
+
+    /// <summary>도구 타격으로 피해를 받을 수 있는 완전 활성 상태인지 나타냅니다.</summary>
+    public bool CanReceiveToolHit => !IsDead && !IsSpawnFading;
+
     /// <summary>
     /// 아직 고갈되지 않은 오브젝트의 체력을 최대치로 회복합니다.
     /// 외부의 피격 복구 연출이 기존 드롭/리스폰 흐름을 건드리지 않고 사용할 수 있는 전용 진입점입니다.
@@ -171,34 +184,15 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
     private float respawnAtTime = float.PositiveInfinity;
     private bool[] rendererInitialStates;
     private bool[] colliderInitialStates;
+    private bool isGrowing;
+    private bool isSpawnHitLocked = true;
     private bool isTreeFalling;
-    private float treeFallCanLandAtTime;
-    private float treeFallTimeoutAtTime;
-    private Vector3 treeFallInitialUp;
     private Vector3 initialLocalPosition;
     private Quaternion initialLocalRotation;
-    private ItemData pendingTreeDropTool;
-    private Rigidbody treeRigidbody;
-    private bool addedTreeRigidbody;
-    private bool treeRigidbodyStateCached;
-    private bool treeRigidbodyInitialKinematic;
-    private bool treeRigidbodyInitialUseGravity;
-    private RigidbodyConstraints treeRigidbodyInitialConstraints;
-    private CollisionDetectionMode treeRigidbodyInitialCollisionDetection;
-    private readonly List<TreePlayerCollisionPair> ignoredTreePlayerCollisionPairs =
-        new List<TreePlayerCollisionPair>();
-
-    private readonly struct TreePlayerCollisionPair
-    {
-        public TreePlayerCollisionPair(Collider treeCollider, Collider playerCollider)
-        {
-            TreeCollider = treeCollider;
-            PlayerCollider = playerCollider;
-        }
-
-        public Collider TreeCollider { get; }
-        public Collider PlayerCollider { get; }
-    }
+    private Vector3 initialLocalScale;
+    private Tween spawnFadeTween;
+    private Tween treeFallTween;
+    private GHWorldObjectSpawnFade spawnFadeEffect;
 
     private void Awake()
     {
@@ -211,7 +205,9 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
         currentObjectHp = maxObjectHp;
         initialLocalPosition = transform.localPosition;
         initialLocalRotation = transform.localRotation;
+        initialLocalScale = transform.localScale;
         CacheResourceComponents();
+        spawnFadeEffect = new GHWorldObjectSpawnFade(resourceRenderers);
         SetResourceAvailable(true);
         PrewarmDropPools();
     }
@@ -219,13 +215,37 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
     private void OnEnable()
     {
         ActiveWorldObjects.Add(this);
-        InstanceEnabled?.Invoke(this);
         RefreshRespawnState();
+        if (!IsDead && !isGrowing)
+        {
+            PlaySpawnFadeMotion();
+        }
+
+        InstanceEnabled?.Invoke(this);
     }
 
     private void OnDisable()
     {
         ActiveWorldObjects.Remove(this);
+
+        if (isGrowing)
+        {
+            spawnFadeTween?.Kill(false);
+            spawnFadeTween = null;
+            spawnFadeEffect?.Restore();
+            isGrowing = false;
+            transform.localScale = initialLocalScale;
+        }
+
+        isSpawnHitLocked = false;
+    }
+
+    private void OnDestroy()
+    {
+        spawnFadeTween?.Kill(false);
+        spawnFadeEffect?.Restore();
+        isSpawnHitLocked = false;
+        treeFallTween?.Kill(false);
     }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -250,10 +270,6 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
             Respawn();
         }
 
-        if (isTreeFalling && Time.time >= treeFallTimeoutAtTime)
-        {
-            CompleteTreeFall();
-        }
     }
 
     /// <summary>
@@ -262,7 +278,7 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
     /// </summary>
     public bool CanInteract(KMS.PlayerInteraction interactor)
     {
-        return !IsDead;
+        return CanReceiveToolHit;
     }
 
     /// <summary>옵션이 켜져 있으면 플레이어 상호작용 키로 현재 퀵슬롯 도구를 사용합니다.</summary>
@@ -314,6 +330,10 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
         int refinementDamage = GetWholeRefinementBonus(activeTool, DamageIncreaseOptionType);
         int finalDamage = Mathf.Max(1, activeTool.Value + refinementDamage);
         currentObjectHp = Mathf.Max(0, currentObjectHp - finalDamage);
+        GHWorldObjectDamagePopupService.ShowDamage(
+            this,
+            hitPoint,
+            finalDamage);
         Debug.Log(
             $"감지 성공 : 기본/강화 피해 {activeTool.Value}, 연마 피해 +{refinementDamage}, " +
             $"최종 피해 {finalDamage}, 현재 체력 {currentObjectHp}",
@@ -330,7 +350,7 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
             // 자원 콜라이더 위를 바닥으로 잘못 인식하지 않도록 먼저 자원을 숨긴 뒤 드롭 위치를 계산합니다.
             BeginRespawnCooldown();
             Physics.SyncTransforms();
-            ItemDrops(activeTool);
+            ItemDrops(activeTool, hitPoint);
 
             if (IsDead)
             {
@@ -353,6 +373,11 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
         if (IsDead)
         {
             return WorldObjectInteractionState.Depleted;
+        }
+
+        if (IsSpawnFading)
+        {
+            return WorldObjectInteractionState.Growing;
         }
 
         if (tool == null)
@@ -406,12 +431,12 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
             : null;
     }
 
-    private void ItemDrops(ItemData tool)
+    private void ItemDrops(ItemData tool, Vector3 hitPoint)
     {
-        SpawnDropObjects(tool);
+        SpawnDropObjects(tool, hitPoint);
     }
 
-    private void SpawnDropObjects(ItemData tool)
+    private void SpawnDropObjects(ItemData tool, Vector3 hitPoint)
     {
         if (dropItems == null || dropItems.Length == 0) return;
 
@@ -447,17 +472,18 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
                 this);
         }
 
-        WorldItemDropLaunchSettings launchSettings = CreateDropLaunchSettings();
+        WorldItemDropLaunchSettings launchSettings = CreateDropLaunchSettings(hitPoint);
+        Vector2 effectiveDropAreaSize = GetEffectiveDropAreaSize();
 
         foreach (KeyValuePair<string, int> drop in amountsByItemId)
         {
-            WorldItemDropSpawner.SpawnIndividualItems(
+            int spawnedCount = WorldItemDropSpawner.SpawnIndividualItems(
                 drop.Key,
                 drop.Value,
                 transform,
                 dropSpawnPoint,
                 dropAreaOffset,
-                dropAreaSize,
+                effectiveDropAreaSize,
                 groundLayer,
                 dropSpawnHeight,
                 dropPositionAttempts,
@@ -467,19 +493,41 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
                 autoReturnToPoolSeconds,
                 resourceColliders,
                 launchSettings);
+
+            // The compact area is the normal presentation path. If surrounding props block
+            // some landing samples, retry only the missing rewards in the prefab's original
+            // area rather than silently losing items or changing every chest/drop caller.
+            int missingCount = drop.Value - spawnedCount;
+            if (missingCount > 0 && (effectiveDropAreaSize - dropAreaSize).sqrMagnitude > 0.0001f)
+            {
+                WorldItemDropSpawner.SpawnIndividualItems(
+                    drop.Key,
+                    missingCount,
+                    transform,
+                    dropSpawnPoint,
+                    dropAreaOffset,
+                    dropAreaSize,
+                    groundLayer,
+                    dropSpawnHeight,
+                    dropPositionAttempts,
+                    dropClearanceRadius,
+                    dropClearanceHeight,
+                    maxGroundSlope,
+                    autoReturnToPoolSeconds,
+                    resourceColliders,
+                    launchSettings);
+            }
         }
     }
 
-    private WorldItemDropLaunchSettings CreateDropLaunchSettings()
+    private WorldItemDropLaunchSettings CreateDropLaunchSettings(Vector3 hitPoint)
     {
         if (!launchDrops)
         {
             return default;
         }
 
-        Vector3 startPosition = dropEjectPoint != null
-            ? dropEjectPoint.position
-            : transform.TransformPoint(dropEjectLocalOffset);
+        Vector3 startPosition = ResolveDropEjectWorldPosition(hitPoint);
 
         return new WorldItemDropLaunchSettings
         {
@@ -490,6 +538,46 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
             spinSpeed = Mathf.Max(0f, itemSpinSpeed),
             startJitterRadius = Mathf.Max(0f, itemStartJitterRadius)
         };
+    }
+
+    private Vector2 GetEffectiveDropAreaSize()
+    {
+        // Existing prefabs created before this field was added can deserialize it as zero in
+        // some import states. Treat that as the intended migration default rather than 25%.
+        float spread = dropLandingSpread > 0f
+            ? Mathf.Clamp(dropLandingSpread, 0.25f, 1f)
+            : 0.5f;
+        // Keep the old 2.2 m default area intact so multiple drops still have enough valid
+        // landing candidates. Only oversized 4-8 m resource areas are compacted.
+        const float minimumLandingAreaSize = 2.2f;
+        return new Vector2(
+            Mathf.Min(Mathf.Max(0f, dropAreaSize.x), Mathf.Max(minimumLandingAreaSize, dropAreaSize.x * spread)),
+            Mathf.Min(Mathf.Max(0f, dropAreaSize.y), Mathf.Max(minimumLandingAreaSize, dropAreaSize.y * spread)));
+    }
+
+    private Vector3 ResolveDropEjectWorldPosition(Vector3 hitPoint)
+    {
+        if (dropEjectPoint != null)
+        {
+            return dropEjectPoint.position;
+        }
+
+        // The harvesting ray already identifies a point on the resource surface. Starting
+        // there makes the reward visibly emerge from the struck trunk/rock/bush even when an
+        // imported model has an off-centre pivot. A small lift keeps it clear of the ground.
+        if (IsFinite(hitPoint) && (hitPoint - transform.position).sqrMagnitude > 0.0001f)
+        {
+            return hitPoint + Vector3.up * 0.15f;
+        }
+
+        return transform.TransformPoint(dropEjectLocalOffset);
+    }
+
+    private static bool IsFinite(Vector3 value)
+    {
+        return !float.IsNaN(value.x) && !float.IsInfinity(value.x)
+            && !float.IsNaN(value.y) && !float.IsInfinity(value.y)
+            && !float.IsNaN(value.z) && !float.IsInfinity(value.z);
     }
 
     /// <summary>
@@ -554,19 +642,18 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
         currentObjectHp = 0;
         respawnAtTime = float.PositiveInfinity;
         isTreeFalling = true;
-        pendingTreeDropTool = tool;
-        treeFallInitialUp = transform.up;
-        treeFallCanLandAtTime = Time.time + Mathf.Max(0f, treeFallLandingGraceSeconds);
-        treeFallTimeoutAtTime = Time.time + Mathf.Max(0.5f, treeFallTimeoutSeconds);
 
-        IgnoreTreePlayerCollisions();
+        // 바닥 충돌 여부와 무관하게 벌목 완료 순간 보상을 한 번만 생성합니다.
+        ItemDrops(tool, hitPoint);
+        SetResourceCollidersAvailable(false);
 
         Vector3 fallDirection = transform.position - attackerPosition;
-        fallDirection = Vector3.ProjectOnPlane(fallDirection, treeFallInitialUp);
+        Vector3 initialUp = transform.up;
+        fallDirection = Vector3.ProjectOnPlane(fallDirection, initialUp);
         if (fallDirection.sqrMagnitude < 0.0001f)
         {
             fallDirection = transform.position - hitPoint;
-            fallDirection = Vector3.ProjectOnPlane(fallDirection, treeFallInitialUp);
+            fallDirection = Vector3.ProjectOnPlane(fallDirection, initialUp);
         }
 
         if (fallDirection.sqrMagnitude < 0.0001f)
@@ -575,137 +662,17 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
         }
 
         fallDirection.Normalize();
-        Rigidbody body = PrepareTreeRigidbody();
-        body.AddForce(fallDirection * Mathf.Max(0f, treeFallPushSpeed), ForceMode.VelocityChange);
+        Vector3 fallAxis = Vector3.Cross(initialUp, fallDirection).normalized;
+        Quaternion targetRotation = Quaternion.AngleAxis(
+            Mathf.Clamp(treeFallAngle, 70f, 95f),
+            fallAxis) * transform.rotation;
 
-        Vector3 fallAxis = Vector3.Cross(treeFallInitialUp, fallDirection).normalized;
-        body.AddTorque(
-            fallAxis * Mathf.Max(0f, treeFallAngularSpeed),
-            ForceMode.VelocityChange);
-    }
-
-    private Rigidbody PrepareTreeRigidbody()
-    {
-        treeRigidbody = GetComponent<Rigidbody>();
-        if (treeRigidbody == null)
-        {
-            treeRigidbody = gameObject.AddComponent<Rigidbody>();
-            addedTreeRigidbody = true;
-        }
-        else if (!treeRigidbodyStateCached)
-        {
-            treeRigidbodyInitialKinematic = treeRigidbody.isKinematic;
-            treeRigidbodyInitialUseGravity = treeRigidbody.useGravity;
-            treeRigidbodyInitialConstraints = treeRigidbody.constraints;
-            treeRigidbodyInitialCollisionDetection = treeRigidbody.collisionDetectionMode;
-            treeRigidbodyStateCached = true;
-        }
-
-        treeRigidbody.isKinematic = false;
-        treeRigidbody.useGravity = true;
-        treeRigidbody.constraints = RigidbodyConstraints.None;
-        treeRigidbody.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
-        treeRigidbody.linearVelocity = Vector3.zero;
-        treeRigidbody.angularVelocity = Vector3.zero;
-        treeRigidbody.WakeUp();
-        return treeRigidbody;
-    }
-
-    /// <summary>
-    /// 나무와 플레이어 사이의 충돌만 무시합니다.
-    /// 나무-바닥 충돌은 남겨 자연스러운 낙하와 착지 판정을 유지합니다.
-    /// </summary>
-    private void IgnoreTreePlayerCollisions()
-    {
-        RestoreTreePlayerCollisions();
-
-        if (!ignorePlayerCollisionWhileTreeFalling
-            || resourceColliders == null
-            || resourceColliders.Length == 0)
-        {
-            return;
-        }
-
-        GameObject playerObject = PlayerReferenceResolver.FindPlayerObject();
-        if (playerObject == null)
-        {
-            return;
-        }
-
-        Collider[] playerColliders = playerObject.GetComponentsInChildren<Collider>(true);
-        for (int treeIndex = 0; treeIndex < resourceColliders.Length; treeIndex++)
-        {
-            Collider treeCollider = resourceColliders[treeIndex];
-            if (treeCollider == null)
-            {
-                continue;
-            }
-
-            for (int playerIndex = 0; playerIndex < playerColliders.Length; playerIndex++)
-            {
-                Collider playerCollider = playerColliders[playerIndex];
-                if (playerCollider == null
-                    || playerCollider == treeCollider
-                    || Physics.GetIgnoreCollision(treeCollider, playerCollider))
-                {
-                    continue;
-                }
-
-                Physics.IgnoreCollision(treeCollider, playerCollider, true);
-                ignoredTreePlayerCollisionPairs.Add(
-                    new TreePlayerCollisionPair(treeCollider, playerCollider));
-            }
-        }
-    }
-
-    private void RestoreTreePlayerCollisions()
-    {
-        for (int i = ignoredTreePlayerCollisionPairs.Count - 1; i >= 0; i--)
-        {
-            TreePlayerCollisionPair pair = ignoredTreePlayerCollisionPairs[i];
-            if (pair.TreeCollider != null && pair.PlayerCollider != null)
-            {
-                Physics.IgnoreCollision(pair.TreeCollider, pair.PlayerCollider, false);
-            }
-        }
-
-        ignoredTreePlayerCollisionPairs.Clear();
-    }
-
-    private void OnCollisionStay(Collision collision)
-    {
-        if (!isTreeFalling
-            || collision == null
-            || Time.time < treeFallCanLandAtTime
-            || !IsLayerInMask(collision.gameObject.layer, groundLayer))
-        {
-            return;
-        }
-
-        float tiltAngle = Vector3.Angle(treeFallInitialUp, transform.up);
-        if (tiltAngle >= treeFallLandedAngle && HasGroundLikeContact(collision))
-        {
-            CompleteTreeFall();
-        }
-    }
-
-    private bool HasGroundLikeContact(Collision collision)
-    {
-        for (int i = 0; i < collision.contactCount; i++)
-        {
-            ContactPoint contact = collision.GetContact(i);
-            if (Vector3.Dot(contact.normal, treeFallInitialUp) >= 0.45f)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static bool IsLayerInMask(int layer, LayerMask mask)
-    {
-        return (mask.value & (1 << layer)) != 0;
+        treeFallTween?.Kill(false);
+        treeFallTween = transform
+            .DORotateQuaternion(targetRotation, Mathf.Clamp(treeFallDuration, 1f, 1.5f))
+            .SetEase(Ease.InQuad)
+            .SetLink(gameObject, LinkBehaviour.KillOnDestroy)
+            .OnComplete(CompleteTreeFall);
     }
 
     private void CompleteTreeFall()
@@ -716,56 +683,17 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
         }
 
         isTreeFalling = false;
-        StopTreePhysics();
+        treeFallTween = null;
         BeginRespawnCooldown();
-        RestoreTreePlayerCollisions();
         Physics.SyncTransforms();
-        ItemDrops(pendingTreeDropTool);
-        pendingTreeDropTool = null;
         NotifyStateChanged();
     }
 
-    private void StopTreePhysics()
-    {
-        if (treeRigidbody == null)
-        {
-            return;
-        }
-
-        treeRigidbody.linearVelocity = Vector3.zero;
-        treeRigidbody.angularVelocity = Vector3.zero;
-        treeRigidbody.isKinematic = true;
-        treeRigidbody.useGravity = false;
-    }
-
-    private void RestoreTreeTransformAndPhysics()
+    private void RestoreTreeTransform()
     {
         transform.localPosition = initialLocalPosition;
         transform.localRotation = initialLocalRotation;
-
-        if (treeRigidbody == null)
-        {
-            return;
-        }
-
-        treeRigidbody.linearVelocity = Vector3.zero;
-        treeRigidbody.angularVelocity = Vector3.zero;
-
-        if (addedTreeRigidbody)
-        {
-            Destroy(treeRigidbody);
-            treeRigidbody = null;
-            addedTreeRigidbody = false;
-            return;
-        }
-
-        if (treeRigidbodyStateCached)
-        {
-            treeRigidbody.isKinematic = treeRigidbodyInitialKinematic;
-            treeRigidbody.useGravity = treeRigidbodyInitialUseGravity;
-            treeRigidbody.constraints = treeRigidbodyInitialConstraints;
-            treeRigidbody.collisionDetectionMode = treeRigidbodyInitialCollisionDetection;
-        }
+        transform.localScale = initialLocalScale;
     }
 
     // 청크 비활성화 중 Update가 멈췄더라도 절대 리스폰 시각으로 경과 여부를 복구한다.
@@ -788,15 +716,64 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
 
     private void Respawn()
     {
+        // Lock damage before HP and collision are restored. The collider remains enabled
+        // during the fade so the player can never overlap the respawning object.
+        isSpawnHitLocked = true;
         currentObjectHp = maxObjectHp;
         respawnAtTime = float.PositiveInfinity;
         isTreeFalling = false;
-        pendingTreeDropTool = null;
-        RestoreTreeTransformAndPhysics();
-        RestoreTreePlayerCollisions();
+        treeFallTween?.Kill(false);
+        treeFallTween = null;
+        RestoreTreeTransform();
         Physics.SyncTransforms();
         SetResourceAvailable(true);
+        PlaySpawnFadeMotion();
         NotifyStateChanged();
+    }
+
+    private void PlaySpawnFadeMotion()
+    {
+        isSpawnHitLocked = true;
+        spawnFadeTween?.Kill(false);
+        spawnFadeTween = null;
+        spawnFadeEffect?.Restore();
+
+        float duration = Mathf.Clamp(spawnFadeDuration, 0.25f, 10f);
+        transform.localScale = initialLocalScale;
+        isGrowing = true;
+        NotifyStateChanged();
+
+        if (spawnFadeEffect == null
+            || !spawnFadeEffect.Begin(spawnFadeSteps))
+        {
+            isGrowing = false;
+            isSpawnHitLocked = false;
+            NotifyStateChanged();
+            return;
+        }
+
+        float fadeAmount = 0f;
+        spawnFadeTween = DOTween
+            .To(
+                () => fadeAmount,
+                value =>
+                {
+                    fadeAmount = value;
+                    spawnFadeEffect.Apply(value, spawnFadeSteps);
+                },
+                1f,
+                duration)
+            .SetEase(Ease.InOutSine)
+            .SetLink(gameObject, LinkBehaviour.KillOnDestroy)
+            .OnComplete(() =>
+            {
+                spawnFadeEffect.Restore();
+                transform.localScale = initialLocalScale;
+                isGrowing = false;
+                isSpawnHitLocked = false;
+                spawnFadeTween = null;
+                NotifyStateChanged();
+            });
     }
 
     private void NotifyStateChanged()
@@ -854,6 +831,32 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
         }
     }
 
+    private void SetResourceCollidersAvailable(bool available)
+    {
+        if (colliderInitialStates == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < resourceColliders.Length; i++)
+        {
+            if (resourceColliders[i] != null)
+            {
+                resourceColliders[i].enabled = available && colliderInitialStates[i];
+            }
+        }
+    }
+
+#if UNITY_EDITOR
+    private void OnValidate()
+    {
+        spawnFadeDuration = Mathf.Clamp(spawnFadeDuration, 0.25f, 10f);
+        spawnFadeSteps = Mathf.Clamp(spawnFadeSteps, 8, 60);
+        treeFallDuration = Mathf.Clamp(treeFallDuration, 1f, 1.5f);
+        treeFallAngle = Mathf.Clamp(treeFallAngle, 70f, 95f);
+    }
+#endif
+
 #if UNITY_EDITOR
     private void OnDrawGizmosSelected()
     {
@@ -866,7 +869,7 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
             dropSpawnPoint,
             transform,
             dropAreaOffset,
-            dropAreaSize,
+            GetEffectiveDropAreaSize(),
             dropSpawnHeight,
             dropSpawnGizmoColor);
     }

@@ -46,6 +46,7 @@ namespace KMS
 
         private int carryLayerIndex = -1;
         private bool toolActionSuppressed;
+        private float carryLayerWeight;
         private float carryOrientationWeight;
 
         private void Reset()
@@ -78,6 +79,7 @@ namespace KMS
         {
             Unsubscribe();
             toolActionSuppressed = false;
+            carryLayerWeight = 0f;
             carryOrientationWeight = 0f;
             SetLayerWeightImmediate(0f);
             if (heldItemModelController != null)
@@ -94,16 +96,15 @@ namespace KMS
                 if (carryLayerIndex < 0) return;
             }
 
-            float targetWeight = ResolveTargetWeight();
-            float currentWeight = animator.GetLayerWeight(carryLayerIndex);
-            float speed = targetWeight > currentWeight ? blendInSpeed : blendOutSpeed;
-            float nextWeight = Mathf.MoveTowards(
-                currentWeight,
-                targetWeight,
-                speed * Time.deltaTime);
-            animator.SetLayerWeight(carryLayerIndex, nextWeight);
+            bool shouldCarry = CanApplyCarryPose();
+            float layerTarget = shouldCarry ? ResolveCarryPoseWeight() : 0f;
+            float layerSpeed = layerTarget > carryLayerWeight ? blendInSpeed : blendOutSpeed;
+            carryLayerWeight = Mathf.MoveTowards(
+                carryLayerWeight,
+                layerTarget,
+                layerSpeed * Time.deltaTime);
 
-            float orientationTarget = targetWeight > 0f ? 1f : 0f;
+            float orientationTarget = CanApplyCarryOrientation() ? 1f : 0f;
             float orientationSpeed = orientationTarget > carryOrientationWeight
                 ? blendInSpeed
                 : blendOutSpeed;
@@ -111,6 +112,8 @@ namespace KMS
                 carryOrientationWeight,
                 orientationTarget,
                 orientationSpeed * Time.deltaTime);
+
+            animator.SetLayerWeight(carryLayerIndex, carryLayerWeight);
             if (heldItemModelController != null)
             {
                 heldItemModelController.ApplyCarryOrientation(
@@ -203,20 +206,40 @@ namespace KMS
             }
         }
 
-        private float ResolveTargetWeight()
+        private bool CanApplyCarryPose()
         {
-            if (animator == null
-                || movement == null
-                || CurrentCarryType == HeldItemCarryType.None
-                || toolActionSuppressed
-                || (toolAnimationController != null && toolAnimationController.IsToolActionPlaying)
-                || movement.IsDead
-                || movement.IsOnLadder
-                || !IsStableLocomotion())
+            if (animator == null || movement == null) return false;
+
+            return CurrentCarryType != HeldItemCarryType.None
+                && !toolActionSuppressed
+                && (toolAnimationController == null || !toolAnimationController.IsToolActionPlaying)
+                && !movement.IsDead
+                && !movement.IsOnLadder
+                && (IsStableLocomotion() || IsReturningToLocomotion());
+        }
+
+        private bool CanApplyCarryOrientation()
+        {
+            if (movement == null) return false;
+
+            if (toolAnimationController != null && toolAnimationController.IsToolActionPlaying)
             {
-                return 0f;
+                ToolMotionType motionType = toolAnimationController.CurrentMotionType;
+                if (motionType != ToolMotionType.Axe
+                    && motionType != ToolMotionType.Pickaxe
+                    && motionType != ToolMotionType.Hoe)
+                {
+                    return false;
+                }
             }
 
+            return CurrentCarryType != HeldItemCarryType.None
+                && !movement.IsDead
+                && !movement.IsOnLadder;
+        }
+
+        private float ResolveCarryPoseWeight()
+        {
             bool moving = movement.CurrentSpeed > movingSpeedThreshold;
             bool running = moving && movement.IsSprinting;
             if (CurrentCarryType == HeldItemCarryType.Club)
@@ -235,6 +258,14 @@ namespace KMS
 
             AnimatorStateInfo state = animator.GetCurrentAnimatorStateInfo(0);
             return state.shortNameHash == LocomotionStateHash;
+        }
+
+        private bool IsReturningToLocomotion()
+        {
+            if (!animator.IsInTransition(0)) return false;
+
+            AnimatorStateInfo next = animator.GetNextAnimatorStateInfo(0);
+            return next.shortNameHash == LocomotionStateHash;
         }
 
         private void ResolveReferences()

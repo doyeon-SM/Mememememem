@@ -56,7 +56,6 @@ public class WorldObjectInfoUI : MonoBehaviour
 
     private WorldObject currentTarget;
     private Chest currentChest;
-    private ItemData currentTool;
     private PlayerInteraction subscribedPlayerInteraction;
     private GameObject chestTooltipInstance;
     private RectTransform chestTooltipRect;
@@ -108,18 +107,16 @@ public class WorldObjectInfoUI : MonoBehaviour
     {
         ResolveRuntimeReferences();
         BindPlayerInteraction();
-
-        ItemData selectedTool = ResolveSelectedTool();
-        if (selectedTool != currentTool)
-        {
-            currentTool = selectedTool;
-            RefreshUI();
-        }
     }
 
     private void LateUpdate()
     {
-        UpdateFocusedUIPosition();
+        // 월드 오브젝트 포커스 중에는 기존 이름/체력 패널을 다시 활성화하지 않습니다.
+        // 기존 위치 갱신 로직은 화면 앞쪽 대상에서 panelRoot를 켤 수 있으므로 차단합니다.
+        if (currentTarget != null && panelRoot != null && panelRoot.activeSelf)
+        {
+            SetWorldPanelVisible(false);
+        }
     }
 
     /// <summary>현재 대상과 장착 도구를 다시 읽어 UI를 즉시 갱신합니다.</summary>
@@ -141,33 +138,13 @@ public class WorldObjectInfoUI : MonoBehaviour
         }
 
         SetChestTooltipVisible(false);
-        SetWorldPanelVisible(true);
-        SetHealthUIVisible(true);
+        SetWorldPanelVisible(false);
+        SetHealthUIVisible(false);
 
         if (objectNameText != null)
         {
-            objectNameText.gameObject.SetActive(true);
-            objectNameText.text = currentTarget.DisplayName;
+            objectNameText.gameObject.SetActive(false);
         }
-
-        int maxHp = Mathf.Max(1, currentTarget.MaxHp);
-        int currentHp = Mathf.Clamp(currentTarget.CurrentHp, 0, maxHp);
-
-        if (healthSlider != null)
-        {
-            healthSlider.minValue = 0f;
-            healthSlider.maxValue = maxHp;
-            healthSlider.value = currentHp;
-            healthSlider.wholeNumbers = true;
-        }
-
-        if (healthValueText != null)
-        {
-            healthValueText.text = $"{currentHp} / {maxHp}";
-        }
-
-        RefreshWorldObjectAvailability();
-        UpdateFocusedUIPosition();
     }
 
     private void ChangeTarget(WorldObject newTarget, Chest newChest = null)
@@ -190,7 +167,6 @@ public class WorldObjectInfoUI : MonoBehaviour
             currentTarget.StateChanged += HandleTargetStateChanged;
         }
 
-        currentTool = ResolveSelectedTool();
         RefreshUI();
     }
 

@@ -28,6 +28,12 @@ namespace HDY.Forge
     /// [HDY 요청 - 슬롯 버튼 등급색] 각 슬롯의 lockColorTarget(잠금 토글 배경 이미지)에 검정/흰색 대신
     /// 그 슬롯의 연마 등급색(ItemTooltipUI.GetRefinementGradeColor와 동일한 색 - 툴팁과 항상 일치)을
     /// 입힌다. 잠긴 상태일 때는 그 등급색에 검은색을 섞은 어두운 버전을 써서 "잠김"을 시각적으로 구분한다.
+    ///
+    /// [HDY 요청 - 선택 취소] selectedSlotDisplay를 다시 클릭하면 선택이 취소된다(ClearSelection, 다른
+    /// 탭의 동일 패턴과 통일). 선택이 바뀔 때마다(선택/취소 모두) SelectionChanged를 쏴서 ForgeUI가 하단
+    /// 목록의 "사용 중"/"전승불가" 표시 이미지를 다시 계산하게 한다 - 예전에는 ForgeUI가 목록 클릭
+    /// 직후에만 RefreshList()를 다시 불러줘서, 이 패널 자체의 선택 취소(목록 클릭이 아님)에는 갱신이
+    /// 전혀 반영되지 않는 문제가 있었다.
     /// </summary>
     public class ForgeUI_RefinementPanel : MonoBehaviour
     {
@@ -58,6 +64,8 @@ namespace HDY.Forge
 
         [Header("비용 / 실행")]
         [SerializeField] private Image stoneIconImage;
+        [Tooltip("연마석(재료) 이름 표시(HDY 요청).")]
+        [SerializeField] private TMP_Text stoneNameText;
         [SerializeField] private TMP_Text stoneCostText;
         [SerializeField] private TMP_Text goldCostText;
         [SerializeField] private Button executeButton;
@@ -72,6 +80,12 @@ namespace HDY.Forge
 
         /// <summary>연마를 실제로 시도했을 때(재료/골드 충분 - 결과와 무관하게 항상 무언가 바뀜) 발생. ForgeUI가 하단 목록 갱신에 사용한다.</summary>
         public event Action RefinementExecuted;
+
+        /// <summary>[HDY 요청] 선택이 바뀔 때마다(선택 또는 취소) 발생. ForgeUI가 하단 목록의 상태 표시 이미지를 다시 계산하는 데 쓴다.</summary>
+        public event Action SelectionChanged;
+
+        /// <summary>[HDY 요청 - 하단 목록 상태 표시] 지금 연마 대상으로 선택된 도구. ForgeUI가 하단 목록에서 "연마 중" 표시를 켤 대상을 판단하는 데 쓴다.</summary>
+        public ItemStack SelectedStack => selectedStack;
 
         private ItemStack selectedStack;
         private readonly bool[] lockedSlots = new bool[5];
@@ -93,6 +107,9 @@ namespace HDY.Forge
             if (warehouseInventory == null) warehouseInventory = FindFirstObjectByType<WarehouseInventory>();
 
             if (executeButton != null) executeButton.onClick.AddListener(HandleExecuteClicked);
+
+            // [HDY 요청 - 선택 취소] 다른 탭과 동일하게, 선택된 슬롯을 다시 클릭하면 선택이 취소된다.
+            if (selectedSlotDisplay != null) selectedSlotDisplay.Clicked += _ => ClearSelection();
 
             for (int i = 0; i < slotRows.Length; i++)
             {
@@ -155,6 +172,16 @@ namespace HDY.Forge
             selectedStack = stack;
             ClearLockState(); // 도구를 새로 선택하면 잠금은 초기화된다.
             RefreshSelection();
+            SelectionChanged?.Invoke();
+        }
+
+        /// <summary>[HDY 요청 - 선택 취소] selectedSlotDisplay를 다시 클릭하면 호출된다.</summary>
+        private void ClearSelection()
+        {
+            selectedStack = null;
+            ClearLockState();
+            RefreshSelection();
+            SelectionChanged?.Invoke();
         }
 
         private void HandleLockToggleChanged(int index, bool isLocked)
@@ -190,8 +217,13 @@ namespace HDY.Forge
                 SetAllSlotRowsHidden();
                 SetExecuteInteractable(false);
                 if (stoneIconImage != null) stoneIconImage.enabled = false;
+                if (stoneNameText != null) stoneNameText.text = "-";
                 if (stoneCostText != null) stoneCostText.text = "-";
-                if (goldCostText != null) goldCostText.text = "-";
+                if (goldCostText != null)
+                {
+                    goldCostText.text = "-";
+                    LayoutRebuilder.ForceRebuildLayoutImmediate(goldCostText.rectTransform);
+                }
                 SetItemNameText(null);
                 return;
             }
@@ -273,14 +305,20 @@ namespace HDY.Forge
 
             var preview = forgeManager.GetRefinementPreview(selectedStack, lockedSlots);
 
+            var stoneData = !string.IsNullOrEmpty(preview.MaterialItemId) && catalogManager != null
+                ? catalogManager.FindItemData(preview.MaterialItemId)
+                : null;
+
             if (stoneIconImage != null)
             {
-                var stoneData = !string.IsNullOrEmpty(preview.MaterialItemId) && catalogManager != null
-                    ? catalogManager.FindItemData(preview.MaterialItemId)
-                    : null;
-
                 stoneIconImage.sprite = stoneData != null ? stoneData.ItemIcon : null;
                 stoneIconImage.enabled = stoneData != null && stoneData.ItemIcon != null;
+            }
+
+            // [HDY 요청 - 재료 이름 노출]
+            if (stoneNameText != null)
+            {
+                stoneNameText.text = stoneData != null ? stoneData.ItemName : string.Empty;
             }
 
             bool stoneShortage = preview.MaterialOwned < preview.MaterialCost;
@@ -295,6 +333,11 @@ namespace HDY.Forge
             {
                 goldCostText.text = $"{preview.GoldOwned} / {preview.GoldCost}";
                 goldCostText.color = goldShortage ? shortageTextColor : normalTextColor;
+
+                // [HDY 요청 - 버그 수정] goldCostText에 ContentSizeFitter가 붙어있어서, 특히 처음 값이
+                // 채워질 때 다음 레이아웃 패스 전까지 압축된 옛 크기로 남아 텍스트가 이상한 위치에 보이는
+                // 문제가 있었다 - 강제로 즉시 다시 계산한다.
+                LayoutRebuilder.ForceRebuildLayoutImmediate(goldCostText.rectTransform);
             }
 
             bool canExecute = preview.BlockReason == RefinementFailReason.None && !stoneShortage && !goldShortage;

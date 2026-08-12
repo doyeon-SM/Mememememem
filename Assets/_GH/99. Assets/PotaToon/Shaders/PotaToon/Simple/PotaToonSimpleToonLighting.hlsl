@@ -124,7 +124,10 @@ half3 MainLighting(Light mainLight, float3 positionWS, float3 normalWS, float3 v
         totalAttenuation = min(totalAttenuation, 1.0 - charShadowAtten);
     }
 
-    half3 lightDirection = isBrightestLight ? _BrightestLightDirection.xyz : mainLight.direction;
+    bool hasBrightestLightDirection = dot(_BrightestLightDirection.xyz, _BrightestLightDirection.xyz) > 1e-6;
+    half3 lightDirection = (isBrightestLight && hasBrightestLightDirection)
+        ? _BrightestLightDirection.xyz
+        : mainLight.direction;
 
     float halfLambert, halfLambertStep;
     HalfLambert(lightDirection, normalWS, _BaseStep, _StepSmoothness, halfLambert, halfLambertStep);

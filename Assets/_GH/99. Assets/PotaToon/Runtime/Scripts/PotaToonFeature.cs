@@ -75,6 +75,12 @@ namespace PotaToon
             
             Shader.SetKeyword(PotaToonGlobalKeywords.OIT, volume.oit.value);
 
+            // _MaxToonBrightness belongs to the character-shadow constant buffer. When there
+            // is no registered PotaToonCharacter, that buffer is not pushed this frame. The
+            // previous fallback only ran in the Editor, leaving Player builds at zero and
+            // clamping every PotaToon/Toon material (including static props) to black.
+            Shader.SetGlobalFloat(ShaderIDs._FallbackMaxToonBrightness, volume.maxToonBrightness.value);
+
             var needCharShadowUpdate = CharacterShadowUtils.IfCharShadowUpdateNeeded(renderingData, volume.shadowCullingDistance.value);
             m_CharScreenSpaceShadowPass.Setup(needCharShadowUpdate);
             if (needCharShadowUpdate)
@@ -93,7 +99,6 @@ namespace PotaToon
             else
             {
                 renderer.EnqueuePass(m_CharScreenSpaceShadowPass);
-                Shader.SetGlobalFloat(ShaderIDs._FallbackMaxToonBrightness, volume.maxToonBrightness.value);
             }
 #endif
             

@@ -61,6 +61,22 @@ namespace MemSystem.Spawn
         [Tooltip("스폰 영역 중심 오프셋. X = 월드 X축, Y = 월드 Z축")]
         [SerializeField] private Vector2 spawnAreaOffset = Vector2.zero;
 
+        [Header("스폰 표면 필터")]
+        [Tooltip("NavMesh 바로 아래의 실제 표면이 이 레이어에 속할 때만 멤을 스폰합니다.")]
+        [SerializeField] private LayerMask allowedSpawnSurfaceLayers = ~0;
+
+        [Tooltip("NavMesh 위치 위에서 아래 방향 표면 검사를 시작할 높이입니다.")]
+        [Min(0.1f)]
+        [SerializeField] private float surfaceProbeHeight = 2f;
+
+        [Tooltip("NavMesh 위치와 실제 표면 Collider 사이에 허용할 최대 높이 차이입니다.")]
+        [Min(0.05f)]
+        [SerializeField] private float maxSurfaceVerticalGap = 1.5f;
+
+        [Tooltip("허용된 표면을 찾기 위해 검사할 최대 랜덤 위치 개수입니다.")]
+        [Min(1)]
+        [SerializeField] private int spawnPositionAttempts = 60;
+
         // [구버전 호환] 예전 단일 반경(spawnRadius) 세팅값을 사이즈로 1회 자동 변환하기 위해 남겨둔 필드.
         // 기존 씬/프리팹에 직렬화된 값이 그대로 살아있으므로, 씬 파일을 직접 건드리지 않고 승계됩니다.
         [SerializeField, HideInInspector] private float spawnRadius = 200f;
@@ -108,6 +124,12 @@ namespace MemSystem.Spawn
         
         // 현재 이 스파우너가 관리하는 활성 멤 목록
         private List<Mem> activeMems = new List<Mem>();
+
+        // 일괄 디스폰 시 순회용 복사 버퍼 (매 프레임 GC 방지를 위해 재사용)
+        private readonly List<Mem> despawnBuffer = new List<Mem>();
+
+        // 일괄 디스폰 중에는 RemoveActiveMem이 개별적으로 쿨타임을 시작하지 않도록 막는 플래그
+        private bool isBulkDespawning;
 
         private float playerStayTimer;
         private float stayTriggerDuration; // 이번 턴에 요구되는 체류 시간 (랜덤 결정됨)
@@ -368,8 +390,15 @@ namespace MemSystem.Spawn
             MemData data = memFactory.SelectRandomMemData(resolvedSpawnTable);
             if (data == null) return;
 
-            // 2. 랜덤 위치 탐색 (NavMesh 위)
-            Vector3 spawnPos = GetRandomSpawnPosition();
+            // 2. 랜덤 위치 탐색 (허용된 물리 레이어가 받치고 있는 NavMesh 위)
+            if (!TryGetRandomSpawnPosition(out Vector3 spawnPos))
+            {
+                Debug.LogWarning(
+                    $"[MemSpawner] '{name}'의 스폰 영역에서 허용된 표면 레이어 위의 " +
+                    "NavMesh 위치를 찾지 못해 이번 스폰을 취소했습니다.",
+                    this);
+                return;
+            }
 
             // 3. Pool에서 꺼내기 (Factory 초기화 자동 진행됨)
             Mem mem = memPool.Spawn(data, spawnPos);
@@ -396,19 +425,33 @@ namespace MemSystem.Spawn
             if (despawnTimer >= despawnDelay)
             {
                 Debug.Log($"[MemSpawner] 플레이어 장기 부재({despawnDelay}초) — 활성 멤 {activeMems.Count}마리 일괄 디스폰");
-                
-                // 뒤에서부터 지워야 안전함
-                for (int i = activeMems.Count - 1; i >= 0; i--)
+
+                // mem.OnDespawn()은 OnMemDespawned 이벤트를 발행하고, 그 핸들러(RemoveActiveMem)가
+                // activeMems에서 제거 + 풀 반환까지 동기적으로 끝낸다. 여기서 memPool.Despawn()을
+                // 또 부르면 같은 인스턴스를 두 번 반환해 ObjectPool이 예외를 던지므로 부르지 않는다.
+                // 순회 중 콜백이 activeMems를 수정하므로 복사본을 돌린다.
+                despawnBuffer.Clear();
+                despawnBuffer.AddRange(activeMems);
+
+                isBulkDespawning = true;
+                for (int i = 0; i < despawnBuffer.Count; i++)
                 {
-                    var mem = activeMems[i];
-                    if (mem != null)
+                    var mem = despawnBuffer[i];
+                    if (mem == null) continue;
+
+                    mem.OnDespawn(); // 이벤트 발행 → RemoveActiveMem에서 풀 반환
+
+                    // 이미 IsActive=false여서 이벤트가 발행되지 않은 멤은 여기서 직접 회수한다.
+                    if (activeMems.Remove(mem))
                     {
-                        mem.OnDespawn(); // 이벤트 발행 등 내부 처리
                         memPool.Despawn(mem);
                     }
                 }
+                isBulkDespawning = false;
+
+                despawnBuffer.Clear();
                 activeMems.Clear();
-                
+
                 // 구역이 비워졌으므로 쿨타임 돌입
                 StartCooldown();
             }
@@ -446,7 +489,10 @@ namespace MemSystem.Spawn
             if (activeMems.Remove(mem))
             {
                 memPool.Despawn(mem);
-                
+
+                // 일괄 디스폰 중이면 루프가 끝난 뒤 한 번만 쿨타임을 시작한다 (중복 롤 방지)
+                if (isBulkDespawning) return;
+
                 // 만약 이 구역의 모든 멤이 사라졌다면(포획/도주 등으로) 쿨타임 시작
                 if (activeMems.Count == 0 && !isInCooldown)
                 {
@@ -459,7 +505,7 @@ namespace MemSystem.Spawn
         // 위치 탐색 유틸
         // =================================================================
 
-        private Vector3 GetRandomSpawnPosition()
+        private bool TryGetRandomSpawnPosition(out Vector3 spawnPosition)
         {
             Vector3 basePos = transform.position;
 
@@ -481,7 +527,8 @@ namespace MemSystem.Spawn
 
             // 중심점(basePos) 기준 스폰 영역(사각형) 내에서 NavMesh 위 유효 위치 탐색
             // Edge-snapping 방지를 위해 시도 횟수를 늘립니다.
-            for (int i = 0; i < 30; i++)
+            int attempts = Mathf.Max(1, spawnPositionAttempts);
+            for (int i = 0; i < attempts; i++)
             {
                 Vector3 candidate = GetRandomPointInArea(basePos, spawnAreaSize, spawnAreaOffset);
 
@@ -494,15 +541,46 @@ namespace MemSystem.Spawn
                     // 이를 방지하기 위해 원래 목표했던 좌표(candidate)와 찾아낸 좌표(hit.position)의 '수평 이동 거리'를 계산합니다.
                     // 수평 거리가 짧다(5m 미만)는 것은, 가로로 끌려간 게 아니라 위아래(Y축 높낮이)로만 정상적으로 스냅되었다는 뜻입니다.
                     float horizontalDist = Vector2.Distance(new Vector2(candidate.x, candidate.z), new Vector2(hit.position.x, hit.position.z));
-                    if (horizontalDist < 5f)
+                    if (horizontalDist < 5f && IsAllowedSpawnSurface(hit.position))
                     {
-                        return hit.position;
+                        spawnPosition = hit.position;
+                        return true;
                     }
                 }
             }
 
-            // 30번 실패 시 베이스 위치 근처라도 퍼지게 하기 위해 약간의 오프셋을 줍니다
-            return basePos + new Vector3(Random.Range(-2f, 2f), 0, Random.Range(-2f, 2f));
+            // 잘못된 레이어나 NavMesh 밖에 강제 스폰하지 않습니다.
+            spawnPosition = default;
+            return false;
+        }
+
+        private bool IsAllowedSpawnSurface(Vector3 navMeshPosition)
+        {
+            float probeHeight = Mathf.Max(0.1f, surfaceProbeHeight);
+            float allowedGap = Mathf.Max(0.05f, maxSurfaceVerticalGap);
+            Vector3 origin = navMeshPosition + Vector3.up * probeHeight;
+            float probeDistance = probeHeight + allowedGap;
+
+            // 모든 물리 레이어 중 가장 먼저 닿는 표면을 검사합니다. 허용 레이어만
+            // Raycast하면 건물 지붕을 통과해 아래 Terrain을 승인할 수 있습니다.
+            if (!Physics.Raycast(
+                    origin,
+                    Vector3.down,
+                    out RaycastHit surfaceHit,
+                    probeDistance,
+                    Physics.AllLayers,
+                    QueryTriggerInteraction.Ignore))
+            {
+                return false;
+            }
+
+            int surfaceLayerBit = 1 << surfaceHit.collider.gameObject.layer;
+            if ((allowedSpawnSurfaceLayers.value & surfaceLayerBit) == 0)
+            {
+                return false;
+            }
+
+            return Mathf.Abs(surfaceHit.point.y - navMeshPosition.y) <= allowedGap;
         }
 
         /// <summary>
@@ -559,6 +637,9 @@ namespace MemSystem.Spawn
             detectAreaSize.y = Mathf.Max(0f, detectAreaSize.y);
             spawnAreaSize.x = Mathf.Max(0f, spawnAreaSize.x);
             spawnAreaSize.y = Mathf.Max(0f, spawnAreaSize.y);
+            surfaceProbeHeight = Mathf.Max(0.1f, surfaceProbeHeight);
+            maxSurfaceVerticalGap = Mathf.Max(0.05f, maxSurfaceVerticalGap);
+            spawnPositionAttempts = Mathf.Max(1, spawnPositionAttempts);
         }
 
         private void OnDrawGizmosSelected()

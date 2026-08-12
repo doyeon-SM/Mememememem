@@ -35,6 +35,10 @@ namespace HDY.UI
     ///    전달한다 - 창고(MemStorageUI)가 쓰는 ShowInfo(entry, data) 오버로드는 건드리지 않는다.
     /// 새로운 멤이 최초로 포획되어 MemDexRecordManager.OnFirstCaptureRecorded가 발행되면, 도감이 열려있는
     /// 동안이라도 그리드를 다시 그려 실루엣이 바로 풀리도록 구독해둔다.
+    ///
+    /// [HDY 요청 - 선택 표시] 슬롯을 클릭할 때마다 grid.SetSelected(data)를 호출해서, 방금 클릭한 슬롯만
+    /// 선택 표시가 켜지고 이전에 선택되어 있던 슬롯은 자동으로 꺼지도록 한다(실제 켜고 끄는 로직은
+    /// MemDexUI_Grid가 전담).
     /// </summary>
     public class MemDexUI : MonoBehaviour
     {
@@ -145,6 +149,9 @@ namespace HDY.UI
 
                 info.ShowInfo(data, firstCapturedTimestamp);
             }
+
+            // [HDY 요청 - 선택 표시] 방금 클릭한 슬롯만 선택 표시가 켜지도록 한다.
+            grid?.SetSelected(data);
         }
 
         /// <summary>정렬 버튼 클릭 요청을 받아 기준을 기억해두고 그리드를 다시 채운다.</summary>

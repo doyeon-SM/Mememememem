@@ -404,13 +404,13 @@ public class WorldItem : MonoBehaviour
 }
 
 /// <summary>
-/// Combines world-item pickups that arrive during the same frame. World drops still fly
-/// and disappear individually, while PlayerInventory receives one AddItem call per item
-/// type instead of one call per world object.
+/// Combines world-item pickups that arrive during a short collection window. World drops
+/// still fly and disappear individually, while PlayerInventory receives one AddItem call
+/// per item type instead of one call per world object.
 /// </summary>
 internal static class WorldItemPickupBatcher
 {
-    private const float BatchWindowSeconds = 0.05f;
+    private const float BatchWindowSeconds = 0.5f;
 
     private struct PickupRequest
     {

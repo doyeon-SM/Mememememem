@@ -12,6 +12,8 @@ public static class DodoPlayerVisualSetup
     private const string VisualRootName = "PlayerVisual_Dodo";
     private const string LegacyVisualName = "Armature_Core";
     private const float PlayerBodyScale = 1.5f;
+    private const float PlayerControllerHeight = 1.55f;
+    private const float PlayerControllerBottom = 0.045f;
 
     [MenuItem("KMS/Setup Dodo Player Visual")]
     public static void Setup()
@@ -23,6 +25,7 @@ public static class DodoPlayerVisualSetup
             DisableLegacyVisual(prefabRoot.transform);
             Animator dodoAnimator = CreateDodoVisual(prefabRoot.transform);
             AssignPlayerMovementAnimator(prefabRoot, dodoAnimator);
+            ConfigureCharacterController(prefabRoot);
 
             PrefabUtility.SaveAsPrefabAsset(prefabRoot, PlayerPrefabPath);
             Debug.Log($"Dodo player visual setup complete: {PlayerPrefabPath}");
@@ -115,6 +118,21 @@ public static class DodoPlayerVisualSetup
 
         animatorProperty.objectReferenceValue = animator;
         serializedMovement.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private static void ConfigureCharacterController(GameObject prefabRoot)
+    {
+        CharacterController controller = prefabRoot.GetComponent<CharacterController>();
+        if (controller == null)
+        {
+            throw new System.InvalidOperationException("0720_Player_KMS is missing CharacterController.");
+        }
+
+        controller.height = PlayerControllerHeight;
+        controller.center = new Vector3(
+            controller.center.x,
+            PlayerControllerBottom + PlayerControllerHeight * 0.5f,
+            controller.center.z);
     }
 
     private static Transform FindDeepChild(Transform parent, string childName)

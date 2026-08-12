@@ -1,0 +1,87 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &1106855712551666943
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 5970667789763052088}
+  - component: {fileID: 7294453871775686018}
+  - component: {fileID: 6791824935543099561}
+  - component: {fileID: 3109777930955922154}
+  m_Layer: 0
+  m_Name: TerritoryManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &5970667789763052088
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1106855712551666943}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 4.31449, y: -0, z: -0.56954}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &7294453871775686018
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1106855712551666943}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 290440fbfa7042e419242e695d93a01b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HDY.Territory.TerritoryData
+  satisfaction: 100
+  minSatisfaction: 0
+  level: 1
+  currentExp: 0
+  requiredExp: 90010000c201000058020000b00400001405000034080000140500004006000034080000ffe0f505a00f0000a00f0000a00f0000a00f0000a00f0000a00f0000a00f0000a00f0000a00f0000
+  foodStorage: []
+  gold: 0
+  elapsedTime: 0
+--- !u!114 &6791824935543099561
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1106855712551666943}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 439415b1aa5b65b4baab0cf712ad48f6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HDY.Recipe.RecipeUnlockManager
+  itemCatalogManager: {fileID: 0}
+  territoryData: {fileID: 0}
+  recipeUnlockSheet: {fileID: 4900000, guid: ff596ee1a191cbc418b9c26a7d6dda4a, type: 3}
+--- !u!114 &3109777930955922154
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1106855712551666943}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7a444e2dc5a8d25499a4d4c23ca0ca46, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HDY.Territory.TerritoryExpansionManager
+  gridManager: {fileID: 0}
+  territoryData: {fileID: 0}
+  startingGridSize: 10
+  expansionStepsSheet: {fileID: 4900000, guid: 1a52def124ce34a4db0909533a646243, type: 3}

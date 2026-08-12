@@ -6,7 +6,7 @@ using UnityEngine.UI;
 namespace KMS
 {
     /// <summary>
-    /// 화면 오버레이에 멤 이름과 포획 확률을 표시하고 멤의 머리 위 위치를 추적합니다.
+    /// 화면 오버레이에 포획 확률을 표시하고 멤의 머리 위 위치를 추적합니다.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class KMSMemCaptureFocusView : MonoBehaviour
@@ -14,14 +14,12 @@ namespace KMS
         [Header("Style")]
         [SerializeField] private Sprite backgroundSprite;
         [SerializeField] private TMP_FontAsset fontAsset;
-        [SerializeField] private Color panelColor = new Color(1f, 1f, 1f, 0.94f);
-        [SerializeField] private Color nameColor = new Color(0.08f, 0.08f, 0.08f, 1f);
-        [SerializeField] private Color messageColor = new Color(0.35f, 0.35f, 0.35f, 1f);
-        [SerializeField] private Color lowRateColor = new Color(0.93f, 0.38f, 0.16f, 1f);
-        [SerializeField] private Color highRateColor = new Color(0.12f, 0.65f, 0.25f, 1f);
+        [SerializeField] private Color panelColor = new Color32(0, 0, 0, 150);
+        [SerializeField] private Color titleColor = Color.white;
+        [SerializeField] private Color valueColor = Color.white;
 
         [Header("Layout")]
-        [SerializeField] private Vector2 panelSize = new Vector2(230f, 72f);
+        [SerializeField] private Vector2 panelSize = new Vector2(160f, 128f);
         [SerializeField, Min(0f)] private float worldYOffset = 0.28f;
         [SerializeField] private Vector2 diagonalScreenOffset = new Vector2(155f, 28f);
         [SerializeField, Min(0f)] private float sideSwitchDeadZone = 100f;
@@ -32,8 +30,9 @@ namespace KMS
         private Canvas overlayCanvas;
         private RectTransform canvasRect;
         private RectTransform panelRect;
-        private TMP_Text nameText;
-        private TMP_Text detailText;
+        private TMP_Text titleText;
+        private TMP_Text valueText;
+        private TMP_Text percentText;
         private Mem target;
         private Renderer[] targetRenderers;
         private bool displayRequested;
@@ -117,16 +116,10 @@ namespace KMS
             SetTarget(newTarget);
             EnsureUI();
 
-            if (nameText != null)
-            {
-                nameText.text = $"{GetTierMarker(newTarget)} {displayName}";
-            }
-
             float normalizedRate = Mathf.Clamp01(captureRate);
-            if (detailText != null)
+            if (valueText != null)
             {
-                detailText.text = $"포획 확률 {normalizedRate:P0}";
-                detailText.color = Color.Lerp(lowRateColor, highRateColor, normalizedRate);
+                valueText.text = Mathf.RoundToInt(normalizedRate * 100f).ToString();
             }
 
             displayRequested = target != null;
@@ -137,15 +130,9 @@ namespace KMS
             SetTarget(newTarget);
             EnsureUI();
 
-            if (nameText != null)
+            if (valueText != null)
             {
-                nameText.text = $"{GetTierMarker(newTarget)} {displayName}";
-            }
-
-            if (detailText != null)
-            {
-                detailText.text = message;
-                detailText.color = messageColor;
+                valueText.text = "??";
             }
 
             displayRequested = target != null;
@@ -241,21 +228,6 @@ namespace KMS
             return position;
         }
 
-        private static string GetTierMarker(Mem mem)
-        {
-            if (mem == null) return string.Empty;
-
-            int grade = Mathf.Clamp((int)mem.Tier + 1, 1, 5);
-            return grade switch
-            {
-                1 => "①",
-                2 => "②",
-                3 => "③",
-                4 => "④",
-                _ => "⑤"
-            };
-        }
-
         private Vector3 GetWorldAnchor()
         {
             if (targetRenderers == null || targetRenderers.Length == 0)
@@ -324,8 +296,7 @@ namespace KMS
                 "Mem Capture Focus Panel",
                 typeof(RectTransform),
                 typeof(CanvasRenderer),
-                typeof(Image),
-                typeof(Outline));
+                typeof(Image));
             panelObject.transform.SetParent(canvasObject.transform, false);
 
             panelRect = panelObject.GetComponent<RectTransform>();
@@ -338,17 +309,38 @@ namespace KMS
             panelImage.sprite = backgroundSprite;
             panelImage.color = panelColor;
             panelImage.raycastTarget = false;
-            panelImage.type = backgroundSprite != null && backgroundSprite.border.sqrMagnitude > 0f
-                ? Image.Type.Sliced
-                : Image.Type.Simple;
+            panelImage.type = Image.Type.Simple;
 
-            Outline outline = panelObject.GetComponent<Outline>();
-            outline.effectColor = new Color(0f, 0f, 0f, 0.28f);
-            outline.effectDistance = new Vector2(2f, -2f);
-            outline.useGraphicAlpha = true;
+            titleText = CreateLabel(
+                "Capture Rate Title",
+                panelRect,
+                new Vector2(0.08f, 0.58f),
+                new Vector2(0.92f, 0.9f),
+                22f,
+                TextAlignmentOptions.Center,
+                titleColor);
+            titleText.text = "포획 확률";
 
-            nameText = CreateLabel("Mem Name", panelRect, new Vector2(0f, 0.48f), Vector2.one, 20f);
-            detailText = CreateLabel("Capture Rate", panelRect, Vector2.zero, new Vector2(1f, 0.56f), 18f);
+            valueText = CreateLabel(
+                "Capture Rate Value",
+                panelRect,
+                new Vector2(0.08f, 0.12f),
+                new Vector2(0.72f, 0.62f),
+                48f,
+                TextAlignmentOptions.MidlineRight,
+                valueColor);
+            valueText.text = "??";
+
+            percentText = CreateLabel(
+                "Capture Rate Percent",
+                panelRect,
+                new Vector2(0.7f, 0.15f),
+                new Vector2(0.94f, 0.52f),
+                27f,
+                TextAlignmentOptions.MidlineLeft,
+                valueColor);
+            percentText.text = "%";
+
         }
 
         private TMP_Text CreateLabel(
@@ -356,7 +348,9 @@ namespace KMS
             RectTransform parent,
             Vector2 anchorMin,
             Vector2 anchorMax,
-            float fontSize)
+            float fontSize,
+            TextAlignmentOptions alignment,
+            Color color)
         {
             GameObject labelObject = new GameObject(
                 objectName,
@@ -368,8 +362,8 @@ namespace KMS
             RectTransform labelRect = labelObject.GetComponent<RectTransform>();
             labelRect.anchorMin = anchorMin;
             labelRect.anchorMax = anchorMax;
-            labelRect.offsetMin = new Vector2(10f, 2f);
-            labelRect.offsetMax = new Vector2(-10f, -2f);
+            labelRect.offsetMin = Vector2.zero;
+            labelRect.offsetMax = Vector2.zero;
 
             TMP_Text label = labelObject.GetComponent<TMP_Text>();
             if (fontAsset != null)
@@ -379,10 +373,10 @@ namespace KMS
 
             label.fontSize = fontSize;
             label.fontStyle = FontStyles.Bold;
-            label.alignment = TextAlignmentOptions.Center;
-            label.color = nameColor;
+            label.alignment = alignment;
+            label.color = color;
             label.enableAutoSizing = true;
-            label.fontSizeMin = 12f;
+            label.fontSizeMin = 14f;
             label.fontSizeMax = fontSize;
             label.raycastTarget = false;
             label.textWrappingMode = TextWrappingModes.NoWrap;

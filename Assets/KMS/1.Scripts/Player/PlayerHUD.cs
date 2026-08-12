@@ -132,6 +132,7 @@ namespace KMS
             {
                 stats.HealthChanged += HandleHealthChanged;
                 stats.HungerChanged += HandleHungerChanged;
+                stats.FoodApplied += HandleFoodApplied;
                 stats.Died += HandleDied;
                 stats.Revived += HandleRevived;
             }
@@ -176,6 +177,7 @@ namespace KMS
             {
                 stats.HealthChanged -= HandleHealthChanged;
                 stats.HungerChanged -= HandleHungerChanged;
+                stats.FoodApplied -= HandleFoodApplied;
                 stats.Died -= HandleDied;
                 stats.Revived -= HandleRevived;
             }
@@ -703,6 +705,13 @@ namespace KMS
             }
         }
 
+        private void HandleFoodApplied(ItemData item, float restoredAmount)
+        {
+            if (UsesToolkitHud || item == null) return;
+            ResolveHudView();
+            hudView?.PrepareFoodFeedback(item, restoredAmount);
+        }
+
         private void HandleFoodEffectsChanged()
         {
             if (stats == null) return;
@@ -710,6 +719,14 @@ namespace KMS
         }
 
         private void HandleDied()
+        {
+            // PlayerDeathController supplies whether a registered waypoint is available.
+            if (GetComponent<PlayerDeathController>() != null) return;
+
+            ShowDeathPresentation(false);
+        }
+
+        public void ShowDeathPresentation(bool hasActiveWayPoint)
         {
             if (UsesToolkitHud)
             {
@@ -719,12 +736,18 @@ namespace KMS
                     toolkitMessageOverlay.BringToFront();
                 }
                 toolkitRespawnButton?.SetEnabled(true);
-                if (toolkitMessageLabel != null) toolkitMessageLabel.text = "사망했습니다";
+                if (toolkitMessageLabel != null)
+                {
+                    toolkitMessageLabel.text = hasActiveWayPoint
+                        ? "캐릭터 사망\n────────────\n등록된 웨이포인트 중,\n가장 가까운 곳에서 부활합니다."
+                        : "캐릭터 사망\n────────────";
+                }
+                if (toolkitRespawnButton != null) toolkitRespawnButton.text = "부활";
             }
             else
             {
                 ResolveHudView();
-                hudView?.SetDefeatOverlayVisible(true, "사망했습니다");
+                hudView?.ShowDeathPresentation(hasActiveWayPoint);
             }
         }
 
@@ -739,7 +762,7 @@ namespace KMS
             else
             {
                 ResolveHudView();
-                hudView?.SetDefeatOverlayVisible(false, string.Empty);
+                hudView?.HideDeathPresentation();
             }
             ShowNotification("리스폰했습니다.");
         }

@@ -79,6 +79,10 @@ mono_crash.*
 *.aab
 *.unitypackage
 *.unitypackage.meta
+# Keep Amplify Impostors' small render-pipeline installer packages reproducible.
+# The 200 MB Examples folder remains under Assets/Ignore and is still excluded.
+!/Assets/_GH/99. Assets/AmplifyImpostors/**/*.unitypackage
+!/Assets/_GH/99. Assets/AmplifyImpostors/**/*.unitypackage.meta
 *.app
 
 # Crashlytics generated file

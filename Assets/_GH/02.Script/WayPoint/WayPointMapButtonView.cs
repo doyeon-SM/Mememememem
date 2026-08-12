@@ -23,7 +23,6 @@ public class WayPointMapButtonView : MonoBehaviour
 
     private Sprite defaultLockedIcon;
     private Color defaultFillBackgroundColor;
-    private Color defaultTextColor;
     private bool defaultsCached;
 
     public Button Button
@@ -58,7 +57,9 @@ public class WayPointMapButtonView : MonoBehaviour
     public void Refresh(
         WayPointMapDefinition mapDefinition,
         string displayName,
-        bool isAvailable)
+        bool isAvailable,
+        Color availableTextColor,
+        Color lockedTextColor)
     {
         ResolveReferences();
         CacheDefaults();
@@ -72,7 +73,9 @@ public class WayPointMapButtonView : MonoBehaviour
         if (stageNameText != null)
         {
             stageNameText.text = displayName;
-            stageNameText.color = defaultTextColor;
+            stageNameText.color = isAvailable
+                ? availableTextColor
+                : lockedTextColor;
         }
 
         if (stageIcon != null)
@@ -112,9 +115,6 @@ public class WayPointMapButtonView : MonoBehaviour
         defaultFillBackgroundColor = fillBackground != null
             ? fillBackground.color
             : Color.black;
-        defaultTextColor = stageNameText != null
-            ? stageNameText.color
-            : Color.white;
         defaultsCached = true;
     }
 

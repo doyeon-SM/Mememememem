@@ -3,10 +3,13 @@ using HDY.Inventory;
 using HDY.Item;
 using HDY.Mem;
 using HDY.Recipe;
+using KMS.Audio;
 using KMS.InventoryDuped;
 using MemSystem.Data;
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 public class ProductionCraftRuntime : MonoBehaviour
@@ -32,6 +35,7 @@ public class ProductionCraftRuntime : MonoBehaviour
     [SerializeField] private List<MemData> addMems = new List<MemData>();
     [SerializeField] private List<CapturedMemEntry> addMemEntries = new List<CapturedMemEntry>();
 
+    private Coroutine soundRoutine;
     public List<MemData> DeployedMems => addMems;
     public List<CapturedMemEntry> DeployedMemEntries => addMemEntries;
 
@@ -88,7 +92,11 @@ public class ProductionCraftRuntime : MonoBehaviour
 
     private void Update()
     {
-        if (!isProducing) return;
+        if (!isProducing)
+        {
+            SetProducingActive(false);
+            return;
+        }
 
         if (currentStorageCount >= maxStorageCount)
         {
@@ -119,14 +127,7 @@ public class ProductionCraftRuntime : MonoBehaviour
 
         totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, addMems);
 
-        if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
-        {
-            SetProducingActive(true);
-        }
-        else
-        {
-            isProducing = false;
-        }
+        CheckProductionCondition();
     }
 
     public void SelectAndStartCrafting(ItemData targetItem, int quantity)
@@ -139,7 +140,7 @@ public class ProductionCraftRuntime : MonoBehaviour
     {
         if (addMems.Count == 0)
         {
-            isProducing = false;
+            SetProducingActive(false);
             currentProgressTime = 0f;
             currentCraftingItem = null;
             remainingQuantity = 0;
@@ -157,15 +158,21 @@ public class ProductionCraftRuntime : MonoBehaviour
             totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseDuration, addMems);
             currentProgressTime = totalRequiredTime * currentProgressPercent;
 
-            if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
-            {
-                SetProducingActive(true);
-            }
-            else
-            {
-                isProducing = false;
-            }
+            CheckProductionCondition();
         }
+    }
+
+    // 🌟 [추가] 시설 가동 상태를 종합 검사하는 함수
+    public void CheckProductionCondition()
+    {
+        if (string.IsNullOrEmpty(currentCraftingItem) || remainingQuantity <= 0 || addMems.Count == 0)
+        {
+            SetProducingActive(false);
+            return;
+        }
+
+        bool isAnyMemStarving = DeployedMemEntries.Any(e => e != null && (e.IsStarving || e.CurrentHunger <= 0));
+        SetProducingActive(!isAnyMemStarving);
     }
 
     public bool TryAddMem(MemData targetMem, CapturedMemEntry targetEntry)
@@ -194,11 +201,17 @@ public class ProductionCraftRuntime : MonoBehaviour
             RemoveMem(addMemEntries[0]);
         }
 
+        if (targetEntry.CurrentHunger > 0)
+        {
+            targetEntry.IsStarving = false;
+        }
+
         addMems.Add(realMemData);
         addMemEntries.Add(targetEntry);
         targetEntry.IsActive = true;
 
         RecalculateCraftingTimer();
+        CheckProductionCondition(); // 🌟 [추가] 멤 배치 시점 가동 여부 재검사
 
         if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
 
@@ -226,6 +239,7 @@ public class ProductionCraftRuntime : MonoBehaviour
             if (index < addMems.Count) addMems.RemoveAt(index);
 
             RecalculateCraftingTimer();
+            CheckProductionCondition(); // 🌟 [추가] 멤 제거 시점 가동 여부 재검사
 
             if (TotalHungerManager.Instance != null) TotalHungerManager.Instance.RecalculateTotalHunger();
 
@@ -235,6 +249,10 @@ public class ProductionCraftRuntime : MonoBehaviour
             {
                 MemAdded?.Invoke(buildingData.buildingType, removedMem, false, MemPositions);
             }
+        }
+        if (addMemEntries.Count == 0)
+        {
+            SetProducingActive(false);
         }
     }
 
@@ -254,6 +272,8 @@ public class ProductionCraftRuntime : MonoBehaviour
         currentStorageCount++;
         remainingQuantity--;
         currentProgressTime = 0f;
+
+        KMS.Audio.KMSAudioService.Play2D(GameSfxId.CraftingComplete);
 
         if (remainingQuantity > 0)
         {
@@ -371,19 +391,44 @@ public class ProductionCraftRuntime : MonoBehaviour
 
     private void SetProducingActive(bool value)
     {
-        if (isProducing == value) return;
+        if (isProducing == value && (value && soundRoutine != null)) return;
         isProducing = value;
 
-        if (isProducing && buildingData != null)
+        if (isProducing)
         {
-            FacilityStarted?.Invoke(buildingData.buildingType, addMems, MemPositions);
+            if (soundRoutine != null) StopCoroutine(soundRoutine);
+            soundRoutine = StartCoroutine(FacilitySoundRoutine());
+
+            if (buildingData != null)
+                FacilityStarted?.Invoke(buildingData.buildingType, addMems, MemPositions);
+        }
+        else
+        {
+            if (soundRoutine != null)
+            {
+                StopCoroutine(soundRoutine);
+                soundRoutine = null;
+            }
+
+            KMSAudioService.StopSfx(GameSfxId.Crafting);
+
+            if (buildingData != null)
+                FacilityStopped?.Invoke(buildingData.buildingType, addMems, FacilityStopReason.CancelCrafting, MemPositions);
+        }
+    }
+    private IEnumerator FacilitySoundRoutine()
+    {
+        while (isProducing)
+        {
+            KMSAudioService.PlayAt(GameSfxId.Crafting, transform.position);
+            yield return new WaitForSeconds(2.0f);
         }
     }
 
     public void StopWorkDueToStarvation()
     {
         if (!isProducing) return;
-        isProducing = false;
+        SetProducingActive(false);
 
         if (buildingData != null)
         {

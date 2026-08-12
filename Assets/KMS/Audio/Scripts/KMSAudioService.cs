@@ -31,9 +31,11 @@ namespace KMS.Audio
         private AudioSource musicSourceB;
         private AudioSource activeMusicSource;
         private Coroutine musicFadeRoutine;
+        private Coroutine musicDuckRoutine;
         private int sourceReplacementIndex;
         private float sfxVolume = 1f;
         private float musicVolume = 1f;
+        private float musicDuckMultiplier = 1f;
 
         public static KMSAudioService Instance => EnsureInstance();
         public static bool HasInstance => instance != null;
@@ -103,6 +105,11 @@ namespace KMS.Audio
             catalog.EnsureDefaults();
             sfxVolume = Mathf.Clamp01(PlayerPrefs.GetFloat(SfxVolumeKey, 1f));
             musicVolume = Mathf.Clamp01(PlayerPrefs.GetFloat(MusicVolumeKey, 1f));
+
+            if (GetComponent<KMSRandomAmbientSfxPlayer>() == null)
+            {
+                gameObject.AddComponent<KMSRandomAmbientSfxPlayer>();
+            }
 
             CreateMusicSources();
             for (int i = 0; i < InitialSourceCount; i++)
@@ -200,8 +207,28 @@ namespace KMS.Audio
                     SceneManager.GetActiveScene().name,
                     out KMSSceneMusicEntry entry))
             {
-                service.activeMusicSource.volume = entry.Volume * service.musicVolume;
+                service.activeMusicSource.volume =
+                    entry.Volume * service.musicVolume * service.musicDuckMultiplier;
             }
+        }
+
+        /// <summary>
+        /// Temporarily scales scene music without changing the player's saved music setting.
+        /// A multiplier of 1 restores the configured scene volume.
+        /// </summary>
+        public static void SetTemporaryMusicDuck(float multiplier, float fadeSeconds)
+        {
+            KMSAudioService service = EnsureInstance();
+            if (service == null) return;
+
+            multiplier = Mathf.Clamp01(multiplier);
+            if (service.musicDuckRoutine != null)
+            {
+                service.StopCoroutine(service.musicDuckRoutine);
+            }
+
+            service.musicDuckRoutine = service.StartCoroutine(
+                service.FadeMusicDuck(multiplier, fadeSeconds));
         }
 
         public void RefreshCurrentSceneMusic()
@@ -247,7 +274,7 @@ namespace KMS.Audio
                 Mathf.Max(cue.PitchMin, cue.PitchMax));
             source.spatialBlend = force2D ? 0f : cue.SpatialBlend;
             source.transform.position = position;
-            source.loop = false;
+            source.loop = cue.Loop;
             sourceCueIds[source] = id;
             lastPlayTimes[id] = now;
             source.Play();
@@ -365,7 +392,7 @@ namespace KMS.Audio
             {
                 activeMusicSource.outputAudioMixerGroup = entry.Output;
                 activeMusicSource.loop = entry.Loop;
-                activeMusicSource.volume = entry.Volume * musicVolume;
+                activeMusicSource.volume = entry.Volume * musicVolume * musicDuckMultiplier;
                 return;
             }
 
@@ -384,8 +411,51 @@ namespace KMS.Audio
             StartMusicFade(
                 outgoing,
                 incoming,
-                entry.Volume * musicVolume,
+                entry.Volume * musicVolume * musicDuckMultiplier,
                 entry.FadeSeconds);
+        }
+
+        private IEnumerator FadeMusicDuck(float targetMultiplier, float fadeSeconds)
+        {
+            float startMultiplier = musicDuckMultiplier;
+            float duration = Mathf.Max(0f, fadeSeconds);
+
+            if (duration <= 0f)
+            {
+                musicDuckMultiplier = targetMultiplier;
+                ApplyCurrentMusicVolume();
+                musicDuckRoutine = null;
+                yield break;
+            }
+
+            float elapsed = 0f;
+            while (elapsed < duration)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                musicDuckMultiplier = Mathf.Lerp(
+                    startMultiplier,
+                    targetMultiplier,
+                    Mathf.Clamp01(elapsed / duration));
+                ApplyCurrentMusicVolume();
+                yield return null;
+            }
+
+            musicDuckMultiplier = targetMultiplier;
+            ApplyCurrentMusicVolume();
+            musicDuckRoutine = null;
+        }
+
+        private void ApplyCurrentMusicVolume()
+        {
+            if (activeMusicSource == null
+                || !catalog.TryGetSceneMusic(
+                    SceneManager.GetActiveScene().name,
+                    out KMSSceneMusicEntry entry))
+            {
+                return;
+            }
+
+            activeMusicSource.volume = entry.Volume * musicVolume * musicDuckMultiplier;
         }
 
         private void FadeOutCurrentMusic(float fadeSeconds)
@@ -471,6 +541,31 @@ namespace KMS.Audio
             }
 
             musicFadeRoutine = null;
+        }
+        
+        public static void StopSfx(GameSfxId id)
+        {
+            KMSAudioService service = EnsureInstance();
+            if (service == null) return;
+            service.StopCue(id);
+        }
+
+        private void StopCue(GameSfxId id)
+        {
+            for (int i = 0; i < sfxSources.Count; i++)
+            {
+                AudioSource source = sfxSources[i];
+                if (source.isPlaying && sourceCueIds.TryGetValue(source, out GameSfxId playingId) && playingId == id)
+                {
+                    source.Stop();
+                    source.loop = false; 
+                }
+            }
+
+            if (lastPlayTimes.ContainsKey(id))
+            {
+                lastPlayTimes[id] = 0f;
+            }
         }
     }
 }

@@ -11,7 +11,7 @@ using HDY.Exploration;
 namespace HDY.UI
 {
     /// <summary>
-    /// 멤 창고 그리드(6x8, 48칸) 담당.
+    /// 멤 창고 그리드(5x6, 30칸) 담당.
     /// 슬롯과 페이지 점(dot)은 씬에 미리 배치되어 있으며, 이 스크립트는 그것들을 수집해 데이터만 채운다(런타임 Instantiate 없음).
     /// 슬롯 간 드래그앤드롭 요청을 받아 전체 목록 기준 인덱스로 변환해 상위(MemStorageUI)로 전달하는 역할도 한다.
     /// 정보 패널 표시는 MemStorageUI_Info가, 데이터 조회/전달 및 실제 위치 교체(데이터 반영)는 MemStorageUI(컨트롤러)가 담당한다.
@@ -26,18 +26,13 @@ namespace HDY.UI
     /// [마우스 휠 페이지 이동] 그리드 영역 위에서 휠을 아래로 내리면 다음 페이지, 위로 올리면 이전 페이지로 이동한다
     /// (IScrollHandler). 이 GameObject(또는 부모)에 Raycast Target이 켜진 Graphic이 있어야 휠 이벤트가 감지된다.
     ///
-    /// [HDY 요청 - 페이지 점 클릭 이동] 페이지 점(MemStoragePageDotUI)을 클릭하면 그 점이 나타내는 페이지로
-    /// 바로 이동한다(HandlePageDotClicked). 아직 언락되지 않았거나 데이터 범위를 벗어난 점을 클릭하면 무시한다
-    /// (애초에 UpdatePageDots가 그런 점은 SetActive(false)로 꺼두므로 클릭 자체가 거의 발생하지 않지만, 방어적으로 한 번 더 확인한다).
+    /// [HDY 요청 - 페이지 인디케이터 텍스트] 페이지 점(dot) 방식 대신 "현재페이지 / 최대페이지" 형식의
+    /// 텍스트(pageIndicatorText, 예: "1 / 4")로 현재 위치를 보여준다. 숫자나 점을 직접 클릭해서 페이지를
+    /// 선택하는 기능은 없고, 좌우 버튼(prevPageButton/nextPageButton)과 마우스 휠(OnScroll)로만 이동한다.
     ///
-    /// [HDY 요청 - 업그레이드 버튼과 페이지 점 구분] pageDotsParent 하위에 업그레이드 버튼(MemStorageUI가
-    /// 관리)을 같이 배치해서 "페이지 점들의 오른쪽에 붙어 보이도록" 구성할 수 있다. 이때 페이지 점 수집은
-    /// Image 컴포넌트가 아니라 반드시 MemStoragePageDotUI 마커 컴포넌트 기준으로 해야 한다 - 예전에는
-    /// Image 전체를 긁어모아서 업그레이드 버튼의 Image까지 점으로 오인식되었고, 총 페이지 수 기준으로는
-    /// "안 보여야 할 점"으로 판정되어 버튼이 꺼져버리는 문제가 있었다. 업그레이드 버튼은 이 마커 컴포넌트가
-    /// 없으므로 이제 안전하게 같은 부모 아래 둘 수 있다(점들 뒤, 마지막 형제로 배치하고 부모에
-    /// HorizontalLayoutGroup 등이 있으면 활성화됐을 때 자동으로 가장 오른쪽에 위치한다 - 켜고 끄는 것
-    /// 자체는 MemStorageUI가 storageUpgrade.CanUpgrade()를 보고 처리한다).
+    /// [업그레이드 버튼은 완전히 별도 위치] 이전에는 업그레이드 버튼이 페이지 점들 바로 옆에 함께 배치되었지만,
+    /// 페이지 점 시스템 자체가 사라지면서 이 그리드와는 완전히 무관한 위치에 독립적으로 배치된다
+    /// (MemStorageUI가 upgradeButton 필드로 계속 관리, 켜고 끄는 로직은 그대로).
     ///
     /// [드래그 도중 페이지 이동] 멤을 드래그하는 도중 휠로 페이지를 넘기면, 슬롯 48개가 전부 새 페이지 데이터로
     /// 다시 채워지면서 드래그를 시작한 슬롯의 cachedEntry도 함께 덮어써진다. 그래서 "지금 옮기는 항목이 전체 목록
@@ -114,31 +109,28 @@ namespace HDY.UI
     /// 먼저 실행될 수 있는 순서 문제가 있었다 - 그러면 Populate가 "슬롯 0개"로 조기 종료되어 화면을
     /// 전혀 갱신하지 못하고, 프리팹에 저장되어 있던 편집 시점의 잔상이 그대로 보이는 버그가 생겼다(마우스
     /// 휠로 페이지를 넘기면 그 시점엔 이미 Awake가 끝나 있어서 정상 갱신되는 것도 같은 이유). 그래서
-    /// Populate 맨 앞에서 CollectSlots/CollectPageDots를 다시 호출한다 - 두 메서드 다 이미 수집된 경우
+    /// Populate 맨 앞에서 CollectSlots를 다시 호출한다 - 이미 수집된 경우
     /// 그냥 반환하므로(slots.Count > 0 이면 바로 리턴) 여러 번 호출해도 안전하고, Awake가 아직 실행되지
     /// 않은 경우에도 여기서 대신 수집을 완료시켜 항상 최신 상태로 그려지게 한다.
     /// </summary>
     public class MemStorageUI_Grid : MonoBehaviour, IScrollHandler
     {
-        private const int Columns = 6;
-        private const int Rows = 8;
+        private const int Columns = 5;
+        private const int Rows = 6;
         public const int PageSize = Columns * Rows;
-        private const int MaxPageDots = 10;
 
         private const string ReleaseButtonLabel_Release = "해제하기";
         private const string ReleaseButtonLabel_Discard = "방출하기";
 
-        [Header("그리드 (6x8 - 미리 배치된 슬롯의 부모)")]
+        [Header("그리드 (5x6 - 미리 배치된 슬롯의 부모)")]
         [SerializeField] private Transform gridParent;
 
         [Header("페이지 이동 (48마리 초과 시 사용)")]
         [SerializeField] private Button prevPageButton;
         [SerializeField] private Button nextPageButton;
 
-        [Header("페이지 점 표시 (점 10개 + 업그레이드 버튼(선택)이 미리 배치된 부모)")]
-        [SerializeField] private Transform pageDotsParent;
-        [SerializeField] private float dotNormalScale = 1f;
-        [SerializeField] private float dotActiveScale = 1.4f;
+        [Header("페이지 인디케이터 (\"현재페이지 / 최대페이지\" 형식 텍스트, 예: \"1 / 4\")")]
+        [SerializeField] private TMP_Text pageIndicatorText;
 
         [Header("배치 해제/방출 버튼 (우클릭 시 채워진 슬롯 위에 표시, 슬롯마다 두지 않고 하나를 재사용)")]
         [SerializeField] private Button releaseButton;
@@ -165,7 +157,6 @@ namespace HDY.UI
         [SerializeField] private Sprite explorationStatIcon;
 
         private readonly List<MemSlotUI> slots = new List<MemSlotUI>();
-        private readonly List<MemStoragePageDotUI> pageDots = new List<MemStoragePageDotUI>();
         private int currentPageIndex;
 
         // 언락된 페이지 수(멤창고 업그레이드로 늘어남). 기본값은 "제한 없음"이지만, 실제로는 항상
@@ -219,7 +210,7 @@ namespace HDY.UI
         private void Awake()
         {
             if (gridParent == null) Debug.LogWarning("[MemStorageUI_Grid] gridParent가 비어있습니다. 미리 배치된 슬롯을 찾을 수 없습니다.", this);
-            if (pageDotsParent == null) Debug.LogWarning("[MemStorageUI_Grid] pageDotsParent가 비어있습니다. 페이지 점이 표시되지 않습니다.", this);
+            if (pageIndicatorText == null) Debug.LogWarning("[MemStorageUI_Grid] pageIndicatorText가 비어있습니다. 페이지 인디케이터가 표시되지 않습니다.", this);
             if (releaseButton == null) Debug.LogWarning("[MemStorageUI_Grid] releaseButton이 비어있습니다. 배치 해제/방출 버튼이 동작하지 않습니다.", this);
 
             // [HDY 요청] releaseButtonLabel을 인스펙터에서 비워뒀다면 버튼 자식에서 한 번 자동으로 찾아본다.
@@ -233,7 +224,6 @@ namespace HDY.UI
             explorationRuntime = ExplorationRuntime.Resolve(explorationRuntime);
 
             CollectSlots();
-            CollectPageDots();
 
             if (prevPageButton != null) prevPageButton.onClick.AddListener(GoToPrevPage);
             if (nextPageButton != null) nextPageButton.onClick.AddListener(GoToNextPage);
@@ -257,6 +247,11 @@ namespace HDY.UI
             ProductionFacilityRuntime.OnMemDeploymentChanged += RefreshFromCaptureManager;
             ProductionCraftRuntime.OnMemDeploymentChanged += RefreshFromCaptureManager;
             ExplorationRuntime.OnMemDeploymentChanged += RefreshFromCaptureManager;
+            RanchFacilityRuntime.OnMemDeploymentChanged += RefreshFromCaptureManager; 
+            GeneratorRuntime.OnMemDeploymentChanged += RefreshFromCaptureManager; 
+            TransportRuntime.OnMemDeploymentChanged += RefreshFromCaptureManager; 
+            CampFireRuntime.OnMemDeploymentChanged += RefreshFromCaptureManager; 
+            KitchenRuntime.OnMemDeploymentChanged += RefreshFromCaptureManager; 
 
             // 활성화되는 시점의 최신 데이터로 즉시 한 번 맞춘다 - 이벤트를 기다리지 않고 그 사이 놓친
             // 변경사항(예: 이 그리드가 비활성 상태이던 동안 포획된 멤)까지 바로 반영한다.
@@ -275,6 +270,11 @@ namespace HDY.UI
             ProductionFacilityRuntime.OnMemDeploymentChanged -= RefreshFromCaptureManager;
             ProductionCraftRuntime.OnMemDeploymentChanged -= RefreshFromCaptureManager;
             ExplorationRuntime.OnMemDeploymentChanged -= RefreshFromCaptureManager;
+            RanchFacilityRuntime.OnMemDeploymentChanged -= RefreshFromCaptureManager; 
+            GeneratorRuntime.OnMemDeploymentChanged -= RefreshFromCaptureManager; 
+            TransportRuntime.OnMemDeploymentChanged -= RefreshFromCaptureManager;
+            CampFireRuntime.OnMemDeploymentChanged -= RefreshFromCaptureManager; 
+            KitchenRuntime.OnMemDeploymentChanged -= RefreshFromCaptureManager;
         }
 
         /// <summary>
@@ -351,34 +351,6 @@ namespace HDY.UI
             }
 
             Debug.Log($"[MemStorageUI_Grid] 슬롯 {slots.Count}개 수집 완료 (부모: {gridParent.name})");
-        }
-
-        /// <summary>
-        /// [HDY 요청] 씬(프리팹)에 미리 배치된 페이지 점(dot)들을 pageDotsParent 하위에서 찾아 수집한다.
-        /// Image가 아니라 MemStoragePageDotUI 마커 컴포넌트 기준으로 수집해야 한다 - 같은 부모 아래
-        /// 업그레이드 버튼(Image를 가진 다른 UI 요소)이 배치되어 있어도 이 마커가 없으면 점으로 오인식되지
-        /// 않는다. 이미 수집되어 있으면 바로 반환한다. 수집과 동시에 각 점의 클릭 이벤트를 구독해서 해당
-        /// 페이지로 이동하도록 연결한다(리스트 인덱스 = 페이지 번호).
-        /// </summary>
-        private void CollectPageDots()
-        {
-            if (pageDotsParent == null) return;
-            if (pageDots.Count > 0) return; // 이미 수집됨
-
-            pageDotsParent.GetComponentsInChildren(true, pageDots);
-
-            for (int i = 0; i < pageDots.Count; i++)
-            {
-                int pageIndex = i; // 클로저 캡처용 로컬 변수(반복 변수를 그대로 캡처하면 안 됨)
-                pageDots[i].OnClicked += () => HandlePageDotClicked(pageIndex);
-            }
-
-            if (pageDots.Count != MaxPageDots)
-            {
-                Debug.LogWarning($"[MemStorageUI_Grid] 페이지 점 개수({pageDots.Count})가 예상 개수({MaxPageDots})와 다릅니다.", this);
-            }
-
-            Debug.Log($"[MemStorageUI_Grid] 페이지 점 {pageDots.Count}개 수집 완료 (부모: {pageDotsParent.name})");
         }
 
         private void HandleSlotClicked(CapturedMemEntry entry, MemData data)
@@ -567,16 +539,15 @@ namespace HDY.UI
 
         /// <summary>
         /// 데이터를 캐싱하고 현재 페이지 기준으로 그리드를 다시 채운다. 목록에 저장된 순서(빈 칸 포함) 그대로 표시.
-        /// 맨 앞에서 CollectSlots/CollectPageDots를 다시 호출한다 - 이 컴포넌트가 프리팹으로 매번 새로
+        /// 맨 앞에서 CollectSlots를 다시 호출한다 - 이 컴포넌트가 프리팹으로 매번 새로
         /// Instantiate되면서(UIManager) 부모(MemStorageUI)의 OnEnable이 이 컴포넌트의 Awake보다 먼저
         /// 실행되는 경우가 있어, Awake에서의 최초 수집을 여기서도 보장해야 "슬롯 0개"로 조기 종료되어
-        /// 화면이 갱신되지 않는 문제를 막을 수 있다(이미 수집되어 있으면 두 메서드 다 즉시 반환하므로
+        /// 화면이 갱신되지 않는 문제를 막을 수 있다(이미 수집되어 있으면 즉시 반환하므로
         /// 매번 호출해도 비용이 거의 없다).
         /// </summary>
         private void Populate(IReadOnlyList<CapturedMemEntry> capturedMems, Func<string, MemData> findMemData, Func<CapturedMemEntry, MemStatDisplayInfo> statDisplayProvider)
         {
             CollectSlots();
-            CollectPageDots();
 
             // 페이지/데이터가 다시 그려지면 이전에 우클릭해서 띄워둔 해제/방출 버튼은 엉뚱한 슬롯을 가리키게 되므로 감춘다.
             HideReleaseButton();
@@ -620,7 +591,7 @@ namespace HDY.UI
                 }
             }
 
-            UpdatePageDots(currentPageIndex, totalPages);
+            UpdatePageIndicatorText(currentPageIndex, totalPages);
 
             if (prevPageButton != null) prevPageButton.interactable = currentPageIndex > 0;
             if (nextPageButton != null) nextPageButton.interactable = currentPageIndex < totalPages - 1;
@@ -677,30 +648,14 @@ namespace HDY.UI
         }
 
         /// <summary>
-        /// 페이지 점들의 활성/비활성 및 크기(현재 페이지 강조)를 갱신한다.
-        /// 점은 최대 10개까지만 지원한다고 가정 - 총 페이지가 10개를 넘으면 넘는 페이지는 점으로 표시되지 않는다(경고 로그만 남김).
+        /// [HDY 요청] 페이지 인디케이터 텍스트를 "현재페이지 / 최대페이지" 형식으로 갱신한다(예: "1 / 4").
+        /// pageIndex는 0부터 시작하므로 표시할 때 +1 한다.
         /// </summary>
-        private void UpdatePageDots(int pageIndex, int totalPages)
+        private void UpdatePageIndicatorText(int pageIndex, int totalPages)
         {
-            if (pageDots.Count == 0) return;
+            if (pageIndicatorText == null) return;
 
-            int visibleCount = Mathf.Min(totalPages, pageDots.Count);
-
-            for (int i = 0; i < pageDots.Count; i++)
-            {
-                bool isVisible = i < visibleCount;
-                pageDots[i].gameObject.SetActive(isVisible);
-
-                if (!isVisible) continue;
-
-                bool isCurrent = i == pageIndex;
-                pageDots[i].RectTransform.localScale = Vector3.one * (isCurrent ? dotActiveScale : dotNormalScale);
-            }
-
-            if (totalPages > pageDots.Count)
-            {
-                Debug.LogWarning($"[MemStorageUI_Grid] 총 페이지({totalPages})가 점 개수({pageDots.Count})보다 많습니다. {pageDots.Count}페이지를 초과하는 페이지는 점으로 표시되지 않습니다.", this);
-            }
+            pageIndicatorText.text = $"{pageIndex + 1} / {totalPages}";
         }
 
         public void GoToPrevPage()
@@ -713,23 +668,6 @@ namespace HDY.UI
         {
             int count = cachedCapturedMems != null ? cachedCapturedMems.Count : 0;
             currentPageIndex = Mathf.Min(GetLastPageIndex(count), currentPageIndex + 1);
-            Populate(cachedCapturedMems, cachedFindMemData, cachedStatDisplayProvider);
-        }
-
-        /// <summary>
-        /// [HDY 요청] 페이지 점 클릭 시 그 점이 나타내는 페이지로 바로 이동한다. UpdatePageDots가 이미
-        /// 언락되지 않은/범위를 벗어난 점은 SetActive(false)로 꺼두므로 클릭 자체가 거의 발생하지 않지만,
-        /// 방어적으로 한 번 더 범위를 확인한다. 이미 보고 있는 페이지를 클릭하면 아무 일도 하지 않는다.
-        /// </summary>
-        private void HandlePageDotClicked(int pageIndex)
-        {
-            int count = cachedCapturedMems != null ? cachedCapturedMems.Count : 0;
-            int totalPages = GetEffectiveTotalPages(count);
-
-            if (pageIndex < 0 || pageIndex >= totalPages) return;
-            if (pageIndex == currentPageIndex) return;
-
-            currentPageIndex = pageIndex;
             Populate(cachedCapturedMems, cachedFindMemData, cachedStatDisplayProvider);
         }
 

@@ -14,17 +14,28 @@ namespace HDY.Upgrade
     /// 재사용할 목적으로 만들어졌다. 팝업은 IUpgradable 인터페이스만 알고 있으며, 실제로 무엇이
     /// 업그레이드되는지는 전혀 모른다(대상 쪽이 CanUpgrade/GetUpgradeCost/ApplyUpgrade를 구현).
     ///
-    /// [레이아웃] 별도의 설명(Description) 영역은 없다. 대신:
-    /// - 확인(업그레이드) 버튼 라벨(confirmButtonLabel)에 IUpgradable.GetUpgradeDescription()의 짧은 문구
-    ///   (예: "2 → 3")를 그대로 표시한다.
-    /// - 원래 설명이 있던 자리에는 이번 업그레이드에 필요한 재료 목록을 2열 그리드(스크롤 뷰, 뷰포트에는 2행까지만
+    /// [레이아웃, HDY 요청 - 헤더/미들/버튼 텍스트 분리] 텍스트 자리가 3곳으로 나뉜다:
+    /// - titleText(헤더) = IUpgradable.GetUpgradeTitle() (예: "창고 확장")
+    /// - middleText(미들) = IUpgradable.GetUpgradeMiddleText() (예: "추가 10칸 확장 비용", 최대치면 "MAX")
+    /// - confirmButtonLabel(버튼) = IUpgradable.GetUpgradeButtonText() (예: "확장", "해금", "강화" - 최대치
+    ///   여부와 무관하게 항상 고정 문구, interactable로만 활성/비활성을 표시)
+    /// 그 아래에는 이번 업그레이드에 필요한 재료 목록을 2열 그리드(스크롤 뷰, 뷰포트에는 2행까지만
     ///   보이고 그 이상은 스크롤로 확인)로 표시한다. 그리드 자체(열 개수 고정, 셀 크기, 뷰포트 높이)는 씬의
     ///   materialCostContainer에 배치된 GridLayoutGroup/ScrollRect 설정으로 제어되며, 이 스크립트는 필요한
     ///   개수만큼 materialCostRowPrefab을 채워 넣는 역할만 한다.
     /// - 이번 업그레이드에 필요한 재료가 하나도 없으면(예: 멤창고 페이지 업그레이드는 골드만 사용) 재료 스크롤 뷰
     ///   자체를 꺼서 빈 영역이 보이지 않도록 한다(materialScrollRect 기준으로 토글).
-    /// - 골드 비용은 0이어도 숨기지 않는다 - goldCostText는 항상 켜져 있고, "골드: 0"처럼 공통 형식
-    ///   "골드: {금액}"으로 표시한다(재료만 필요한 업그레이드, 예: 영지 확장도 "골드: 0"으로 뜬다).
+    /// - [HDY 요청] 골드 비용이 0이면 골드 텍스트가 포함된 패널(goldPanel) 자체를 비활성화한다(재료만
+    ///   필요한 업그레이드, 예: 영지 확장/레시피 해금은 골드 패널이 아예 보이지 않는다). 0보다 크면 패널을
+    ///   켜고 goldCostText에 금액을 그대로 표시한다.
+    ///
+    /// [HDY 요청 - 갱신 시 레이아웃 깨짐 수정] 팝업 콘텐츠 패널에 Content Size Fitter(Vertical Fit:
+    /// Preferred Size)가 붙어있는데, RefreshDisplay에서 골드 패널/재료 스크롤 뷰를 켜고 끄거나 텍스트 길이가
+    /// 바뀌면 Content Size Fitter는 다음 레이아웃 패스가 되어서야 크기를 다시 계산한다 - 그 사이 한 프레임
+    /// 동안은 자식들이 예전 크기 기준 위치에 그대로 있어서 요소들이 압축되어 겹쳐 보이는(깨지는) 문제가
+    /// 있었다. contentSizeFitterRoot를 그 오브젝트로 연결해두면, RefreshDisplay 맨 끝에서
+    /// LayoutRebuilder.ForceRebuildLayoutImmediate로 즉시 다시 계산해서 이 문제를 막는다(재료 그리드에
+    /// 이미 쓰던 ResetMaterialScrollToTop과 같은 방식). 비워두면 popupRoot를 대신 쓴다.
     ///
     /// [사용법] 다른 UI에서 UpgradePopupUI.Instance.Show(target)만 호출하면 된다. 확인 버튼을 누르면
     /// 팝업이 직접 TerritoryData에서 골드를 확인/차감하고(재료는 IMaterialInventory 연결 시 함께 확인/차감),
@@ -81,16 +92,22 @@ namespace HDY.Upgrade
 
         [Header("팝업 루트 (평소에는 꺼져 있다가 Show()에서 켜짐)")]
         [SerializeField] private GameObject popupRoot;
+        [Tooltip("Content Size Fitter(Vertical Fit: Preferred Size)가 붙어있는 오브젝트(HDY 요청). RefreshDisplay가 끝날 때 이 오브젝트의 레이아웃을 강제로 즉시 다시 계산해서, 갱신 직후 위치가 압축되어 깨지는 문제를 막는다. 비워두면 popupRoot를 대신 쓴다.")]
+        [SerializeField] private RectTransform contentSizeFitterRoot;
 
-        [Header("제목 / 골드 텍스트")]
+        [Header("제목 / 미들 / 골드 텍스트")]
         [SerializeField] private TMP_Text titleText;
-        [Tooltip("골드 비용이 0이어도 숨기지 않고 항상 켜둔 채로 \"골드: {금액}\" 형식으로 표시한다.")]
+        [Tooltip("IUpgradable.GetUpgradeMiddleText()가 표시되는 자리(HDY 요청). 예: \"추가 10칸 확장 비용\", 최대치면 \"MAX\".")]
+        [SerializeField] private TMP_Text middleText;
+        [Tooltip("골드 비용이 0보다 클 때만 켜진다(goldPanel과 함께 토글). 켜지면 \"{금액}\" 형식으로 표시한다.")]
         [SerializeField] private TMP_Text goldCostText;
+        [Tooltip("골드 텍스트가 포함된 패널(HDY 요청). 골드 비용이 0이면 이 패널 전체를 비활성화한다. 비워둬도 goldCostText 자체는 개별적으로 토글된다.")]
+        [SerializeField] private GameObject goldPanel;
 
         [Header("확인 / 취소 버튼")]
         [Tooltip("확인 버튼 자체. interactable로 업그레이드 가능 여부를 표시한다.")]
         [SerializeField] private Button confirmButton;
-        [Tooltip("확인 버튼에 표시할 라벨. 별도 설명 영역이 없으므로 IUpgradable.GetUpgradeDescription()의 짧은 문구(예: \"2 → 3\")가 여기로 들어간다.")]
+        [Tooltip("확인 버튼에 표시할 라벨. IUpgradable.GetUpgradeButtonText()의 고정 문구(예: \"확장\", \"해금\", \"강화\")가 여기로 들어간다.")]
         [SerializeField] private TMP_Text confirmButtonLabel;
         [SerializeField] private Button cancelButton;
 
@@ -144,7 +161,8 @@ namespace HDY.Upgrade
                 Debug.LogWarning("[UpgradePopupUI] materialInventorySource가 IMaterialInventory를 구현하지 않습니다.", this);
             }
 
-            if (confirmButtonLabel == null) Debug.LogWarning("[UpgradePopupUI] confirmButtonLabel이 비어있습니다. 확인 버튼에 설명 문구가 표시되지 않습니다.", this);
+            if (confirmButtonLabel == null) Debug.LogWarning("[UpgradePopupUI] confirmButtonLabel이 비어있습니다. 확인 버튼에 문구가 표시되지 않습니다.", this);
+            if (middleText == null) Debug.LogWarning("[UpgradePopupUI] middleText가 비어있습니다. 팝업 중간 설명 문구가 표시되지 않습니다.", this);
 
             itemCatalogManager = ItemCatalogManager.Resolve(itemCatalogManager);
 
@@ -219,14 +237,21 @@ namespace HDY.Upgrade
 
             if (titleText != null) titleText.text = currentTarget.GetUpgradeTitle();
 
-            // 골드가 0이어도(재료만 필요한 업그레이드, 예: 영지 확장 포함) 숨기지 않고 항상 공통 형식으로 표시한다.
+            // [HDY 요청] 팝업 중간 설명 문구(예: "추가 10칸 확장 비용"/"MAX").
+            if (middleText != null) middleText.text = currentTarget.GetUpgradeMiddleText();
+
+            // [HDY 요청] 골드 비용이 0이면 골드 텍스트가 포함된 패널 자체를 비활성화한다.
+            bool hasGoldCost = cost.GoldCost > 0;
+
+            if (goldPanel != null) goldPanel.SetActive(hasGoldCost);
+
             if (goldCostText != null)
             {
-                goldCostText.gameObject.SetActive(true);
-                goldCostText.text = $"골드: {cost.GoldCost}";
+                goldCostText.gameObject.SetActive(hasGoldCost);
+                goldCostText.text = $"{cost.GoldCost}";
             }
 
-            if (confirmButtonLabel != null) confirmButtonLabel.text = currentTarget.GetUpgradeDescription();
+            if (confirmButtonLabel != null) confirmButtonLabel.text = currentTarget.GetUpgradeButtonText();
 
             bool hasMaterialCosts = cost.MaterialCosts != null && cost.MaterialCosts.Count > 0;
 
@@ -244,6 +269,16 @@ namespace HDY.Upgrade
             }
 
             if (confirmButton != null) confirmButton.interactable = canUpgrade;
+
+            // [HDY 요청 - 갱신 시 레이아웃 깨짐 수정] 위에서 바뀐 내용(텍스트 길이, 골드 패널/재료 스크롤 뷰
+            // 활성 여부)이 Content Size Fitter에 전부 반영되도록 여기서 강제로 즉시 다시 계산한다. 이 호출이
+            // 없으면 다음 레이아웃 패스 전까지 한 프레임 동안 예전 크기 기준 위치가 남아있어 요소가 압축되어
+            // 겹쳐 보이는 문제가 있었다.
+            var fitterTarget = contentSizeFitterRoot != null ? contentSizeFitterRoot : (popupRoot != null ? popupRoot.transform as RectTransform : null);
+            if (fitterTarget != null)
+            {
+                LayoutRebuilder.ForceRebuildLayoutImmediate(fitterTarget);
+            }
         }
 
         /// <summary>기존에 만들어둔 행을 재사용하고, 모자라면 새로 만든다(팝업을 여러 번 열어도 매번 파괴/생성하지 않도록).</summary>

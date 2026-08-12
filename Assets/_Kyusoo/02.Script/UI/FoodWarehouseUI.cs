@@ -33,9 +33,13 @@ using UnityEngine.UI;
 /// 구분할 수 없다. 그래서 모든 라우팅은 slot.group이 아니라 GetContainerAndIndex()로 얻은 실제
 /// InventoryContainer 참조 동일성으로 구분한다.
 ///
-/// [슬롯 생성 방식 통일] 퀵슬롯/인벤토리도 음식 창고/일반 창고와 동일하게 전부 런타임 Instantiate
-/// 방식이다. 인벤토리는 playerInventory.UnlockedInventorySlotCount만큼만 생성하고, 업그레이드로 더
-/// 언락되면(OnInventorySlotCountChanged) 모자란 만큼만 추가로 Instantiate한다.
+/// [HDY 요청 - 팀크로스 승인 - 퀵슬롯/인벤토리 슬롯 생성 방식 변경] 좌측 음식 창고/우측 일반 창고는
+/// 그대로 런타임 Instantiate 방식을 쓰지만, 퀵슬롯/인벤토리는 이제 그리드 안에 미리 배치해둔 슬롯을
+/// 그대로 수집해서 쓴다(HDY의 PlayerInventoryGridController.BindSlotGroup과 동일한 패턴,
+/// BindPreplacedSlots 참고). 인벤토리는 최대 칸수(MaxInventorySlotCount)만큼 전부 미리 배치되어 있어야
+/// 하며, 아직 언락되지 않은 칸은 삭제/숨김이 아니라 CanvasGroup으로 회색 처리 + 상호작용 차단한다
+/// (RefreshInventorySlotLocks) - 예전에는 언락된 만큼만 생성해서 안 보이는 방식이었지만, 미리 배치된
+/// 슬롯은 지울 수 없으므로 대신 잠금 표시로 전환했다.
 ///
 /// [스크롤뷰 1개로 통합 - HDY 요청] 예전에는 퀵슬롯/인벤토리/창고 영역마다 각자 ScrollRect를 두려고
 /// 했는데, 스크롤바가 여러 개 겹쳐 보여서 이동이 불편하다는 피드백을 받고 구조를 바꿨다. 이제 인벤토리
@@ -81,13 +85,11 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner, IInventorySlo
 
     private int extraUpgradedSlotCount = 0;
 
-    [Header("우측 퀵슬롯 (고정 10칸, 슬롯은 런타임 생성 - [HDY 요청])")]
+    [Header("우측 퀵슬롯 (고정 10칸, 그리드에 미리 배치된 슬롯을 수집해서 사용 - [HDY 요청, 팀크로스 승인])")]
     [SerializeField] private Transform quickSlotGrid;
-    [SerializeField] private InventorySlotUI quickSlotPrefab;
 
-    [Header("우측 인벤토리 (마스터 스크롤 안 순수 그리드 - 언락된 칸만큼만 런타임 생성, [HDY 요청])")]
+    [Header("우측 인벤토리 (마스터 스크롤 안 순수 그리드 - 최대 칸수만큼 미리 배치된 슬롯을 수집, 잠금은 CanvasGroup으로 표시 - [HDY 요청, 팀크로스 승인])")]
     [SerializeField] private Transform inventoryGrid;
-    [SerializeField] private InventorySlotUI inventorySlotPrefab;
 
     [Header("우측 일반 창고 (마스터 스크롤 안 순수 그리드 - 슬롯은 런타임 생성)")]
     [SerializeField] private Transform warehouseGrid;
@@ -228,65 +230,83 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner, IInventorySlo
         itemDragUI.Move(Mouse.current.position.ReadValue());
     }
 
+    // [HDY 요청 - 팀크로스 승인] 언락되지 않은 인벤토리 칸의 표시 투명도. PlayerInventoryGridController의
+    // LockedSlotAlpha 기본값과 동일하게 맞췄다.
+    private const float LockedInventorySlotAlpha = 0.35f;
+
     /// <summary>
-    /// [HDY 요청] 우측 퀵슬롯 개수를 playerInventory.quickSlots 크기에 맞춰 런타임 생성합니다.
-    /// 퀵슬롯은 업그레이드 개념이 없어 보통 한 번만 필요한 만큼 생성되고 이후 변하지 않습니다.
+    /// [HDY 요청 - 팀크로스 승인] root의 기존 자식들(순서대로) 중 최대 count개를 InventorySlotUI로 수집해서
+    /// Initialize한다. HDY의 PlayerInventoryGridController.BindSlotGroup과 동일한 "미리 배치해둔 슬롯을
+    /// 그대로 쓴다" 패턴이다. root의 자식 수가 count보다 적으면 있는 만큼만 채우고 나머지는 null로 둔다.
     /// </summary>
-    private void EnsureQuickSlotCount()
+    private InventorySlotUI[] BindPreplacedSlots(Transform root, int count, SlotGroup group)
     {
-        if (quickSlotPrefab == null || quickSlotGrid == null || playerInventory == null || playerInventory.quickSlots == null) return;
+        var result = new InventorySlotUI[count];
+        if (root == null) return result;
 
-        int required = playerInventory.quickSlots.slots != null ? playerInventory.quickSlots.slots.Length : 0;
-        int current = quickSlots != null ? quickSlots.Length : 0;
-
-        if (required <= current) return;
-
-        var grown = new InventorySlotUI[required];
-        for (int i = 0; i < current; i++) grown[i] = quickSlots[i];
-
-        for (int i = current; i < required; i++)
+        for (int i = 0; i < count && i < root.childCount; i++)
         {
-            var slot = Instantiate(quickSlotPrefab, quickSlotGrid);
-            slot.Initialize(this, SlotGroup.QuickSlot, i);
-            grown[i] = slot;
+            var slotUI = root.GetChild(i).GetComponent<InventorySlotUI>();
+            result[i] = slotUI;
+            if (slotUI != null) slotUI.Initialize(this, group, i);
         }
-        quickSlots = grown;
 
-        Canvas.ForceUpdateCanvases();
-        if (quickSlotGrid is RectTransform quickRect)
-        {
-            LayoutRebuilder.ForceRebuildLayoutImmediate(quickRect);
-        }
+        return result;
     }
 
     /// <summary>
-    /// [HDY 요청] 우측 인벤토리 슬롯 개수를 playerInventory.UnlockedInventorySlotCount(언락된 칸 수)에
-    /// 맞춰 런타임 생성합니다. 아직 언락되지 않은 칸은 애초에 생성하지 않으므로 별도의 잠금 표시가 필요 없습니다.
-    /// 업그레이드로 더 언락되면(OnInventorySlotCountChanged) 모자란 만큼만 추가로 Instantiate합니다.
-    /// inventoryGrid는 이제 자체 스크롤 없는 순수 GridLayoutGroup이라, 레이아웃 재계산이 마스터
-    /// ScrollView의 Vertical Layout Group까지 전파되도록 부모 체인까지 강제로 재빌드한다.
+    /// [HDY 요청 - 팀크로스 승인] 우측 퀵슬롯을 quickSlotGrid에 미리 배치해둔 자식들을 그대로 수집해서
+    /// 쓴다(런타임 Instantiate 제거). 퀵슬롯은 업그레이드 개념이 없어 개수가 고정이므로 매번 전체를 다시
+    /// 수집해도 문제없다.
+    /// </summary>
+    private void EnsureQuickSlotCount()
+    {
+        if (quickSlotGrid == null || playerInventory == null || playerInventory.quickSlots == null) return;
+
+        int required = playerInventory.quickSlots.slots != null ? playerInventory.quickSlots.slots.Length : 0;
+        quickSlots = BindPreplacedSlots(quickSlotGrid, required, SlotGroup.QuickSlot);
+    }
+
+    /// <summary>
+    /// [HDY 요청 - 팀크로스 승인] 우측 인벤토리 슬롯을 inventoryGrid에 미리 배치해둔 자식들을 그대로
+    /// 수집해서 쓴다(런타임 Instantiate 제거) - 최대 칸수(MaxInventorySlotCount)만큼 전부 수집한다.
+    /// 아직 언락되지 않은 칸도 이제는 실제로 존재하므로, 수집 직후 RefreshInventorySlotLocks로 회색
+    /// 처리 + 상호작용 차단을 적용한다(예전에는 언락된 만큼만 생성해서 이 처리 자체가 필요 없었다).
     /// </summary>
     private void EnsureInventorySlotCount()
     {
-        if (inventorySlotPrefab == null || inventoryGrid == null || playerInventory == null) return;
+        if (inventoryGrid == null || playerInventory == null) return;
 
-        int required = playerInventory.UnlockedInventorySlotCount;
-        int current = inventorySlots != null ? inventorySlots.Length : 0;
+        int required = playerInventory.MaxInventorySlotCount;
+        inventorySlots = BindPreplacedSlots(inventoryGrid, required, SlotGroup.Inventory);
 
-        if (required <= current) return;
+        RefreshInventorySlotLocks();
+    }
 
-        var grown = new InventorySlotUI[required];
-        for (int i = 0; i < current; i++) grown[i] = inventorySlots[i];
+    /// <summary>
+    /// [HDY 요청 - 팀크로스 승인] 언락된 칸은 정상 상태로 두고, 아직 언락되지 않은 칸은 슬롯에 이미
+    /// 붙어있는 CanvasGroup으로 회색 처리(alpha 낮춤) + 상호작용을 막는다(interactable=false,
+    /// blocksRaycasts=false). HDY의 PlayerInventoryGridController.RefreshInventorySlotLocks와 동일한
+    /// 방식이다 - InventorySlotUI 자체는 건드리지 않고 슬롯 프리팹에 이미 있는 CanvasGroup만 제어한다.
+    /// </summary>
+    private void RefreshInventorySlotLocks()
+    {
+        if (inventorySlots == null || playerInventory == null) return;
 
-        for (int i = current; i < required; i++)
+        int unlockedCount = playerInventory.UnlockedInventorySlotCount;
+
+        for (int i = 0; i < inventorySlots.Length; i++)
         {
-            var slot = Instantiate(inventorySlotPrefab, inventoryGrid);
-            slot.Initialize(this, SlotGroup.Inventory, i);
-            grown[i] = slot;
-        }
-        inventorySlots = grown;
+            if (inventorySlots[i] == null) continue;
 
-        RebuildGridAndAncestorLayout(inventoryGrid);
+            bool unlocked = i < unlockedCount;
+            var canvasGroup = inventorySlots[i].GetComponent<CanvasGroup>();
+            if (canvasGroup == null) continue;
+
+            canvasGroup.interactable = unlocked;
+            canvasGroup.blocksRaycasts = unlocked;
+            canvasGroup.alpha = unlocked ? 1f : LockedInventorySlotAlpha;
+        }
     }
 
     /// <summary>
@@ -350,6 +370,13 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner, IInventorySlo
 
     /// <summary>
     /// 좌측 음식 창고 슬롯 개수를 업그레이드 단계에 맞춰 동적으로 확장/생성합니다.
+    ///
+    /// [HDY 요청 - 팀크로스 승인] upgradeButton은 storageContentParent 안에 미리 배치해둔 그리드
+    /// 자식이다. 슬롯을 새로 Instantiate하면 하이어라키상 버튼보다 뒤에 추가되어 버튼이 슬롯들
+    /// 사이에 끼어버리므로, 슬롯을 다 채운 뒤 버튼을 맨 끝으로 다시 밀어서 항상 마지막 그리드 칸에
+    /// 위치하게 한다(좌표 계산 없이 GridLayoutGroup이 알아서 배치, HDY의 WarehouseUI.cs와 동일한 처리).
+    /// 레이아웃 재계산(RebuildGridAndAncestorLayout)이 올바른 자식 순서를 기준으로 계산되도록,
+    /// SetAsLastSibling을 그 호출보다 먼저 한다.
     /// </summary>
     private void EnsureFoodStorageSlotCount()
     {
@@ -384,6 +411,12 @@ public class FoodWarehouseUI : MonoBehaviour, IInventorySlotOwner, IInventorySlo
             grown[i] = slot;
         }
         storageSlots = grown;
+
+        // [HDY 요청 - 팀크로스 승인] upgradeButton을 항상 그리드 마지막 칸으로 되돌린다.
+        if (upgradeButton != null)
+        {
+            upgradeButton.transform.SetAsLastSibling();
+        }
 
         RebuildGridAndAncestorLayout(storageContentParent);
     }

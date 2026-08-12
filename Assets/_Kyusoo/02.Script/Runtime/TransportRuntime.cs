@@ -1,11 +1,13 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
-using HDY.Capture;
+﻿using HDY.Capture;
 using HDY.Item;
 using HDY.Mem;
+using KMS.Audio;
 using MemSystem.Data;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using UnityEngine;
 
 public class TransportRuntime : MonoBehaviour
 {
@@ -28,6 +30,8 @@ public class TransportRuntime : MonoBehaviour
     [Header("배치된 멤 목록")]
     [SerializeField] private List<MemData> addMems = new List<MemData>();
     [SerializeField] private List<CapturedMemEntry> addMemEntries = new List<CapturedMemEntry>();
+
+    private Coroutine soundRoutine;
     public List<MemData> DeployedMems => addMems;
     public List<CapturedMemEntry> DeployedMemEntries => addMemEntries;
 
@@ -102,7 +106,11 @@ public class TransportRuntime : MonoBehaviour
 
     private void Update()
     {
-        if (!isWorking || isCollecting) return;
+        if (!isWorking || isCollecting)
+        {
+            SetWorkingActive(false);
+            return;
+        }
         currentProgressTime += Time.deltaTime;
 
         if (currentProgressTime >= totalRequiredTime)
@@ -193,15 +201,14 @@ public class TransportRuntime : MonoBehaviour
         totalRequiredTime = ProductionCalculator.CalculateFinalProductionTime(baseIntervalTime, addMems);
         currentProgressTime = totalRequiredTime * currentProgressPercent;
 
-        if (ConsumeFoodSystem.Instance == null || !ConsumeFoodSystem.Instance.IsWorkStoppedDueToStarvation)
-        {
-            SetWorkingActive(true);
-        }
-        else
+        bool isAnyMemStarving = DeployedMemEntries.Any(e => e != null && (e.IsStarving || e.CurrentHunger <= 0));
+        SetWorkingActive(!isAnyMemStarving);
+
+        if (isAnyMemStarving)
         {
             StopCollectRoutine();
-            isWorking = false;
         }
+        
     }
 
     public bool TryAddMem(MemData targetMem, CapturedMemEntry targetEntry)
@@ -262,7 +269,11 @@ public class TransportRuntime : MonoBehaviour
                 MemAdded?.Invoke(buildingData.buildingType, removedMem, false, MemPositions);
             }
         }
-    }
+        if(addMems.Count == 0)
+        {
+            SetWorkingActive(false);
+        }   
+    } 
 
     public void RemoveMem(MemData targetMem)
     {
@@ -276,11 +287,37 @@ public class TransportRuntime : MonoBehaviour
 
     private void SetWorkingActive(bool value)
     {
-        if (isWorking == value) return;
+        if (isWorking == value && (value && soundRoutine != null)) return;
         isWorking = value;
-        if (isWorking && buildingData != null)
+        if (isWorking)
         {
-            FacilityStarted?.Invoke(buildingData.buildingType, addMems, MemPositions);
+            if (soundRoutine != null) StopCoroutine(soundRoutine);
+            soundRoutine = StartCoroutine(FacilitySoundRoutine());
+
+            if (buildingData != null)
+                FacilityStarted?.Invoke(buildingData.buildingType, addMems, MemPositions);
+        }
+        else
+        {
+            if (soundRoutine != null)
+            {
+                StopCoroutine(soundRoutine);
+                soundRoutine = null;
+            }
+
+            KMSAudioService.StopSfx(GameSfxId.Transport);
+
+            if (buildingData != null)
+                FacilityStopped?.Invoke(buildingData.buildingType, addMems, FacilityStopReason.CancelCrafting, MemPositions);
+        }
+    }
+
+    private IEnumerator FacilitySoundRoutine()
+    {
+        while (isWorking)
+        {
+            KMSAudioService.PlayAt(GameSfxId.Transport, transform.position);
+            yield return new WaitForSeconds(2.0f);
         }
     }
 
@@ -288,7 +325,7 @@ public class TransportRuntime : MonoBehaviour
     {
         if (!isWorking) return;
         StopCollectRoutine();
-        isWorking = false;
+        SetWorkingActive(false);
         if (buildingData != null)
         {
             FacilityStopped?.Invoke(buildingData.buildingType, addMems, FacilityStopReason.Starvation, MemPositions);

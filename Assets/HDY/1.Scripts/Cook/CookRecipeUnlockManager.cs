@@ -14,6 +14,12 @@ namespace HDY.Cook
     /// 이미 해금된 레시피는 자동으로 후보 풀에서 제외되므로(unlockedRecipeIds에 있는 것만 걸러냄)
     /// 중복 해금은 일어나지 않는다.
     ///
+    /// [HDY 요청 - 구매 전 사전 차단] HasUnlockableRecipeRemaining()은 TryUnlockRandom과 동일한 기준
+    /// (아직 해금 안 된 레시피가 후보 풀에 하나라도 있는지)으로 확인하되, 실제로 해금하지 않는다(부작용
+    /// 없음). ShopUI가 구매창을 열기 전에 이 메서드로 먼저 확인해서, 해금 가능한 레시피가 하나도 없으면
+    /// 구매 자체를 막는다(GetBuyMaxQuantity가 0을 반환) - 예전에는 재고/골드만 보고 구매를 허용한 뒤,
+    /// TryUnlockRandom이 실패하면 그제서야 환불하는 방식이었다(그 환불 자체는 여전히 방어적으로 남아있다).
+    ///
     /// [일반 제작법(HDY.Recipe.RecipeUnlockManager)과는 별개] 여신상에서 쓰는 일반 제작법 해금 시스템과는
     /// 완전히 분리된 매니저다 - 요리 레시피는 영지 레벨/골드 조건부 개별 구매가 아니라, 상점에서 뽑기 형태로
     /// 해금되는 별도 기획이라 데이터 구조와 저장 형식도 다를 수 있어 섞지 않았다.
@@ -132,6 +138,27 @@ namespace HDY.Cook
             OnRecipeUnlocked?.Invoke(unlocked);
 
             return true;
+        }
+
+        /// <summary>
+        /// [HDY 요청 - 구매 전 사전 차단용] 해금 가능한(아직 해금되지 않은) 요리 레시피가 카탈로그에
+        /// 하나라도 남아있는지 확인한다. TryUnlockRandom과 달리 실제로 해금하지 않는다(부작용 없음) -
+        /// 상점이 구매를 허용하기 전에 먼저 확인하는 용도.
+        /// </summary>
+        public bool HasUnlockableRecipeRemaining()
+        {
+            itemCatalogManager = ItemCatalogManager.Resolve(itemCatalogManager);
+            if (itemCatalogManager == null) return false;
+
+            foreach (var recipe in itemCatalogManager.CookRecipeDataList)
+            {
+                if (recipe == null || string.IsNullOrEmpty(recipe.Result_Item_ID)) continue;
+                if (unlockedLookup.Contains(recipe.Result_Item_ID)) continue;
+
+                return true; // 후보 하나라도 찾으면 충분
+            }
+
+            return false;
         }
 
         /// <summary>

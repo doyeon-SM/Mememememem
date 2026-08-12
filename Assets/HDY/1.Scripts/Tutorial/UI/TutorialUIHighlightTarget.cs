@@ -39,5 +39,32 @@ namespace HDY.Tutorial
 
             tutorialManager.UnregisterUIHighlightTarget(targetKey, rectTransform);
         }
+
+        /// <summary>
+        /// [HDY 요청 - 동적 슬롯 하이라이트] 런타임에 AddComponent로 붙이면서 키를 지정할 때 쓴다
+        /// (예: GoddessStatueUI_LevelRow가 여러 슬롯 중 영지 확장 슬롯 하나에만 붙이는 경우). Inspector로
+        /// 미리 배치된 정적 UI는 targetKey를 직접 채워두면 되니 이 메서드를 쓸 필요가 없다.
+        /// AddComponent 시점엔 Awake→OnEnable이 먼저 실행되는데, 그때는 targetKey가 비어있어 등록이
+        /// 스킵된다. 그래서 여기서 직접 등록까지 해준다. 이미 다른 키로 등록되어 있던 상태였다면 그 키로
+        /// 먼저 해제한 뒤 새 키로 다시 등록한다.
+        /// </summary>
+        public void Configure(string key)
+        {
+            if (isActiveAndEnabled && tutorialManager != null && !string.IsNullOrEmpty(targetKey))
+            {
+                tutorialManager.UnregisterUIHighlightTarget(targetKey, rectTransform);
+            }
+
+            targetKey = key;
+
+            if (isActiveAndEnabled)
+            {
+                tutorialManager = TutorialManager.Resolve(tutorialManager);
+                if (tutorialManager != null && !string.IsNullOrEmpty(targetKey))
+                {
+                    tutorialManager.RegisterUIHighlightTarget(targetKey, rectTransform);
+                }
+            }
+        }
     }
 }

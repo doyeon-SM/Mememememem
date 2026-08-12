@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using KMS.InventoryDuped;
@@ -8,14 +9,46 @@ public class PlayerInventoryRecord : MonoBehaviour, IRecord
 {
     private PlayerInventory liveInventory;
 
+    [Header("자동 저장 설정")]
+    [SerializeField] private float autoSaveInterval = 60f; // 1분 단위 저장
+
+    private bool isDirty = false; // 데이터 변경 여부 플래그
+    private Coroutine autoSaveCoroutine;
+
     private void OnEnable()
     {
         RefreshReference();
+        StartAutoSaveRoutine();
     }
 
     private void OnDisable()
     {
+        // 씬 이동 및 비활성화 시 데이터가 변경된 상태라면 즉시 저장
+        if (isDirty)
+        {
+            SaveData(RecordManager.Instance != null ? RecordManager.Instance.SaveFilePath : null);
+        }
+
+        StopAutoSaveRoutine();
         Unsubscribe();
+    }
+
+    private void OnApplicationQuit()
+    {
+        // 게임 정상 종료 시 즉시 저장
+        if (isDirty)
+        {
+            SaveData(RecordManager.Instance != null ? RecordManager.Instance.SaveFilePath : null);
+        }
+    }
+
+    private void OnApplicationPause(bool pauseStatus)
+    {
+        // 앱이 백그라운드로 내려가거나 창 이탈 시 데이터 유실 방지 저장
+        if (pauseStatus && isDirty)
+        {
+            SaveData(RecordManager.Instance != null ? RecordManager.Instance.SaveFilePath : null);
+        }
     }
 
     private void RefreshReference()
@@ -27,6 +60,7 @@ public class PlayerInventoryRecord : MonoBehaviour, IRecord
             liveInventory.OnInventoryChanged += OnInventoryDataChangedHandler;
             liveInventory.OnInventorySlotCountChanged += OnInventoryDataChangedHandler;
             liveInventory.OnSelectedQuickSlotChanged += OnQuickSlotSelectionChangedHandler;
+            liveInventory.OnQuickSlotChanged += OnQuickSlotDataChangedHandler;
         }
     }
 
@@ -37,25 +71,56 @@ public class PlayerInventoryRecord : MonoBehaviour, IRecord
             liveInventory.OnInventoryChanged -= OnInventoryDataChangedHandler;
             liveInventory.OnInventorySlotCountChanged -= OnInventoryDataChangedHandler;
             liveInventory.OnSelectedQuickSlotChanged -= OnQuickSlotSelectionChangedHandler;
+            liveInventory.OnQuickSlotChanged -= OnQuickSlotDataChangedHandler;
             liveInventory = null;
         }
     }
 
+    // 🌟 이벤트 발생 시 디스크에 직접 쓰지 않고 Dirty 플래그만 세팅
     private void OnInventoryDataChangedHandler()
     {
         if (RecordManager.IsLoadingData) return;
-        if (RecordManager.Instance != null)
-        {
-            SaveData(RecordManager.Instance.SaveFilePath);
-        }
+        isDirty = true;
     }
 
     private void OnQuickSlotSelectionChangedHandler(int selectedIndex)
     {
         if (RecordManager.IsLoadingData) return;
-        if (RecordManager.Instance != null)
+        isDirty = true;
+    }
+
+    private void OnQuickSlotDataChangedHandler(int slotIndex)
+    {
+        if (RecordManager.IsLoadingData) return;
+        isDirty = true;
+    }
+
+    private void StartAutoSaveRoutine()
+    {
+        StopAutoSaveRoutine();
+        autoSaveCoroutine = StartCoroutine(AutoSaveRoutine());
+    }
+
+    private void StopAutoSaveRoutine()
+    {
+        if (autoSaveCoroutine != null)
         {
-            SaveData(RecordManager.Instance.SaveFilePath);
+            StopCoroutine(autoSaveCoroutine);
+            autoSaveCoroutine = null;
+        }
+    }
+
+    private IEnumerator AutoSaveRoutine()
+    {
+        var wait = new WaitForSeconds(autoSaveInterval);
+        while (true)
+        {
+            yield return wait;
+            // 1분이 지났을 때 데이터 변경사항이 있을 때만 디스크 저장 실행
+            if (isDirty && RecordManager.Instance != null)
+            {
+                SaveData(RecordManager.Instance.SaveFilePath);
+            }
         }
     }
 
@@ -83,6 +148,8 @@ public class PlayerInventoryRecord : MonoBehaviour, IRecord
 
     public void SaveData(string saveFilePath)
     {
+        if (string.IsNullOrEmpty(saveFilePath)) return;
+
         if (liveInventory == null) RefreshReference();
         if (liveInventory == null) return;
 
@@ -96,6 +163,8 @@ public class PlayerInventoryRecord : MonoBehaviour, IRecord
 
         currentData.lastSaveTime = DateTime.UtcNow.ToString("o");
         File.WriteAllText(saveFilePath, JsonUtility.ToJson(currentData, true));
+
+        isDirty = false; // 디스크 저장 완료 후 Dirty 플래그 해제
         Debug.Log("<color=lime>[PlayerInventoryRecord]</color> 🎒 플레이어 인벤토리 및 퀵슬롯 세이브 성공!");
     }
 
@@ -125,6 +194,7 @@ public class PlayerInventoryRecord : MonoBehaviour, IRecord
 
         liveInventory.PublishInventoryChanged();
 
+        isDirty = false; // 복구 직후에는 저장할 필요 없으므로 false 세팅
         Debug.Log($"<color=cyan>[PlayerInventoryRecord]</color> 🎒 플레이어 인벤토리 완전 복구 완료! (언락 슬롯: {unlockedCount}칸)");
     }
 }

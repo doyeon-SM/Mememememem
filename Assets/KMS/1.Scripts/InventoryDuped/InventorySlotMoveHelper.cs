@@ -28,7 +28,8 @@ namespace KMS.InventoryDuped
 
             if (toSlot.IsEmpty)
             {
-                toSlot.Set(fromSlot.itemId, fromSlot.amount);
+                // [HDY 요청 - KMS 크로스 승인 - 내구도] 빈 슬롯으로 이동할 때 durability도 함께 넘긴다.
+                toSlot.Set(fromSlot.itemId, fromSlot.amount, fromSlot.durability);
                 fromSlot.Clear();
                 return true;
             }
@@ -38,10 +39,12 @@ namespace KMS.InventoryDuped
                 return MergeStack(fromSlot, toSlot, catalogManager);
             }
 
+            // [HDY 요청 - KMS 크로스 승인 - 내구도] 서로 자리를 바꿀 때 durability도 함께 맞바꾼다.
             string tempItemId = fromSlot.itemId;
             int tempAmount = fromSlot.amount;
-            fromSlot.Set(toSlot.itemId, toSlot.amount);
-            toSlot.Set(tempItemId, tempAmount);
+            int tempDurability = fromSlot.durability;
+            fromSlot.Set(toSlot.itemId, toSlot.amount, toSlot.durability);
+            toSlot.Set(tempItemId, tempAmount, tempDurability);
 
             return true;
         }
@@ -50,6 +53,10 @@ namespace KMS.InventoryDuped
         /// 같은 아이템 스택을 병합한다. 슬롯에는 itemId(string)만 있어 MaxStack을 알 수 없으므로,
         /// 카탈로그에서 ItemData를 다시 조회해서 MaxStack을 가져온다. 카탈로그에서 못 찾으면 안전하게
         /// 1개(스택 불가)로 취급한다.
+        ///
+        /// [HDY 요청 - KMS 크로스 승인 - 내구도] 내구도가 있는 아이템은 전부 MaxStack=1(카탈로그 규칙)이라
+        /// space가 항상 0이 되어 이 메서드가 실행되어도 실제로는 병합이 일어나지 않는다(각 개체가 서로 다른
+        /// durability를 갖고 있어도 안전) - 별도 분기 없이 기존 수량 계산 로직만으로 충분하다.
         /// </summary>
         public static bool MergeStack(ItemStack fromSlot, ItemStack toSlot, ItemCatalogManager catalogManager)
         {

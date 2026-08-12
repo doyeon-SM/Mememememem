@@ -1,4 +1,5 @@
 using UnityEngine;
+using MemSystem.Core;
 
 namespace KMS
 {
@@ -27,6 +28,12 @@ namespace KMS
         private LineRenderer landingMarker;
         private Material runtimeMaterial;
 
+        /// <summary>
+        /// 현재 표시 중인 캡슐 궤적의 첫 충돌 대상이 활성 멤이면 해당 멤을 반환합니다.
+        /// 궤적이 숨겨졌거나 지형/오브젝트에 닿으면 null입니다.
+        /// </summary>
+        public Mem PredictedMemTarget { get; private set; }
+
         private void Awake()
         {
             EnsureVisuals();
@@ -36,6 +43,7 @@ namespace KMS
         public void Show(Vector3 origin, Vector3 initialVelocity)
         {
             EnsureVisuals();
+            PredictedMemTarget = null;
 
             int pointCount = 1;
             trajectoryPoints[0] = origin;
@@ -69,7 +77,15 @@ namespace KMS
             }
             trajectoryLine.enabled = true;
 
-            if (foundLanding) ShowLandingMarker(landingHit.point, landingHit.normal);
+            if (foundLanding)
+            {
+                ShowLandingMarker(landingHit.point, landingHit.normal);
+
+                Mem hitMem = landingHit.collider != null
+                    ? landingHit.collider.GetComponentInParent<Mem>()
+                    : null;
+                PredictedMemTarget = hitMem != null && hitMem.IsActive ? hitMem : null;
+            }
             else landingMarker.enabled = false;
         }
 
@@ -77,6 +93,7 @@ namespace KMS
         {
             if (trajectoryLine != null) trajectoryLine.enabled = false;
             if (landingMarker != null) landingMarker.enabled = false;
+            PredictedMemTarget = null;
         }
 
         private bool TryFindFirstExternalHit(Vector3 origin, Vector3 direction, float distance, out RaycastHit closestHit)
