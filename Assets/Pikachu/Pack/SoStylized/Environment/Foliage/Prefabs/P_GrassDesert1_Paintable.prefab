@@ -61,7 +61,7 @@ PrefabInstance:
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 6548857339345487969, guid: 3bf86afe43279e84f9e838f18e0aeed9, type: 3}
-      propertyPath: m_Materials.Array.data[0]
+      propertyPath: 'm_Materials.Array.data[0]'
       value: 
       objectReference: {fileID: 2100000, guid: b061ba79027a6b74a90b92687e0b1ced, type: 2}
     - target: {fileID: 6959402533502272192, guid: 3bf86afe43279e84f9e838f18e0aeed9, type: 3}
@@ -82,6 +82,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 3bf86afe43279e84f9e838f18e0aeed9, type: 3}
       insertIndex: -1
       addedObject: {fileID: -1895543613832793319}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 3bf86afe43279e84f9e838f18e0aeed9, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 7114986708182785546}
   m_SourcePrefab: {fileID: 100100000, guid: 3bf86afe43279e84f9e838f18e0aeed9, type: 3}
 --- !u!1 &5494261819123090599 stripped
 GameObject:
@@ -100,11 +103,16 @@ MeshRenderer:
   m_ReceiveShadows: 1
   m_DynamicOccludee: 0
   m_StaticShadowCaster: 0
-  m_MotionVectors: 1
-  m_LightProbeUsage: 1
-  m_ReflectionProbeUsage: 1
+  m_MotionVectors: 0
+  m_LightProbeUsage: 0
+  m_ReflectionProbeUsage: 0
   m_RayTracingMode: 2
   m_RayTraceProcedural: 0
+  m_RayTracingAccelStructBuildFlagsOverride: 0
+  m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -126,9 +134,11 @@ MeshRenderer:
   m_AutoUVMaxDistance: 0.5
   m_AutoUVMaxAngle: 89
   m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
+  m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
 --- !u!33 &-1895543613832793319
 MeshFilter:
@@ -138,3 +148,22 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 5494261819123090599}
   m_Mesh: {fileID: 4001400361198203071, guid: 3bf86afe43279e84f9e838f18e0aeed9, type: 3}
+--- !u!205 &7114986708182785546
+LODGroup:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5494261819123090599}
+  serializedVersion: 2
+  m_LocalReferencePoint: {x: 0.014883459, y: 0.1637895, z: -0.004670024}
+  m_Size: 1.059425
+  m_FadeMode: 0
+  m_AnimateCrossFading: 0
+  m_LastLODIsBillboard: 0
+  m_LODs:
+  - screenRelativeHeight: 0.035
+    fadeTransitionWidth: 0
+    renderers:
+    - renderer: {fileID: 6360203111785538891}
+  m_Enabled: 1

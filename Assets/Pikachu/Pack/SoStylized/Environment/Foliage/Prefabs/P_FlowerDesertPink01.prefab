@@ -52,6 +52,18 @@ PrefabInstance:
       propertyPath: m_CastShadows
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: -7511558181221131132, guid: 6c4765087505a3e4fba943b4818438c5, type: 3}
+      propertyPath: m_MotionVectors
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -7511558181221131132, guid: 6c4765087505a3e4fba943b4818438c5, type: 3}
+      propertyPath: m_LightProbeUsage
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -7511558181221131132, guid: 6c4765087505a3e4fba943b4818438c5, type: 3}
+      propertyPath: m_ReflectionProbeUsage
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: 6c4765087505a3e4fba943b4818438c5, type: 3}
       propertyPath: m_Name
       value: P_FlowerDesertPink01
@@ -59,5 +71,37 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 6c4765087505a3e4fba943b4818438c5, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 85082813707888320}
   m_SourcePrefab: {fileID: 100100000, guid: 6c4765087505a3e4fba943b4818438c5, type: 3}
+--- !u!23 &3208544231448877249 stripped
+MeshRenderer:
+  m_CorrespondingSourceObject: {fileID: -7511558181221131132, guid: 6c4765087505a3e4fba943b4818438c5, type: 3}
+  m_PrefabInstance: {fileID: 4271273212521808965}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &4001436769933080852 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: 6c4765087505a3e4fba943b4818438c5, type: 3}
+  m_PrefabInstance: {fileID: 4271273212521808965}
+  m_PrefabAsset: {fileID: 0}
+--- !u!205 &85082813707888320
+LODGroup:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4001436769933080852}
+  serializedVersion: 2
+  m_LocalReferencePoint: {x: 0.054936558, y: 0.22974199, z: -0.089662254}
+  m_Size: 0.84738934
+  m_FadeMode: 0
+  m_AnimateCrossFading: 0
+  m_LastLODIsBillboard: 0
+  m_LODs:
+  - screenRelativeHeight: 0.035
+    fadeTransitionWidth: 0
+    renderers:
+    - renderer: {fileID: 3208544231448877249}
+  m_Enabled: 1
