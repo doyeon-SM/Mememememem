@@ -93,6 +93,13 @@ namespace HDY.UI
     /// 마지막에 추가), 팝업은 해금된 레시피들을 전부 보여준 뒤 환불 안내가 마지막에 나오는 순서로
     /// 진행된다. 재료로 구매하도록 설정된 경우(HasMaterialCost)는 IMaterialInventory에 재료를 돌려주는
     /// API가 없어 자동 환불을 지원하지 않는다 - 골드 전용 판매를 전제로 한다.
+    ///
+    /// [HDY 요청 - 해금 가능한 레시피가 없으면 구매 자체를 막음] GetBuyMaxQuantity가 cook_recipebook에
+    /// 한해 재고/골드 계산보다 먼저 CookRecipeUnlockManager.HasUnlockableRecipeRemaining()을 확인해서,
+    /// 해금 가능한 레시피가 카탈로그에 하나도 남지 않았으면 무조건 0을 반환한다 - 거래 팝업의 확인
+    /// 버튼은 수량 0일 때 비활성화되므로(공용 규칙) 구매 자체가 막힌다. 위의 사후 환불 로직은 그대로
+    /// 남겨뒀다 - 구매창이 열려있는 동안 다른 경로로 마지막 레시피가 먼저 해금되는 등의 경합 상황에서도
+    /// 안전하게 처리하기 위한 이중 방어다.
     /// </summary>
     public class ShopUI : MonoBehaviour
     {
@@ -370,6 +377,18 @@ namespace HDY.UI
         /// </summary>
         private int GetBuyMaxQuantity(ShopItemData itemData)
         {
+            // [HDY 요청 - 해금 가능한 레시피가 없으면 구매 자체를 막음] 재고/골드 계산보다 먼저 확인한다.
+            // 기존 TryUnlockRandom의 방어 코드(후보 0개면 실패)와 같은 기준을, 실제로 해금하지 않는
+            // HasUnlockableRecipeRemaining으로 부작용 없이 미리 확인한다.
+            if (itemData.Item_ID == CookRecipeBookItemId)
+            {
+                cookRecipeUnlockManager = CookRecipeUnlockManager.Resolve(cookRecipeUnlockManager);
+                if (cookRecipeUnlockManager != null && !cookRecipeUnlockManager.HasUnlockableRecipeRemaining())
+                {
+                    return 0;
+                }
+            }
+
             int stock = stockManager != null ? stockManager.GetPurchaseStock(itemData) : 0;
             if (stock <= 0) return 0;
 

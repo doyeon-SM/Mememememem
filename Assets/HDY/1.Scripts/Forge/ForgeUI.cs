@@ -47,6 +47,8 @@ namespace HDY.Forge
     ///
     /// [탭] 강화 탭은 CanEnhance=true인 도구만, 승급 탭은 지금 승급 가능한 상태(EligibleForPromotionNow)인
     /// 도구만 하단 목록에 보여준다. 연마/전승 탭은 연마 가능한 도구(도끼/곡괭이/괭이) 전부를 보여준다.
+    /// [HDY 요청] 몽둥이(ForgeToolType.Club)는 4개 탭 전부에서 하단 목록 자체에 아예 나타나지 않는다
+    /// (CollectForgeableTools에서 탭 분기보다 먼저 걸러냄) - 강화/승급/연마/전승 전부 대상이 아니다.
     /// 정렬은 티어 내림차순 -> 강화레벨 내림차순.
     ///
     /// [자동 전환] 강화로 10강을 찍으면 자동으로 승급 탭으로 전환하고 같은 아이템을 그대로 선택 상태로 둔다.
@@ -487,6 +489,10 @@ namespace HDY.Forge
                     var descriptor = forgeManager.Describe(slot);
                     if (!descriptor.IsForgeable) continue;
 
+                    // [HDY 요청] 몽둥이(Club)는 대장간 하단 목록에서 4개 탭 전부 제외한다(강화/승급/연마/
+                    // 전승 전부 불가) - 탭별 분기보다 먼저 걸러낸다.
+                    if (descriptor.ToolType == ForgeToolType.Club) continue;
+
                     bool matchesTab;
                     switch (currentTab)
                     {
@@ -498,7 +504,7 @@ namespace HDY.Forge
                             break;
                         case ForgeUITab.Refinement:
                         case ForgeUITab.Inheritance:
-                            matchesTab = true; // 연마 가능한 도구(도끼/곡괭이/괭이)는 전부 대상
+                            matchesTab = true; // 몽둥이는 이미 위에서 걸러졌으므로 도끼/곡괭이/괭이만 남는다
                             break;
                         default:
                             matchesTab = false;

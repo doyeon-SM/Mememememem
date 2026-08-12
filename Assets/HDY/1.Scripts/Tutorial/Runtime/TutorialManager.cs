@@ -70,12 +70,20 @@ namespace HDY.Tutorial
     /// 웨이포인트석(WayPointStone)은 전부 F(PlayerInteraction)로 여는 구조라, 이 차단 하나로 "대사 중에
     /// 미리 상자를 열거나 웨이포인트를 등록해서 튜토리얼 진행이 꼬이는" 문제까지 함께 막힌다.
     ///
-    /// [HDY 요청 - 영지에서 F키로 보상을 못 받는 버그 수정] HandleSceneLoaded는 씬 전환 시 playerInput을
-    /// 찾아 InteractPressed를 딱 한 번만 구독한다. 영지 씬은 플레이어(PlayerInput)가 씬 로드 시점에
-    /// 아직 스폰되지 않은 경우가 있어(탐험 씬과 스폰 타이밍이 다름), 그 순간 못 찾으면 구독 자체가
-    /// 비어있는 채로 남고 이후 아무도 다시 구독을 시도해주지 않아 클릭은 되는데 F키만 먹통이 되는
-    /// 문제가 있었다. Update()에서 playerInput이 비어있을 때만 가볍게 매 프레임 재확인해서, 플레이어가
-    /// 늦게 나타나도 자동으로 다시 연결되도록 방어 코드를 추가했다.
+    /// [HDY 요청 - 영지에서 F키로 보상을 못 받는 버그 수정 1차] HandleSceneLoaded는 씬 전환 시
+    /// playerInput을 찾아 InteractPressed를 딱 한 번만 구독한다. 영지 씬은 플레이어(PlayerInput)가 씬
+    /// 로드 시점에 아직 스폰되지 않은 경우가 있어(탐험 씬과 스폰 타이밍이 다름), 그 순간 못 찾으면
+    /// 구독 자체가 비어있는 채로 남고 이후 아무도 다시 구독을 시도해주지 않는 문제가 있었다. Update()에서
+    /// playerInput이 비어있을 때만 가볍게 매 프레임 재확인해서 자동으로 다시 연결되도록 방어 코드를
+    /// 추가했다.
+    ///
+    /// [HDY 요청 - 영지에서 F키로 보상을 못 받는 버그 수정 2차] 1차 수정 이후에도 문제가 남아있었다 -
+    /// 원인은 F키 우회 폴링(Update)이 isDialogueInputBlockActive가 true일 때만(즉 대사가 떠 있는 동안만)
+    /// 동작했기 때문이다. 보상 팝업은 대사가 끝나 입력 차단이 이미 풀린 뒤에 뜨므로, 그 시점에는 우회
+    /// 경로가 아예 적용되지 않고 순전히 InteractPressed 이벤트 구독 하나에만 의존하고 있었다. 그래서
+    /// Update()의 F키 폴링 조건에 "보상 팝업이 확인을 기다리는 중(rewardPreviewUI.IsAwaitingConfirm)"도
+    /// 추가했다 - 이제 이벤트 구독이 어떤 이유로든 끊겨있어도, 보상 확인 단계에서는 F키가 항상 직접
+    /// 폴링으로 동작한다(클릭은 기존 UI 버튼 경로 그대로 별도로 동작).
     /// </summary>
     public class TutorialManager : MonoBehaviour
     {
@@ -272,7 +280,13 @@ namespace HDY.Tutorial
                 }
             }
 
-            if (!isDialogueInputBlockActive) return;
+            // [HDY 요청 - 보상 팝업에서도 F키 확실히 동작하도록, 2차 수정] 대사 차단 중이 아니어도, 보상
+            // 팝업이 확인을 기다리는 중이면 F 입력을 직접 폴링한다. InteractPressed 이벤트 구독이 씬 전환
+            // 등 어떤 이유로든 끊겨있어도 이 경로는 이벤트 구독과 완전히 무관하게 항상 살아있다.
+            bool shouldPollInteractKey = isDialogueInputBlockActive ||
+                (rewardPreviewUI != null && rewardPreviewUI.IsAwaitingConfirm);
+
+            if (!shouldPollInteractKey) return;
             if (Keyboard.current == null) return;
 
             if (Keyboard.current[Key.F].wasPressedThisFrame)
