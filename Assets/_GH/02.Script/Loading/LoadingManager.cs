@@ -127,6 +127,28 @@ namespace GH.Loading
         /// <returns>요청이 시작되었으면 참, 설정 누락·중복 요청·씬 누락이면 거짓입니다.</returns>
         public bool LoadScene(string sceneName, string targetWayPointId)
         {
+            return LoadSceneInternal(new LoadingContext(sceneName, targetWayPointId));
+        }
+
+        /// <summary>
+        /// 맵 전환용 씬 로드입니다. 도착 웨이포인트, 직접 좌표, 기존 위치 처리 순으로 적용합니다.
+        /// </summary>
+        public bool LoadScene(
+            string sceneName,
+            string targetWayPointId,
+            bool useTargetPosition,
+            Vector3 targetPosition)
+        {
+            return LoadSceneInternal(new LoadingContext(
+                sceneName,
+                targetWayPointId,
+                useTargetPosition,
+                targetPosition));
+        }
+
+        private bool LoadSceneInternal(LoadingContext context)
+        {
+            string sceneName = context.SceneName;
             if (IsLoading || string.IsNullOrWhiteSpace(sceneName))
             {
                 return false;
@@ -155,7 +177,6 @@ namespace GH.Loading
                 return false;
             }
 
-            LoadingContext context = new LoadingContext(sceneName, targetWayPointId);
             return TryStartLoading(context, true);
         }
 
@@ -255,7 +276,8 @@ namespace GH.Loading
             yield return CompleteDeferredTasks(tasks);
             yield return null;
 
-            MovePlayerToDestinationWayPoint(context.DestinationId);
+            // sceneLoaded에서 저장 위치 복원이 끝난 뒤 트리거 목적지를 적용해야 최종 위치가 유지됩니다.
+            MovePlayerToRequestedDestination(context);
             IsLoading = false;
             loadingRoutine = null;
             DestroyLoadingPanelInstance();
@@ -386,11 +408,28 @@ namespace GH.Loading
             return totalWeight;
         }
 
-        private void MovePlayerToDestinationWayPoint(string destinationWayPointId)
+        private void MovePlayerToRequestedDestination(LoadingContext context)
+        {
+            if (!string.IsNullOrWhiteSpace(context.DestinationId)
+                && TryMovePlayerToDestinationWayPoint(context.DestinationId))
+            {
+                return;
+            }
+
+            if (context.HasDestinationPosition)
+            {
+                TryMovePlayerToPosition(context.DestinationPosition);
+                return;
+            }
+
+            RefreshPlayerReferences(PlayerReferenceResolver.FindPlayerObject());
+        }
+
+        private bool TryMovePlayerToDestinationWayPoint(string destinationWayPointId)
         {
             if (string.IsNullOrWhiteSpace(destinationWayPointId))
             {
-                return;
+                return false;
             }
 
             WayPointStone destinationStone = null;
@@ -414,7 +453,7 @@ namespace GH.Loading
                 Debug.LogWarning(
                     $"[LoadingManager] 목적지 배치 실패. waypoint={destinationWayPointId}",
                     this);
-                return;
+                return false;
             }
 
             if (WayPointManager.Instance != null)
@@ -426,7 +465,7 @@ namespace GH.Loading
                     Debug.LogWarning(
                         $"[LoadingManager] 목적지에 배치할 플레이어를 찾지 못했습니다. waypoint={destinationWayPointId}",
                         destinationStone);
-                    return;
+                    return false;
                 }
             }
             else
@@ -444,6 +483,58 @@ namespace GH.Loading
                 {
                     controller.enabled = true;
                 }
+            }
+
+            RefreshPlayerReferences(playerObject);
+            return true;
+        }
+
+        private bool TryMovePlayerToPosition(Vector3 destinationPosition)
+        {
+            GameObject playerObject = PlayerReferenceResolver.FindPlayerObject();
+            if (playerObject == null)
+            {
+                Debug.LogWarning(
+                    $"[LoadingManager] 직접 좌표에 배치할 플레이어를 찾지 못했습니다. position={destinationPosition}",
+                    this);
+                return false;
+            }
+
+            CharacterController controller = PlayerReferenceResolver
+                .FindComponentInPlayerHierarchy<CharacterController>(playerObject);
+            bool restoreController = controller != null && controller.enabled;
+            if (restoreController)
+            {
+                controller.enabled = false;
+            }
+
+            playerObject.transform.position = destinationPosition;
+
+            if (restoreController)
+            {
+                controller.enabled = true;
+            }
+
+            Rigidbody body = PlayerReferenceResolver
+                .FindComponentInPlayerHierarchy<Rigidbody>(playerObject);
+            if (body != null && !body.isKinematic)
+            {
+                body.linearVelocity = Vector3.zero;
+                body.angularVelocity = Vector3.zero;
+            }
+
+            RefreshPlayerReferences(playerObject);
+            Debug.Log(
+                $"[LoadingManager] 플레이어 직접 좌표 배치 완료: {destinationPosition}",
+                playerObject);
+            return true;
+        }
+
+        private void RefreshPlayerReferences(GameObject playerObject)
+        {
+            if (playerObject == null)
+            {
+                return;
             }
 
             WorldChunkManager chunkManager = FindFirstObjectByType<WorldChunkManager>(FindObjectsInactive.Include);

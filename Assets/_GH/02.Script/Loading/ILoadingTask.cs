@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using UnityEngine;
 
 namespace GH.Loading
 {
@@ -40,10 +41,27 @@ namespace GH.Loading
         /// <summary>동적으로 지정된 대상 씬이 있는지 나타냅니다.</summary>
         public bool HasSceneRequest => !string.IsNullOrWhiteSpace(SceneName);
 
+        /// <summary>웨이포인트를 사용할 수 없을 때 적용할 직접 월드 좌표가 있는지 나타냅니다.</summary>
+        public bool HasDestinationPosition { get; }
+
+        /// <summary>새 씬에서 플레이어를 배치할 직접 월드 좌표입니다.</summary>
+        public Vector3 DestinationPosition { get; }
+
         public LoadingContext(string sceneName, string destinationId)
+            : this(sceneName, destinationId, false, Vector3.zero)
+        {
+        }
+
+        public LoadingContext(
+            string sceneName,
+            string destinationId,
+            bool hasDestinationPosition,
+            Vector3 destinationPosition)
         {
             SceneName = sceneName ?? string.Empty;
             DestinationId = destinationId ?? string.Empty;
+            HasDestinationPosition = hasDestinationPosition;
+            DestinationPosition = destinationPosition;
         }
     }
 

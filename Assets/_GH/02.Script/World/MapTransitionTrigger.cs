@@ -15,6 +15,10 @@ public class MapTransitionTrigger : MonoBehaviour
     [SerializeField] private WayPointMapDefinition targetMap;
     [Tooltip("새 씬에서 플레이어가 도착할 웨이포인트입니다. 비워 두면 LoadingManager의 기본 배치를 사용합니다.")]
     [SerializeField] private WayPointDefinition arrivalWayPoint;
+    [Tooltip("Arrival Way Point가 없거나 실제 배치에 실패했을 때 아래 월드 좌표를 도착 위치로 사용합니다.")]
+    [SerializeField] private bool useArrivalPosition;
+    [Tooltip("대상 씬에서 사용할 월드 좌표입니다. Use Arrival Position을 켰을 때만 적용됩니다.")]
+    [SerializeField] private Vector3 arrivalPosition = Vector3.zero;
     [Tooltip("활성화하면 대상 지도의 Required Completed Maps 조건을 만족해야 이동합니다.")]
     [SerializeField] private bool requireTargetMapAvailable = true;
 
@@ -105,7 +109,11 @@ public class MapTransitionTrigger : MonoBehaviour
         }
 
         isLoading = true;
-        bool started = LoadingManager.Instance.LoadScene(targetSceneName, arrivalWayPointId);
+        bool started = LoadingManager.Instance.LoadScene(
+            targetSceneName,
+            arrivalWayPointId,
+            useArrivalPosition,
+            arrivalPosition);
         if (!started)
         {
             isLoading = false;
@@ -123,9 +131,19 @@ public class MapTransitionTrigger : MonoBehaviour
 
         if (logTransition)
         {
-            string arrivalMessage = string.IsNullOrWhiteSpace(arrivalWayPointId)
-                ? "기본 도착 위치"
-                : $"웨이포인트 '{arrivalWayPointId}'";
+            string arrivalMessage;
+            if (!string.IsNullOrWhiteSpace(arrivalWayPointId))
+            {
+                arrivalMessage = $"웨이포인트 '{arrivalWayPointId}'";
+            }
+            else if (useArrivalPosition)
+            {
+                arrivalMessage = $"직접 좌표 {arrivalPosition}";
+            }
+            else
+            {
+                arrivalMessage = "기본 위치(저장 위치 복원 포함)";
+            }
             Debug.Log(
                 $"[MapTransitionTrigger] 지도 이동 시작: {targetMap.displayName} / {targetSceneName} / {arrivalMessage}",
                 this);
