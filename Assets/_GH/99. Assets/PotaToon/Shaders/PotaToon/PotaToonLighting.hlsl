@@ -146,8 +146,12 @@ half3 MainLighting(Light mainLight, float3 positionWS, float3 normalWS, float3 v
         totalAttenuation = min(totalAttenuation, 1.0 - charShadowAtten);
     }
 
-    // We intentionally skip validating _BrightestLightDirection here to introduce a black-looking result when setup is incomplete.
-    half3 lightDirection = isBrightestLight ? _BrightestLightDirection.xyz : mainLight.direction;
+    // Static PotaToon props do not require a PotaToonCharacter component. If the character
+    // shadow buffer was not produced, use URP's main-light direction instead of a zero vector.
+    bool hasBrightestLightDirection = dot(_BrightestLightDirection.xyz, _BrightestLightDirection.xyz) > 1e-6;
+    half3 lightDirection = (isBrightestLight && hasBrightestLightDirection)
+        ? _BrightestLightDirection.xyz
+        : mainLight.direction;
     
     // Diffuse
     float halfLambert, halfLambertStep;

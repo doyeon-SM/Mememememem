@@ -77,6 +77,8 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
     [SerializeField] private Vector3 dropAreaOffset;
     [Tooltip("드롭 타원 전체 크기입니다. X는 월드 가로축, Y는 월드 Z축 크기로 사용합니다.")]
     [SerializeField] private Vector2 dropAreaSize = new Vector2(2.2f, 2.2f);
+    [Tooltip("큰 드롭 영역에 적용할 축소 비율입니다. 다중 드롭 공간 확보를 위해 각 축은 기존 2.2m 이하로 줄지 않습니다.")]
+    [Range(0.25f, 1f)] [SerializeField] private float dropLandingSpread = 0.5f;
     [Tooltip("유효한 바닥 위치를 찾기 위해 시도할 횟수입니다.")]
     [Min(1)] [SerializeField] private int dropPositionAttempts = 12;
     [Tooltip("드롭 위치 주변에 다른 오브젝트가 없어야 하는 반경입니다.")]
@@ -348,7 +350,7 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
             // 자원 콜라이더 위를 바닥으로 잘못 인식하지 않도록 먼저 자원을 숨긴 뒤 드롭 위치를 계산합니다.
             BeginRespawnCooldown();
             Physics.SyncTransforms();
-            ItemDrops(activeTool);
+            ItemDrops(activeTool, hitPoint);
 
             if (IsDead)
             {
@@ -429,12 +431,12 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
             : null;
     }
 
-    private void ItemDrops(ItemData tool)
+    private void ItemDrops(ItemData tool, Vector3 hitPoint)
     {
-        SpawnDropObjects(tool);
+        SpawnDropObjects(tool, hitPoint);
     }
 
-    private void SpawnDropObjects(ItemData tool)
+    private void SpawnDropObjects(ItemData tool, Vector3 hitPoint)
     {
         if (dropItems == null || dropItems.Length == 0) return;
 
@@ -470,17 +472,18 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
                 this);
         }
 
-        WorldItemDropLaunchSettings launchSettings = CreateDropLaunchSettings();
+        WorldItemDropLaunchSettings launchSettings = CreateDropLaunchSettings(hitPoint);
+        Vector2 effectiveDropAreaSize = GetEffectiveDropAreaSize();
 
         foreach (KeyValuePair<string, int> drop in amountsByItemId)
         {
-            WorldItemDropSpawner.SpawnIndividualItems(
+            int spawnedCount = WorldItemDropSpawner.SpawnIndividualItems(
                 drop.Key,
                 drop.Value,
                 transform,
                 dropSpawnPoint,
                 dropAreaOffset,
-                dropAreaSize,
+                effectiveDropAreaSize,
                 groundLayer,
                 dropSpawnHeight,
                 dropPositionAttempts,
@@ -490,19 +493,41 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
                 autoReturnToPoolSeconds,
                 resourceColliders,
                 launchSettings);
+
+            // The compact area is the normal presentation path. If surrounding props block
+            // some landing samples, retry only the missing rewards in the prefab's original
+            // area rather than silently losing items or changing every chest/drop caller.
+            int missingCount = drop.Value - spawnedCount;
+            if (missingCount > 0 && (effectiveDropAreaSize - dropAreaSize).sqrMagnitude > 0.0001f)
+            {
+                WorldItemDropSpawner.SpawnIndividualItems(
+                    drop.Key,
+                    missingCount,
+                    transform,
+                    dropSpawnPoint,
+                    dropAreaOffset,
+                    dropAreaSize,
+                    groundLayer,
+                    dropSpawnHeight,
+                    dropPositionAttempts,
+                    dropClearanceRadius,
+                    dropClearanceHeight,
+                    maxGroundSlope,
+                    autoReturnToPoolSeconds,
+                    resourceColliders,
+                    launchSettings);
+            }
         }
     }
 
-    private WorldItemDropLaunchSettings CreateDropLaunchSettings()
+    private WorldItemDropLaunchSettings CreateDropLaunchSettings(Vector3 hitPoint)
     {
         if (!launchDrops)
         {
             return default;
         }
 
-        Vector3 startPosition = dropEjectPoint != null
-            ? dropEjectPoint.position
-            : transform.TransformPoint(dropEjectLocalOffset);
+        Vector3 startPosition = ResolveDropEjectWorldPosition(hitPoint);
 
         return new WorldItemDropLaunchSettings
         {
@@ -513,6 +538,46 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
             spinSpeed = Mathf.Max(0f, itemSpinSpeed),
             startJitterRadius = Mathf.Max(0f, itemStartJitterRadius)
         };
+    }
+
+    private Vector2 GetEffectiveDropAreaSize()
+    {
+        // Existing prefabs created before this field was added can deserialize it as zero in
+        // some import states. Treat that as the intended migration default rather than 25%.
+        float spread = dropLandingSpread > 0f
+            ? Mathf.Clamp(dropLandingSpread, 0.25f, 1f)
+            : 0.5f;
+        // Keep the old 2.2 m default area intact so multiple drops still have enough valid
+        // landing candidates. Only oversized 4-8 m resource areas are compacted.
+        const float minimumLandingAreaSize = 2.2f;
+        return new Vector2(
+            Mathf.Min(Mathf.Max(0f, dropAreaSize.x), Mathf.Max(minimumLandingAreaSize, dropAreaSize.x * spread)),
+            Mathf.Min(Mathf.Max(0f, dropAreaSize.y), Mathf.Max(minimumLandingAreaSize, dropAreaSize.y * spread)));
+    }
+
+    private Vector3 ResolveDropEjectWorldPosition(Vector3 hitPoint)
+    {
+        if (dropEjectPoint != null)
+        {
+            return dropEjectPoint.position;
+        }
+
+        // The harvesting ray already identifies a point on the resource surface. Starting
+        // there makes the reward visibly emerge from the struck trunk/rock/bush even when an
+        // imported model has an off-centre pivot. A small lift keeps it clear of the ground.
+        if (IsFinite(hitPoint) && (hitPoint - transform.position).sqrMagnitude > 0.0001f)
+        {
+            return hitPoint + Vector3.up * 0.15f;
+        }
+
+        return transform.TransformPoint(dropEjectLocalOffset);
+    }
+
+    private static bool IsFinite(Vector3 value)
+    {
+        return !float.IsNaN(value.x) && !float.IsInfinity(value.x)
+            && !float.IsNaN(value.y) && !float.IsInfinity(value.y)
+            && !float.IsNaN(value.z) && !float.IsInfinity(value.z);
     }
 
     /// <summary>
@@ -579,7 +644,7 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
         isTreeFalling = true;
 
         // 바닥 충돌 여부와 무관하게 벌목 완료 순간 보상을 한 번만 생성합니다.
-        ItemDrops(tool);
+        ItemDrops(tool, hitPoint);
         SetResourceCollidersAvailable(false);
 
         Vector3 fallDirection = transform.position - attackerPosition;
@@ -804,7 +869,7 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
             dropSpawnPoint,
             transform,
             dropAreaOffset,
-            dropAreaSize,
+            GetEffectiveDropAreaSize(),
             dropSpawnHeight,
             dropSpawnGizmoColor);
     }
