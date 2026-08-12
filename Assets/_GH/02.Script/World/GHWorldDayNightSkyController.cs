@@ -38,6 +38,12 @@ namespace GH.World
             Shader.PropertyToID("_DayVerticalOffset");
         private static readonly int NightVerticalOffsetId =
             Shader.PropertyToID("_NightVerticalOffset");
+        private static readonly int DayLowerSkyColorId =
+            Shader.PropertyToID("_DayLowerSkyColor");
+        private static readonly int LowerSkyWorldFadeId =
+            Shader.PropertyToID("_LowerSkyWorldFade");
+        private static readonly int LowerSkySourceFadeId =
+            Shader.PropertyToID("_LowerSkySourceFade");
         private static readonly int SourceCubemapId = Shader.PropertyToID("_Tex");
         private static readonly int SourceMainTextureId = Shader.PropertyToID("_MainTex");
 
@@ -153,6 +159,18 @@ namespace GH.World
         [Tooltip("Moves the baked night sky upward in degrees when the value is positive.")]
         [Range(-25f, 25f)]
         [SerializeField] private float nightSkyboxVerticalOffset = 24f;
+
+        [Tooltip("Cloud-free color used below the world horizon. This prevents reflected clouds in the lower half of a panoramic cubemap from appearing on the ground.")]
+        [SerializeField] private Color dayLowerSkyColor =
+            new Color(0.10f, 0.305f, 0.491f, 1f);
+
+        [Tooltip("Degrees above the world horizon over which the day cubemap fades in. The area below the horizon always uses Day Lower Sky Color.")]
+        [Range(0.5f, 15f)]
+        [SerializeField] private float lowerSkyWorldFadeDegrees = 5f;
+
+        [Tooltip("Degrees used to hide the source cubemap's reflected lower hemisphere if framing moves it above the world horizon.")]
+        [Range(0.5f, 15f)]
+        [SerializeField] private float lowerSkySourceFadeDegrees = 6f;
 
         [Tooltip(
             "스카이박스의 시작 회전각입니다. 선택한 Cubemap에서 달, 구름, 밝은 부분이 보이는 방향을 " +
@@ -671,6 +689,18 @@ namespace GH.World
                 runtimeSkybox.SetFloat(
                     NightVerticalOffsetId,
                     Mathf.Clamp(nightSkyboxVerticalOffset, -25f, 25f));
+                if (runtimeSkybox.HasProperty(DayLowerSkyColorId)
+                    && runtimeSkybox.HasProperty(LowerSkyWorldFadeId)
+                    && runtimeSkybox.HasProperty(LowerSkySourceFadeId))
+                {
+                    runtimeSkybox.SetColor(DayLowerSkyColorId, dayLowerSkyColor);
+                    runtimeSkybox.SetFloat(
+                        LowerSkyWorldFadeId,
+                        Mathf.Clamp(lowerSkyWorldFadeDegrees, 0.5f, 15f));
+                    runtimeSkybox.SetFloat(
+                        LowerSkySourceFadeId,
+                        Mathf.Clamp(lowerSkySourceFadeDegrees, 0.5f, 15f));
+                }
                 runtimeSkybox.SetColor(
                     TintId,
                     Color.Lerp(daySkyboxTint, nightSkyboxTint, currentNightBlend));
@@ -984,6 +1014,14 @@ namespace GH.World
             nightSkyboxScale = Mathf.Clamp(nightSkyboxScale, 0.4f, 1.25f);
             daySkyboxVerticalOffset = Mathf.Clamp(daySkyboxVerticalOffset, -25f, 25f);
             nightSkyboxVerticalOffset = Mathf.Clamp(nightSkyboxVerticalOffset, -25f, 25f);
+            lowerSkyWorldFadeDegrees = Mathf.Clamp(
+                lowerSkyWorldFadeDegrees,
+                0.5f,
+                15f);
+            lowerSkySourceFadeDegrees = Mathf.Clamp(
+                lowerSkySourceFadeDegrees,
+                0.5f,
+                15f);
             maximumDirectionalLightIntensity = Mathf.Max(0f, maximumDirectionalLightIntensity);
             continuousDayLightRatio = Mathf.Clamp01(continuousDayLightRatio);
             continuousNightLightRatio = Mathf.Clamp01(continuousNightLightRatio);

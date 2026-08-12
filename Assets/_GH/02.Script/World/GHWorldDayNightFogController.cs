@@ -59,6 +59,14 @@ namespace GH.World
             Shader.PropertyToID("_GHFogDaySkyScale");
         private static readonly int FogDayVerticalOffsetId =
             Shader.PropertyToID("_GHFogDayVerticalOffset");
+        private static readonly int FogDayLowerSkyColorId =
+            Shader.PropertyToID("_GHFogDayLowerSkyColor");
+        private static readonly int FogLowerSkyWorldFadeId =
+            Shader.PropertyToID("_GHFogLowerSkyWorldFade");
+        private static readonly int FogLowerSkySourceFadeId =
+            Shader.PropertyToID("_GHFogLowerSkySourceFade");
+        private static readonly int FogLowerSkyProtectionId =
+            Shader.PropertyToID("_GHFogLowerSkyProtection");
         private static readonly int FogSkyHazeOpacityId =
             Shader.PropertyToID("_GHFogSkyHazeOpacity");
         private static readonly int FogSkyHazeHeightId =
@@ -67,6 +75,8 @@ namespace GH.World
             Shader.PropertyToID("_GHFogHorizonStrength");
         private static readonly int FogHorizonHeightId =
             Shader.PropertyToID("_GHFogHorizonHeight");
+        private static readonly int FogHorizonDownwardFadeId =
+            Shader.PropertyToID("_GHFogHorizonDownwardFade");
         private static readonly int FogHorizonColorInfluenceId =
             Shader.PropertyToID("_GHFogHorizonColorInfluence");
 
@@ -87,6 +97,12 @@ namespace GH.World
             Shader.PropertyToID("_DaySkyScale");
         private static readonly int SourceDayVerticalOffsetId =
             Shader.PropertyToID("_DayVerticalOffset");
+        private static readonly int SourceDayLowerSkyColorId =
+            Shader.PropertyToID("_DayLowerSkyColor");
+        private static readonly int SourceLowerSkyWorldFadeId =
+            Shader.PropertyToID("_LowerSkyWorldFade");
+        private static readonly int SourceLowerSkySourceFadeId =
+            Shader.PropertyToID("_LowerSkySourceFade");
 
         [Header("Optional Day/Night Link")]
         [Tooltip("Optional. When assigned, fog colors follow the day/night blend. The fog still works independently when this is empty.")]
@@ -157,6 +173,9 @@ namespace GH.World
         [Range(1f, 20f)]
         [FormerlySerializedAs("horizonSurfaceDepthDegrees")]
         [SerializeField] private float horizonFogHeightDegrees = 10f;
+        [Tooltip("Prevents the camera-relative horizon bank from covering lower terrain when the camera is on high ground. Geometry below this many degrees under the camera horizon receives only the normal distance fog.")]
+        [Range(0.5f, 12f)]
+        [SerializeField] private float horizonFogDownwardFadeDegrees = 4f;
         [Tooltip("How strongly Mid/Far Fog Color affects the horizon layer instead of using only the skybox color.")]
         [Range(0f, 1f)]
         [SerializeField] private float horizonFogColorInfluence = 0.35f;
@@ -291,6 +310,9 @@ namespace GH.World
                 FogHorizonHeightId,
                 Mathf.Clamp(horizonFogHeightDegrees, 1f, 20f));
             Shader.SetGlobalFloat(
+                FogHorizonDownwardFadeId,
+                Mathf.Clamp(horizonFogDownwardFadeDegrees, 0.5f, 12f));
+            Shader.SetGlobalFloat(
                 FogHorizonColorInfluenceId,
                 Mathf.Clamp01(horizonFogColorInfluence));
             ApplySkyboxMatch(nightBlend);
@@ -302,6 +324,7 @@ namespace GH.World
             if (skybox == null)
             {
                 Shader.SetGlobalFloat(FogSkyMatchId, 0f);
+                Shader.SetGlobalFloat(FogLowerSkyProtectionId, 0f);
                 return;
             }
 
@@ -316,8 +339,14 @@ namespace GH.World
             if (!hasDayCube && !hasGradient)
             {
                 Shader.SetGlobalFloat(FogSkyMatchId, 0f);
+                Shader.SetGlobalFloat(FogLowerSkyProtectionId, 0f);
                 return;
             }
+
+            bool hasLowerSkyProtection =
+                skybox.HasProperty(SourceDayLowerSkyColorId)
+                && skybox.HasProperty(SourceLowerSkyWorldFadeId)
+                && skybox.HasProperty(SourceLowerSkySourceFadeId);
 
             Shader.SetGlobalFloat(
                 FogSkyMatchId,
@@ -328,6 +357,9 @@ namespace GH.World
             Shader.SetGlobalFloat(
                 FogGradientAvailableId,
                 hasGradient ? 1f : 0f);
+            Shader.SetGlobalFloat(
+                FogLowerSkyProtectionId,
+                hasLowerSkyProtection ? 1f : 0f);
 
             if (hasDayCube)
             {
@@ -368,6 +400,21 @@ namespace GH.World
             Shader.SetGlobalFloat(
                 FogDayVerticalOffsetId,
                 GetFloat(skybox, SourceDayVerticalOffsetId, 0f));
+            Shader.SetGlobalColor(
+                FogDayLowerSkyColorId,
+                GetColor(skybox, SourceDayLowerSkyColorId, dayFarFogColor));
+            Shader.SetGlobalFloat(
+                FogLowerSkyWorldFadeId,
+                Mathf.Clamp(
+                    GetFloat(skybox, SourceLowerSkyWorldFadeId, 5f),
+                    0.5f,
+                    15f));
+            Shader.SetGlobalFloat(
+                FogLowerSkySourceFadeId,
+                Mathf.Clamp(
+                    GetFloat(skybox, SourceLowerSkySourceFadeId, 6f),
+                    0.5f,
+                    15f));
         }
 
         private static Texture GetTexture(Material material, int propertyId)
@@ -439,6 +486,10 @@ namespace GH.World
                 horizonFogHeightDegrees,
                 1f,
                 20f);
+            horizonFogDownwardFadeDegrees = Mathf.Clamp(
+                horizonFogDownwardFadeDegrees,
+                0.5f,
+                12f);
             horizonFogColorInfluence = Mathf.Clamp01(
                 horizonFogColorInfluence);
         }

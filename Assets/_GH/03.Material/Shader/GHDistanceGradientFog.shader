@@ -49,10 +49,15 @@ Shader "Hidden/GH/Distance Gradient Fog"
             float _GHFogSkyRotation;
             float _GHFogDaySkyScale;
             float _GHFogDayVerticalOffset;
+            half4 _GHFogDayLowerSkyColor;
+            float _GHFogLowerSkyWorldFade;
+            float _GHFogLowerSkySourceFade;
+            float _GHFogLowerSkyProtection;
             float _GHFogSkyHazeOpacity;
             float _GHFogSkyHazeHeight;
             float _GHFogHorizonStrength;
             float _GHFogHorizonHeight;
+            float _GHFogHorizonDownwardFade;
             float _GHFogHorizonColorInfluence;
 
             float2 RotateFogDirection(float2 value, float angleRadians)
@@ -78,11 +83,58 @@ Shader "Hidden/GH/Distance Gradient Fog"
                     float3 dayDirection = direction;
                     dayDirection.xz *= max(_GHFogDaySkyScale, 0.001);
                     dayDirection.y += _GHFogDayVerticalOffset * 0.01;
-                    dayColor = SAMPLE_TEXTURECUBE(
+                    dayDirection = normalize(dayDirection);
+                    half skyExposure = max(0.0, _GHFogSkyExposure);
+
+                    // Match the skybox's lower-hemisphere protection so cloud
+                    // pixels cannot be reintroduced on distant geometry by the
+                    // directional sky-color fog blend.
+                    float worldFadeHeight = sin(radians(clamp(
+                        _GHFogLowerSkyWorldFade,
+                        0.5,
+                        15.0)));
+                    float sourceFadeHeight = sin(radians(clamp(
+                        _GHFogLowerSkySourceFade,
+                        0.5,
+                        15.0)));
+                    float worldUpperWeight = smoothstep(
+                        0.0,
+                        worldFadeHeight,
+                        direction.y);
+                    float sourceUpperWeight = smoothstep(
+                        0.0,
+                        sourceFadeHeight,
+                        dayDirection.y);
+                    float protectedDayTextureWeight = min(
+                        worldUpperWeight,
+                        sourceUpperWeight);
+                    float lowerSkyProtection = saturate(
+                        _GHFogLowerSkyProtection);
+                    float dayTextureWeight = lerp(
+                        1.0,
+                        protectedDayTextureWeight,
+                        lowerSkyProtection);
+                    float3 safeDayDirection = dayDirection;
+                    safeDayDirection.y = max(
+                        safeDayDirection.y,
+                        sourceFadeHeight);
+                    safeDayDirection = normalize(safeDayDirection);
+                    float3 selectedDayDirection = normalize(lerp(
+                        dayDirection,
+                        safeDayDirection,
+                        lowerSkyProtection));
+                    half3 sampledDayColor = SAMPLE_TEXTURECUBE(
                         _GHFogDayCube,
                         sampler_GHFogDayCube,
-                        normalize(dayDirection)).rgb;
-                    dayColor *= _GHFogSkyTint.rgb * max(0.0, _GHFogSkyExposure);
+                        selectedDayDirection).rgb;
+                    sampledDayColor *= _GHFogSkyTint.rgb * skyExposure;
+                    half3 lowerDayColor = _GHFogDayLowerSkyColor.rgb
+                        * _GHFogSkyTint.rgb
+                        * skyExposure;
+                    dayColor = lerp(
+                        lowerDayColor,
+                        sampledDayColor,
+                        dayTextureWeight);
                 }
 
                 half3 nightColor = _GHFogFarColor.rgb;
@@ -258,7 +310,21 @@ Shader "Hidden/GH/Distance Gradient Fog"
                 // common horizon veil then softens both sides of the boundary.
                 float opacity = fogAmount
                     * min(saturate(_GHFogMaxOpacity), 0.88);
+                // The dedicated horizon bank is camera-relative. Applying its
+                // symmetric angular mask to downward rays made distant valleys
+                // look like a cloud layer whenever the camera reached high
+                // ground. Fade only this extra bank below the visual horizon;
+                // the regular world-space distance fog remains unchanged.
+                float downwardFadeAngle = sin(radians(clamp(
+                    _GHFogHorizonDownwardFade,
+                    0.5,
+                    12.0)));
+                float geometryHorizonDirection = smoothstep(
+                    -downwardFadeAngle,
+                    0.0,
+                    viewDirection.y);
                 float geometryHorizonBlend = horizonFogOpacity
+                    * geometryHorizonDirection
                     * smoothstep(0.55, 1.0, fogDistance);
                 fogColor = lerp(
                     fogColor,

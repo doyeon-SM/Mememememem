@@ -9,6 +9,9 @@ Shader "GH/Skybox/Cubemap Starry Night Blend"
         _Rotation("Rotation", Range(0, 360)) = 0
         _DaySkyScale("Day Sky Scale", Range(0.4, 1.25)) = 1
         _DayVerticalOffset("Day Vertical Offset", Range(-25, 25)) = 0
+        _DayLowerSkyColor("Day Lower Sky Color", Color) = (0.10, 0.305, 0.491, 1)
+        _LowerSkyWorldFade("Lower Sky World Fade", Range(0.5, 15)) = 5
+        _LowerSkySourceFade("Lower Sky Source Fade", Range(0.5, 15)) = 6
 
         _GradientSkyColor("Night Sky Color", Color) = (0.04, 0.10, 0.20, 1)
         _GradientHorizonColor("Night Horizon Color", Color) = (0.34, 0.19, 0.42, 1)
@@ -67,6 +70,9 @@ Shader "GH/Skybox/Cubemap Starry Night Blend"
             float _Rotation;
             float _DaySkyScale;
             float _DayVerticalOffset;
+            half4 _DayLowerSkyColor;
+            float _LowerSkyWorldFade;
+            float _LowerSkySourceFade;
 
             half4 _GradientSkyColor;
             half4 _GradientHorizonColor;
@@ -199,7 +205,43 @@ Shader "GH/Skybox/Cubemap Starry Night Blend"
                 float3 dayDirection = direction;
                 dayDirection.xz *= max(_DaySkyScale, 0.001);
                 dayDirection.y += _DayVerticalOffset * 0.01;
-                half3 dayColor = texCUBE(_DayTex, normalize(dayDirection)).rgb * _Tint.rgb * _Exposure;
+                dayDirection = normalize(dayDirection);
+
+                // Panoramic sky textures often contain water-reflected clouds
+                // in their lower half. Never show those pixels below the world
+                // horizon, and also guard against framing that moves the source
+                // texture's lower hemisphere upward.
+                float worldFadeHeight = sin(radians(clamp(
+                    _LowerSkyWorldFade,
+                    0.5,
+                    15.0)));
+                float sourceFadeHeight = sin(radians(clamp(
+                    _LowerSkySourceFade,
+                    0.5,
+                    15.0)));
+                float worldUpperWeight = smoothstep(
+                    0.0,
+                    worldFadeHeight,
+                    direction.y);
+                float sourceUpperWeight = smoothstep(
+                    0.0,
+                    sourceFadeHeight,
+                    dayDirection.y);
+                float dayTextureWeight = min(
+                    worldUpperWeight,
+                    sourceUpperWeight);
+                float3 safeDayDirection = dayDirection;
+                safeDayDirection.y = max(
+                    safeDayDirection.y,
+                    sourceFadeHeight);
+                safeDayDirection = normalize(safeDayDirection);
+                half3 sampledDayColor = texCUBE(
+                    _DayTex,
+                    safeDayDirection).rgb;
+                half3 dayColor = lerp(
+                    _DayLowerSkyColor.rgb,
+                    sampledDayColor,
+                    dayTextureWeight) * _Tint.rgb * _Exposure;
 
                 float gradient = smoothstep(
                     _GradientFadeBegin,
