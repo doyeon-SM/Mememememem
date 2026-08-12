@@ -43,6 +43,11 @@ namespace HDY.Forge
     /// - 둘 다 비었을 때: "전승 받을 도구를 왼쪽칸에 넣으세요"
     /// - 대상만 찼을 때: "연마를 옮길 재료 도구를 중앙칸에 넣으세요"
     /// - 둘 다 차서 결과 미리보기가 가능할 때: "오른쪽 칸에서 결과를 미리 볼 수 있습니다."
+    ///
+    /// [HDY 요청 - 버그 수정] 선택이 바뀔 때마다(선택 또는 취소) SelectionChanged를 쏴서 ForgeUI가 하단
+    /// 목록의 "사용 중"/"전승불가" 표시 이미지를 다시 계산하게 한다 - 예전에는 ClearSelection/
+    /// ClearMaterialOnly가 이 패널 내부만 갱신하고 ForgeUI에는 알려주지 않아서, 슬롯을 다시 클릭해
+    /// 선택을 취소해도 하단 목록의 표시 이미지가 그대로 남아있는 문제가 있었다.
     /// </summary>
     public class ForgeUI_InheritancePanel : MonoBehaviour
     {
@@ -67,6 +72,9 @@ namespace HDY.Forge
 
         /// <summary>전승을 실제로 시도해서 성공했을 때 발생. ForgeUI가 하단 목록 갱신에 사용한다(재료 도구 소멸 반영).</summary>
         public event Action InheritanceExecuted;
+
+        /// <summary>[HDY 요청] 선택이 바뀔 때마다(선택 또는 취소) 발생. ForgeUI가 하단 목록의 상태 표시 이미지를 다시 계산하는 데 쓴다.</summary>
+        public event Action SelectionChanged;
 
         /// <summary>[HDY 요청 - 하단 목록 상태 표시] 지금 재료로 선택된 도구. ForgeUI가 하단 목록에서 "전승 대기 중"/"전승불가" 표시를 판단하는 데 쓴다.</summary>
         public ItemStack MaterialStack => materialStack;
@@ -134,6 +142,7 @@ namespace HDY.Forge
             }
 
             RefreshMiddlePanel();
+            SelectionChanged?.Invoke();
         }
 
         /// <summary>
@@ -153,17 +162,21 @@ namespace HDY.Forge
             return dataA.ObjectType == dataB.ObjectType;
         }
 
+        /// <summary>[HDY 요청 - 버그 수정] 선택 취소도 SelectionChanged를 쏴서 ForgeUI 하단 목록이 갱신되도록 한다.</summary>
         private void ClearSelection()
         {
             materialStack = null;
             targetStack = null;
             RefreshMiddlePanel();
+            SelectionChanged?.Invoke();
         }
 
+        /// <summary>[HDY 요청 - 버그 수정] 재료만 취소해도 SelectionChanged를 쏴서 ForgeUI 하단 목록이 갱신되도록 한다.</summary>
         private void ClearMaterialOnly()
         {
             materialStack = null;
             RefreshMiddlePanel();
+            SelectionChanged?.Invoke();
         }
 
         private void RefreshMiddlePanel()

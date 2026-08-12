@@ -83,6 +83,12 @@ namespace HDY.Forge
     /// IsBlockedForInheritance로, 이미 재료가 선택된 상태에서 ObjectType이 달라 대상으로 고를 수 없는
     /// 도구에 SetInheritanceBlockedIndicator를 켠다(재료 자신은 "불가"가 아니라 "사용 중"으로 표시됨).
     ///
+    /// [HDY 요청 - 버그 수정: 선택 취소 시 하단 목록 갱신] 강화/승급의 ClearSelection, 연마/전승 각 패널의
+    /// 선택 취소(클릭으로 슬롯 비우기)가 전부 RefreshList()로 이어지도록 했다 - 예전에는 강화/승급은
+    /// ClearSelection이 RefreshList를 아예 안 불렀고, 연마는 선택 취소 기능 자체가 없었고(추가함), 전승은
+    /// 취소해도 ForgeUI에 알리지 않아서, 도구를 빼도 하단 목록의 "사용 중"/"전승불가" 표시 이미지가 그대로
+    /// 남아있는 문제가 4개 탭 전부에 있었다. 연마/전승은 SelectionChanged 이벤트를 구독해서 처리한다.
+    ///
     /// [HDY 요청 - 도움말 안내 패널] ContentSizeFitter가 붙은 공용 컨테이너(infoGuideContainer) 안에 강화/
     /// 승급/연마/전승 안내 패널 4개가 전부 미리 배치되어 있고 평소엔 꺼져 있다. 강화/승급은 같은 info
     /// 아이콘(enhancePromotionInfoTrigger)을 공유하며 지금 탭에 따라 강화/승급 안내 중 하나를 보여주고,
@@ -244,6 +250,12 @@ namespace HDY.Forge
             if (refinementPanel != null) refinementPanel.RefinementExecuted += RefreshList;
             if (inheritancePanel != null) inheritancePanel.InheritanceExecuted += RefreshList;
 
+            // [HDY 요청 - 버그 수정] 선택/선택 취소가 바뀔 때마다도(실행과 무관하게) 하단 목록의 상태
+            // 표시 이미지를 다시 계산해야 한다 - 특히 선택 취소는 이 패널들이 자체적으로 처리해서
+            // ForgeUI가 모를 수 있었다.
+            if (refinementPanel != null) refinementPanel.SelectionChanged += RefreshList;
+            if (inheritancePanel != null) inheritancePanel.SelectionChanged += RefreshList;
+
             // [HDY 요청 - 도움말 안내 패널] 강화/승급은 같은 아이콘을 공유하며 지금 탭에 따라 보여줄 안내가
             // 다르고, 연마/전승은 각자 고정된 안내만 보여준다.
             if (enhancePromotionInfoTrigger != null)
@@ -283,6 +295,8 @@ namespace HDY.Forge
         {
             if (refinementPanel != null) refinementPanel.RefinementExecuted -= RefreshList;
             if (inheritancePanel != null) inheritancePanel.InheritanceExecuted -= RefreshList;
+            if (refinementPanel != null) refinementPanel.SelectionChanged -= RefreshList;
+            if (inheritancePanel != null) inheritancePanel.SelectionChanged -= RefreshList;
 
             if (enhancePromotionInfoTrigger != null)
             {
@@ -540,9 +554,11 @@ namespace HDY.Forge
             RefreshList();
         }
 
+        /// <summary>[HDY 요청 - 버그 수정] 선택 취소 시에도 하단 목록의 "사용 중" 표시 이미지가 갱신되도록 RefreshList()를 함께 호출한다.</summary>
         private void ClearSelection()
         {
             selectedStack = null;
+            RefreshList();
             RefreshMiddlePanel();
         }
 
@@ -814,24 +830,27 @@ namespace HDY.Forge
         }
 
         /// <summary>
-        /// [HDY 요청 - 전승불가 표시] 전승 탭에서, 이미 재료가 선택된 상태에서 이 stack의 ObjectType이 재료와
-        /// 달라 대상으로 선택할 수 없는 경우 true. 재료가 아직 없으면(비교 대상이 없으므로) 항상 false이고,
-        /// 재료 자신도 false(그건 IsStackInUse가 "사용 중"으로 따로 표시한다). ForgeUI_InheritancePanel의
-        /// IsSameObjectType과 같은 기준(ItemData.ObjectType)이다.
+        /// [HDY 요청 - 전승불가 표시, 버그 수정] 전승 탭에서, 이미 대상(target, 왼쪽칸 - 먼저 선택됨)이
+        /// 선택된 상태에서 이 stack의 ObjectType이 대상과 달라 재료로 선택할 수 없는 경우 true. 대상이
+        /// 아직 없으면(비교 대상이 없으므로) 항상 false이고, 대상 자신도 false(그건 IsStackInUse가
+        /// "사용 중"으로 따로 표시한다). ForgeUI_InheritancePanel의 IsSameObjectType과 같은 기준
+        /// (ItemData.ObjectType)이다. [예전에는 재료가 먼저 선택되는 순서였어서 MaterialStack을 기준으로
+        /// 봤는데, 선택 순서가 "대상 먼저"로 바뀌면서 기준도 TargetStack으로 바꿔야 했다 - 그렇지 않으면
+        /// 아직 선택되지 않은 재료를 계속 비교하려다 항상 false만 반환해서 표시가 전혀 안 켜졌다.]
         /// </summary>
         private bool IsBlockedForInheritance(ItemStack stack)
         {
             if (inheritancePanel == null || catalogManager == null) return false;
 
-            var material = inheritancePanel.MaterialStack;
-            if (material == null || material.IsEmpty) return false;
-            if (ReferenceEquals(stack, material)) return false;
+            var target = inheritancePanel.TargetStack;
+            if (target == null || target.IsEmpty) return false;
+            if (ReferenceEquals(stack, target)) return false;
 
-            var materialData = catalogManager.FindItemData(material.itemId);
+            var targetData = catalogManager.FindItemData(target.itemId);
             var candidateData = catalogManager.FindItemData(stack.itemId);
-            if (materialData == null || candidateData == null) return false;
+            if (targetData == null || candidateData == null) return false;
 
-            return materialData.ObjectType != candidateData.ObjectType;
+            return targetData.ObjectType != candidateData.ObjectType;
         }
     }
 }
