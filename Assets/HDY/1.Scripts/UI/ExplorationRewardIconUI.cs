@@ -10,9 +10,6 @@ namespace HDY.UI
     /// 9개를 넘으면 마지막 한 칸을 "..."  오버플로우 표시로 바꾸고 마우스를 올리면 별도 팝업에 나머지를
     /// 보여줬지만, 지금은 그런 제한 없이 전부 채우고 스크롤로 넘겨보는 방식으로 바뀌었다(오버플로우 관련
     /// 코드/이벤트는 전부 제거됨).
-    ///
-    /// [HDY 요청 - 아이템 이름 표시] itemNameText가 추가되어, SetItem 호출 시 아이콘/수량과 함께 아이템 이름도
-    /// 함께 표시한다.
     /// </summary>
     public class ExplorationRewardIconUI : MonoBehaviour
     {

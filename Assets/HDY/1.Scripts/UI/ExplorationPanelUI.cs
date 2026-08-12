@@ -75,6 +75,7 @@ namespace HDY.UI
         [SerializeField] private TMP_Text zoneNameText;
         [Tooltip("요구 탐험레벨 + 소요시간을 함께 표시(소요시간은 줄바꿈 후 표시).")]
         [SerializeField] private TMP_Text requiredLevelText;
+        [SerializeField] private TMP_Text requiredTimetext;
         [SerializeField] private Button prevZoneButton;
         [SerializeField] private Button nextZoneButton;
 
@@ -216,9 +217,10 @@ namespace HDY.UI
             if (zoneImage != null) zoneImage.sprite = zone.zoneImage;
             if (zoneNameText != null) zoneNameText.text = zone.zoneName;
 
-            if (requiredLevelText != null)
+            if (requiredLevelText != null && requiredTimetext != null)
             {
-                requiredLevelText.text = $"요구 탐험레벨: {zone.requiredExplorationLevel}\n소요시간: {FormatDuration(zone.explorationDuration)}";
+                requiredLevelText.text = $"Lv.{zone.requiredExplorationLevel}";
+                requiredTimetext.text = $"{FormatDuration(zone.explorationDuration)}";
             }
 
             RefreshRewardPreview(zone);
@@ -229,7 +231,7 @@ namespace HDY.UI
 
             if (explorationLevelSumText != null)
             {
-                explorationLevelSumText.text = $"탐험레벨 합: {sum} / {zone.requiredExplorationLevel}";
+                explorationLevelSumText.text = $"탐험레벨 {sum} / {zone.requiredExplorationLevel}";
             }
 
             if (progressOverlay != null) progressOverlay.SetActive(state != ExplorationState.Idle);
@@ -338,8 +340,10 @@ namespace HDY.UI
             switch (state)
             {
                 case ExplorationState.Idle:
-                    if (actionButtonText != null) actionButtonText.text = "탐험 시작";
-                    actionButton.interactable = runtime.CanStart(zone);
+                    // [HDY 요청] 탐험이 불가능한 상태(CanStart=false)면 버튼 문구를 "탐험 불가"로 바꾼다.
+                    bool canStart = runtime.CanStart(zone);
+                    if (actionButtonText != null) actionButtonText.text = canStart ? "탐험 시작" : "탐험 불가";
+                    actionButton.interactable = canStart;
                     break;
 
                 case ExplorationState.InProgress:
