@@ -37,6 +37,9 @@ namespace HDY.Forge
         [Tooltip("도끼·곡괭이·괭이=true, 몽둥이=false")]
         public bool CanPromote = true;
 
+        [Tooltip("도끼·곡괭이·괭이=true, 몽둥이=false. 연마(Refinement) 부여 대상 여부 - 강화/승급과 별도로 관리된다.")]
+        public bool CanRefine = true;
+
         [Header("데미지 계산")]
         [Tooltip("체크 해제 시 티어의 시작 데미지/증가폭 공식을 쓰지 않고, 그 티어 ItemData 자산에 적힌 Value를 그대로 사용한다. " +
                  "괭이·몽둥이처럼 강화 레벨이 없거나 데미지가 고정인 도구는 이 값을 false로 둔다.")]

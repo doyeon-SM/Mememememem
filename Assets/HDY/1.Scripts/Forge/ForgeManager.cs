@@ -171,7 +171,7 @@ namespace HDY.Forge
         [Tooltip("대장간 데이터 변경 시 발행되는 이벤트로 강화, 승급, 연마, 전승이 이루어질 때 이벤트 발행")]
         public static event System.Action OnForgeDataChanged;
 
-        private void Awake()
+private void Awake()
         {
             if (Instance != null && Instance != this)
             {
@@ -180,6 +180,11 @@ namespace HDY.Forge
             }
 
             Instance = this;
+
+            // [버그 수정] 씬 전환 시 파괴되지 않도록 유지한다 (ForgeInstanceRegistry/ItemCatalogManager와 동일한 패턴).
+            // 이게 없으면 Title(부트스트랩) 씬에서 실제 플레이 씬으로 넘어갈 때(LoadSceneMode.Single)
+            // 이 오브젝트가 통째로 파괴되어, 제작대에서 도구를 수령해도 연마/강화/승급이 전혀 동작하지 않는다.
+            DontDestroyOnLoad(gameObject);
 
             instanceRegistry = ForgeInstanceRegistry.Resolve(instanceRegistry);
             catalogManager = ItemCatalogManager.Resolve(catalogManager);
@@ -584,6 +589,16 @@ namespace HDY.Forge
 
             if (!TryGetOrCreateInstance(stack, out instance, out toolTypeData))
             {
+                return false;
+            }
+
+            // [버그 수정] 몽둥이처럼 CanRefine=false인 도구 종류는 연마 대상에서 완전히 제외한다.
+            // (강화/승급은 CanEnhance/CanPromote로 이미 막혀 있지만, 연마는 별도 플래그가 없어서
+            //  toolTypeDataList에 등록만 되어 있으면 여기까지 통과해 슬롯이 채워지는 문제가 있었다.)
+            if (!toolTypeData.CanRefine)
+            {
+                instance = null;
+                toolTypeData = null;
                 return false;
             }
 
