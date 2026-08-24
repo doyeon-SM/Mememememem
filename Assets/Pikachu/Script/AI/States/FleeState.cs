@@ -31,10 +31,14 @@ namespace MemSystem.AI.States
         private float fleeTimeout = 10f;
         private float fleeTimer;
 
-        public void Enter(MemAI ai)
+public void Enter(MemAI ai)
         {
             fleeStartPosition = ai.transform.position;
             fleeTimer = 0f;
+
+            // [멤] 포획실패로 인한 도주든 체력 0 이하로 인한 강제 도주든 모두 이 Enter()를 거치므로,
+            // 여기서 한 번에 콜라이더를 꺼서 도주 중인 멤이 캡슐 포획/무기 공격에 더 이상 반응하지 않게 한다.
+            ai.Owner?.SetColliderEnabled(false);
 
             // 달리기 애니메이션 재생은 Update에서 속도 기반으로 자동 제어됩니다.
             // ai.Visual.PlayRun();

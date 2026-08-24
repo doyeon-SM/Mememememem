@@ -88,7 +88,7 @@ namespace MemSystem.Core
         /// <param name="mem">초기화할 멤 인스턴스 (Pool에서 가져온 것)</param>
         /// <param name="data">멤 데이터 에셋 (어떤 멤인지)</param>
         /// <param name="position">스폰 위치 (월드 좌표)</param>
-        public void InitializeMem(Mem mem, MemData data, Vector3 position)
+public void InitializeMem(Mem mem, MemData data, Vector3 position)
         {
             // 1. 활성화 전 임시 위치 세팅 (초기 바인딩용)
             mem.transform.position = position;
@@ -106,8 +106,13 @@ namespace MemSystem.Core
                     $"이 멤은 이동하지 못합니다 — 스폰 지점을 NavMesh 위로 옮기세요.", mem);
             }
 
-            // 데이터 주입 + 초기화 (AI 초기화 → PlayIdle 등 Animator 제어 포함)
+            // 데이터 주입 + 초기화 (AI 초기화 → PlayIdle 등 Animator 제어 포함, 콜라이더도 여기서 다시 켜짐)
             mem.Initialize(data, tierTable);
+
+            // [멤] 콜라이더 틀어짐 방지: 프로젝트 설정상 Physics.autoSyncTransforms가 꺼져 있어
+            // Warp() 등으로 옮긴 위치가 물리엔진 쪽 콜라이더에 다음 물리 스텝 전까지 반영되지 않는다.
+            // 스폰 직후 캡슐 포획 판정/공격 레이캐스트가 옛 위치를 잡는 것을 막기 위해 여기서 강제로 동기화한다.
+            Physics.SyncTransforms();
 
             Debug.Log($"[MemFactory] {data.memName} 초기화 완료 — 위치: {position}");
         }

@@ -84,6 +84,12 @@ namespace MemSystem.Core
         /// <summary>효과음 제어 (배회 울음소리 등). 프리팹에 없으면 null.</summary>
         public MemSound Sound { get; private set; }
 
+        /// <summary>
+        /// [멤] 포획 판정(캡슐 트리거)과 공격 판정(레이캐스트)에 쓰이는 콜라이더.
+        /// 스폰(Initialize) 시 다시 켜지고, 포획 성공/도주 시작 시 꺼집니다.
+        /// </summary>
+        private Collider captureCollider;
+
         /// <summary>이 멤의 원본 데이터 에셋 참조</summary>
         public MemData Data { get; private set; }
 
@@ -97,7 +103,7 @@ namespace MemSystem.Core
         // Unity Lifecycle
         // =================================================================
 
-        private void Awake()
+private void Awake()
         {
             // 컴포넌트 자동 캐싱
             Stats = GetComponent<MemStats>();
@@ -105,6 +111,9 @@ namespace MemSystem.Core
             Movement = GetComponent<MemMovement>();
             Visual = GetComponentInChildren<MemVisual>();
             Sound = GetComponent<MemSound>();
+
+            // [멤] 포획/공격 판정용 콜라이더 캐싱 (루트의 CapsuleCollider)
+            captureCollider = GetComponent<Collider>();
         }
 
         // =================================================================
@@ -123,7 +132,7 @@ namespace MemSystem.Core
         /// </summary>
         /// <param name="data">멤 정적 데이터</param>
         /// <param name="tierTable">등급별 스펙 테이블</param>
-        public void Initialize(MemData data, MemTierTable tierTable)
+public void Initialize(MemData data, MemTierTable tierTable)
         {
             Data = data;
 
@@ -151,6 +160,10 @@ namespace MemSystem.Core
                 AI.Initialize(this);
             }
 
+            // 5. [멤] 스폰/풀 재사용 시 콜라이더를 항상 켠 상태로 리셋한다.
+            //    (포획 성공/도주 시 꺼진 채로 풀에 반환되었을 수 있음)
+            SetColliderEnabled(true);
+
             IsActive = true;
         }
 
@@ -158,7 +171,7 @@ namespace MemSystem.Core
         /// Object Pool 반환 시 상태를 리셋합니다.
         /// MemPool.Despawn()에서 호출됩니다.
         /// </summary>
-        public void ResetForPool()
+public void ResetForPool()
         {
             IsActive = false;
             Stats.ResetStats();
@@ -167,7 +180,26 @@ namespace MemSystem.Core
             if (Movement != null) Movement.Stop();
             if (Visual != null) Visual.ResetVisual();
             if (Sound != null) Sound.ResetSound();
+
+            // [멤] 안전장치: 풀 반환 시 콜라이더를 명시적으로 꺼둔다.
+            // (GameObject 자체가 곧 SetActive(false)되지만, 풀링 로직이 바뀌어도 안전하도록 방어적으로 처리)
+            SetColliderEnabled(false);
         }
+
+
+        /// <summary>
+        /// [멤] 포획/공격 판정용 콜라이더를 켜고 끕니다.
+        /// 스폰(Initialize) 시 true로 리셋되고, 포획 성공/도주 시작 시 false로 꺼집니다.
+        /// 콜라이더가 꺼지면 캡슐 트리거 판정과 레이캐스트 공격 판정 모두 이 멤을 인식하지 못합니다.
+        /// </summary>
+        public void SetColliderEnabled(bool enabled)
+        {
+            if (captureCollider != null)
+            {
+                captureCollider.enabled = enabled;
+            }
+        }
+
 
         // =================================================================
         // 전투 — 피격 처리
@@ -332,11 +364,14 @@ namespace MemSystem.Core
         /// 2. AI → CapturedState 전환 (축소 연출)
         /// 3. MemEvents.OnMemCaptured 이벤트 발행 (영지/창고/도감이 수신)
         /// </summary>
-        public void OnCaptureSuccess()
+public void OnCaptureSuccess()
         {
             if (!IsActive) return;
 
             Debug.Log($"[Mem] {Stats.MemName} 포획 성공!");
+
+            // [멤] 포획 성공 즉시 콜라이더 비활성화 — 사라지는 연출 중에 다른 캡슐/공격에 또 반응하지 않도록 한다.
+            SetColliderEnabled(false);
 
             // 스냅샷 생성 (풀 반환 전에!)
             var snapshot = MemSnapshot.FromMem(this);
