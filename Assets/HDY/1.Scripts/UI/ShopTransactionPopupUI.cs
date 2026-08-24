@@ -95,7 +95,7 @@ namespace HDY.UI
         /// <param name="unitPrice">수량 1개당 가격.</param>
         /// <param name="maxQuantity">수량 최대치(재고 + 결제 가능 여부까지 이미 반영된 값). 0이면 아무것도 할 수 없는 상태로 열린다.</param>
         /// <param name="onConfirm">확인 버튼을 눌렀을 때 호출할 콜백. 반환값이 true일 때만 팝업이 닫힌다.</param>
-        public void Open(ShopSlotUI.Mode mode, ItemData catalogItem, ShopItemData itemData, Sprite costIcon, int unitPrice, int maxQuantity, Func<int, bool> onConfirm)
+public void Open(ShopSlotUI.Mode mode, ItemData catalogItem, string fallbackItemId, Sprite costIcon, int unitPrice, int maxQuantity, Func<int, bool> onConfirm)
         {
             this.unitPrice = unitPrice;
             this.maxQuantity = Mathf.Max(0, maxQuantity);
@@ -107,7 +107,7 @@ namespace HDY.UI
                 itemIconImage.gameObject.SetActive(catalogItem != null && catalogItem.ItemIcon != null);
             }
 
-            if (itemNameText != null) itemNameText.text = catalogItem != null ? catalogItem.ItemName : itemData.Item_ID;
+            if (itemNameText != null) itemNameText.text = catalogItem != null ? catalogItem.ItemName : fallbackItemId;
 
             if (costIconImage != null)
             {
@@ -115,14 +115,28 @@ namespace HDY.UI
                 costIconImage.gameObject.SetActive(costIcon != null);
             }
 
-            if (confirmButtonLabel != null) confirmButtonLabel.text = mode == ShopSlotUI.Mode.Buy ? "구매" : "판매";
+            string confirmLabel = "교환";
+            string header = "아이템 교환";
+            string quantityLabel = "교환 횟수";
 
-            // [HDY 요청 - 모드별 텍스트] 헤더/수량 라벨도 확인 버튼 라벨과 동일하게 모드에 따라 문구가 바뀐다.
-            if (headerText != null) headerText.text = mode == ShopSlotUI.Mode.Buy ? "아이템 구매" : "아이템 판매";
-            if (quantityLabelText != null) quantityLabelText.text = mode == ShopSlotUI.Mode.Buy ? "구매 수량" : "판매 수량";
+            if (mode == ShopSlotUI.Mode.Buy)
+            {
+                confirmLabel = "구매";
+                header = "아이템 구매";
+                quantityLabel = "구매 수량";
+            }
+            else if (mode == ShopSlotUI.Mode.Sell)
+            {
+                confirmLabel = "판매";
+                header = "아이템 판매";
+                quantityLabel = "판매 수량";
+            }
 
-            // 최대치부터 시작해서 내려가는 방식 - "가진/살 수 있는 만큼 전부"가 기본값이다.
-            int initialQuantity = this.maxQuantity;
+            if (confirmButtonLabel != null) confirmButtonLabel.text = confirmLabel;
+            if (headerText != null) headerText.text = header;
+            if (quantityLabelText != null) quantityLabelText.text = quantityLabel;
+
+            int initialQuantity = this.maxQuantity > 0 ? 1 : 0;
 
             if (decrementButton != null) decrementButton.interactable = this.maxQuantity > 0;
             if (incrementButton != null) incrementButton.interactable = this.maxQuantity > 0;

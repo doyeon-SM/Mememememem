@@ -149,8 +149,13 @@ namespace HDY.UI
         [SerializeField] private TMP_Text restockCountdownText;
 
         [Header("구매 / 판매 탭 (선택된 탭 버튼은 interactable=false로 회색 표시)")]
+        [Tooltip("연금술 상점(IsAlchemyShop)에서는 버튼은 그대로 쓰고 글자만 교체한다 - 구매->강화, 판매->전리품(HDY 요청).")]
         [SerializeField] private Button buyTabButton;
         [SerializeField] private Button sellTabButton;
+
+        // [HDY 요청 - 연금술사의 집] 위 두 버튼의 글자(TMP_Text)를 Awake에서 캐싱한다. 상점 종류에 따라 이 글자의 내용만 교체한다.
+        private TMP_Text buyTabButtonLabel;
+        private TMP_Text sellTabButtonLabel;
 
         [Header("상점 이동 탭 (마트/식당/철물점 등 - 상점 창을 닫지 않고 다른 상점으로 전환)")]
         [SerializeField] private List<ShopEntry> shopEntries = new List<ShopEntry>();
@@ -170,8 +175,15 @@ namespace HDY.UI
         // 매 Refresh마다 새로 만들면 GC 부담이라 재사용하는 필터링용 임시 리스트.
         private readonly List<ShopItemData> filteredItemsBuffer = new List<ShopItemData>();
 
+        // [HDY 요청 - 연금술사의 집] 전리품/강화 탭용 필터링 임시 리스트(filteredItemsBuffer와 동일한 목적).
+        private readonly List<AlchemyExchangeRecipe> filteredExchangeBuffer = new List<AlchemyExchangeRecipe>();
+
         private ShopData currentShop;
-        private bool showingSellTab;
+
+        // [HDY 요청 - 연금술사의 집] 구매/판매 둘뿐이던 탭을 구매/판매/전리품/강화 4가지로 확장하면서
+        // 기존 bool(showingSellTab) 대신 이 enum 하나로 지금 보고 있는 탭을 표현한다.
+        private enum ShopTabMode { Buy, Sell, Loot, Enhance }
+        private ShopTabMode currentTab = ShopTabMode.Sell;
 
         private IMaterialInventory MaterialInventory => materialInventorySource as IMaterialInventory;
 
@@ -221,8 +233,18 @@ namespace HDY.UI
                 stockManager.OnShopRestocked += HandleShopRestocked;
             }
 
-            if (buyTabButton != null) buyTabButton.onClick.AddListener(ShowBuyTab);
-            if (sellTabButton != null) sellTabButton.onClick.AddListener(ShowSellTab);
+            if (buyTabButton != null)
+            {
+                buyTabButton.onClick.AddListener(ShowBuyTab);
+                buyTabButtonLabel = buyTabButton.GetComponentInChildren<TMP_Text>();
+            }
+
+            if (sellTabButton != null)
+            {
+                sellTabButton.onClick.AddListener(ShowSellTab);
+                sellTabButtonLabel = sellTabButton.GetComponentInChildren<TMP_Text>();
+            }
+
             if (closeButton != null) closeButton.onClick.AddListener(Close);
 
             foreach (var entry in shopEntries)
@@ -271,7 +293,7 @@ namespace HDY.UI
         /// 상점을 연다. 이미 다른 상점이 열려있는 상태에서 호출해도(= 상점 이동 탭 클릭) 창을 닫았다 열지
         /// 않고 내용만 바뀐다. 기본으로 판매 탭이 먼저 보인다.
         /// </summary>
-        public void Open(ShopData shop)
+public void Open(ShopData shop)
         {
             if (shop == null)
             {
@@ -285,8 +307,20 @@ namespace HDY.UI
             if (shopNameText != null) shopNameText.text = shop.ShopName;
 
             RefreshShopEntryButtons();
+            ApplyShopTabLabels(shop.IsAlchemyShop);
             ShowSellTab();
         }
+
+/// <summary>
+        /// [HDY 요청 - 연금술사의 집] 버튼은 구매/판매 탭을 그대로 쓰고, 연금술 상점(IsAlchemyShop)일
+        /// 때만 글자를 구매는 강화로, 판매는 전리품으로 설정한다. 상점을 열 때(또는 다른 상점으로 이동할 때)마다 호출된다.
+        /// </summary>
+        private void ApplyShopTabLabels(bool isAlchemyShop)
+        {
+            if (buyTabButtonLabel != null) buyTabButtonLabel.text = isAlchemyShop ? "강화" : "구매";
+            if (sellTabButtonLabel != null) sellTabButtonLabel.text = isAlchemyShop ? "전리품" : "판매";
+        }
+
 
         public void Close()
         {
@@ -313,9 +347,21 @@ namespace HDY.UI
             }
         }
 
+        /// <summary>[HDY 요청 - 연금술사의 집] 연금술 상점에서는 이 버튼이 강화 탭(교환)을 연다. 일반 상점에서는 원래대로 구매 목록을 연다.</summary>
         private void ShowBuyTab()
         {
-            showingSellTab = false;
+            if (currentShop != null && currentShop.IsAlchemyShop)
+            {
+                currentTab = ShopTabMode.Enhance;
+
+                if (buyTabButton != null) buyTabButton.interactable = false;
+                if (sellTabButton != null) sellTabButton.interactable = true;
+
+                RefreshExchangeList(AlchemyExchangeCategory.Enhance);
+                return;
+            }
+
+            currentTab = ShopTabMode.Buy;
 
             if (buyTabButton != null) buyTabButton.interactable = false;
             if (sellTabButton != null) sellTabButton.interactable = true;
@@ -323,9 +369,21 @@ namespace HDY.UI
             RefreshBuyList();
         }
 
+        /// <summary>[HDY 요청 - 연금술사의 집] 연금술 상점에서는 이 버튼이 전리품 탭(교환)을 연다. 일반 상점에서는 원래대로 판매 목록을 연다.</summary>
         private void ShowSellTab()
         {
-            showingSellTab = true;
+            if (currentShop != null && currentShop.IsAlchemyShop)
+            {
+                currentTab = ShopTabMode.Loot;
+
+                if (buyTabButton != null) buyTabButton.interactable = true;
+                if (sellTabButton != null) sellTabButton.interactable = false;
+
+                RefreshExchangeList(AlchemyExchangeCategory.Loot);
+                return;
+            }
+
+            currentTab = ShopTabMode.Sell;
 
             if (buyTabButton != null) buyTabButton.interactable = true;
             if (sellTabButton != null) sellTabButton.interactable = false;
@@ -443,6 +501,25 @@ namespace HDY.UI
             return filteredItemsBuffer;
         }
 
+/// <summary>[HDY 요청 - 연금술사의 집] currentShop.ExchangeRecipeIds에서 category와 일치하는 교환 레시피만 골라 filteredExchangeBuffer에 채운다.</summary>
+        private List<AlchemyExchangeRecipe> FilterCurrentShopExchangeRecipes(AlchemyExchangeCategory category)
+        {
+            filteredExchangeBuffer.Clear();
+
+            if (itemCatalogManager == null || currentShop == null) return filteredExchangeBuffer;
+
+            foreach (var recipeId in currentShop.ExchangeRecipeIds)
+            {
+                var recipe = itemCatalogManager.FindAlchemyExchangeRecipe(recipeId);
+                if (recipe == null || recipe.Category != category) continue;
+
+                filteredExchangeBuffer.Add(recipe);
+            }
+
+            return filteredExchangeBuffer;
+        }
+
+
         /// <summary>기존에 만들어둔 슬롯을 재사용하고, 모자라면 새로 만든다(UpgradePopupUI.PopulateMaterialRows와 동일한 풀링 방식).</summary>
         private ShopSlotUI GetOrCreateSlot(int index)
         {
@@ -511,6 +588,31 @@ namespace HDY.UI
             HideExtraSlots(items.Count);
         }
 
+/// <summary>[HDY 요청 - 연금술사의 집] 전리품/강화 탭 공통 새로그리기. 구매/판매와 달리 재고 개념이 없어 항상 "무한"으로 표시된다.</summary>
+        private void RefreshExchangeList(AlchemyExchangeCategory category)
+        {
+            if (currentShop == null || slotPrefab == null || slotContainer == null) return;
+
+            var recipes = FilterCurrentShopExchangeRecipes(category);
+
+            for (int i = 0; i < recipes.Count; i++)
+            {
+                var recipe = recipes[i];
+
+                var slot = GetOrCreateSlot(i);
+                slot.gameObject.SetActive(true);
+
+                var costItem = itemCatalogManager != null ? itemCatalogManager.FindItemData(recipe.Cost_Item_ID) : null;
+                var resultItem = itemCatalogManager != null ? itemCatalogManager.FindItemData(recipe.Result_Item_ID) : null;
+
+                slot.SetExchangeData(recipe, costItem, resultItem);
+                slot.SetClickHandler(HandleExchangeSlotClicked);
+            }
+
+            HideExtraSlots(recipes.Count);
+        }
+
+
         /// <summary>구매 탭 슬롯 클릭 -> 팝업을 구매 모드로 연다(여기서는 진짜 거래 가능 수량인 GetBuyMaxQuantity를 다시 계산해서 넘긴다).</summary>
         private void HandleBuySlotClicked(ShopItemData itemData)
         {
@@ -521,7 +623,7 @@ namespace HDY.UI
             int unitPrice = GetBuyUnitPrice(itemData);
             int maxQuantity = GetBuyMaxQuantity(itemData);
 
-            transactionPopup.Open(ShopSlotUI.Mode.Buy, catalogItem, itemData, costIcon, unitPrice, maxQuantity,
+            transactionPopup.Open(ShopSlotUI.Mode.Buy, catalogItem, itemData.Item_ID, costIcon, unitPrice, maxQuantity,
                 quantity => ExecuteBuy(itemData, quantity));
         }
 
@@ -533,8 +635,36 @@ namespace HDY.UI
             var catalogItem = itemCatalogManager != null ? itemCatalogManager.FindItemData(itemData.Item_ID) : null;
             int maxQuantity = GetSellMaxQuantity(itemData);
 
-            transactionPopup.Open(ShopSlotUI.Mode.Sell, catalogItem, itemData, goldIcon, itemData.Selling_Price, maxQuantity,
+            transactionPopup.Open(ShopSlotUI.Mode.Sell, catalogItem, itemData.Item_ID, goldIcon, itemData.Selling_Price, maxQuantity,
                 quantity => ExecuteSell(itemData, quantity));
+        }
+
+        /// <summary>[HDY 요청 - 연금술사의 집] 교환 탭 슬롯 클릭 -> 팝업을 교환 모드로 연다. 메인 아이콘/이름은 결과 아이템(catalogItem 자리)으로, costIcon/unitPrice는 소비 재료 아이콘/수량으로 넘겨준다.</summary>
+        private void HandleExchangeSlotClicked(AlchemyExchangeRecipe recipe)
+        {
+            if (transactionPopup == null) return;
+
+            var costItem = itemCatalogManager != null ? itemCatalogManager.FindItemData(recipe.Cost_Item_ID) : null;
+            var resultItem = itemCatalogManager != null ? itemCatalogManager.FindItemData(recipe.Result_Item_ID) : null;
+            var costIcon = costItem != null ? costItem.ItemIcon : null;
+            int maxQuantity = GetExchangeMaxQuantity(recipe);
+
+            transactionPopup.Open(ShopSlotUI.Mode.Exchange, resultItem, recipe.Result_Item_ID, costIcon, recipe.Cost_Amount, maxQuantity,
+                quantity => ExecuteExchange(recipe, quantity));
+        }
+
+        /// <summary>
+        /// [HDY 요청 - 연금술사의 집] 교환은 재고 제한이 없으므로(기존 999999=무한 컨벤션), 소비 재료를 지금 몇 번이나
+        /// 교환할 수 있는지(보유량 / Cost_Amount)만이 실질적인 최대치다. GetBuyMaxQuantity의 재료 구매 분기와 동일한 계산이다.
+        /// </summary>
+        private int GetExchangeMaxQuantity(AlchemyExchangeRecipe recipe)
+        {
+            var materialInventory = MaterialInventory;
+            if (materialInventory == null) return 0;
+            if (recipe.Cost_Amount <= 0) return 0;
+
+            int owned = materialInventory.GetAmount(recipe.Cost_Item_ID);
+            return owned / recipe.Cost_Amount;
         }
 
         /// <summary>
@@ -654,14 +784,20 @@ namespace HDY.UI
         /// </summary>
         private void GrantPurchasedItem(ShopItemData itemData, int quantity)
         {
+            GrantItemToInventories(itemData.Item_ID, quantity);
+        }
+
+        /// <summary>[HDY 요청 - 연금술사의 집] GrantPurchasedItem/ExecuteExchange가 공유하는 창고 우선 -> 인벤토리 순서 지급 로직.</summary>
+        private void GrantItemToInventories(string itemId, int quantity)
+        {
             int remaining = quantity;
 
-            if (warehouseInventory != null) remaining = warehouseInventory.AddItem(itemData.Item_ID, remaining);
-            if (remaining > 0 && playerInventory != null) remaining = playerInventory.AddItem(itemData.Item_ID, remaining);
+            if (warehouseInventory != null) remaining = warehouseInventory.AddItem(itemId, remaining);
+            if (remaining > 0 && playerInventory != null) remaining = playerInventory.AddItem(itemId, remaining);
 
             if (remaining > 0)
             {
-                Debug.LogWarning($"[ShopUI] 창고와 인벤토리 공간이 부족해 {itemData.Item_ID} {remaining}개를 지급하지 못했습니다.", this);
+                Debug.LogWarning($"[ShopUI] 창고와 인벤토리 공간이 부족해 {itemId} {remaining}개를 지급하지 못했습니다.", this);
             }
         }
 
@@ -702,6 +838,50 @@ namespace HDY.UI
             RefreshSellList();
             return true;
         }
+
+/// <summary>
+        /// [HDY 요청 - 연금술사의 집] 재료소비/결과지급 비율이 1:1이 아닌 교환을 처리하는 전용 함수. 기존 ExecuteBuy와 달리
+        /// 상점 재고(ShopStockManager)를 전혀 쓰지 않는다 - 교환은 재고 제한이 없다(기존 999999=무한 표시 컨벤션을 그대로 따름).
+        /// 소비 재료 확인/차감은 IMaterialInventory를, 결과 아이템 지급은 GrantPurchasedItem과 동일한 창고 우선 -> 인벤토리
+        /// 순서를 그대로 재사용한다. 교환은 단방향이라 반대 방향(결과 아이템을 다시 소비 재료로) 레시피는 없다.
+        /// </summary>
+        private bool ExecuteExchange(AlchemyExchangeRecipe recipe, int quantity)
+        {
+            var materialInventory = MaterialInventory;
+
+            if (materialInventory == null)
+            {
+                Debug.LogWarning("[ShopUI] 재료 인벤토리가 연결되지 않아 교환할 수 없습니다.", this);
+                return false;
+            }
+
+            if (quantity <= 0)
+            {
+                Debug.LogWarning($"[ShopUI] 잘못된 교환 수량입니다: {recipe.Recipe_ID} x{quantity}", this);
+                return false;
+            }
+
+            int costNeeded = recipe.Cost_Amount * quantity;
+
+            if (!materialInventory.HasEnough(recipe.Cost_Item_ID, costNeeded))
+            {
+                Debug.LogWarning($"[ShopUI] 소비 재료가 부족해 교환하지 못했습니다: {recipe.Recipe_ID} x{quantity} (필요 {recipe.Cost_Item_ID} {costNeeded}개)", this);
+                return false;
+            }
+
+            materialInventory.Consume(recipe.Cost_Item_ID, costNeeded);
+
+            int resultAmount = recipe.Result_Amount * quantity;
+            GrantItemToInventories(recipe.Result_Item_ID, resultAmount);
+
+            Debug.Log($"[ShopUI] 교환 완료: {recipe.Recipe_ID} x{quantity} ({recipe.Cost_Item_ID} {costNeeded}개 소비 -> {recipe.Result_Item_ID} {resultAmount}개 획득)");
+
+            if (currentTab == ShopTabMode.Loot) RefreshExchangeList(AlchemyExchangeCategory.Loot);
+            else if (currentTab == ShopTabMode.Enhance) RefreshExchangeList(AlchemyExchangeCategory.Enhance);
+
+            return true;
+        }
+
 
         /// <summary>
         /// 구매 비용을 확인하고 차감한다. 재료 비용이 있으면 그 재료 하나만 소비하고 골드는 요구하지
@@ -749,8 +929,8 @@ namespace HDY.UI
             if (currentShop == null || stockManager == null) return;
             if (!stockManager.GetShopItems(currentShop).Contains(itemData)) return;
 
-            if (showingSellTab) RefreshSellList();
-            else RefreshBuyList();
+            if (currentTab == ShopTabMode.Sell) RefreshSellList();
+            else if (currentTab == ShopTabMode.Buy) RefreshBuyList();
         }
 
         /// <summary>상점이 재입고되면(구매/판매 재고 모두 리셋됨) 지금 보고 있는 탭에 해당하는 목록을 다시 그린다.</summary>
@@ -758,8 +938,8 @@ namespace HDY.UI
         {
             if (currentShop != shop) return;
 
-            if (showingSellTab) RefreshSellList();
-            else RefreshBuyList();
+            if (currentTab == ShopTabMode.Sell) RefreshSellList();
+            else if (currentTab == ShopTabMode.Buy) RefreshBuyList();
         }
     }
 }

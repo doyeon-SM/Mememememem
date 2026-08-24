@@ -29,5 +29,12 @@ namespace HDY.Shop
         [Header("재입고 주기")]
         [Tooltip("이 상점의 모든 품목 재고가 이 주기(분)마다 한 번에 MaxAmount로 리셋된다. 상점마다 다르게 설정 가능.")]
         public int RestockIntervalMinutes = 20;
+
+        [Header("연금술 교환 상점 (HDY 요청 - 연금술사의 집)")]
+        [Tooltip("체크하면 이 상점은 구매/판매 탭 대신 전리품/강화 교환 탭을 보여준다(ShopUI가 이 값으로 분기).")]
+        public bool IsAlchemyShop;
+
+        [Tooltip("이 연금술 상점이 취급하는 교환 레시피 목록(AlchemyExchangeRecipe.Recipe_ID). IsAlchemyShop이 true일 때만 사용된다.")]
+        public List<string> ExchangeRecipeIds = new List<string>();
     }
 }

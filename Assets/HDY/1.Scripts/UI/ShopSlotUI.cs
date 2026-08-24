@@ -34,7 +34,7 @@ namespace HDY.UI
     /// </summary>
     public class ShopSlotUI : MonoBehaviour
     {
-        public enum Mode { Buy, Sell }
+        public enum Mode { Buy, Sell, Exchange }
 
         /// <summary>ShopItemData의 설계상 최대치(Purchase_MaxAmount/Selling_MaxAmount)가 이 값 이상이면 숫자 대신 "무한"으로 표시한다.</summary>
         private const int InfiniteDisplayThreshold = 10000;
@@ -47,6 +47,9 @@ namespace HDY.UI
         [SerializeField] private Image iconImage;
         [SerializeField] private TMP_Text nameText;
 
+        [Tooltip("아이콘 위에 개수 배지로 표시할 수량 텍스트(HDY 요청). 1개면 숨기고 2개 이상이면 x뒤에 숫자를 붙여 보여준다. 구매/판매는 항상 1개라 숨겨지고, 연금술 교환은 Result_Amount가 1보다 클 때만 보인다.")]
+        [SerializeField] private TMP_Text quantityText;
+
         [Header("가격 표시 (아이콘 + 금액 하나)")]
         [SerializeField] private Image costIconImage;
         [SerializeField] private TMP_Text costAmountText;
@@ -56,6 +59,11 @@ namespace HDY.UI
 
         private ShopItemData cachedItemData;
         private Action<ShopItemData> onSlotClicked;
+
+        // [HDY 요청 - 연금술사의 집] 교환 탭 슬롯용 캐시. cachedItemData와 동시에 채워지지 않는다 -
+        // 슬롯 하나가 한 시점엔 구매/판매(ShopItemData) 아니면 교환(AlchemyExchangeRecipe) 중 하나로만 쓰인다.
+        private AlchemyExchangeRecipe cachedExchangeRecipe;
+        private Action<AlchemyExchangeRecipe> onExchangeSlotClicked;
 
         private void Awake()
         {
@@ -68,6 +76,12 @@ namespace HDY.UI
             onSlotClicked = handler;
         }
 
+        /// <summary>[HDY 요청 - 연금술사의 집] 교환 탭 슬롯이 클릭되었을 때 호출할 함수를 지정한다.</summary>
+        public void SetClickHandler(Action<AlchemyExchangeRecipe> handler)
+        {
+            onExchangeSlotClicked = handler;
+        }
+
         /// <summary>구매 모드로 슬롯을 채운다.</summary>
         /// <param name="costIcon">골드 아이콘 또는 재료 아이콘(어느 쪽인지는 ShopUI가 판단해서 넘겨줌).</param>
         /// <param name="unitPrice">1개당 가격(골드 또는 재료 수량).</param>
@@ -75,10 +89,12 @@ namespace HDY.UI
         public void SetBuyData(ShopItemData itemData, ItemData catalogItem, Sprite costIcon, int unitPrice, int stock)
         {
             cachedItemData = itemData;
+            cachedExchangeRecipe = null;
 
-            ApplyCommonDisplay(catalogItem, itemData);
+            ApplyCommonDisplay(catalogItem, itemData.Item_ID);
             ApplyCostDisplay(costIcon, unitPrice);
             ApplyMaxQuantityDisplay(stock, itemData.Purchase_MaxAmount);
+            ApplyQuantityDisplay(1);
 
             if (slotButton != null) slotButton.interactable = stock > 0;
         }
@@ -88,12 +104,36 @@ namespace HDY.UI
         public void SetSellData(ShopItemData itemData, ItemData catalogItem, Sprite goldIcon, int unitPrice, int stock)
         {
             cachedItemData = itemData;
+            cachedExchangeRecipe = null;
 
-            ApplyCommonDisplay(catalogItem, itemData);
+            ApplyCommonDisplay(catalogItem, itemData.Item_ID);
             ApplyCostDisplay(goldIcon, unitPrice);
             ApplyMaxQuantityDisplay(stock, itemData.Selling_MaxAmount);
+            ApplyQuantityDisplay(1);
 
             if (slotButton != null) slotButton.interactable = stock > 0;
+        }
+
+        /// <summary>
+        /// [HDY 요청 - 연금술사의 집] 교환 탭(전리품/강화) 슬롯을 채운다. 재고 제한이 없으므로
+        /// 항상 클릭 가능하고(slotButton.interactable = true), 최대 수량 표시는 기존 999999="무한"
+        /// 컨벤션을 그대로 따른다(ApplyMaxQuantityDisplay에 임계값 이상 값을 넘겨 항상 "무한"으로 표시).
+        /// 메인 아이콘/이름은 결과 아이템(무엇을 얻는지), 가격 자리(costIconImage/costAmountText)는
+        /// 소비 재료 아이콘 + 소비 수량을 보여준다.
+        /// </summary>
+        public void SetExchangeData(AlchemyExchangeRecipe recipe, ItemData costCatalogItem, ItemData resultCatalogItem)
+        {
+            cachedItemData = null;
+            cachedExchangeRecipe = recipe;
+
+            var costIcon = costCatalogItem != null ? costCatalogItem.ItemIcon : null;
+
+            ApplyCommonDisplay(resultCatalogItem, recipe.Result_Item_ID);
+            ApplyCostDisplay(costIcon, recipe.Cost_Amount);
+            ApplyMaxQuantityDisplay(InfiniteDisplayThreshold, InfiniteDisplayThreshold);
+            ApplyQuantityDisplay(recipe.Result_Amount);
+
+            if (slotButton != null) slotButton.interactable = true;
         }
 
         /// <summary>
@@ -112,7 +152,7 @@ namespace HDY.UI
                 : displayQuantity.ToString();
         }
 
-        private void ApplyCommonDisplay(ItemData catalogItem, ShopItemData itemData)
+        private void ApplyCommonDisplay(ItemData catalogItem, string fallbackItemId)
         {
             if (iconImage != null)
             {
@@ -120,7 +160,7 @@ namespace HDY.UI
                 iconImage.gameObject.SetActive(catalogItem != null && catalogItem.ItemIcon != null);
             }
 
-            if (nameText != null) nameText.text = catalogItem != null ? catalogItem.ItemName : itemData.Item_ID;
+            if (nameText != null) nameText.text = catalogItem != null ? catalogItem.ItemName : fallbackItemId;
         }
 
         private void ApplyCostDisplay(Sprite costIcon, int unitPrice)
@@ -134,10 +174,28 @@ namespace HDY.UI
             if (costAmountText != null) costAmountText.text = unitPrice.ToString();
         }
 
+        /// <summary>[HDY 요청] 아이콘 위 수량 배지. 1개면 굳이 보여줄 필요가 없어 숨기고, 2개 이상이면 수량을 붙여 보여준다.</summary>
+        private void ApplyQuantityDisplay(int amount)
+        {
+            if (quantityText == null) return;
+
+            bool show = amount > 1;
+            quantityText.gameObject.SetActive(show);
+            if (show) quantityText.text = "x" + amount;
+        }
+
         private void HandleClicked()
         {
-            if (cachedItemData == null) return;
-            onSlotClicked?.Invoke(cachedItemData);
+            if (cachedItemData != null)
+            {
+                onSlotClicked?.Invoke(cachedItemData);
+                return;
+            }
+
+            if (cachedExchangeRecipe != null)
+            {
+                onExchangeSlotClicked?.Invoke(cachedExchangeRecipe);
+            }
         }
     }
 }

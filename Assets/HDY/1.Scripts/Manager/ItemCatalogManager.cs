@@ -59,6 +59,7 @@ namespace HDY.Item
 
             // 음식 효과 테이블을 먼저 구성해야 BuildDictionary()의 ParseItemRow()에서 참조할 수 있다.
             foodEffectTable = new FoodEffectTable(foodEffectCatalogSheet != null ? foodEffectCatalogSheet.text : string.Empty);
+            alchemyExchangeTable = new HDY.Shop.AlchemyExchangeTable(alchemyExchangeCatalogSheet != null ? alchemyExchangeCatalogSheet.text : string.Empty);
 
             BuildDictionary();
             BuildRecipeDictionary();
@@ -74,6 +75,12 @@ namespace HDY.Item
 
         // 음식 효과 시트를 파싱해 Item_ID -> 섭취 효과 목록으로 조회하는 테이블. Awake에서 구성한다.
         private FoodEffectTable foodEffectTable;
+
+        [Header("연금술 교환 레시피 시트 (쉼표 구분 CSV, Recipe_ID 기준으로 파싱 - HDY 요청, 연금술사의 집)")]
+        [SerializeField] private TextAsset alchemyExchangeCatalogSheet;
+
+        // 연금술 교환 레시피 시트를 파싱해 Recipe_ID -> AlchemyExchangeRecipe로 조회하는 테이블. Awake에서 구성한다.
+        private HDY.Shop.AlchemyExchangeTable alchemyExchangeTable;
 
         [Header("아이템 아이콘 테이블 (Item_ID -> Sprite)")]
         [SerializeField] private ItemIconTable iconTable;
@@ -479,6 +486,12 @@ namespace HDY.Item
             if (string.IsNullOrEmpty(resultItemId)) return null;
 
             return cookRecipeDictionary.TryGetValue(resultItemId, out var cookRecipe) ? cookRecipe : null;
+        }
+
+        /// <summary>Recipe_ID로 연금술 교환 레시피(AlchemyExchangeRecipe)를 찾는다. 목록에 없으면 null.</summary>
+        public HDY.Shop.AlchemyExchangeRecipe FindAlchemyExchangeRecipe(string recipeId)
+        {
+            return alchemyExchangeTable != null ? alchemyExchangeTable.FindRecipe(recipeId) : null;
         }
 
         /// <summary>
