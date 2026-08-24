@@ -30,6 +30,8 @@ namespace HDY.Item
     {
         Satiety,
         Speed,
-        Fulling
+        Fulling,
+        Heal,
+        Luck
     }
 }

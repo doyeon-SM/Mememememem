@@ -111,6 +111,19 @@ namespace KMS
             }
         }
 
+        /// <summary>
+        /// 행운(Luck) 지속효과 총합을 채집량 배율로 환산한다. 예: +20 = 채집 개수 +20%.
+        /// MoveSpeedMultiplier와 동일한 패턴 - 섭취한 음식의 포만감이 남아있는 동안만 유지된다.
+        /// </summary>
+        public float GatherAmountMultiplier
+        {
+            get
+            {
+                float percent = GetActiveEffectTotal(EffectType.Luck);
+                return Mathf.Max(0f, 1f + percent * 0.01f);
+            }
+        }
+
         private void Reset()
         {
             stats = GetComponent<PlayerStats>();
@@ -378,6 +391,7 @@ namespace KMS
                 ItemEffect effect = item.EatEffects[i];
                 if (effect != null
                     && effect.Effect != EffectType.Satiety
+                    && effect.Effect != EffectType.Heal
                     && !Mathf.Approximately(effect.Value, 0f))
                 {
                     return true;
@@ -397,6 +411,7 @@ namespace KMS
                 ItemEffect effect = item.EatEffects[i];
                 if (effect == null
                     || effect.Effect == EffectType.Satiety
+                    || effect.Effect == EffectType.Heal
                     || Mathf.Approximately(effect.Value, 0f))
                 {
                     continue;

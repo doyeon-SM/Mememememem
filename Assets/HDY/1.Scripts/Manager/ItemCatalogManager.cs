@@ -57,6 +57,9 @@ namespace HDY.Item
             Instance = this;
             DontDestroyOnLoad(gameObject);
 
+            // 음식 효과 테이블을 먼저 구성해야 BuildDictionary()의 ParseItemRow()에서 참조할 수 있다.
+            foodEffectTable = new FoodEffectTable(foodEffectCatalogSheet != null ? foodEffectCatalogSheet.text : string.Empty);
+
             BuildDictionary();
             BuildRecipeDictionary();
             BuildShopItemDictionary();
@@ -65,6 +68,12 @@ namespace HDY.Item
 
         [Header("아이템 데이터 시트 (쉼표 구분 CSV, Item_ID 기준으로 파싱)")]
         [SerializeField] private TextAsset itemCatalogSheet;
+
+        [Header("음식 효과 시트 (쉼표 구분 CSV, Item_ID + EatEffects만 있는 별도 시트)")]
+        [SerializeField] private TextAsset foodEffectCatalogSheet;
+
+        // 음식 효과 시트를 파싱해 Item_ID -> 섭취 효과 목록으로 조회하는 테이블. Awake에서 구성한다.
+        private FoodEffectTable foodEffectTable;
 
         [Header("아이템 아이콘 테이블 (Item_ID -> Sprite)")]
         [SerializeField] private ItemIconTable iconTable;
@@ -124,7 +133,7 @@ namespace HDY.Item
                 if (string.IsNullOrWhiteSpace(line)) continue;
 
                 var cols = line.Split(',');
-                if (cols.Length < 9)
+                if (cols.Length < 8)
                 {
                     Debug.LogWarning($"[ItemCatalogManager] 아이템 시트 {i + 1}번째 줄 컬럼 수가 부족합니다: {line}");
                     continue;
@@ -287,13 +296,19 @@ namespace HDY.Item
             data.UseAction = ParseEnum<UseAction>(cols[5]);
             data.ObjectType = ParseEnum<ObjectType>(cols[6]);
             data.ItemClass = ParseEnum<CommonClass>(cols[7]);
-            data.EatEffects = ParseEatEffects(cols[8]);
 
-            // [HDY 요청 - 크기 표시] Size 컬럼은 뒤에 추가된 것이라 없는 행(구버전 시트)도 있을 수 있어 방어적으로 처리한다.
-            data.Size = cols.Length > 9 ? cols[9].Trim() : string.Empty;
+            // [음식효과 CSV 분리] EatEffects는 더 이상 이 메인 시트 컬럼에서 읽지 않는다.
+            // 별도 FoodEffectCatalog.csv(foodEffectTable)에서 Item_ID로 조회해 채운다.
+            data.EatEffects = foodEffectTable != null
+                ? foodEffectTable.GetEffects(data.Item_ID)
+                : new List<ItemEffect>();
+
+            // [HDY 요청 - 크기 표시] EatEffects 컬럼이 제거되면서 Size/Durability 인덱스가 한 칸씩 당겨졌다.
+            // Size 컬럼은 없는 행(구버전 시트)도 있을 수 있어 방어적으로 처리한다.
+            data.Size = cols.Length > 8 ? cols[8].Trim() : string.Empty;
 
             // [HDY 요청 - KMS 크로스 승인 - 내구도] Size와 동일하게 방어적으로 처리한다(없는 행 = 0 = 내구도 없음).
-            data.MaxDurability = cols.Length > 10 ? ParseInt(cols[10]) : 0;
+            data.MaxDurability = cols.Length > 9 ? ParseInt(cols[9]) : 0;
 
             data.ItemIcon = iconTable != null ? iconTable.GetIcon(data.Item_ID) : null;
 
@@ -365,30 +380,6 @@ namespace HDY.Item
         private static T ParseEnum<T>(string s) where T : struct
         {
             return System.Enum.TryParse(s.Trim(), out T value) ? value : default;
-        }
-
-        /// <summary>"Satiety:10;Speed:5" 형식을 파싱한다. 빈 문자열이면 빈 리스트를 반환한다.</summary>
-        private static List<ItemEffect> ParseEatEffects(string raw)
-        {
-            var effects = new List<ItemEffect>();
-            if (string.IsNullOrWhiteSpace(raw)) return effects;
-
-            var entries = raw.Split(';');
-            foreach (var entry in entries)
-            {
-                if (string.IsNullOrWhiteSpace(entry)) continue;
-
-                var parts = entry.Split(':');
-                if (parts.Length != 2) continue;
-
-                if (System.Enum.TryParse(parts[0].Trim(), out EffectType effectType) &&
-                    float.TryParse(parts[1].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var value))
-                {
-                    effects.Add(new ItemEffect { Effect = effectType, Value = value });
-                }
-            }
-
-            return effects;
         }
 
         /// <summary>"item_wood:30;item_baseblueprint:1" 형식을 파싱한다. 빈 문자열이면 빈 리스트를 반환한다.</summary>

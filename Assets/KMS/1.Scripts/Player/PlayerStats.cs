@@ -251,7 +251,34 @@ namespace KMS
             float restoredAmount = CurrentHunger - previousHunger;
             FoodApplied?.Invoke(item, restoredAmount);
             HungerChanged?.Invoke(CurrentHunger, maxHunger);
+
+            ApplyHealEffect(item);
+
             return true;
+        }
+
+        /// <summary>
+        /// 음식의 EatEffects 중 Heal 효과를 합산해 기존 Heal(float)로 즉시 회복시킨다.
+        /// 만복도처럼 큐에 쌓이는 지속효과가 아니라, 먹는 즉시 1회성으로 적용된다.
+        /// </summary>
+        private void ApplyHealEffect(ItemData item)
+        {
+            if (item?.EatEffects == null) return;
+
+            float healAmount = 0f;
+            for (int i = 0; i < item.EatEffects.Count; i++)
+            {
+                ItemEffect effect = item.EatEffects[i];
+                if (effect != null && effect.Effect == EffectType.Heal)
+                {
+                    healAmount += effect.Value;
+                }
+            }
+
+            if (healAmount > 0f)
+            {
+                Heal(healAmount);
+            }
         }
 
         public void Revive(float healthPercent = 1f)

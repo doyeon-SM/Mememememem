@@ -1,4 +1,4 @@
-﻿using HDY;
+using HDY;
 using HDY.Forge;
 using HDY.Item;
 using KGH.Data;
@@ -342,7 +342,7 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
         {
             if (UsesTypeSpecificDepletion() && myType == ObjectType.Tree)
             {
-                BeginTreeFall(activeTool, hitPoint, attackerPosition);
+                BeginTreeFall(inventory, activeTool, hitPoint, attackerPosition);
                 NotifyStateChanged();
                 return true;
             }
@@ -350,7 +350,7 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
             // 자원 콜라이더 위를 바닥으로 잘못 인식하지 않도록 먼저 자원을 숨긴 뒤 드롭 위치를 계산합니다.
             BeginRespawnCooldown();
             Physics.SyncTransforms();
-            ItemDrops(activeTool, hitPoint);
+            ItemDrops(inventory, activeTool, hitPoint);
 
             if (IsDead)
             {
@@ -431,16 +431,19 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
             : null;
     }
 
-    private void ItemDrops(ItemData tool, Vector3 hitPoint)
+    private void ItemDrops(PlayerInventory inventory, ItemData tool, Vector3 hitPoint)
     {
-        SpawnDropObjects(tool, hitPoint);
+        SpawnDropObjects(inventory, tool, hitPoint);
     }
 
-    private void SpawnDropObjects(ItemData tool, Vector3 hitPoint)
+    private void SpawnDropObjects(PlayerInventory inventory, ItemData tool, Vector3 hitPoint)
     {
         if (dropItems == null || dropItems.Length == 0) return;
 
         int gatherBonus = GetWholeRefinementBonus(tool, GatherIncreaseOptionType);
+        // [행운 효과] 채집한 플레이어의 지속효과 큐에서 Luck 총합을 읽어 배율로 반영한다.
+        // 연마의 GatherIncrease(고정 개수 가산)와는 별개로, 기본 드롭 개수에 곱연산으로 먼저 적용한 뒤 연마 고정 보너스를 더한다.
+        float luckMultiplier = GetGatherLuckMultiplier(inventory);
         Dictionary<string, int> amountsByItemId = new Dictionary<string, int>();
         for (int dropIndex = 0; dropIndex < dropItems.Length; dropIndex++)
         {
@@ -455,7 +458,8 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
             int baseDropCount = ToolDropManager.Instance != null
                 ? ToolDropManager.Instance.RollDropCount(tool != null ? tool.Item_ID : string.Empty)
                 : 1;
-            int dropCount = baseDropCount + gatherBonus;
+            int luckAdjustedDropCount = Mathf.Max(0, Mathf.RoundToInt(baseDropCount * luckMultiplier));
+            int dropCount = luckAdjustedDropCount + gatherBonus;
 
             if (dropCount <= 0)
             {
@@ -468,6 +472,7 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
 
             Debug.Log(
                 $"[{name}] 드롭 계산: {normalizedItemId}, 기본 {baseDropCount}, " +
+                $"행운 반영 {luckAdjustedDropCount}(x{luckMultiplier:F2}), " +
                 $"연마 채집량 +{gatherBonus}, 최종 {dropCount}",
                 this);
         }
@@ -614,6 +619,21 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
         return Mathf.Max(0, Mathf.RoundToInt(total));
     }
 
+    /// <summary>
+    /// 채집한 플레이어의 KMSFoodEffectController에서 행운(Luck) 지속효과 총합을 읽어와
+    /// 채집 기본 개수에 곱할 배율을 계산합니다. 플레이어/음식효과 컨트롤러가 없으면 1(보너스 없음)을 반환합니다.
+    /// </summary>
+    private static float GetGatherLuckMultiplier(PlayerInventory inventory)
+    {
+        if (inventory == null) return 1f;
+
+        KMS.PlayerStats stats = inventory.GetComponent<KMS.PlayerStats>();
+        if (stats == null || stats.FoodEffects == null) return 1f;
+
+        float luckPercent = stats.FoodEffects.GetActiveEffectTotal(EffectType.Luck);
+        return Mathf.Max(0f, 1f + luckPercent * 0.01f);
+    }
+
     private void PrewarmDropPools()
     {
         WorldDropPool.Prewarm(poolPrewarmCount);
@@ -637,14 +657,14 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
             .IsTypeSpecificDepletionEnabledFor(this);
     }
 
-    private void BeginTreeFall(ItemData tool, Vector3 hitPoint, Vector3 attackerPosition)
+    private void BeginTreeFall(PlayerInventory inventory, ItemData tool, Vector3 hitPoint, Vector3 attackerPosition)
     {
         currentObjectHp = 0;
         respawnAtTime = float.PositiveInfinity;
         isTreeFalling = true;
 
         // 바닥 충돌 여부와 무관하게 벌목 완료 순간 보상을 한 번만 생성합니다.
-        ItemDrops(tool, hitPoint);
+        ItemDrops(inventory, tool, hitPoint);
         SetResourceCollidersAvailable(false);
 
         Vector3 fallDirection = transform.position - attackerPosition;
