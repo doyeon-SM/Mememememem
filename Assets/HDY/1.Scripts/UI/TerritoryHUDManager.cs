@@ -1,8 +1,15 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
 using TMPro;
 using HDY.Territory;
+using HDY.Item;
+using HDY.Inventory;
+using KMS;
+using KMS.InventoryDuped;
 
 namespace HDY.UI
 {
@@ -31,6 +38,12 @@ namespace HDY.UI
             public void OnPointerExit(PointerEventData eventData) => Owner?.HandleLevelButtonHoverExit();
         }
 
+        private sealed class ActiveItemObtainedToast
+        {
+            public KMSItemObtainedToastView view;
+            public Coroutine lifetimeRoutine;
+        }
+
         [Header("데이터 참조 (비어있으면 자동 탐색)")]
         [SerializeField] private TerritoryData territoryData;
 
@@ -46,6 +59,21 @@ namespace HDY.UI
         [Tooltip("이 버튼에 마우스를 올리면 levelText가 \"현재경험치/필요경험치\"로 바뀌고 폰트 크기가 10으로 줄어든다.")]
         [SerializeField] private Button levelButton;
 
+        [Header("아이템 획득 토스트 (탐험 캐릭터 HUD의 KMSPlayerHudView.ShowItemObtained 로직을 그대로 포팅 - HDY 요청)")]
+        [Tooltip("토스트가 배치될 컨테이너. P_TerritoryHUD 안에 복제해둔 ItemObtainedToastContainer를 연결한다.")]
+        [SerializeField] private RectTransform itemObtainedToastContainer;
+        [Tooltip("토스트 1개의 템플릿(항상 비활성 상태로 보관). 복제해둔 ItemObtainedToastTemplate을 연결한다.")]
+        [SerializeField] private KMSItemObtainedToastView itemObtainedToastTemplate;
+        [SerializeField, Min(0f)] private float itemObtainedToastDuration = 2.5f;
+        [SerializeField, Min(0f)] private float itemObtainedToastFadeDuration = 0.3f;
+        [SerializeField, Min(1)] private int maxVisibleItemObtainedToasts = 4;
+
+        [Header("아이템 획득 이벤트 참조 (비어있으면 자동 탐색)")]
+        [Tooltip("플레이어 인벤토리로 직접 들어간 아이템도 토스트로 띄우기 위해 구독한다.")]
+        [SerializeField] private PlayerInventory playerInventory;
+        [Tooltip("영지에서는 대부분 창고로 먼저 들어가므로 창고 이벤트도 함께 구독한다.")]
+        [SerializeField] private WarehouseInventory warehouseInventory;
+
         private const float HoverLevelFontSize = 13f;
 
         private int lastDisplayedGold = int.MinValue;
@@ -58,6 +86,8 @@ namespace HDY.UI
 
         private bool isHoveringLevelButton;
         private float normalLevelFontSize;
+
+        private readonly List<ActiveItemObtainedToast> itemObtainedToasts = new List<ActiveItemObtainedToast>();
 
         private void Awake()
         {
@@ -78,7 +108,32 @@ namespace HDY.UI
             {
                 Debug.LogWarning("[TerritoryHUDManager] levelButton이 비어있습니다. 호버 시 경험치 표시가 동작하지 않습니다.", this);
             }
+
+            if (itemObtainedToastTemplate != null) itemObtainedToastTemplate.gameObject.SetActive(false);
+
+            if (playerInventory == null) playerInventory = FindFirstObjectByType<PlayerInventory>();
+            if (warehouseInventory == null) warehouseInventory = FindFirstObjectByType<WarehouseInventory>();
+
+            if (playerInventory == null && warehouseInventory == null)
+            {
+                Debug.LogWarning("[TerritoryHUDManager] playerInventory/warehouseInventory를 모두 찾을 수 없습니다. 아이템 획득 토스트가 표시되지 않습니다.", this);
+            }
         }
+
+private void OnEnable()
+        {
+            if (playerInventory != null) playerInventory.OnItemObtained += HandleItemObtained;
+            if (warehouseInventory != null) warehouseInventory.OnItemAdded += HandleItemObtained;
+        }
+
+        private void OnDisable()
+        {
+            if (playerInventory != null) playerInventory.OnItemObtained -= HandleItemObtained;
+            if (warehouseInventory != null) warehouseInventory.OnItemAdded -= HandleItemObtained;
+
+            ClearItemObtainedToasts();
+        }
+
 
         private void Update()
         {
@@ -144,6 +199,100 @@ namespace HDY.UI
             if (levelText != null) levelText.fontSize = normalLevelFontSize;
 
             hasDisplayedLevel = false; // 다음 Update에서 즉시 새로 대입되도록
+        }
+
+        private void HandleItemObtained(ItemData item, int amount)
+        {
+            ShowItemObtained(item, amount, itemObtainedToastDuration, itemObtainedToastFadeDuration, maxVisibleItemObtainedToasts);
+        }
+
+        private void ShowItemObtained(
+            ItemData item,
+            int amount,
+            float visibleDuration,
+            float fadeDuration,
+            int maxVisible)
+        {
+            if (item == null || amount <= 0 || itemObtainedToastContainer == null || itemObtainedToastTemplate == null)
+                return;
+
+            PruneItemObtainedToasts();
+            while (itemObtainedToasts.Count >= Mathf.Max(1, maxVisible))
+            {
+                RemoveItemObtainedToast(itemObtainedToasts[0]);
+            }
+
+            KMSItemObtainedToastView instance = Instantiate(itemObtainedToastTemplate, itemObtainedToastContainer);
+            instance.name = $"ItemObtained_{item.Item_ID}";
+            instance.SetData(item, amount);
+            instance.gameObject.SetActive(true);
+
+            ActiveItemObtainedToast toast = new ActiveItemObtainedToast { view = instance };
+            itemObtainedToasts.Add(toast);
+            toast.lifetimeRoutine = StartCoroutine(
+                RunItemObtainedToastLifetime(toast, visibleDuration, fadeDuration));
+        }
+
+        private IEnumerator RunItemObtainedToastLifetime(
+            ActiveItemObtainedToast toast,
+            float visibleDuration,
+            float fadeDuration)
+        {
+            if (toast.view == null) yield break;
+            CanvasGroup canvasGroup = toast.view.CanvasGroup;
+            if (canvasGroup == null)
+            {
+                RemoveItemObtainedToast(toast, false);
+                yield break;
+            }
+
+            float fadeInElapsed = 0f;
+            float fadeInDuration = Mathf.Min(0.16f, Mathf.Max(0f, fadeDuration));
+            canvasGroup.alpha = fadeInDuration > 0f ? 0f : 1f;
+            while (fadeInElapsed < fadeInDuration && toast.view != null)
+            {
+                fadeInElapsed += Time.unscaledDeltaTime;
+                canvasGroup.alpha = Mathf.Clamp01(fadeInElapsed / fadeInDuration);
+                yield return null;
+            }
+
+            yield return new WaitForSecondsRealtime(Mathf.Max(0f, visibleDuration));
+            if (toast.view == null) yield break;
+
+            yield return FadeOut(canvasGroup, Mathf.Max(0f, fadeDuration));
+            RemoveItemObtainedToast(toast, false);
+        }
+
+        private void PruneItemObtainedToasts()
+        {
+            itemObtainedToasts.RemoveAll(toast => toast == null || toast.view == null);
+        }
+
+        private void RemoveItemObtainedToast(ActiveItemObtainedToast toast, bool stopRoutine = true)
+        {
+            if (toast == null) return;
+            if (stopRoutine && toast.lifetimeRoutine != null) StopCoroutine(toast.lifetimeRoutine);
+            itemObtainedToasts.Remove(toast);
+            if (toast.view != null) Destroy(toast.view.gameObject);
+        }
+
+        private void ClearItemObtainedToasts()
+        {
+            for (int i = itemObtainedToasts.Count - 1; i >= 0; i--)
+            {
+                RemoveItemObtainedToast(itemObtainedToasts[i]);
+            }
+        }
+
+        private static IEnumerator FadeOut(CanvasGroup canvasGroup, float duration)
+        {
+            float elapsed = 0f;
+            while (elapsed < duration)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                canvasGroup.alpha = 1f - Mathf.Clamp01(elapsed / duration);
+                yield return null;
+            }
         }
     }
 }

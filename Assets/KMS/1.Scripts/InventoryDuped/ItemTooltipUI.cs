@@ -120,7 +120,7 @@ namespace KMS.InventoryDuped
                     var slot = refinementOverride[i];
                     if (slot == null || string.IsNullOrEmpty(slot.DisplayName)) continue;
 
-                    CreateTag($"{slot.DisplayName}+{slot.Value:0.#}", GetRefinementGradeColor(slot.Grade), lightTextColor);
+                    CreateTag($"{slot.DisplayName}+{slot.FormatValue()}", GetRefinementGradeColor(slot.Grade), lightTextColor);
                 }
             }
 
@@ -219,7 +219,7 @@ namespace KMS.InventoryDuped
             {
                 if (slot == null || string.IsNullOrEmpty(slot.DisplayName)) continue;
 
-                CreateTag($"{slot.DisplayName}+{slot.Value:0.#}", GetRefinementGradeColor(slot.Grade), lightTextColor);
+                CreateTag($"{slot.DisplayName}+{slot.FormatValue()}", GetRefinementGradeColor(slot.Grade), lightTextColor);
             }
         }
 

@@ -41,5 +41,16 @@ namespace HDY.Forge
         {
             return new ForgeRefinementSlotData(Grade, OptionType, DisplayName, Value);
         }
+
+        /// <summary>
+        /// [HDY 요청] 툴팁 등 UI에 보여줄 수치 문자열. GatherIncrease는 이제 %(비율) 값이라 "%"를 붙이고,
+        /// 그 외(DamageIncrease 등 고정 수치)는 기존처럼 숫자만 표시한다.
+        /// </summary>
+        public string FormatValue()
+        {
+            return string.Equals(OptionType, "GatherIncrease", StringComparison.Ordinal)
+                ? $"{Value:0.#}%"
+                : $"{Value:0.#}";
+        }
     }
 }

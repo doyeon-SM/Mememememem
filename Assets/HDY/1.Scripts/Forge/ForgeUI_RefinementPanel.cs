@@ -259,7 +259,7 @@ namespace HDY.Forge
 
                 if (row.infoText != null)
                 {
-                    row.infoText.text = $"{slotData.Grade} / {slotData.DisplayName}+{slotData.Value:0.#}";
+                    row.infoText.text = $"{slotData.Grade} / {slotData.DisplayName}+{slotData.FormatValue()}";
                 }
 
                 if (row.lockToggle != null)

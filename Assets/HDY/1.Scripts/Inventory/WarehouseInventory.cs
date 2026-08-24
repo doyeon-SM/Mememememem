@@ -65,6 +65,9 @@ namespace HDY.Inventory
         /// <summary>행 수(창고 크기)가 바뀔 때(업그레이드 성공 시) 발행. UI가 슬롯 UI를 추가로 만들어야 할 때 사용.</summary>
         public event Action OnRowCountChanged;
 
+        /// <summary>아이템이 실제로 추가됐을 때(아이템 데이터 + 수량) 발행. 영지 HUD의 아이템 획득 토스트 등에서 구독한다.</summary>
+        public event Action<ItemData, int> OnItemAdded;
+
         private void Awake()
         {
             if (storage.height <= 0) storage.height = startingRows;
@@ -98,7 +101,11 @@ namespace HDY.Inventory
             remaining = AddToEmptySlots(item, remaining);
 
             int added = amount - remaining;
-            if (added > 0) OnStorageChanged?.Invoke();
+            if (added > 0)
+            {
+                OnStorageChanged?.Invoke();
+                OnItemAdded?.Invoke(item, added);
+            }
 
             return remaining;
         }

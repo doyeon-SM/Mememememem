@@ -440,9 +440,9 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
     {
         if (dropItems == null || dropItems.Length == 0) return;
 
-        int gatherBonus = GetWholeRefinementBonus(tool, GatherIncreaseOptionType);
+        float gatherPercent = GetTotalRefinementPercent(tool, GatherIncreaseOptionType);
         // [행운 효과] 채집한 플레이어의 지속효과 큐에서 Luck 총합을 읽어 배율로 반영한다.
-        // 연마의 GatherIncrease(고정 개수 가산)와는 별개로, 기본 드롭 개수에 곱연산으로 먼저 적용한 뒤 연마 고정 보너스를 더한다.
+        // 연마의 GatherIncrease는 %(비율) 총합으로, 행운이 반영된 값(luckAdjustedDropCount)에 곱연산으로 적용한다 - HDY 요청.
         float luckMultiplier = GetGatherLuckMultiplier(inventory);
         Dictionary<string, int> amountsByItemId = new Dictionary<string, int>();
         for (int dropIndex = 0; dropIndex < dropItems.Length; dropIndex++)
@@ -459,7 +459,7 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
                 ? ToolDropManager.Instance.RollDropCount(tool != null ? tool.Item_ID : string.Empty)
                 : 1;
             int luckAdjustedDropCount = Mathf.Max(0, Mathf.RoundToInt(baseDropCount * luckMultiplier));
-            int dropCount = luckAdjustedDropCount + gatherBonus;
+            int dropCount = Mathf.Max(0, Mathf.RoundToInt(luckAdjustedDropCount * (1f + gatherPercent / 100f)));
 
             if (dropCount <= 0)
             {
@@ -473,7 +473,7 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
             Debug.Log(
                 $"[{name}] 드롭 계산: {normalizedItemId}, 기본 {baseDropCount}, " +
                 $"행운 반영 {luckAdjustedDropCount}(x{luckMultiplier:F2}), " +
-                $"연마 채집량 +{gatherBonus}, 최종 {dropCount}",
+                $"연마 채집% +{gatherPercent:F1}%, 최종 {dropCount}",
                 this);
         }
 
@@ -618,6 +618,41 @@ public class WorldObject : MonoBehaviour, KMS.IInteractable
 
         return Mathf.Max(0, Mathf.RoundToInt(total));
     }
+
+/// <summary>
+    /// 강화/연마 도구의 합성 ID로 인스턴스를 찾아 같은 옵션의 수치를 합산한다(반올림하지 않은 원본 %).
+    /// GatherIncrease처럼 %(비율) 합연산이 필요한 곳에서 사용한다. 일반 도구이거나 레지스트리 데이터가
+    /// 없으면 0을 반환한다.
+    /// </summary>
+    private static float GetTotalRefinementPercent(ItemData tool, string optionType)
+    {
+        if (tool == null
+            || string.IsNullOrEmpty(optionType)
+            || !ForgeInstanceRegistry.TryParseCompositeId(tool.Item_ID, out _, out string instanceId))
+        {
+            return 0f;
+        }
+
+        ForgeInstanceRegistry registry = ForgeInstanceRegistry.Instance;
+        ForgeInstanceData instance = registry != null ? registry.GetInstance(instanceId) : null;
+        if (instance?.RefinementSlots == null)
+        {
+            return 0f;
+        }
+
+        float total = 0f;
+        foreach (ForgeRefinementSlotData slot in instance.RefinementSlots)
+        {
+            if (slot != null
+                && string.Equals(slot.OptionType, optionType, System.StringComparison.Ordinal))
+            {
+                total += slot.Value;
+            }
+        }
+
+        return Mathf.Max(0f, total);
+    }
+
 
     /// <summary>
     /// 채집한 플레이어의 KMSFoodEffectController에서 행운(Luck) 지속효과 총합을 읽어와
