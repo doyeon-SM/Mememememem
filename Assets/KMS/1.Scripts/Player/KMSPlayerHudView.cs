@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using DG.Tweening;
 using HDY.Item;
 using TMPro;
 using UnityEngine;
@@ -28,6 +29,10 @@ namespace KMS
         [SerializeField] private TMP_Text hungerText;
         [SerializeField] private Color speedFoodEffectColor = new Color32(255, 132, 43, 255);
         [SerializeField] private Color otherFoodEffectColor = new Color32(174, 92, 255, 255);
+
+        [Header("Health Restore Feedback")]
+        [Tooltip("체력이 바뀌어 슬라이더(채움바)가 새 값까지 DOTween으로 서서히 차오르는 데 걸리는 시간(초).")]
+        [SerializeField, Min(0.05f)] private float healthTweenDuration = 0.9f;
 
         [Header("Hunger Restore Feedback")]
         [SerializeField, Min(0.05f)] private float hungerRestoreDuration = 0.55f;
@@ -84,6 +89,9 @@ namespace KMS
         private string pendingFoodEffectText;
         private Color pendingFoodEffectColor;
         private Vector3 hungerTrackBaseScale = Vector3.one;
+        private float displayedHealth;
+        private bool healthInitializedView;
+        private Tween healthTween;
 
         private sealed class ActiveItemObtainedToast
         {
@@ -141,13 +149,48 @@ namespace KMS
                 StopCoroutine(deathPresentationRoutine);
                 deathPresentationRoutine = null;
             }
+            healthTween?.Kill();
+            healthTween = null;
             ResetHungerFeedback();
             ClearItemObtainedToasts();
         }
 
+        /// <summary>
+        /// 체력바 값을 즉시 적용하는 대신, 동일한 느낌의 ease-out-cubic 이징을 DOTween으로 구현해
+        /// 슬라이더가 서서히 차오르도록(또는 줄어들도록) 한다.
+        /// 체력은 자연회복 틱마다(1초) 값이 변하므로, 변화가 생길 때마다 매번 새로 재생한다.
+        /// </summary>
         public void SetHealth(float current, float max)
         {
-            SetProgress(healthFill, healthText, current, max);
+            current = Mathf.Clamp(current, 0f, Mathf.Max(0f, max));
+            max = Mathf.Max(0f, max);
+
+            if (!healthInitializedView)
+            {
+                healthInitializedView = true;
+                displayedHealth = current;
+                SetProgress(healthFill, healthText, current, max);
+                return;
+            }
+
+            if (Mathf.Approximately(current, displayedHealth))
+            {
+                SetProgress(healthFill, healthText, current, max);
+                return;
+            }
+
+            healthTween?.Kill();
+            healthTween = DOTween.To(
+                    () => displayedHealth,
+                    value =>
+                    {
+                        displayedHealth = value;
+                        SetProgress(healthFill, healthText, displayedHealth, max);
+                    },
+                    current,
+                    healthTweenDuration)
+                .SetEase(Ease.OutCubic)
+                .SetUpdate(true);
         }
 
         public void SetHunger(

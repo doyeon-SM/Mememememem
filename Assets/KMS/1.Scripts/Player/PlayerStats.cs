@@ -27,6 +27,7 @@ namespace KMS
         [SerializeField] private float startingHunger = 100f;
         [SerializeField] private float starvationDamagePerSecond = 5f;
         [SerializeField] private KMSFoodEffectController foodEffects;
+        [SerializeField] private PlayerHealthRegenController healthRegen;
 
         public float MaxHealth => maxHealth;
         public float CurrentHealth { get; private set; }
@@ -58,6 +59,7 @@ namespace KMS
 
             ResolveFoodEffects();
             foodEffects.InitializeAsNormal(CurrentHunger, false);
+            ResolveHealthRegen();
         }
 
         private void Start()
@@ -116,6 +118,7 @@ namespace KMS
             if (CurrentHealth <= 0f)
             {
                 IsAlive = false;
+                healthRegen?.ResetChannels();
                 Died?.Invoke();
             }
         }
@@ -265,19 +268,23 @@ namespace KMS
         {
             if (item?.EatEffects == null) return;
 
-            float healAmount = 0f;
+            // [체력회복 개편] Heal은 더 이상 즉시 고정수치로 회복하지 않는다.
+            // 최대체력 대비 %로 해석해 PlayerHealthRegenController의 음식 큐에 넣고,
+            // 그곳에서 일정 시간 동안 서서히 회복된다.
+            float healPercent = 0f;
             for (int i = 0; i < item.EatEffects.Count; i++)
             {
                 ItemEffect effect = item.EatEffects[i];
                 if (effect != null && effect.Effect == EffectType.Heal)
                 {
-                    healAmount += effect.Value;
+                    healPercent += effect.Value;
                 }
             }
 
-            if (healAmount > 0f)
+            if (healPercent > 0f)
             {
-                Heal(healAmount);
+                ResolveHealthRegen();
+                healthRegen.EnqueueFoodHeal(healPercent);
             }
         }
 
@@ -289,6 +296,7 @@ namespace KMS
             CurrentHealth = maxHealth * healthPercent;
             CurrentHunger = maxHunger;
             foodEffects?.InitializeAsNormal(CurrentHunger);
+            healthRegen?.ResetChannels();
 
             Revived?.Invoke();
             HealthChanged?.Invoke(CurrentHealth, maxHealth);
@@ -353,6 +361,12 @@ namespace KMS
         {
             if (foodEffects == null) foodEffects = GetComponent<KMSFoodEffectController>();
             if (foodEffects == null) foodEffects = gameObject.AddComponent<KMSFoodEffectController>();
+        }
+
+        private void ResolveHealthRegen()
+        {
+            if (healthRegen == null) healthRegen = GetComponent<PlayerHealthRegenController>();
+            if (healthRegen == null) healthRegen = gameObject.AddComponent<PlayerHealthRegenController>();
         }
     }
 }
