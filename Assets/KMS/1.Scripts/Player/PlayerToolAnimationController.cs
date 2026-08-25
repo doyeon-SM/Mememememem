@@ -11,6 +11,7 @@ namespace KMS
         [Header("References")]
         [SerializeField] private PlayerMovement movement;
         [SerializeField] private Animator animator;
+        [SerializeField] private PlayerActionSlotCoordinator actionCoordinator;
 
         [Header("Club Item IDs")]
         [SerializeField] private string[] clubItemIds =
@@ -184,25 +185,41 @@ namespace KMS
             return Mathf.Clamp01(state.normalizedTime);
         }
 
-        private bool CanStartToolAction()
+private bool CanStartToolAction()
         {
             if (movement == null) return true;
 
-            return movement.IsMovementEnabled
-                && !movement.IsDead
-                && !movement.IsOnLadder
-                && !movement.IsSprinting
-                && movement.CurrentSpeed <= stationarySpeedThreshold;
+            if (!movement.IsMovementEnabled || movement.IsDead || movement.IsOnLadder) return false;
+
+            // [멤] 정지 상태 조건을 없애서 이동 중에도 공격/채집을 시작할 수 있게 한다. 대신 캡슐
+            // 던지기 등 다른 계열 행동이 이미 진행 중이면 코디네이터가 시작을 막는다.
+            return actionCoordinator == null || actionCoordinator.CanBeginAction(this, ActionInputSlot.Primary);
         }
 
-        private void SetMovementLocked(bool locked)
+private void SetMovementLocked(bool locked)
         {
             if (movementLocked == locked) return;
 
             movementLocked = locked;
+
+            if (actionCoordinator != null)
+            {
+                if (locked)
+                {
+                    actionCoordinator.TryBeginAction(this, ActionInputSlot.Primary, ActionSpeedTier.Light);
+                }
+                else
+                {
+                    actionCoordinator.EndAction(this);
+                }
+
+                return;
+            }
+
+            // [멤] 코디네이터가 아직 연결되지 않은 경우를 대비한 폴백(직접 30% 감속 적용).
             if (movement != null)
             {
-                movement.SetMovementBlocked(this, locked);
+                movement.SetMoveSpeedOverride(this, locked ? 0.7f : (float?)null);
             }
         }
 
@@ -224,9 +241,10 @@ namespace KMS
             return false;
         }
 
-        private void ResolveReferences()
+private void ResolveReferences()
         {
             if (movement == null) movement = GetComponent<PlayerMovement>();
+            if (actionCoordinator == null) actionCoordinator = GetComponent<PlayerActionSlotCoordinator>();
             if (movement != null && movement.Animator != null) animator = movement.Animator;
             if (animator == null) animator = GetComponentInChildren<Animator>(true);
         }

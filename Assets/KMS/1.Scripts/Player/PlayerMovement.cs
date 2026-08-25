@@ -116,6 +116,7 @@ namespace KMS
         private bool isStepVisualInitialized;
         private bool legacyMovementEnabled = true;
         private readonly HashSet<object> movementBlockOwners = new HashSet<object>();
+        private readonly Dictionary<object, float> moveSpeedOverrideOwners = new Dictionary<object, float>();
 
         private void Reset()
         {
@@ -277,6 +278,32 @@ namespace KMS
             }
         }
 
+        /// <summary>
+        /// [멤] 특정 오너가 이동속도 배율을 강제로 지정한다(음식효과 배율을 무시하고 덮어씀).
+        /// multiplier가 null이면 해당 오너의 오버라이드를 해제한다. 여러 오너가 동시에 걸려있는
+        /// 경우(정상적으로는 PlayerActionSlotCoordinator가 한 번에 하나만 걸리도록 보장하지만,
+        /// 안전을 위한 방어 로직) 가장 낮은(가장 느린) 배율을 적용한다.
+        /// </summary>
+        public void SetMoveSpeedOverride(object owner, float? multiplier)
+        {
+            if (owner == null)
+            {
+                Debug.LogWarning("[PlayerMovement] A move speed override owner cannot be null.", this);
+                return;
+            }
+
+            if (multiplier.HasValue)
+            {
+                moveSpeedOverrideOwners[owner] = Mathf.Clamp01(multiplier.Value);
+            }
+            else
+            {
+                moveSpeedOverrideOwners.Remove(owner);
+            }
+        }
+
+        public bool HasMoveSpeedOverride => moveSpeedOverrideOwners.Count > 0;
+
         private void StopControlledMovement()
         {
             CurrentSpeed = 0f;
@@ -401,13 +428,18 @@ namespace KMS
             KMSAudioService.PlayAt(GameSfxId.Jump, transform.position);
         }
 
-        private void HandleMovement()
+private void HandleMovement()
         {
             Vector2 moveInput = IsMovementEnabled && input != null ? input.Move : Vector2.zero;
             float inputMagnitude = Mathf.Clamp01(moveInput.magnitude);
             bool hasMoveInput = inputMagnitude > 0.1f;
 
-            IsSprinting = hasMoveInput && input != null && input.IsSprinting;
+            // [멤] 공격/채집/캡슐던지기/취식 등 행동으로 인한 감속 중에는 스프린트를 금지하고,
+            // 이동 방향으로의 자동 회전도 하지 않는다(조준·타격 방향이 이동으로 인해 흐트러지지
+            // 않도록 각 행동 컨트롤러가 회전을 필요로 하면 스스로 담당한다).
+            bool hasSpeedOverride = HasMoveSpeedOverride;
+
+            IsSprinting = !hasSpeedOverride && hasMoveInput && input != null && input.IsSprinting;
 
             if (hasMoveInput && stats != null)
             {
@@ -437,7 +469,7 @@ namespace KMS
             {
                 LastMoveDirection = moveDirection;
 
-                if (rotateTowardsMovement)
+                if (rotateTowardsMovement && !hasSpeedOverride)
                 {
                     RotateTowards(moveDirection);
                 }
@@ -587,8 +619,22 @@ namespace KMS
             animator.SetFloat(ClimbCycleHash, climbAnimationCycle);
         }
 
-        private float ResolveMoveSpeedMultiplier()
+private float ResolveMoveSpeedMultiplier()
         {
+            // [멤] 공격/채집, 캡슐 던지기, 취식 등 행동 중 감속(PlayerActionSlotCoordinator)이
+            // 걸려 있으면 음식효과 배율은 무시하고 그 감속 값을 그대로 사용한다(곱연산이 아닌
+            // 덮어쓰기). 행동이 끝나 오버라이드가 사라지면 다시 음식효과 배율을 사용한다.
+            if (moveSpeedOverrideOwners.Count > 0)
+            {
+                float lowest = 1f;
+                foreach (float value in moveSpeedOverrideOwners.Values)
+                {
+                    if (value < lowest) lowest = value;
+                }
+
+                return lowest;
+            }
+
             if (foodEffects == null)
             {
                 foodEffects = stats != null ? stats.FoodEffects : GetComponent<KMSFoodEffectController>();

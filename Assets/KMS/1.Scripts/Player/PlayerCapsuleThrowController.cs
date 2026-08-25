@@ -11,6 +11,7 @@ namespace KMS
         [Header("References")]
         [SerializeField] private PlayerInput input;
         [SerializeField] private PlayerMovement movement;
+        [SerializeField] private PlayerActionSlotCoordinator actionCoordinator;
         [SerializeField] private PlayerInventory inventory;
         [SerializeField] private PlayerHUD hud;
         [SerializeField] private PlayerCameraController cameraController;
@@ -61,10 +62,11 @@ namespace KMS
             animator = GetComponentInChildren<Animator>();
         }
 
-        private void Awake()
+private void Awake()
         {
             if (input == null) input = GetComponent<PlayerInput>();
             if (movement == null) movement = GetComponent<PlayerMovement>();
+            if (actionCoordinator == null) actionCoordinator = GetComponent<PlayerActionSlotCoordinator>();
             if (inventory == null) inventory = GetComponent<PlayerInventory>();
             if (hud == null) hud = GetComponent<PlayerHUD>();
             if (cameraController == null) cameraController = GetComponent<PlayerCameraController>();
@@ -156,9 +158,11 @@ namespace KMS
             }
         }
 
-        private void BeginAim()
+private void BeginAim()
         {
             if (state != ThrowState.Idle || !HasSelectedCapsule()) return;
+            // [멤] 공격/채집/취식이 이미 진행 중이면 캡슐 조준을 시작하지 않는다(서로 배타적).
+            if (actionCoordinator != null && !actionCoordinator.CanBeginAction(this, ActionInputSlot.Secondary)) return;
             if (inventory == null || !inventory.BeginQuickSlotUse()) return;
             if (!inventory.TryReserveQuickSlotItem(1))
             {
@@ -340,14 +344,26 @@ namespace KMS
             }
         }
 
-        private void LockMovement()
+private void LockMovement()
         {
-            if (movement != null) movement.SetMovementBlocked(this, true);
+            if (actionCoordinator != null)
+            {
+                actionCoordinator.TryBeginAction(this, ActionInputSlot.Secondary, ActionSpeedTier.Heavy);
+                return;
+            }
+
+            if (movement != null) movement.SetMoveSpeedOverride(this, 0.4f);
         }
 
         private void RestoreMovement()
         {
-            if (movement != null) movement.SetMovementBlocked(this, false);
+            if (actionCoordinator != null)
+            {
+                actionCoordinator.EndAction(this);
+                return;
+            }
+
+            if (movement != null) movement.SetMoveSpeedOverride(this, null);
         }
 
         private void CancelThrow(bool blendToLocomotion)

@@ -2839,6 +2839,7 @@ GameObject:
   - component: {fileID: 6812409213719045064}
   - component: {fileID: 1369161375733360660}
   - component: {fileID: 5635534456920349353}
+  - component: {fileID: 2308406327688671753}
   m_Layer: 3
   m_Name: 0720_Player_KMS
   m_TagString: Player
@@ -2923,6 +2924,7 @@ MonoBehaviour:
   startingHunger: 100
   starvationDamagePerSecond: 5
   foodEffects: {fileID: 7938680308663795052}
+  healthRegen: {fileID: 0}
 --- !u!114 &757377502652196312
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3176,6 +3178,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::KMS.PlayerCapsuleThrowController
   input: {fileID: 2825149733357899923}
   movement: {fileID: 757377502652196312}
+  actionCoordinator: {fileID: 0}
   inventory: {fileID: 9124669202358280069}
   hud: {fileID: 4255726674415822916}
   cameraController: {fileID: 540356905414934518}
@@ -3211,6 +3214,7 @@ MonoBehaviour:
   inventory: {fileID: 9124669202358280069}
   stats: {fileID: 4191295553828768883}
   movement: {fileID: 757377502652196312}
+  actionCoordinator: {fileID: 0}
   animator: {fileID: 1914156871709254916}
   catalogManager: {fileID: 0}
   stateEntryTimeout: 0.75
@@ -3368,6 +3372,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::KMS.PlayerToolAnimationController
   movement: {fileID: 757377502652196312}
   animator: {fileID: 1914156871709254916}
+  actionCoordinator: {fileID: 0}
   clubItemIds:
   - tool_shabby_club
   - tool_club
@@ -3462,6 +3467,21 @@ MonoBehaviour:
   movingSpeedThreshold: 0.1
   blendInSpeed: 8
   blendOutSpeed: 14
+--- !u!114 &2308406327688671753
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5320301024596143200}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 298ef525381bedf49b8ee02d7e7c9b71, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::KMS.PlayerActionSlotCoordinator
+  movement: {fileID: 757377502652196312}
+  lightSpeedMultiplier: 0.7
+  heavySpeedMultiplier: 0.4
 --- !u!1 &5344451024060801274
 GameObject:
   m_ObjectHideFlags: 0

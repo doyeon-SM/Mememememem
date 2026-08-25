@@ -15,6 +15,7 @@ namespace KMS
         [SerializeField] private PlayerInventory inventory;
         [SerializeField] private PlayerStats stats;
         [SerializeField] private PlayerMovement movement;
+        [SerializeField] private PlayerActionSlotCoordinator actionCoordinator;
         [SerializeField] private Animator animator;
         [SerializeField] private ItemCatalogManager catalogManager;
 
@@ -66,12 +67,13 @@ namespace KMS
             CancelPendingConsume();
         }
 
-        private void ResolveReferences()
+private void ResolveReferences()
         {
             if (input == null) input = GetComponent<PlayerInput>();
             if (inventory == null) inventory = GetComponent<PlayerInventory>();
             if (stats == null) stats = GetComponent<PlayerStats>();
             if (movement == null) movement = GetComponent<PlayerMovement>();
+            if (actionCoordinator == null) actionCoordinator = GetComponent<PlayerActionSlotCoordinator>();
             if (movement != null && movement.Animator != null) animator = movement.Animator;
             if (animator == null) animator = GetComponentInChildren<Animator>(true);
 
@@ -118,6 +120,11 @@ namespace KMS
                 return;
             }
 
+            if (actionCoordinator != null && !actionCoordinator.CanBeginAction(this, ActionInputSlot.Primary))
+            {
+                return;
+            }
+
             if (!inventory.BeginQuickSlotUse())
             {
                 return;
@@ -130,7 +137,14 @@ namespace KMS
             actionStateActive = false;
             requestTime = Time.unscaledTime;
 
-            movement?.SetMovementBlocked(this, true);
+            if (actionCoordinator != null)
+            {
+                actionCoordinator.TryBeginAction(this, ActionInputSlot.Primary, ActionSpeedTier.Heavy);
+            }
+            else
+            {
+                movement?.SetMoveSpeedOverride(this, 0.4f);
+            }
 
             animator.ResetTrigger(EatHash);
             animator.SetTrigger(EatHash);
@@ -218,7 +232,14 @@ namespace KMS
 
         private void ClearPendingState()
         {
-            movement?.SetMovementBlocked(this, false);
+            if (actionCoordinator != null)
+            {
+                actionCoordinator.EndAction(this);
+            }
+            else
+            {
+                movement?.SetMoveSpeedOverride(this, null);
+            }
             actionRequested = false;
             actionStateActive = false;
             consumeCommitted = false;
