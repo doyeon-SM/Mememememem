@@ -453,6 +453,7 @@ namespace HDY.Inventory
                 case ItemSortCriteria.Category:
                     return stacks
                         .OrderBy(s => GetCategoryOrder(s.itemId))
+                        .ThenBy(s => s.itemId, StringComparer.Ordinal)
                         .ThenByDescending(s => s.amount)
                         .ToList();
 
@@ -463,6 +464,7 @@ namespace HDY.Inventory
                 case ItemSortCriteria.FoodPriority:
                     return stacks
                         .OrderBy(s => GetPriorityOrder(s.itemId, criteria))
+                        .ThenBy(s => s.itemId, StringComparer.Ordinal)
                         .ThenByDescending(s => s.amount)
                         .ToList();
 
