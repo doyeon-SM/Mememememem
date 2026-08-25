@@ -97,7 +97,7 @@ public class TerritoryRecordData : MonoBehaviour, IRecord
         saveData.unlockedRecipeItemIds = new List<string>();
     }
 
-    public void SaveData(string saveFilePath)
+public void SaveData(string saveFilePath)
     {
         if (RecordManager.IsLoadingData || RecordManager.IsSceneUnloading) return;
         if (liveTerritoryData == null) RefreshManagersReference();
@@ -125,13 +125,24 @@ public class TerritoryRecordData : MonoBehaviour, IRecord
             // 🌟 [수정] ConsumeFoodRecordData가 사용하는 foodWarehouseStorageData 덮어쓰기 구문 완전히 제거!
         }
 
+        // [HDY 요청 - 저장 시스템 버그 수정: 영지 이동 시 여신상 해금 초기화] RecipeUnlockManager와
+        // TerritoryExpansionManager는 Title 씬에서 한 번 생성된 뒤 DontDestroyOnLoad로 세션 내내 유지된다.
+        // ApplyData()의 레시피/확장 복원은 영지 씬에서만 실행되므로(아래 참고), 이번 세션에 영지를 아직
+        // 한 번도 방문하지 않았다면 이 두 매니저는 CSV 기본값(전부 잠김/미확장) 그대로다. 그런데 씬 전환
+        // 때마다(LoadingManager) SaveAllData()가 무조건 호출되기 때문에, liveRecipeManager/
+        // liveExpansionManager가 살아있다는 것만으로는 "이 값이 신뢰할 수 있는 값"이라는 보장이 되지
+        // 않는다 - 탐험 중(영지 미방문 상태)에 저장이 한 번이라도 실행되면 아직 복원되지 않은 기본값이
+        // 그대로 저장 파일을 덮어써서 진짜 해금 데이터가 사라진다. 그래서 "현재 활성 씬이 실제로 영지
+        // 씬일 때만" 이 두 항목을 쓰도록 제한한다 - RecordManager가 씬을 분류하는 방식과 동일한 기준이다.
+        bool isInTerritoryScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name.ToLower().Contains("territory");
+
         // 2. 레시피(여신상) 해금
         // [HDY 요청 - 여신상 저장 버그 수정] 예전에는 IsUnlocked를 리스트 순서(인덱스) 그대로 bool
         // 배열에 담아 저장했다. RecipeUnlockManager의 해금 목록이 RecipeUnlocks.csv를 매번 파싱해서
         // 만드는 방식으로 바뀌면서, 시트에 행이 추가/삭제/순서변경될 때마다 인덱스가 밀려 저장된
         // true/false가 엉뚱한 레시피에 적용되는 문제가 있었다. Item_ID만 저장하도록 바꿔서
         // 시트 순서가 바뀌어도 항상 올바른 레시피에 매칭되게 한다(요리 레시피 저장 방식과 동일).
-        if (liveRecipeManager != null)
+        if (liveRecipeManager != null && isInTerritoryScene)
         {
             currentData.unlockedRecipeItemIds.Clear();
             foreach (var entry in liveRecipeManager.RecipeUnlocks)
@@ -144,7 +155,7 @@ public class TerritoryRecordData : MonoBehaviour, IRecord
         }
 
         // 3. 영지 확장
-        if (liveExpansionManager != null)
+        if (liveExpansionManager != null && isInTerritoryScene)
         {
             FieldInfo sizeField = typeof(TerritoryExpansionManager).GetField("currentGridSize", BindingFlags.NonPublic | BindingFlags.Instance);
             if (sizeField != null)

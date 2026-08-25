@@ -252,11 +252,22 @@ namespace HDY.Tutorial
             spawnPanelRetryCoroutine = null;
         }
 
-        private void Start()
+private void Start()
         {
             EnsureReferences();
             EnsureTutorialPanelSpawned(); // 최초 진입 씬은 sceneLoaded 이벤트를 놓칠 수 있어 한 번 더 보장
-            TryActivateNextPendingStep();
+
+            // [HDY 요청 - 저장 시스템 버그 수정: 퀘스트 재시작] TutorialManager는 Title 씬에만 배치된
+            // DontDestroyOnLoad라서 Start()는 항상 Title 로드 중에 실행된다. 그런데 RecordManager는 씬
+            // 이름에 "territory"/"main_world"가 없는 Title에서는 세이브 복원(ApplyData)을 아예 실행하지
+            // 않는다. 예전에는 여기서 무조건 TryActivateNextPendingStep()을 불러 첫 스텝을 활성화했는데,
+            // 이게 세이브가 복원되기도 전에 진행 중이던 퀘스트를 "방금 시작함" 상태로 즉시
+            // 저장(OnTutorialProgressChanged -> TutorialRecordData 오토세이브)해버려 진짜 진행도를
+            // 덮어쓰는 문제가 있었다(재접속 시 퀘스트가 처음부터 다시 시작되는 것처럼 보이는 원인). 새
+            // 게임 시작 시 첫 스텝을 대기시키는 역할은 ApplySnapshot()이 이미 담당한다 - 진짜 첫
+            // 실행(currentStepIndex == -1)이면 실제 게임플레이 씬(영지/탐험)이 로드되어 세이브가 복원되는
+            // 시점에 알아서 TryActivateNextPendingStep을 호출해준다(아래 ApplySnapshot 참고). 그래서
+            // 여기서는 더 이상 부르지 않는다.
         }
 
         /// <summary>
