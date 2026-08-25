@@ -82,8 +82,36 @@ namespace HDY.UI
             if (cancelButton != null) cancelButton.onClick.AddListener(Close);
             if (closeButton != null) closeButton.onClick.AddListener(Close); // [HDY 요청] 취소 버튼과 동일한 역할
 
+            // [멤] 숫자 입력창/증감 버튼 위에서 마우스 휠로도 수량을 조절할 수 있게 한다.
+            AttachWheelStep(decrementButton != null ? decrementButton.gameObject : null);
+            AttachWheelStep(incrementButton != null ? incrementButton.gameObject : null);
+            AttachWheelStep(quantityInputField != null ? quantityInputField.gameObject : null);
+if (closeButton != null) closeButton.onClick.AddListener(Close); // [HDY 요청] 취소 버튼과 동일한 역할
+
             if (popupRoot != null) popupRoot.SetActive(false);
         }
+
+        /// <summary>[멤] 숫자 표시/버튼 위에서 마우스 휠로 수량을 조절할 수 있도록 ScrollWheelStepInput을 붙이고 연결한다.</summary>
+        private void AttachWheelStep(GameObject target)
+        {
+            if (target == null) return;
+
+            var wheelInput = target.GetComponent<ScrollWheelStepInput>();
+            if (wheelInput == null) wheelInput = target.AddComponent<ScrollWheelStepInput>();
+
+            wheelInput.OnWheelStep += HandleWheelStep;
+        }
+
+        /// <summary>[멤] 휠 한 칸당 최대 수량의 5%(최소 1개)만큼 증가/감소시킨다. +/- 버튼 클릭(1개 단위)과는 별개의 조절 폭이다.</summary>
+        private void HandleWheelStep(int direction)
+        {
+            if (maxQuantity <= 0) return;
+
+            int step = Mathf.Max(1, Mathf.RoundToInt(maxQuantity * 0.05f)) * direction;
+            int next = Mathf.Clamp(currentQuantity + step, MinQuantity, maxQuantity);
+            RefreshDisplay(next);
+        }
+
 
         /// <summary>
         /// 팝업을 연다.

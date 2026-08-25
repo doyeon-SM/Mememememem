@@ -1,4 +1,4 @@
-﻿using HDY.Capture;
+using HDY.Capture;
 using HDY.Inventory;
 using HDY.Item;
 using HDY.Recipe;
@@ -94,7 +94,34 @@ public class CraftingPanelUI : MonoBehaviour
         }
 
         if (singleMemSlot != null) singleMemSlot.InitializeSlot(0);
+
+        // [멤] 수량 숫자/증감 버튼 위에서 마우스 휠로도 수량을 조절할 수 있게 한다.
+        AttachWheelStep(btnMinus != null ? btnMinus.gameObject : null);
+        AttachWheelStep(btnPlus != null ? btnPlus.gameObject : null);
+        AttachWheelStep(productAmountText != null ? productAmountText.gameObject : null);
+if (singleMemSlot != null) singleMemSlot.InitializeSlot(0);
     }
+
+    /// <summary>[멤] 숫자 표시/버튼 위에서 마우스 휠로 수량을 조절할 수 있도록 ScrollWheelStepInput을 붙이고 연결한다.</summary>
+    private void AttachWheelStep(GameObject target)
+    {
+        if (target == null) return;
+
+        var wheelInput = target.GetComponent<ScrollWheelStepInput>();
+        if (wheelInput == null) wheelInput = target.AddComponent<ScrollWheelStepInput>();
+
+        wheelInput.OnWheelStep += HandleWheelStep;
+    }
+
+    /// <summary>[멤] 휠 한 칸당 최대 제작 가능 수량의 5%(최소 1개)만큼 증가/감소시킨다. +/- 버튼 클릭(1개 단위)과는 별개의 조절 폭이다.</summary>
+    private void HandleWheelStep(int direction)
+    {
+        if (maxCraftableQuantity <= 0) return;
+
+        int step = Mathf.Max(1, Mathf.RoundToInt(maxCraftableQuantity * 0.05f)) * direction;
+        ModifyQuantity(step);
+    }
+
 
     private void OnDisable()
     {
