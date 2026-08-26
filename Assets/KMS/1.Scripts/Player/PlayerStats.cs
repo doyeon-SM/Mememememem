@@ -29,6 +29,13 @@ namespace KMS
         [SerializeField] private KMSFoodEffectController foodEffects;
         [SerializeField] private PlayerHealthRegenController healthRegen;
 
+        [Header("Combat")]
+        [Tooltip("[멤] 기본 공격(원거리 투사체) 데미지에 더해지는 캐릭터 스펙 보너스. 무기마다 다른 WeaponItemData.ProjectileDamage(무기 자체 데미지)에 이 값을 더해 최종 데미지를 계산한다(PlayerWeaponSkillController.FireBasicAttack 참고). 기본값 0이라 지금은 무기 자체 데미지만 적용되며(기존 동작과 동일), 캐릭터 성장/장비 시스템이 생기면 이 값을 올리면 된다. 스킬 데미지(SkillData.Damage)는 이 보너스의 영향을 받지 않는다 - 스킬은 어떤 무기를 쓰든 동일한 효과라는 요구사항 때문.")]
+        [SerializeField, Min(0)] private int attackPower = 0;
+
+        public int AttackPower => attackPower;
+
+
         public float MaxHealth => maxHealth;
         public float CurrentHealth { get; private set; }
         public float MaxHunger => maxHunger;

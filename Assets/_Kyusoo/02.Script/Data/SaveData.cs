@@ -95,6 +95,13 @@ public class ScenePlayerPosData
 }
 
 [Serializable]
+public class SkillCooldownEntry
+{
+    public string skillId;
+    public float remainingSeconds;
+}
+
+[Serializable]
 public class SaveData
 {
     public string lastSaveTime;
@@ -170,4 +177,11 @@ public class SaveData
 
     [Header("튜토리얼 진행 스냅샷 데이터")]
     public TutorialProgressSnapshot tutorialData = new TutorialProgressSnapshot();
+
+    [Header("스킬 보유/장착/쿨타임 데이터")]
+    public List<string> unlockedSkillIds = new List<string>();
+    public List<string> equippedSkillIds = new List<string>();
+    public string equippedSpecialSkillId = string.Empty;
+    public List<SkillCooldownEntry> skillCooldowns = new List<SkillCooldownEntry>();
+
 }

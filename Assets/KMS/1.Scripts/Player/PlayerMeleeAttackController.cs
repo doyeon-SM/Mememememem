@@ -165,7 +165,7 @@ namespace KMS.Combat
             attackCooldown = 0f;
             attackDamage = 0;
 
-            if (itemData is WeaponItemData weapon)
+            if (itemData is WeaponItemData weapon && itemData.Category != ItemCategory.Weapon)
             {
                 attackDistance = Mathf.Max(0.1f, weapon.AttackDistance);
                 attackCooldown = Mathf.Max(0f, weapon.AttackCooldown);

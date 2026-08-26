@@ -4,6 +4,7 @@ using GH.Loading;
 using KMS.InventoryDuped;
 using KMS.Harvesting;
 using KMS.Audio;
+using KMS.Combat;
 using UnityEngine;
 
 namespace KMS
@@ -30,6 +31,7 @@ namespace KMS
         [SerializeField] private PlayerHUD hud;
         [SerializeField] private PlayerCameraController cameraController;
         [SerializeField] private PlayerCapsuleThrowController capsuleThrowController;
+        [SerializeField] private PlayerWeaponSkillController weaponSkillController;
         [SerializeField] private PlayerConsumableController consumableController;
         [SerializeField] private PlayerHarvestController harvestController;
         [SerializeField] private PlayerToolAnimationController toolAnimationController;
@@ -144,6 +146,7 @@ namespace KMS
             if (hud == null) hud = GetComponent<PlayerHUD>();
             if (cameraController == null) cameraController = GetComponent<PlayerCameraController>();
             if (capsuleThrowController == null) capsuleThrowController = GetComponent<PlayerCapsuleThrowController>();
+            if (weaponSkillController == null) weaponSkillController = GetComponent<PlayerWeaponSkillController>();
             if (consumableController == null) consumableController = GetComponent<PlayerConsumableController>();
             if (harvestController == null) harvestController = GetComponent<PlayerHarvestController>();
             if (toolAnimationController == null) toolAnimationController = GetComponent<PlayerToolAnimationController>();
@@ -172,6 +175,7 @@ namespace KMS
 
             // 투척 예약을 취소하고 아이템을 돌려놓은 뒤 전체 손실을 적용한다.
             capsuleThrowController?.CancelActiveThrow();
+            weaponSkillController?.CancelActiveCharge();
             consumableController?.CancelPendingConsume();
             harvestController?.CancelActiveToolUse();
             toolAnimationController?.CancelToolAction();

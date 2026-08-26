@@ -2840,6 +2840,7 @@ GameObject:
   - component: {fileID: 1369161375733360660}
   - component: {fileID: 5635534456920349353}
   - component: {fileID: 2308406327688671753}
+  - component: {fileID: 3847820479970314356}
   m_Layer: 3
   m_Name: 0720_Player_KMS
   m_TagString: Player
@@ -3047,6 +3048,8 @@ MonoBehaviour:
   playerInput: {fileID: 0}
   hudView: {fileID: 0}
   inventory: {fileID: 0}
+  weaponSkillController: {fileID: 0}
+  skillLoadout: {fileID: 0}
   uiDocument: {fileID: 0}
   healthBarName: player-health-bar
   hungerBarName: player-hunger-bar
@@ -3327,6 +3330,7 @@ MonoBehaviour:
   hud: {fileID: 4255726674415822916}
   cameraController: {fileID: 540356905414934518}
   capsuleThrowController: {fileID: 5163941127334908272}
+  weaponSkillController: {fileID: 0}
   consumableController: {fileID: 0}
   harvestController: {fileID: 0}
   toolAnimationController: {fileID: 0}
@@ -3482,6 +3486,35 @@ MonoBehaviour:
   movement: {fileID: 757377502652196312}
   lightSpeedMultiplier: 0.7
   heavySpeedMultiplier: 0.4
+--- !u!114 &3847820479970314356
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5320301024596143200}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e2e286b167b9e7749aea866d6b0d86d7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::KMS.Combat.PlayerWeaponSkillController
+  input: {fileID: 2825149733357899923}
+  stats: {fileID: 4191295553828768883}
+  movement: {fileID: 757377502652196312}
+  actionCoordinator: {fileID: 2308406327688671753}
+  inventory: {fileID: 9124669202358280069}
+  cameraTransform: {fileID: 0}
+  projectileOrigin: {fileID: 0}
+  animator: {fileID: 0}
+  catalogManager: {fileID: 0}
+  skillCatalogManager: {fileID: 0}
+  skillLoadout: {fileID: 0}
+  attackOriginHeight: 1.2
+  attackActionDuration: 0.3
+  monsterLayer:
+    serializedVersion: 2
+    m_Bits: 0
+  stageDuration: 1
 --- !u!1 &5344451024060801274
 GameObject:
   m_ObjectHideFlags: 0

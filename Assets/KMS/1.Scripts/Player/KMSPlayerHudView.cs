@@ -62,6 +62,13 @@ namespace KMS
         [SerializeField] private RectTransform itemObtainedToastContainer;
         [SerializeField] private KMSItemObtainedToastView itemObtainedToastTemplate;
 
+        [Header("Skill Panel (탐험 전용, 무기 착용 시에만 표시 - PlayerHUD가 켜고 끔)")]
+        [SerializeField] private GameObject skillPanelRoot;
+        [Tooltip("슬롯 순서 = 로드아웃 슬롯 인덱스(0~3) = 요구 등급(1~4). PlayerSkillLoadout과 동일한 순서로 연결해야 한다.")]
+        [SerializeField] private KMSSkillSlotView[] skillSlots = new KMSSkillSlotView[4];
+        [Tooltip("5등급 특수 칸(R키 발동) - 같은 스킬 패널 안에 배치하되 장전 큐 시스템과는 무관해서 배열이 아닌 별도 필드로 관리한다.")]
+        [SerializeField] private KMSSkillSlotView specialSkillSlot;
+
         [Header("Responsive Layout")]
         [SerializeField, Range(0.1f, 1f)] private float survivalWidthRatio = 0.42f;
         [SerializeField, Min(0f)] private float survivalMinWidth = 500f;
@@ -486,6 +493,43 @@ namespace KMS
         public void SetThrowGuideVisible(bool visible)
         {
             if (throwGuide != null) throwGuide.SetActive(visible);
+        }
+
+        // ---- Skill Panel (스킬 시스템 HUD, PlayerHUD가 매 프레임마다 호출) ----
+
+        public void SetSkillPanelVisible(bool visible)
+        {
+            if (skillPanelRoot != null) skillPanelRoot.SetActive(visible);
+        }
+
+        /// <summary>slotIndex(0~3) 칸의 아이콘/쿨타임을 갱신한다. icon이 null이면 빈 칸으로 표시된다.</summary>
+        public void SetSkillSlotData(int slotIndex, Sprite icon, float cooldownRemaining, float cooldownTotal)
+        {
+            KMSSkillSlotView slot = GetSkillSlot(slotIndex);
+            if (slot == null) return;
+
+            slot.SetSkill(icon);
+            slot.SetCooldown(cooldownRemaining, cooldownTotal);
+        }
+
+        /// <summary>slotIndex 칸이 지금 해제하면 큐에 들어갈(장전 완료된) "마지막으로 유효했던 단계"인지 테두리 이미지를 켜거나 끈다.</summary>
+        public void SetSkillSlotBanked(int slotIndex, bool banked)
+        {
+            GetSkillSlot(slotIndex)?.SetBankedHighlight(banked);
+        }
+
+        /// <summary>5등급 특수 칸(R키 발동)의 아이콘/쿨타임을 갱신한다. icon이 null이면 빈 칸으로 표시된다.</summary>
+        public void SetSpecialSkillSlotData(Sprite icon, float cooldownRemaining, float cooldownTotal)
+        {
+            if (specialSkillSlot == null) return;
+            specialSkillSlot.SetSkill(icon);
+            specialSkillSlot.SetCooldown(cooldownRemaining, cooldownTotal);
+        }
+
+        private KMSSkillSlotView GetSkillSlot(int slotIndex)
+        {
+            if (skillSlots == null || slotIndex < 0 || slotIndex >= skillSlots.Length) return null;
+            return skillSlots[slotIndex];
         }
 
         public void ShowDeathPresentation(bool showWayPointGuidance)

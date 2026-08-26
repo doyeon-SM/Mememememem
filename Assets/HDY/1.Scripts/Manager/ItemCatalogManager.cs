@@ -60,6 +60,8 @@ namespace HDY.Item
             // 음식 효과 테이블을 먼저 구성해야 BuildDictionary()의 ParseItemRow()에서 참조할 수 있다.
             foodEffectTable = new FoodEffectTable(foodEffectCatalogSheet != null ? foodEffectCatalogSheet.text : string.Empty);
             alchemyExchangeTable = new HDY.Shop.AlchemyExchangeTable(alchemyExchangeCatalogSheet != null ? alchemyExchangeCatalogSheet.text : string.Empty);
+            weaponStatsTable = new KMS.Combat.WeaponStatsTable(weaponCatalogSheet != null ? weaponCatalogSheet.text : string.Empty);
+
 
             BuildDictionary();
             BuildRecipeDictionary();
@@ -93,6 +95,16 @@ namespace HDY.Item
 
         [Header("요리 레시피 시트 (쉼표 구분 CSV, Result_Item_ID 기준으로 파싱)")]
         [SerializeField] private TextAsset cookRecipeCatalogSheet;
+
+        // [멤] 스킬 시스템용 원거리 무기. 이전에는 WeaponItemData를 수동으로 만든 SO 자산을 이 리스트에 하나하나 등록해야 했지만, "SO 말고 id 기반으로 구조화해달라"는 요청에 따라 폐지했다. 이제 무기의 기본 데이터(이름/카테고리 등)는 다른 아이템과 동일하게 itemCatalogSheet에서, 무기 전용 추가 데이터(사거리/투사체 스펙 등)는 아래 weaponCatalogSheet에서 Item_ID 기준으로 들어간다(WeaponStatsTable이 파싱). 투사체 Prefab 참조만 csv에 담을 수 없어 projectileTable(ProjectilePrefabTable)에서 따로 조회한다.
+        [Header("무기 전용 데이터 시트 (쉼표 구분 CSV, Item_ID 기준 - AttackDistance,AttackCooldown,ProjectileId,ProjectileSpeed,ProjectileLifetime,ProjectileDamage,ProjectileAttackCooldown)")]
+        [SerializeField] private TextAsset weaponCatalogSheet;
+
+        [Header("ProjectileId -> 투사체 Prefab 테이블 (기본 공격/스킬 공용)")]
+        [SerializeField] private KMS.Combat.ProjectilePrefabTable projectileTable;
+
+        // [멤] Item_ID -> 무기 전용 데이터 조회 테이블. foodEffectTable과 동일하게 Awake에서 BuildDictionary() 전에 구성한다.
+        private KMS.Combat.WeaponStatsTable weaponStatsTable;
 
         private readonly List<ItemData> itemDataList = new List<ItemData>();
         public IReadOnlyList<ItemData> ItemDataList => itemDataList;
@@ -161,11 +173,7 @@ namespace HDY.Item
             }
         }
 
-        /// <summary>
-        /// 레시피 시트를 파싱해 행마다 런타임 RecipeData 인스턴스를 만들고 Recipe_Item_ID 기준으로 딕셔너리에 채운다.
-        /// Recipe_Item_ID가 중복되면 먼저 등록된 항목을 유지한다.
-        /// </summary>
-        private void BuildRecipeDictionary()
+                private void BuildRecipeDictionary()
         {
             recipeDictionary.Clear();
             recipeDataList.Clear();
@@ -291,36 +299,59 @@ namespace HDY.Item
         }
 
         /// <summary>시트 한 줄(컬럼 배열)을 런타임 ItemData로 변환한다.</summary>
-        private ItemData ParseItemRow(string[] cols)
+private ItemData ParseItemRow(string[] cols)
         {
-            var data = ScriptableObject.CreateInstance<ItemData>();
+            var category = ParseEnum<ItemCategory>(cols[4]);
+            ItemData data = category == ItemCategory.Weapon
+                ? (ItemData)ScriptableObject.CreateInstance<KMS.Combat.WeaponItemData>()
+                : ScriptableObject.CreateInstance<ItemData>();
 
             data.Item_ID = cols[0].Trim();
             data.ItemName = cols[1].Trim();
             data.Value = ParseInt(cols[2]);
             data.MaxStack = ParseInt(cols[3]);
-            data.Category = ParseEnum<ItemCategory>(cols[4]);
+            data.Category = category;
             data.UseAction = ParseEnum<UseAction>(cols[5]);
             data.ObjectType = ParseEnum<ObjectType>(cols[6]);
             data.ItemClass = ParseEnum<CommonClass>(cols[7]);
 
-            // [음식효과 CSV 분리] EatEffects는 더 이상 이 메인 시트 컬럼에서 읽지 않는다.
-            // 별도 FoodEffectCatalog.csv(foodEffectTable)에서 Item_ID로 조회해 채운다.
             data.EatEffects = foodEffectTable != null
                 ? foodEffectTable.GetEffects(data.Item_ID)
                 : new List<ItemEffect>();
 
-            // [HDY 요청 - 크기 표시] EatEffects 컬럼이 제거되면서 Size/Durability 인덱스가 한 칸씩 당겨졌다.
-            // Size 컬럼은 없는 행(구버전 시트)도 있을 수 있어 방어적으로 처리한다.
             data.Size = cols.Length > 8 ? cols[8].Trim() : string.Empty;
 
-            // [HDY 요청 - KMS 크로스 승인 - 내구도] Size와 동일하게 방어적으로 처리한다(없는 행 = 0 = 내구도 없음).
             data.MaxDurability = cols.Length > 9 ? ParseInt(cols[9]) : 0;
 
             data.ItemIcon = iconTable != null ? iconTable.GetIcon(data.Item_ID) : null;
 
+            if (data is KMS.Combat.WeaponItemData weaponData)
+            {
+                ApplyWeaponStats(weaponData);
+            }
+
             return data;
         }
+
+// [멤] WeaponCatalog.csv에서 이 Item_ID에 해당하는 무기 전용 데이터를 찾아 채운다. 행이 없으면 경고만 남기고 WeaponItemData의 기본값(0/null)을 그대로 둔다.
+        private void ApplyWeaponStats(KMS.Combat.WeaponItemData weaponData)
+        {
+            if (weaponStatsTable != null && weaponStatsTable.TryGetRow(weaponData.Item_ID, out var row))
+            {
+                weaponData.AttackDistance = row.AttackDistance;
+                weaponData.AttackCooldown = row.AttackCooldown;
+                weaponData.ProjectileSpeed = row.ProjectileSpeed;
+                weaponData.ProjectileLifetime = row.ProjectileLifetime;
+                weaponData.ProjectileDamage = row.ProjectileDamage;
+                weaponData.ProjectileAttackCooldown = row.ProjectileAttackCooldown;
+                weaponData.ProjectilePrefab = projectileTable != null ? projectileTable.GetPrefab(row.ProjectileId) : null;
+            }
+            else
+            {
+                Debug.LogWarning($"[ItemCatalogManager] 무기 Item_ID({weaponData.Item_ID})에 대한 WeaponCatalog.csv 행을 찾을 수 없습니다 - 기본값을 사용합니다.");
+            }
+        }
+
 
         /// <summary>레시피 시트 한 줄(컬럼 배열)을 런타임 RecipeData로 변환한다.</summary>
         private HDY.Recipe.RecipeData ParseRecipeRow(string[] cols)

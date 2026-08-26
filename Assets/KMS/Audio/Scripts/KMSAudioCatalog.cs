@@ -48,7 +48,14 @@ namespace KMS.Audio
         Bird,
         Title,
         OpenChest,
-        NightBird
+        NightBird,
+        SkillChargeStage1,
+        SkillChargeStage2,
+        SkillChargeStage3,
+        SkillChargeStage4,
+        SkillQueued,
+        SkillFire,
+        WeaponRangedAttack
     }
 
     [Serializable]

@@ -322,6 +322,9 @@ public class RecordManager : MonoBehaviour
             var cookRecipeRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "CookRecipeRecordData");
             cookRecipeRecord?.ApplyData(saveData, sceneType);
 
+            var skillRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "SkillRecordData");
+            skillRecord?.ApplyData(saveData, sceneType);
+
             var waypointRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "WaypointRecordData");
             waypointRecord?.ApplyData(saveData, sceneType);
 

@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using HDY.Item;
 using HDY.Territory;
+using KMS.Combat;
 using KMS.InventoryDuped;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -35,6 +36,8 @@ namespace KMS
         [SerializeField] private PlayerInput playerInput;
         [SerializeField] private KMSPlayerHudView hudView;
         [SerializeField] private PlayerInventory inventory;
+        [SerializeField] private PlayerWeaponSkillController weaponSkillController;
+        [SerializeField] private PlayerSkillLoadout skillLoadout;
 
         [Header("Legacy UI Toolkit (0714)")]
         [SerializeField] private UIDocument uiDocument;
@@ -118,6 +121,8 @@ namespace KMS
                 foodEffects = stats != null ? stats.FoodEffects : GetComponent<KMSFoodEffectController>();
             if (playerInput == null) playerInput = GetComponent<PlayerInput>();
             if (inventory == null) inventory = GetComponent<PlayerInventory>();
+            if (weaponSkillController == null) weaponSkillController = GetComponent<PlayerWeaponSkillController>();
+            if (skillLoadout == null) skillLoadout = GetComponent<PlayerSkillLoadout>();
             if (uiDocument == null) uiDocument = GetComponent<UIDocument>();
             if (inventoryUi == null) inventoryUi = FindFirstObjectByType<KMS.InventoryDuped.InventoryUI>();
             ResolveHudView();
@@ -156,6 +161,59 @@ namespace KMS
             hasStarted = true;
             StartStatusTextUpdates();
         }
+
+private void Update()
+        {
+            UpdateSkillHud();
+        }
+
+        private void UpdateSkillHud()
+        {
+            if (UsesToolkitHud) return;
+
+            ResolveHudView();
+            if (hudView == null) return;
+
+            if (weaponSkillController == null) weaponSkillController = GetComponent<PlayerWeaponSkillController>();
+            if (skillLoadout == null) skillLoadout = GetComponent<PlayerSkillLoadout>();
+
+            bool shouldShow = weaponSkillController != null
+                && skillLoadout != null
+                && IsExplorationScene()
+                && weaponSkillController.IsHoldingWeapon();
+
+            hudView.SetSkillPanelVisible(shouldShow);
+            if (!shouldShow) return;
+
+            bool isCharging = weaponSkillController.IsCharging;
+            int bankedStage = isCharging ? weaponSkillController.BankedStageIndex : -1;
+
+            for (int i = 0; i < PlayerSkillLoadout.SlotCount; i++)
+            {
+                SkillData skill = skillLoadout.GetEquippedSkill(i);
+                Sprite icon = skill != null ? skill.SkillIcon : null;
+                float cooldownRemaining = skill != null ? weaponSkillController.GetSkillCooldownRemaining(skill.Skill_ID) : 0f;
+                float cooldownTotal = skill != null ? skill.Cooldown : 0f;
+                hudView.SetSkillSlotData(i, icon, cooldownRemaining, cooldownTotal);
+                hudView.SetSkillSlotBanked(i, bankedStage == i);
+            }
+
+            // [멤] 5등급 특수 칸(R키 발동) - 장전 큐/장전 완료 표시와 무관하게 아이콘+쿨타임만 표시한다.
+            SkillData specialSkill = skillLoadout.GetSpecialSkill();
+            Sprite specialIcon = specialSkill != null ? specialSkill.SkillIcon : null;
+            float specialCooldownRemaining = specialSkill != null ? weaponSkillController.GetSkillCooldownRemaining(specialSkill.Skill_ID) : 0f;
+            float specialCooldownTotal = specialSkill != null ? specialSkill.Cooldown : 0f;
+            hudView.SetSpecialSkillSlotData(specialIcon, specialCooldownRemaining, specialCooldownTotal);
+        }
+
+        // [멤] RecordManager.OnSceneLoadedTrigger와 동일한 방식(씬 이름에 "main_world" 포함 여부)으로
+        // 탐험 씬인지 판별한다 - 프로젝트에 이미 있는 씬 타입 판별 관례를 그대로 따른 것이다.
+        private bool IsExplorationScene()
+        {
+            string sceneName = SceneManager.GetActiveScene().name.ToLower();
+            return sceneName.Contains("main_world");
+        }
+
 
         private void OnDisable()
         {

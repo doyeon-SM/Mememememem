@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 54a0bd3e5b33f7f45af37751c7431447, type: 3}
+  m_Name: ProjectilePrefabTable
+  m_EditorClassIdentifier: Assembly-CSharp::KMS.Combat.ProjectilePrefabTable
+  entries:
+  - ProjectileId: proj_basic
+    Prefab: {fileID: 507104852639557559, guid: 193b2f3d592d7ef4da3640692e5f52c7, type: 3}
+  - ProjectileId: proj_energy_bolt
+    Prefab: {fileID: 2266384936940181995, guid: ad6ca2972eec6334f9ca413c9bff416a, type: 3}

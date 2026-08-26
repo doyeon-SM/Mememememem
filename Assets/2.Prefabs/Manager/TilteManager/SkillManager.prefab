@@ -1,0 +1,98 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &1298799275315643571
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 7216970832590055977}
+  - component: {fileID: 1034854577988819813}
+  - component: {fileID: 2408689727451768685}
+  - component: {fileID: 8108093902595997684}
+  - component: {fileID: 8380790443041788977}
+  m_Layer: 0
+  m_Name: SkillManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &7216970832590055977
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1298799275315643571}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 1543.0751, y: -0.00002, z: -652.33356}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1034854577988819813
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1298799275315643571}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5649ebbddf4e52549b9946cca9b39627, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::KMS.Combat.SkillCatalogManager
+  skillCatalogSheet: {fileID: 4900000, guid: 3e76383d4ebd5a04d9e58a4c762eaabb, type: 3}
+  iconTable: {fileID: 11400000, guid: 37c927e1fbd30344f8cf877ce11d5041, type: 2}
+  projectileTable: {fileID: 11400000, guid: 9f704e189982c15429a3ed91bf5e9869, type: 2}
+--- !u!114 &2408689727451768685
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1298799275315643571}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 50e5ce0771cb63b4ba2e749f42067466, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::KMS.Combat.SkillUnlockManager
+  skillCatalogManager: {fileID: 1034854577988819813}
+  unlockedSkillIds: []
+--- !u!114 &8108093902595997684
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1298799275315643571}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b670c1adbc145a143a5d640754beafd8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::KMS.Combat.PlayerSkillLoadout
+  skillCatalogManager: {fileID: 1034854577988819813}
+  skillUnlockManager: {fileID: 2408689727451768685}
+  equippedSkillIds:
+  - 
+  - 
+  - 
+  - 
+  specialSkillId: 
+--- !u!114 &8380790443041788977
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1298799275315643571}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a0db429d3c1419e4780ae305a30d6b08, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SkillRecordData

@@ -10,7 +10,9 @@ namespace HDY.Item
         Goods,
         Capsule,
         Tool,
-        BluePrint
+        BluePrint,
+        // [멤] 스킬 시스템용 원거리 무기 카테고리. 기존 값들과 순서가 바뀌지 않게 끝에 추가해서 csv 시트의 Category 컴럼(이름 기준 파싱)에는 영향이 없다.
+        Weapon
     }
 
     /// <summary>
