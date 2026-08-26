@@ -323,6 +323,9 @@ private ItemData ParseItemRow(string[] cols)
 
             data.MaxDurability = cols.Length > 9 ? ParseInt(cols[9]) : 0;
 
+            // [멤] 스킬북 / 궁극의 스킬북 전용 선택 컬럼(10번째, index 10). 없는 행(스킬북이 아닌 기존 아이템)은 빈 문자열로 방어적으로 처리.
+            data.Skill_ID = cols.Length > 10 ? cols[10].Trim() : string.Empty;
+
             data.ItemIcon = iconTable != null ? iconTable.GetIcon(data.Item_ID) : null;
 
             if (data is KMS.Combat.WeaponItemData weaponData)
@@ -530,6 +533,13 @@ private ItemData ParseItemRow(string[] cols)
         /// 1) 이미 참조가 있으면 그대로 반환, 2) 없으면 싱글톤(Instance), 3) 그래도 없으면 씬 전체에서 검색.
         /// (RecipeUnlockManager, GoddessStatueUI 등 여러 곳에서 동일한 폴백 로직을 반복하지 않기 위한 헬퍼)
         /// </summary>
+        // [멤] PlayerHUD.Update() 등 매 프레임 호출되는 코드 경로에서 이 메서드를 계속 호출하는데,
+        // ItemCatalogManager가 씬에 없는 상태(예: Title을 거치지 않고 Main_World_3에서 바로 Play한 경우)면
+        // 매 프레임 FindFirstObjectByType 재탐색 + 경고 로그가 무한 반복되어 콘솔이 순식간에 도배되고,
+        // 그 사이 다른 진단 로그(예: 데미지 적용 로그)가 전부 묻혀 보이지 않게 되는 문제가 있었다.
+        // 경고는 세션당 한 번만 남기도록 해서 콘솔 스팸을 막는다(동작 자체는 기존과 동일 - 못 찾으면 계속 null 반환).
+        private static bool hasLoggedMissingWarning;
+
         public static ItemCatalogManager Resolve(ItemCatalogManager existing)
         {
             if (existing != null) return existing;
@@ -538,7 +548,15 @@ private ItemData ParseItemRow(string[] cols)
             var found = FindFirstObjectByType<ItemCatalogManager>();
             if (found == null)
             {
-                Debug.LogWarning("[ItemCatalogManager] 씬에서 ItemCatalogManager를 찾을 수 없습니다.");
+                if (!hasLoggedMissingWarning)
+                {
+                    hasLoggedMissingWarning = true;
+                    Debug.LogWarning("[ItemCatalogManager] 씬에서 ItemCatalogManager를 찾을 수 없습니다. (이후 동일 경고는 콘솔 스팸 방지를 위해 생략됩니다)");
+                }
+            }
+            else
+            {
+                hasLoggedMissingWarning = false;
             }
 
             return found;

@@ -40,6 +40,12 @@ namespace HDY.Item
                  "도구가 멤을 타격해 데미지를 입힐 때마다 1씩 감소한다(PlayerHarvestController 참고).")]
         public int MaxDurability;
 
+        // [멤] 스킬북 / 궁극의 스킬북 전용. 이 아이템을 사용(우클릭)했을 때 획득하는 스킬의 고유 ID.
+        // 스킬북이 아닌 아이템은 빈 문자열로 둔다. ItemCatalog.csv의 선택적 트레일링 컬럼에서 파싱된다.
+        [Header("스킬 (SkillBook / UltimateSkillBook 전용)")]
+        [Tooltip("이 스킬북을 사용했을 때 획득할 스킬의 Skill_ID. 스킬북 카테고리가 아니면 사용되지 않는다.")]
+        public string Skill_ID;
+
         [Header("섭취 효과 (UseAction == Eat 일 때만 사용)")]
         public List<ItemEffect> EatEffects = new List<ItemEffect>();
     }

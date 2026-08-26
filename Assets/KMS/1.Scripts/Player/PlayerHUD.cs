@@ -185,9 +185,9 @@ private void Update()
             hudView.SetSkillPanelVisible(shouldShow);
             if (!shouldShow) return;
 
-            bool isCharging = weaponSkillController.IsCharging;
-            int bankedStage = isCharging ? weaponSkillController.BankedStageIndex : -1;
-
+            // [멤] 하이라이트 의미 재정의: "장전 중 진행 상태"가 아니라 "장전에 성공해 큐에 들어가 아직
+            // 발동되지 않은 스킬"만 하이라이트한다(장전 진행 자체는 캐릭터 주변 이펙트/사운드로 별도 표현 - UI
+            // 하이라이트가 아님). 큐에서 발동(소모)되는 순간 자동으로 꺼진다(더 이상 큐에 없으므로).
             for (int i = 0; i < PlayerSkillLoadout.SlotCount; i++)
             {
                 SkillData skill = skillLoadout.GetEquippedSkill(i);
@@ -195,7 +195,8 @@ private void Update()
                 float cooldownRemaining = skill != null ? weaponSkillController.GetSkillCooldownRemaining(skill.Skill_ID) : 0f;
                 float cooldownTotal = skill != null ? skill.Cooldown : 0f;
                 hudView.SetSkillSlotData(i, icon, cooldownRemaining, cooldownTotal);
-                hudView.SetSkillSlotBanked(i, bankedStage == i);
+                bool queued = skill != null && weaponSkillController.IsSkillQueued(skill.Skill_ID);
+                hudView.SetSkillSlotBanked(i, queued);
             }
 
             // [멤] 5등급 특수 칸(R키 발동) - 장전 큐/장전 완료 표시와 무관하게 아이콘+쿨타임만 표시한다.
@@ -287,6 +288,18 @@ private void Update()
 
             ResolveHudView();
             hudView?.SetSurvivalStatusVisible(visible);
+        }
+
+        // [멤] PlayerSkillBookController가 스킬북 사용으로 스킬을 획득시켰을 때 호출하는 파사드.
+        // 현재는 레거시(Canvas) HUD 전용 팝업만 있고 Toolkit(UI Toolkit) HUD용 대응 UI는 아직 없어
+        // Toolkit HUD 사용 중에는 조용히 무시한다.
+        public void ShowSkillAcquired(SkillData skill)
+        {
+            if (skill == null) return;
+            if (UsesToolkitHud) return;
+
+            ResolveHudView();
+            hudView?.ShowSkillAcquired(skill);
         }
 
         private void ResolveHudView()

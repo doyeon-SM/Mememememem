@@ -247,6 +247,11 @@ namespace KMS.InventoryDuped
                     return "캡슐";
                 case HDY.Item.ItemCategory.Tool:
                     return "도구";
+                // [멤] 스킬북 / 궁극의 스킬북 카테고리 이름. 기능은 동일하고 카테고리 이름(툴팁 표기)만 다르다.
+                case HDY.Item.ItemCategory.SkillBook:
+                    return "스킬북";
+                case HDY.Item.ItemCategory.UltimateSkillBook:
+                    return "궁극의 스킬북";
                 default:
                     return category.ToString();
             }

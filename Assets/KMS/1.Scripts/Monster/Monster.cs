@@ -22,7 +22,7 @@ namespace KMS.Combat
         [Header("체력")]
         [SerializeField, Min(1)] private int maxHealth = 10;
 
-        private int currentHealth;
+        [SerializeField] private int currentHealth;
 
         public int MaxHealth => maxHealth;
         public int CurrentHealth => currentHealth;
@@ -30,6 +30,12 @@ namespace KMS.Combat
 
         /// <summary>사망 시 발행된다 - 추후 몬스터 AI/스폰 작업이 보상/드롭/스폰 카운트 갱신 등에 구독해서 쓰면 된다.</summary>
         public event System.Action OnDied;
+
+        // [멤] 데미지 숫자 팝업 표시용 정적 이벤트 - Mem 쪽의 MemEvents.OnMemDamaged와 동일한 목적이지만,
+        // Monster는 Mem과 무관한 별도 클래스라 그 이벤트 버스(MemSystem.Events.MemEvents, 타 담당자 소유)에
+        // 직접 얹지 않고 KMS 쪽에서 독립적으로 관리한다. KMSMemDamagePopupService가 이 이벤트를 구독해서
+        // 동일한 데미지 숫자 팝업을 몬스터 피격 위치에도 띄운다.
+        public static event System.Action<Monster, int> OnMonsterDamaged;
 
         private void Awake()
         {
@@ -54,6 +60,10 @@ namespace KMS.Combat
             if (IsDead || damage <= 0) return;
 
             currentHealth = Mathf.Max(0, currentHealth - damage);
+            Debug.Log($"[Monster] hit monster damage = {damage} / CurrentHealth = {currentHealth}");
+
+            // [멤] 데미지 숫자 팝업(KMSMemDamagePopupService)이 이 이벤트를 구독해서 표시한다.
+            OnMonsterDamaged?.Invoke(this, damage);
 
             if (currentHealth <= 0)
             {
@@ -67,6 +77,7 @@ namespace KMS.Combat
         /// </summary>
         protected virtual void Die()
         {
+            Debug.Log($"[Monster] Die monster");
             IsDead = true;
             OnDied?.Invoke();
             gameObject.SetActive(false);

@@ -62,6 +62,10 @@ namespace KMS
         [SerializeField] private RectTransform itemObtainedToastContainer;
         [SerializeField] private KMSItemObtainedToastView itemObtainedToastTemplate;
 
+        [Header("Skill Acquired Popup")]
+        // [멤] 스킬북 사용으로 스킬을 획득했을 때 1초간 표시되는 안내 팝업.
+        [SerializeField] private SkillAcquiredPopupUI skillAcquiredPopup;
+
         [Header("Skill Panel (탐험 전용, 무기 착용 시에만 표시 - PlayerHUD가 켜고 끔)")]
         [SerializeField] private GameObject skillPanelRoot;
         [Tooltip("슬롯 순서 = 로드아웃 슬롯 인덱스(0~3) = 요구 등급(1~4). PlayerSkillLoadout과 동일한 순서로 연결해야 한다.")]
@@ -582,6 +586,12 @@ namespace KMS
             canvasGroup.blocksRaycasts = false;
 
             StartCoroutine(RemoveNotificationAfterDelay(item, canvasGroup, duration));
+        }
+
+        // [멤] PlayerSkillBookController -> PlayerHUD를 거쳐 스킬 획득 시 호출된다.
+        public void ShowSkillAcquired(KMS.Combat.SkillData skill)
+        {
+            skillAcquiredPopup?.Show(skill);
         }
 
         public void ShowItemObtained(

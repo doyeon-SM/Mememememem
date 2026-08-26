@@ -74,11 +74,17 @@ namespace KMS.Effects.DamageNumbers
         {
             MemEvents.OnMemDamaged -= HandleMemDamaged;
             MemEvents.OnMemDamaged += HandleMemDamaged;
+
+            // [멤] 몬스터는 Mem 이벤트 버스와 무관한 별도 클래스라 자체 정적 이벤트를 따로 구독한다.
+            // 동일한 데미지 숫자 팝업을 몬스터 피격 위치에도 재사용하기 위함.
+            KMS.Combat.Monster.OnMonsterDamaged -= HandleMonsterDamaged;
+            KMS.Combat.Monster.OnMonsterDamaged += HandleMonsterDamaged;
         }
 
         private void OnDisable()
         {
             MemEvents.OnMemDamaged -= HandleMemDamaged;
+            KMS.Combat.Monster.OnMonsterDamaged -= HandleMonsterDamaged;
         }
 
         private void HandleMemDamaged(Mem mem, int damage)
@@ -88,7 +94,24 @@ namespace KMS.Effects.DamageNumbers
                 return;
             }
 
-            Vector3 position = ResolvePopupPosition(mem);
+            SpawnDamagePopup(mem.gameObject, damage);
+        }
+
+        // [멤] Monster는 Mem과 무관한 별도 클래스라 이 핸들러를 따로 둔다 - 판정(사망 여부)만 다르고
+        // 팝업 스폰 로직(SpawnDamagePopup)은 Mem과 완전히 동일하게 재사용한다.
+        private void HandleMonsterDamaged(KMS.Combat.Monster monster, int damage)
+        {
+            if (monster == null || damage <= 0 || monster.IsDead)
+            {
+                return;
+            }
+
+            SpawnDamagePopup(monster.gameObject, damage);
+        }
+
+        private void SpawnDamagePopup(GameObject target, int damage)
+        {
+            Vector3 position = ResolvePopupPosition(target);
             if (damageNumbersProBackend != null
                 && damageNumbersProBackend.TrySpawn(position, damage))
             {
@@ -98,12 +121,12 @@ namespace KMS.Effects.DamageNumbers
             SpawnFallback(position, damage);
         }
 
-        private Vector3 ResolvePopupPosition(Mem mem)
+        private Vector3 ResolvePopupPosition(GameObject target)
         {
-            Vector3 rootPosition = mem.transform.position;
+            Vector3 rootPosition = target.transform.position;
             float popupY = rootPosition.y + settings.minimumHeightOffset;
 
-            Renderer[] renderers = mem.GetComponentsInChildren<Renderer>();
+            Renderer[] renderers = target.GetComponentsInChildren<Renderer>();
             for (int index = 0; index < renderers.Length; index++)
             {
                 Renderer current = renderers[index];

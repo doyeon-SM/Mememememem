@@ -51,11 +51,17 @@ namespace KMS.Combat
         [Tooltip("원거리 공격이 데미지를 줄 대상 레이어. 비워두면(0) Awake에서 \"Monster\" 레이어를 자동으로 찾아 채운다.")]
         [SerializeField] private LayerMask monsterLayer;
 
+        [Tooltip("조준 보정(카메라 중앙 조준) 레이캐스트의 최대 거리(미터). 이 거리 안에 아무것도 안 맞으면 카메라 정면 이 거리만큼 앞의 가상의 점을 조준점으로 쓴다.")]
+        [SerializeField, Min(1f)] private float aimMaxDistance = 100f;
+        [Tooltip("조준 보정 레이캐스트가 충돌을 검사할 레이어. 기본값(전체)이면 플레이어 자신의 콜라이더에 막힐 수 있으니 필요시 플레이어 레이어를 제외하도록 조정한다.")]
+        [SerializeField] private LayerMask aimObstructionMask = ~0;
+
         [Header("Charge / Queue")]
         [Tooltip("장전 한 단계가 완료되는데 걸리는 시간(초). 4단계까지 전부 채우려면 이 값의 4배가 필요하다.")]
         [SerializeField, Min(0.1f)] private float stageDuration = 1f;
 
         private static readonly int RangedAttackHash = Animator.StringToHash("RangedAttack");
+        private bool hasRangedAttackTriggerParam;
 
         private readonly Queue<string> skillQueue = new Queue<string>();
         private readonly Dictionary<string, float> skillCooldownTimers = new Dictionary<string, float>();
@@ -113,6 +119,15 @@ namespace KMS.Combat
             if (cameraTransform == null && Camera.main != null) cameraTransform = Camera.main.transform;
             if (movement != null && movement.Animator != null) animator = movement.Animator;
             else if (animator == null) animator = GetComponentInChildren<Animator>();
+
+            // [멤] 버그 방어: 지금 연결된 Animator Controller(예: 이동/점프 공용 CoreAnimator)에
+            // "RangedAttack" 트리거 파라미터가 아예 없을 수 있다(원거리 공격 애니메이션이 아직 그 컨트롤러에
+            // 준비되지 않은 경우). 이 상태에서 SetTrigger를 그대로 호출하면 매번 공격할 때마다
+            // "Parameter 'Hash ...' does not exist" 콘솔 에러가 계속 찍히는데, 실제 공격/투사체 발사
+            // 로직에는 영향이 없어 헷갈리기만 한다. 파라미터 존재 여부를 한 번만 확인해두고, 없으면
+            // SetTrigger 자체를 호출하지 않아 애니메이션은 그냥 없는 채로(추후 실제 공격 애니메이션과
+            // "RangedAttack" 트리거 파라미터가 그 Animator Controller에 추가되면 자동으로 다시 재생된다).
+            hasRangedAttackTriggerParam = HasAnimatorTrigger(animator, RangedAttackHash);
 
             if (projectileOrigin == null && animator != null && animator.isHuman)
             {
@@ -215,6 +230,14 @@ namespace KMS.Combat
                 chargeTimer += Time.deltaTime;
                 while (isCharging && nextStageToEvaluate < PlayerSkillLoadout.SlotCount && chargeTimer >= stageDuration)
                 {
+                    // [멤] 사용자 확정 사양: 다음에 평가할 단계부터 끝까지 전부 "사용 불가(미등록/쿨타임/이미 큐 대기 중)"이면
+                    // 그 자리에서 진행을 멈춘다 - 매 초 사운드가 계속 나가는 건 "평가할 유효 후보가 아직 남아있을 때까지"만이다
+                    // (예: 1,3단계만 등록돼 있으면 1~3단계까지만 사운드가 나가고 4단계에서는 더 이상 진행/사운드가 없다).
+                    if (!HasRemainingChargeableStage(nextStageToEvaluate))
+                    {
+                        break;
+                    }
+
                     chargeTimer -= stageDuration;
                     EvaluateNextChargeStage();
                 }
@@ -246,10 +269,10 @@ private void FireBasicAttack(WeaponItemData weapon)
 
             basicAttackCooldownTimer = Mathf.Max(0f, weapon.ProjectileAttackCooldown);
 
-            if (animator != null) animator.SetTrigger(RangedAttackHash);
+            if (animator != null && hasRangedAttackTriggerParam) animator.SetTrigger(RangedAttackHash);
 
             Vector3 origin = GetProjectileOrigin();
-            Vector3 direction = cameraTransform.forward;
+            Vector3 direction = GetAimDirection(origin);
             int attackPowerBonus = stats != null ? stats.AttackPower : 0;
             int damage = Mathf.Max(0, weapon.ProjectileDamage + attackPowerBonus);
             FireBasicAttackProjectile(origin, direction, damage, weapon);
@@ -275,10 +298,10 @@ private void FireQueuedSkill(WeaponItemData weapon)
 
             skillQueue.Dequeue();
 
-            if (animator != null) animator.SetTrigger(RangedAttackHash);
+            if (animator != null && hasRangedAttackTriggerParam) animator.SetTrigger(RangedAttackHash);
 
             Vector3 origin = GetProjectileOrigin();
-            Vector3 direction = cameraTransform.forward;
+            Vector3 direction = GetAimDirection(origin);
             FireSkillProjectile(origin, direction, Mathf.Max(0, skill.Damage), skill);
 
             StartSkillCooldown(skill.Skill_ID, skill.Cooldown);
@@ -305,10 +328,10 @@ private void HandleSpecialSkillPressed()
 
             if (!LockPrimary()) return;
 
-            if (animator != null) animator.SetTrigger(RangedAttackHash);
+            if (animator != null && hasRangedAttackTriggerParam) animator.SetTrigger(RangedAttackHash);
 
             Vector3 origin = GetProjectileOrigin();
-            Vector3 direction = cameraTransform.forward;
+            Vector3 direction = GetAimDirection(origin);
             FireSkillProjectile(origin, direction, Mathf.Max(0, skill.Damage), skill);
 
             StartSkillCooldown(skill.Skill_ID, skill.Cooldown);
@@ -350,6 +373,9 @@ private void HandleSpecialSkillPressed()
             if (stats != null && !stats.IsAlive) return;
             if (isCharging) return;
             if (!TryGetSelectedWeapon(out _)) return;
+            // [멤] 사용자 확정 사양: 등록된 스킬이 전부(미등록/쿨타임/이미 큐 대기 중이라) 장전할 후보가 하나도
+            // 없으면 장전 자체를 시도하지 않는다(액션 슬롯 점유/이동 감속도 걸지 않고 그냥 아무 일도 안 일어남).
+            if (!HasRemainingChargeableStage(0)) return;
 
             bool began = actionCoordinator == null || actionCoordinator.TryBeginAction(this, KMS.ActionInputSlot.Secondary, KMS.ActionSpeedTier.Heavy);
             if (!began) return;
@@ -425,11 +451,36 @@ private void HandleSpecialSkillPressed()
             CancelCharge();
         }
 
+        /// <summary>[멤] fromIndex(포함)부터 마지막 단계까지, 등록돼 있고 쿨타임이 아니며 아직 큐에
+        /// 대기(하이라이트) 중이 아닌 - 즉 지금 장전하면 실제로 성공할 수 있는 - 단계가 하나라도 있는지 확인한다.
+        /// BeginCharge에서는 장전 시작 가능 여부(fromIndex=0)를, TickTimers에서는 더 진행할 가치가 있는지를 판단하는 데 쓴다.</summary>
+        private bool HasRemainingChargeableStage(int fromIndex)
+        {
+            if (skillLoadout == null) return false;
+
+            for (int i = fromIndex; i < PlayerSkillLoadout.SlotCount; i++)
+            {
+                SkillData candidate = skillLoadout.GetEquippedSkill(i);
+                if (candidate != null && !IsSkillOnCooldown(candidate.Skill_ID) && !skillQueue.Contains(candidate.Skill_ID))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         private void EvaluateNextChargeStage()
         {
             int stageIndex = nextStageToEvaluate;
             SkillData skill = skillLoadout != null ? skillLoadout.GetEquippedSkill(stageIndex) : null;
-            bool isValid = skill != null && !IsSkillOnCooldown(skill.Skill_ID);
+            // [멤] 버그 수정: 쿨타임은 실제로 "발동(Fire)"된 시점에만 시작되는데(FireQueuedSkill/HandleSpecialSkillPressed),
+            // 기존에는 "이미 큐에 들어가 아직 발동되지 않은 스킬"을 걸러내지 않아서, 발동 전에 같은 스킬을 여러 번
+            // 장전/해제해 큐에 중복으로 쌓을 수 있었다(쿨타임 체크만으로는 막히지 않음) - 그 결과 쿨타임을 무시하고
+            // 같은 스킬이 연달아 여러 번 발동되거나, 중복 때문에 큐가 먼저 가득 차서 이후 정상적인 장전이 조용히
+            // 큐에 안 들어가는(장전이 막힌 것처럼 보이는) 문제로 이어졌다. 이미 큐에 대기 중인 스킬은 아직
+            // 발동 전이라도 다시 장전(banking) 대상에서 제외한다.
+            bool isValid = skill != null && !IsSkillOnCooldown(skill.Skill_ID) && !skillQueue.Contains(skill.Skill_ID);
 
             if (isValid)
             {
@@ -440,6 +491,26 @@ private void HandleSpecialSkillPressed()
 
             KMSAudioService.PlayAt(GetChargeStageSfx(stageIndex), transform.position);
             OnChargeStageEvaluated?.Invoke(stageIndex, isValid);
+        }
+
+        /// <summary>[멤] 이 Animator(정확히는 연결된 Animator Controller)에 주어진 해시의 Trigger
+        /// 파라미터가 실제로 존재하는지 확인한다 - 없는 파라미터에 SetTrigger를 호출하면 매번
+        /// "Parameter 'Hash ...' does not exist" 콘솔 에러가 나기 때문에, 공격 시마다 호출하지 않고
+        /// Awake에서 한 번만 확인해서 캐싱해두는 용도다.</summary>
+        private static bool HasAnimatorTrigger(Animator anim, int hash)
+        {
+            if (anim == null) return false;
+
+            AnimatorControllerParameter[] parameters = anim.parameters;
+            for (int i = 0; i < parameters.Length; i++)
+            {
+                if (parameters[i].type == AnimatorControllerParameterType.Trigger && parameters[i].nameHash == hash)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static GameSfxId GetChargeStageSfx(int stageIndex)
@@ -458,6 +529,13 @@ private void HandleSpecialSkillPressed()
         public bool IsSkillOnCooldown(string skillId)
         {
             return !string.IsNullOrEmpty(skillId) && skillCooldownTimers.ContainsKey(skillId);
+        }
+
+        /// <summary>[HUD 연동용] 이 스킬이 지금 큐에 대기 중인지(=장전 완료 하이라이트 대상인지) 여부.
+        /// 장전 중 진행 상태가 아니라, 실제로 장전에 성공해 큐에 들어가 아직 발동되지 않은 스킬만 true다.</summary>
+        public bool IsSkillQueued(string skillId)
+        {
+            return !string.IsNullOrEmpty(skillId) && skillQueue.Contains(skillId);
         }
 
         private void StartSkillCooldown(string skillId, float cooldown)
@@ -533,6 +611,29 @@ private void HandleSpecialSkillPressed()
             return projectileOrigin != null
                 ? projectileOrigin.position
                 : transform.position + transform.up * attackOriginHeight;
+        }
+
+        // [멤] 사용자 요청: 총구(origin) 기준 카메라 정면 방향이 아니라, 카메라가 실제로 바라보는 화면 중앙 지점(크로스헤어)을
+        // 향해 투사체가 날아가도록 한다. 총구가 카메라 위치와 어긋나 있어서 그냥 cameraTransform.forward만 쓰면 총구 기준으로는
+        // 화면 중앙에서 벗어난 방향으로 날아가 보인다 - 카메라에서 레이캐스트로 실제 조준점을 구한 뒤 origin에서 그 점을 향하는
+        // 방향을 다시 계산한다.
+        private Vector3 GetAimDirection(Vector3 origin)
+        {
+            if (cameraTransform == null) return transform.forward;
+
+            Vector3 aimPoint;
+            Ray aimRay = new Ray(cameraTransform.position, cameraTransform.forward);
+            if (Physics.Raycast(aimRay, out RaycastHit hit, aimMaxDistance, aimObstructionMask, QueryTriggerInteraction.Ignore))
+            {
+                aimPoint = hit.point;
+            }
+            else
+            {
+                aimPoint = aimRay.GetPoint(aimMaxDistance);
+            }
+
+            Vector3 direction = aimPoint - origin;
+            return direction.sqrMagnitude > 0.0001f ? direction.normalized : cameraTransform.forward;
         }
 
 private void FireBasicAttackProjectile(Vector3 origin, Vector3 direction, int damage, WeaponItemData weapon)

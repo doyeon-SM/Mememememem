@@ -11,7 +11,6 @@ GameObject:
   - component: {fileID: 7216970832590055977}
   - component: {fileID: 1034854577988819813}
   - component: {fileID: 2408689727451768685}
-  - component: {fileID: 8108093902595997684}
   - component: {fileID: 8380790443041788977}
   m_Layer: 0
   m_Name: SkillManager
@@ -64,26 +63,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::KMS.Combat.SkillUnlockManager
   skillCatalogManager: {fileID: 1034854577988819813}
   unlockedSkillIds: []
---- !u!114 &8108093902595997684
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1298799275315643571}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b670c1adbc145a143a5d640754beafd8, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::KMS.Combat.PlayerSkillLoadout
-  skillCatalogManager: {fileID: 1034854577988819813}
-  skillUnlockManager: {fileID: 2408689727451768685}
-  equippedSkillIds:
-  - 
-  - 
-  - 
-  - 
-  specialSkillId: 
 --- !u!114 &8380790443041788977
 MonoBehaviour:
   m_ObjectHideFlags: 0
