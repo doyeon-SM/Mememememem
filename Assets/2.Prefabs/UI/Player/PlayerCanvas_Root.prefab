@@ -6338,6 +6338,7 @@ GameObject:
   - component: {fileID: 2040666268248253043}
   - component: {fileID: 6775043548277015190}
   - component: {fileID: 3723779396067516311}
+  - component: {fileID: 8441207000520985882}
   m_Layer: 5
   m_Name: InventoryPanel
   m_TagString: Untagged
@@ -6430,6 +6431,21 @@ MonoBehaviour:
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
   m_PixelsPerUnitMultiplier: 1
+--- !u!114 &8441207000520985882
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3871427113112420978}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0474495e373e6b04bb067785cd3d0dda, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::KMS.KMSDraggableUIWindow
+  saveKey: KMS_UI_InventoryExploration_Pos
+  targetRect: {fileID: 0}
+  requireCursorReleased: 0
 --- !u!1 &3890307282741103501
 GameObject:
   m_ObjectHideFlags: 0
@@ -22565,13 +22581,31 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 8699428769300633218, guid: f0ce5e0d3952aa24c8da31f0744fb827, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 7955168248543596132}
   m_SourcePrefab: {fileID: 100100000, guid: f0ce5e0d3952aa24c8da31f0744fb827, type: 3}
 --- !u!1 &695343499351313598 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 8699428769300633218, guid: f0ce5e0d3952aa24c8da31f0744fb827, type: 3}
   m_PrefabInstance: {fileID: 8150617459495017020}
   m_PrefabAsset: {fileID: 0}
+--- !u!114 &7955168248543596132
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 695343499351313598}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0474495e373e6b04bb067785cd3d0dda, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::KMS.KMSDraggableUIWindow
+  saveKey: KMS_UI_SkillHud_Pos
+  targetRect: {fileID: 0}
+  requireCursorReleased: 1
 --- !u!114 &1937806648053433196 stripped
 MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 7780170135487224144, guid: f0ce5e0d3952aa24c8da31f0744fb827, type: 3}
