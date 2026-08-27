@@ -97,7 +97,7 @@ private SkillData ParseSkillRow(string[] cols)
 
             data.Skill_ID = cols[0].Trim();
             data.SkillName = cols[1].Trim();
-            data.Damage = ParseInt(cols[2]);
+            data.DamagePercent = ParseFloat(cols[2]);
             data.Cooldown = ParseFloat(cols[3]);
             data.Grade = ParseInt(cols[4]);
             data.Description = cols[5].Trim();
@@ -108,6 +108,8 @@ private SkillData ParseSkillRow(string[] cols)
             data.ProjectileSpeed = cols.Length >= 9 ? ParseFloat(cols[8]) : 0f;
             data.ProjectileLifetime = cols.Length >= 10 ? ParseFloat(cols[9]) : 0f;
             data.ProjectilePrefab = projectileTable != null ? projectileTable.GetPrefab(data.ProjectileId) : null;
+            data.HitCount = cols.Length >= 11 ? System.Math.Max(1, ParseInt(cols[10])) : 1;
+            data.DamageType = cols.Length >= 12 ? ParseDamageType(cols[11]) : WeaponDamageType.Physical;
 
 
             return data;
@@ -117,6 +119,13 @@ private SkillData ParseSkillRow(string[] cols)
         {
             var trimmed = s.Trim();
             return System.Enum.TryParse<SkillFormType>(trimmed, true, out var value) ? value : SkillFormType.Instant;
+        }
+
+        // [멤] csv의 DamageType 컬럼("Physical"/"Magic")을 enum으로 파싱한다. 비어있거나 알 수 없는 값은 기본값(Physical)으로 처리한다.
+        private static WeaponDamageType ParseDamageType(string s)
+        {
+            var trimmed = s.Trim();
+            return System.Enum.TryParse<WeaponDamageType>(trimmed, true, out var value) ? value : WeaponDamageType.Physical;
         }
 
         private static int ParseInt(string s)

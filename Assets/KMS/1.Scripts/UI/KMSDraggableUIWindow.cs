@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.SceneManagement;
 
 namespace KMS
 {
@@ -33,6 +34,10 @@ namespace KMS
                  "패널이 열려있는 동안 항상 커서가 풀려있는 창(예: 인벤토리)은 체크를 꺼도 된다.")]
         [SerializeField] private bool requireCursorReleased = false;
 
+        [Tooltip("체크하면 현재 씬 이름에 \"territory\"가 포함되어 있을 때(영지 씬) 이 컴포넌트 자체를 비활성화해 드래그/위치복원을 끄는다. " +
+                 "같은 프리팹을 영지와 탐험 양쪽에서 공유하는데 탐험에서만 드래그가 되어야 하는 창(예: 캐릭터 스탯 패널)에 쓴다.")]
+        [SerializeField] private bool disableInTerritoryScene = false;
+
         private RectTransform selfRect;
         private Canvas parentCanvas;
         private KMS.PlayerInput playerInput;
@@ -43,6 +48,18 @@ namespace KMS
             selfRect = transform as RectTransform;
             if (targetRect == null) targetRect = selfRect;
             parentCanvas = GetComponentInParent<Canvas>();
+
+            if (disableInTerritoryScene && IsTerritoryScene())
+            {
+                // [멤] 영지 씬이면 이 컴포넌트 자체를 비활성화한다 - OnEnable(위치복원)도 호출되지 않아 완전히 고정 위치로 남는다.
+                enabled = false;
+            }
+        }
+
+        private static bool IsTerritoryScene()
+        {
+            string sceneName = SceneManager.GetActiveScene().name;
+            return !string.IsNullOrEmpty(sceneName) && sceneName.ToLowerInvariant().Contains("territory");
         }
 
         private void OnEnable()

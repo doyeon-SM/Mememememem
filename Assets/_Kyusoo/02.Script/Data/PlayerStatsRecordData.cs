@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using UnityEngine;
 using KMS;
@@ -7,6 +7,7 @@ using KMS.Persistence;
 public class PlayerStatsRecordData : MonoBehaviour, IRecord
 {
     private PlayerStats targetPlayerStats;
+    private PlayerCombatStats targetCombatStats; // [멤] 캐릭터 스탯 시스템 저장/복원용
 
     private void OnEnable()
     {
@@ -22,6 +23,7 @@ public class PlayerStatsRecordData : MonoBehaviour, IRecord
     {
         UnbindPlayerStats();
         targetPlayerStats = FindFirstObjectByType<PlayerStats>();
+        targetCombatStats = targetPlayerStats != null ? targetPlayerStats.GetComponent<PlayerCombatStats>() : null;
 
         if (targetPlayerStats != null)
         {
@@ -37,6 +39,8 @@ public class PlayerStatsRecordData : MonoBehaviour, IRecord
             targetPlayerStats.PlayerStatsDestroyed -= OnPlayerStatsDestroyedHandler;
             targetPlayerStats = null;
         }
+
+        targetCombatStats = null;
     }
 
     // 1. 씬 이동 시 PlayerStats 파괴 직전에 트리거
@@ -102,6 +106,14 @@ public class PlayerStatsRecordData : MonoBehaviour, IRecord
             currentData.playerInfo.currentHealth = capturedStats.currentHealth;
             currentData.playerInfo.currentHunger = capturedStats.currentHunger;
             currentData.playerInfo.foodEffects = capturedStats.foodEffects;
+
+            // [멤] 캐릭터 스탯 시스템 저장. targetCombatStats는 BindPlayerStats에서 같이 갱신되지만, stats 파라미터가 바인된
+            // targetPlayerStats와 다를 수 있으므로(SaveDataWithStats가 외부 stats를 받는 경우) 여기서 다시 조회한다.
+            PlayerCombatStats combatStats = stats.GetComponent<PlayerCombatStats>();
+            if (combatStats != null)
+            {
+                currentData.playerInfo.combatStats = combatStats.CaptureSaveData();
+            }
         }
 
         File.WriteAllText(saveFilePath, JsonUtility.ToJson(currentData, true));
@@ -121,6 +133,13 @@ public class PlayerStatsRecordData : MonoBehaviour, IRecord
                 currentHunger = saveData.playerInfo.currentHunger,
                 foodEffects = saveData.playerInfo.foodEffects
             });
+
+            // [멤] 캐릭터 스탯 시스템 복원. 세이브가 이전 버전(combatStats 필드 없음)이면 null이므로 RestoreSaveData 자체가 안전하게 무시한다.
+            PlayerCombatStats combatStats = targetPlayerStats.GetComponent<PlayerCombatStats>();
+            if (combatStats != null && saveData.playerInfo.combatStats != null)
+            {
+                combatStats.RestoreSaveData(saveData.playerInfo.combatStats);
+            }
         }
     }
 }

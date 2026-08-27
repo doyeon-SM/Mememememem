@@ -347,6 +347,7 @@ private ItemData ParseItemRow(string[] cols)
                 weaponData.ProjectileLifetime = row.ProjectileLifetime;
                 weaponData.ProjectileDamage = row.ProjectileDamage;
                 weaponData.ProjectileAttackCooldown = row.ProjectileAttackCooldown;
+            weaponData.DamageType = row.DamageType; // [멤] 캐릭터 스탯 시스템 - 물리/마법 판정용
                 weaponData.ProjectilePrefab = projectileTable != null ? projectileTable.GetPrefab(row.ProjectileId) : null;
             }
             else

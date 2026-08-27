@@ -62,6 +62,9 @@ public class PlayerInfo
     public float currentHunger = 100f;
 
     public KMSFoodEffectStateSaveData foodEffects;
+
+    // [멤] 캐릭터 스탯 시스템(힘/지능/민첩/행운/의지 + 투자 포인트) 저장 데이터.
+    public PlayerCombatStatsSaveData combatStats;
 }
 
 [Serializable]

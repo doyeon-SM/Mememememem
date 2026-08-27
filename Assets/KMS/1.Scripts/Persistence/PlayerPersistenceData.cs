@@ -73,11 +73,29 @@ namespace KMS.Persistence
         public KMSFoodEffectStateSaveData foodEffects;
     }
 
+    /// <summary>
+    /// [멤] 캐릭터 스탯(힘/지능/민첩/행운/의지) + 투자 포인트 저장 데이터.
+    /// claude/character-stat-system-plan.md 확정 공식 기준 - PlayerCombatStats.CaptureSaveData/RestoreSaveData 참고.
+    /// </summary>
+    [Serializable]
+    public class PlayerCombatStatsSaveData
+    {
+        public int strength;
+        public int intelligence;
+        public int agility;
+        public int luck;
+        public int willpower;
+        public int unspentPoints;
+        public int lastKnownTerritoryLevel = 1;
+    }
+
+
     [Serializable]
     public class PlayerSaveData
     {
-        public int version = 3;
+        public int version = 4;
         public PlayerInventorySaveData inventory;
         public PlayerStatsSaveData stats;
+        public PlayerCombatStatsSaveData combatStats;
     }
 }

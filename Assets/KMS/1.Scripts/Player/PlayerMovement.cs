@@ -117,6 +117,10 @@ namespace KMS
         private bool legacyMovementEnabled = true;
         private readonly HashSet<object> movementBlockOwners = new HashSet<object>();
         private readonly Dictionary<object, float> moveSpeedOverrideOwners = new Dictionary<object, float>();
+        // [멤] 민첩 스탯 기반 기본 이동속도 배율(PlayerCombatStats.ApplyMoveSpeed에서 설정) - 액션 감속/음식효과와
+        // 달리 "덮어쓰기"가 아니라 moveSpeed/sprintSpeed 자체에 곱해지는 기본값 수정에 가깝기 때문에(사용자 확인됨),
+        // 액션 감속 오버라이드와 자연스럽게 곱연산된다(액션 감속 중에도 민첩 보너스가 그대로 적용됨).
+        private float statSpeedMultiplier = 1f;
 
         private void Reset()
         {
@@ -304,6 +308,16 @@ namespace KMS
 
         public bool HasMoveSpeedOverride => moveSpeedOverrideOwners.Count > 0;
 
+        /// <summary>
+        /// [멤] 민첩 스탯 보너스 배율(1.0~2.0)을 설정한다 - PlayerCombatStats가 스탯이 바뀜 때마다 호출한다.
+        /// 기존 액션 오버라이드(Clamp01, 덮어쓰기)와 달리 기본 moveSpeed/sprintSpeed 자체를 바꾸는 방식이라
+        /// 서로 충돌하지 않고 그대로 곱연산된다.
+        /// </summary>
+        public void SetStatSpeedMultiplier(float multiplier)
+        {
+            statSpeedMultiplier = Mathf.Max(0f, multiplier);
+        }
+
         private void StopControlledMovement()
         {
             CurrentSpeed = 0f;
@@ -458,7 +472,7 @@ private void HandleMovement()
 
             float movementMultiplier = ResolveMoveSpeedMultiplier();
             float targetSpeed = hasMoveInput
-                ? (IsSprinting ? sprintSpeed : moveSpeed) * movementMultiplier * inputMagnitude
+                ? (IsSprinting ? sprintSpeed : moveSpeed) * statSpeedMultiplier * movementMultiplier * inputMagnitude
                 : 0f;
             float speedRate = targetSpeed > CurrentSpeed ? acceleration : deceleration;
             CurrentSpeed = Mathf.MoveTowards(CurrentSpeed, targetSpeed, speedRate * Time.deltaTime);
@@ -606,7 +620,7 @@ private void HandleMovement()
         {
             if (animator == null) return;
 
-            float effectiveSprintSpeed = sprintSpeed * ResolveMoveSpeedMultiplier();
+            float effectiveSprintSpeed = sprintSpeed * statSpeedMultiplier * ResolveMoveSpeedMultiplier();
             float normalizedSpeed = Mathf.Approximately(effectiveSprintSpeed, 0f)
                 ? 0f
                 : CurrentSpeed / effectiveSprintSpeed;

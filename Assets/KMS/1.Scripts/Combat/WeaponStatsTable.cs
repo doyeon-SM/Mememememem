@@ -29,6 +29,7 @@ namespace KMS.Combat
             public float ProjectileLifetime;
             public int ProjectileDamage;
             public float ProjectileAttackCooldown;
+            public WeaponDamageType DamageType;
         }
 
         private readonly Dictionary<string, Row> rowsByItemId = new Dictionary<string, Row>();
@@ -58,6 +59,7 @@ namespace KMS.Combat
                     ProjectileLifetime = ParseFloat(cols[5]),
                     ProjectileDamage = ParseInt(cols[6]),
                     ProjectileAttackCooldown = ParseFloat(cols[7]),
+                    DamageType = cols.Length >= 9 ? ParseDamageType(cols[8]) : WeaponDamageType.Physical,
                 };
             }
         }
@@ -77,6 +79,13 @@ namespace KMS.Combat
         private static int ParseInt(string s)
         {
             return int.TryParse(s.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) ? value : 0;
+        }
+
+        // [멤] csv의 DamageType 컬럼("Physical"/"Magic")을 enum으로 파싱한다. 비어있거나 알 수 없는 값은 기본값(Physical)으로 처리한다.
+        private static WeaponDamageType ParseDamageType(string s)
+        {
+            var trimmed = s.Trim();
+            return System.Enum.TryParse<WeaponDamageType>(trimmed, true, out var value) ? value : WeaponDamageType.Physical;
         }
     }
 }

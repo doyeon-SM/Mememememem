@@ -29,8 +29,14 @@ namespace KMS.Combat
         public Sprite SkillIcon;
 
         [Header("전투")]
-        [Tooltip("스킬 기본 데미지")]
-        public int Damage;
+        [Tooltip("스킬 데미지 배율(%) - 장착 무기 기반 기본공격 최종데미지에 이 %를 곱해 스킬 히트 1회당 데미지를 계산한다(PlayerCombatStats.ComputeSkillHitDamage 참고). 예전에는 무기와 무관한 고정값(Damage)이었으나, 무기 기반 %로 설계가 변경되었다.")]
+        public float DamagePercent;
+
+        [Tooltip("다단히트 횟수 - 스킬 1회 사용 시 투사체를 이 횟수만큼 발사하며, 각 히트는 독립적으로 크리티컬 판정을 받는다.")]
+        public int HitCount = 1;
+
+        [Tooltip("이 스킬의 데미지 타입(물리/마법) - 장착한 무기의 DamageType과 다르면 스킬 사용이 제한된다.")]
+        public WeaponDamageType DamageType;
 
         [Tooltip("스킬 사용 직후 시작되는 재사용 대기시간(초)")]
         public float Cooldown;

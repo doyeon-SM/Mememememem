@@ -14,6 +14,10 @@ namespace KMS.Combat
     public class WeaponItemData : ItemData
     {
 
+        [Header("전투 타입 (캐릭터 스탯 시스템)")]
+        [Tooltip("이 무기의 데미지 타입 - 공격력(힘/민첩) 또는 마력(지능/행운) 중 어느 스탯 조합을 사용할지 결정한다. 스킬도 자신의 DamageType을 가지며, 장착 무기 타입과 다르면 스킬 사용이 제한된다(PlayerWeaponSkillController 참고).")]
+        public WeaponDamageType DamageType = WeaponDamageType.Physical;
+
         [Header("Melee Attack")]
 
         [Min(0.1f)]

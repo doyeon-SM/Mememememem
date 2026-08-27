@@ -15,6 +15,7 @@ namespace KMS
         [SerializeField] private PlayerStats stats;
         [SerializeField] private TerritoryData territoryData;
         [SerializeField] private KMSTerritoryHealthTable healthTable;
+        [SerializeField] private PlayerCombatStats combatStats; // [멤] 힘 스탯 기반 체력 배율 적용을 위한 참조
 
         private TerritoryData subscribedTerritoryData;
         private bool loggedMissingTable;
@@ -24,11 +25,13 @@ namespace KMS
         private void Reset()
         {
             ResolveStats();
+            ResolveCombatStats();
         }
 
         private void Awake()
         {
             ResolveStats();
+            ResolveCombatStats();
             ResolveTerritoryData();
             ApplyCurrentTerritoryLevel();
         }
@@ -71,7 +74,11 @@ namespace KMS
             }
 
             loggedMissingTable = false;
-            stats.SetMaxHealth(healthTable.GetMaxHealth(level));
+
+            // [멤] 힘 스탯 배율(CharacterStatFormulas.HealthMultiplier)을 영지레벨 기반 체력에 곱연산으로 적용한다.
+            float baseHealth = healthTable.GetMaxHealth(level);
+            float multiplier = combatStats != null ? combatStats.GetHealthMultiplier() : 1f;
+            stats.SetMaxHealth(baseHealth * multiplier);
         }
 
         private void HandleTerritoryLevelChanged(int level)
@@ -113,6 +120,17 @@ namespace KMS
         private void ResolveStats()
         {
             if (stats == null) stats = GetComponent<PlayerStats>();
+        }
+
+        private void ResolveCombatStats()
+        {
+            if (combatStats == null) combatStats = GetComponent<PlayerCombatStats>();
+        }
+
+        // [멤] PlayerCombatStats에서 스탯이 변경되었을 때(레벨업, 포인트 투자, 리스펙) 호출되어 체력을 재계산한다.
+        public void RefreshFromExternalStatChange()
+        {
+            ApplyCurrentTerritoryLevel();
         }
 
         private void ResolveTerritoryData()

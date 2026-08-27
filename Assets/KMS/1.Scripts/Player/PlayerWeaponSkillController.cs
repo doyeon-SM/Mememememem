@@ -34,6 +34,7 @@ namespace KMS.Combat
         [Header("References")]
         [SerializeField] private KMS.PlayerInput input;
         [SerializeField] private KMS.PlayerStats stats;
+        [SerializeField] private PlayerCombatStats combatStats; // [멤] 캐릭터 스탯 시스템 - 공격력/마력/크리티컬 계산용
         [SerializeField] private KMS.PlayerMovement movement;
         [SerializeField] private KMS.PlayerActionSlotCoordinator actionCoordinator;
         [SerializeField] private KmsPlayerInventory inventory;
@@ -100,6 +101,7 @@ namespace KMS.Combat
         {
             input = GetComponent<KMS.PlayerInput>();
             stats = GetComponent<KMS.PlayerStats>();
+            combatStats = GetComponent<PlayerCombatStats>();
             movement = GetComponent<KMS.PlayerMovement>();
             actionCoordinator = GetComponent<KMS.PlayerActionSlotCoordinator>();
             inventory = GetComponent<KmsPlayerInventory>();
@@ -112,6 +114,7 @@ namespace KMS.Combat
         {
             if (input == null) input = GetComponent<KMS.PlayerInput>();
             if (stats == null) stats = GetComponent<KMS.PlayerStats>();
+            if (combatStats == null) combatStats = GetComponent<PlayerCombatStats>();
             if (movement == null) movement = GetComponent<KMS.PlayerMovement>();
             if (actionCoordinator == null) actionCoordinator = GetComponent<KMS.PlayerActionSlotCoordinator>();
             if (inventory == null) inventory = GetComponent<KmsPlayerInventory>();
@@ -273,8 +276,7 @@ private void FireBasicAttack(WeaponItemData weapon)
 
             Vector3 origin = GetProjectileOrigin();
             Vector3 direction = GetAimDirection(origin);
-            int attackPowerBonus = stats != null ? stats.AttackPower : 0;
-            int damage = Mathf.Max(0, weapon.ProjectileDamage + attackPowerBonus);
+            int damage = ComputeBasicAttackDamage(weapon, out _);
             FireBasicAttackProjectile(origin, direction, damage, weapon);
 
             KMSAudioService.PlayAt(GameSfxId.WeaponRangedAttack, origin);
@@ -294,6 +296,10 @@ private void FireQueuedSkill(WeaponItemData weapon)
                 return;
             }
 
+            // [멤] 캐릭터 스탯 시스템: 장착 무기 타입과 스킬 타입이 다르면 "무기 미장착"과 동일하게 조용히
+            // 발동을 무시한다(사용자 확정 사양) - 큐/쿨타임에는 손대지 않는다.
+            if (weapon.DamageType != skill.DamageType) return;
+
             if (!LockPrimary()) return;
 
             skillQueue.Dequeue();
@@ -302,7 +308,7 @@ private void FireQueuedSkill(WeaponItemData weapon)
 
             Vector3 origin = GetProjectileOrigin();
             Vector3 direction = GetAimDirection(origin);
-            FireSkillProjectile(origin, direction, Mathf.Max(0, skill.Damage), skill);
+            FireSkillMultiHit(origin, direction, weapon, skill);
 
             StartSkillCooldown(skill.Skill_ID, skill.Cooldown);
             KMSAudioService.PlayAt(GameSfxId.SkillFire, origin);
@@ -326,13 +332,16 @@ private void HandleSpecialSkillPressed()
             if (skill == null) return;
             if (IsSkillOnCooldown(skill.Skill_ID)) return;
 
+            // [멤] 큐 발동과 동일한 무기 타입 게이팅 규칙을 적용한다.
+            if (weapon.DamageType != skill.DamageType) return;
+
             if (!LockPrimary()) return;
 
             if (animator != null && hasRangedAttackTriggerParam) animator.SetTrigger(RangedAttackHash);
 
             Vector3 origin = GetProjectileOrigin();
             Vector3 direction = GetAimDirection(origin);
-            FireSkillProjectile(origin, direction, Mathf.Max(0, skill.Damage), skill);
+            FireSkillMultiHit(origin, direction, weapon, skill);
 
             StartSkillCooldown(skill.Skill_ID, skill.Cooldown);
             KMSAudioService.PlayAt(GameSfxId.SkillFire, origin);
@@ -663,6 +672,45 @@ private void FireBasicAttackProjectile(Vector3 origin, Vector3 direction, int da
             direction = NormalizeFireDirection(direction);
             GameObject projectileObject = Instantiate(prefab, origin, Quaternion.LookRotation(direction));
             ConfigureAndLaunch(projectileObject, direction, damage, skill.ProjectileSpeed, skill.ProjectileLifetime, null);
+        }
+
+        // [멤] 캐릭터 스탯 시스템 - 무기공격력(ProjectileDamage) 기반 기본공격 최종데미지를 계산한다.
+        // combatStats가 없으면(구성 누락 등) 예전 방식(AttackPower 플레이스홀더 가산)으로 폴백한다.
+        private int ComputeBasicAttackDamage(WeaponItemData weapon, out bool isCritical)
+        {
+            if (combatStats != null)
+            {
+                return combatStats.ComputeBasicAttackDamage(weapon.ProjectileDamage, weapon.DamageType, out isCritical);
+            }
+
+            isCritical = false;
+            int attackPowerBonus = stats != null ? stats.AttackPower : 0;
+            return Mathf.Max(0, weapon.ProjectileDamage + attackPowerBonus);
+        }
+
+        // [멤] 캐릭터 스탯 시스템 - 스킬 1회 발동을 HitCount만큼의 개별 투사체로 나눠 발사한다.
+        // 각 히트는 독립적으로 크리티컬을 판정한다(사용자 확정 사양: "히트마다 독립 판정").
+        private void FireSkillMultiHit(Vector3 origin, Vector3 direction, WeaponItemData weapon, SkillData skill)
+        {
+            int hitCount = Mathf.Max(1, skill.HitCount);
+            for (int i = 0; i < hitCount; i++)
+            {
+                int damage = ComputeSkillHitDamage(weapon, skill, out bool isCritical);
+                FireSkillProjectile(origin, direction, damage, skill);
+            }
+        }
+
+        // [멤] 스킬 데미지(다단히트 1회분) = 무기 기반 기본공격 최종데미지 × 스킬데미지%.
+        // combatStats가 없으면 예전 고정 데미지 방식으로 폴백한다.
+        private int ComputeSkillHitDamage(WeaponItemData weapon, SkillData skill, out bool isCritical)
+        {
+            if (combatStats != null)
+            {
+                return combatStats.ComputeSkillHitDamage(weapon.ProjectileDamage, skill.DamageType, skill.DamagePercent, out isCritical);
+            }
+
+            isCritical = false;
+            return Mathf.Max(0, Mathf.RoundToInt(skill.DamagePercent));
         }
 
         private Vector3 NormalizeFireDirection(Vector3 direction)

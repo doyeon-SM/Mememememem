@@ -49,10 +49,13 @@ namespace KMS.Persistence
                 return;
             }
 
+            PlayerCombatStats combatStats = stats.GetComponent<PlayerCombatStats>();
+
             currentData = new PlayerSaveData
             {
                 inventory = inventory.CaptureSaveData(),
-                stats = stats.CaptureSaveData()
+                stats = stats.CaptureSaveData(),
+                combatStats = combatStats != null ? combatStats.CaptureSaveData() : null
             };
 
             Debug.Log($"[PlayerPersistence] 캡처 완료: 체력={currentData.stats.currentHealth:0.##}, 허기={currentData.stats.currentHunger:0.##}, 일반 슬롯={currentData.inventory.inventory.slots.Length}, 퀵슬롯={currentData.inventory.quickSlots.slots.Length}");
@@ -65,6 +68,16 @@ namespace KMS.Persistence
 
             inventory.RestoreSaveData(currentData.inventory);
             stats.RestoreSaveData(currentData.stats);
+
+            // [멤] 캐릭터 스탯 시스템 복원(씨 이동 간 유지). 이전 버전 데이터(combatStats 없음)이면 null이므로 그대로 무시된다.
+            if (currentData.combatStats != null)
+            {
+                PlayerCombatStats combatStats = stats.GetComponent<PlayerCombatStats>();
+                if (combatStats != null)
+                {
+                    combatStats.RestoreSaveData(currentData.combatStats);
+                }
+            }
 
             Debug.Log($"[PlayerPersistence] '{inventory.gameObject.name}' 복원 완료: 체력={stats.CurrentHealth:0.##}, 허기={stats.CurrentHunger:0.##}");
         }

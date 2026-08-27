@@ -33,7 +33,7 @@ namespace KMS.Combat
             if (iconImage != null) iconImage.sprite = data.SkillIcon;
             if (nameText != null) nameText.text = data.SkillName;
             if (descriptionText != null) descriptionText.text = data.Description;
-            if (damageText != null) damageText.text = data.Damage.ToString();
+            if (damageText != null) damageText.text = data.DamagePercent.ToString("0.#") + "%"; // [멤] 캐릭터 스탯 시스템 - 고정 Damage에서 무기 기반 DamagePercent%로 변경됨
             if (cooldownText != null) cooldownText.text = $"{data.Cooldown:F1}초";
             if (gradeText != null) gradeText.text = $"{data.Grade}등급";
             if (formTypeText != null) formTypeText.text = GetFormTypeLabel(data.FormType);

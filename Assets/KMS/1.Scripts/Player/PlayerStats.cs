@@ -28,6 +28,8 @@ namespace KMS
         [SerializeField] private float starvationDamagePerSecond = 5f;
         [SerializeField] private KMSFoodEffectController foodEffects;
         [SerializeField] private PlayerHealthRegenController healthRegen;
+        [Tooltip("[멤] 방어력(받는 데미지 감소) 적용을 위한 선택적 참조. 없으면(구 프리팹 등) 방어력 없이 기존과 동일하게 동작한다.")]
+        [SerializeField] private PlayerCombatStats combatStats;
 
         [Header("Combat")]
         [Tooltip("[멤] 기본 공격(원거리 투사체) 데미지에 더해지는 캐릭터 스펙 보너스. 무기마다 다른 WeaponItemData.ProjectileDamage(무기 자체 데미지)에 이 값을 더해 최종 데미지를 계산한다(PlayerWeaponSkillController.FireBasicAttack 참고). 기본값 0이라 지금은 무기 자체 데미지만 적용되며(기존 동작과 동일), 캐릭터 성장/장비 시스템이 생기면 이 값을 올리면 된다. 스킬 데미지(SkillData.Damage)는 이 보너스의 영향을 받지 않는다 - 스킬은 어떤 무기를 쓰든 동일한 효과라는 요구사항 때문.")]
@@ -67,6 +69,7 @@ namespace KMS
             ResolveFoodEffects();
             foodEffects.InitializeAsNormal(CurrentHunger, false);
             ResolveHealthRegen();
+            if (combatStats == null) combatStats = GetComponent<PlayerCombatStats>();
         }
 
         private void Start()
@@ -115,6 +118,13 @@ namespace KMS
         private void ApplyDamage(float amount, PlayerDamageType damageType, bool ignoreInvulnerability)
         {
             if (!IsAlive || (!ignoreInvulnerability && IsInvulnerable) || amount <= 0f) return;
+
+            // [멤] 방어력 적용 - 전투성 피해(Generic/MemAttack)에만 감산한다(PlayerCombatStats.ApplyDefenseReduction 참고).
+            if (combatStats != null)
+            {
+                amount = combatStats.ApplyDefenseReduction(amount, damageType);
+                if (amount <= 0f) return;
+            }
 
             CurrentHealth = Mathf.Max(0f, CurrentHealth - amount);
             LastDamageType = damageType;
@@ -189,6 +199,49 @@ namespace KMS
             }
 
             HealthChanged?.Invoke(CurrentHealth, maxHealth);
+        }
+
+        /// <summary>
+        /// [멤] SetMaxHealth와 동일한 패턴 - 의지 스탯 기반 배고픔최대치 재계산(PlayerCombatStats)에서 호출된다.
+        /// 최대치가 늘어나면(preserveMissingHunger) 부족분(이미 소모된 양)을 유지한 채 새 최대치에 맞춰
+        /// CurrentHunger를 늘려준다 - 레벨업/포인트 투자로 최대 배고픔이 늘었다고 즉시 배가 가득 차버리지 않게 한다.
+        /// </summary>
+        public void SetMaxHunger(float value, bool preserveMissingHunger = true)
+        {
+            value = Mathf.Max(1f, value);
+            if (Mathf.Approximately(maxHunger, value)) return;
+
+            float previousMaxHunger = maxHunger;
+            float previousHunger = CurrentHunger;
+            maxHunger = value;
+
+            // PlayerCombatStats가 PlayerStats.Awake보다 먼저 실행될 수 있어(실행 순서 미보장), SetMaxHealth와
+            // 동일하게 아직 초기화 전이면 startingHunger만 맞춰두고 실제 CurrentHunger 계산은 Awake에 맡긴다.
+            if (!healthInitialized)
+            {
+                if (startingHunger >= previousMaxHunger - Mathf.Epsilon)
+                {
+                    startingHunger = maxHunger;
+                }
+                else
+                {
+                    startingHunger = Mathf.Clamp(startingHunger, 0f, maxHunger);
+                }
+
+                return;
+            }
+
+            if (preserveMissingHunger && maxHunger > previousMaxHunger)
+            {
+                float missingHunger = Mathf.Max(0f, previousMaxHunger - previousHunger);
+                CurrentHunger = Mathf.Clamp(maxHunger - missingHunger, 0f, maxHunger);
+            }
+            else
+            {
+                CurrentHunger = Mathf.Clamp(previousHunger, 0f, maxHunger);
+            }
+
+            HungerChanged?.Invoke(CurrentHunger, maxHunger);
         }
 
         public bool ConsumeHunger(float amount)
