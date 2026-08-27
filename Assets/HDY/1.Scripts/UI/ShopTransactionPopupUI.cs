@@ -31,7 +31,7 @@ namespace HDY.UI
     /// maxQuantity(구매 가능/판매 가능한 최대치)부터 채워진 채로 시작한다 - "가진 만큼 전부 팔기/살 수
     /// 있는 만큼 전부 사기"가 기본값이고, 덜 사고 싶으면 -를 눌러 내리는 방식이다.
     /// </summary>
-    public class ShopTransactionPopupUI : MonoBehaviour
+    public class ShopTransactionPopupUI : MonoBehaviour, IEscapeClosablePopup
     {
         [Header("팝업 루트 (평소에는 꺼져 있다가 Open()에서 켜짐)")]
         [SerializeField] private GameObject popupRoot;
@@ -173,6 +173,10 @@ public void Open(ShopSlotUI.Mode mode, ItemData catalogItem, string fallbackItem
             RefreshDisplay(initialQuantity);
 
             if (popupRoot != null) popupRoot.SetActive(true);
+
+            // (멤) 팝업 레이어 ESC 처리 - SceneUIManager의 별도 팝업 스택에 등록해서, ESC를 누르면 이 팝업
+            // 하나만 먼저 닫히고(상점 창은 그대로 유지) 그 상점 창은 두 번째 ESC에서 닫히게 한다.
+            SceneUIManager.Instance?.RegisterOpenPopup(this);
         }
 
         /// <summary>취소 버튼/닫기 버튼(둘 다 동일하게 동작) 및 결제 성공 시 호출. 콜백을 정리하고 팝업을 닫는다.</summary>
@@ -180,6 +184,18 @@ public void Open(ShopSlotUI.Mode mode, ItemData catalogItem, string fallbackItem
         {
             onConfirm = null;
             if (popupRoot != null) popupRoot.SetActive(false);
+
+            // (멤) 팝업 레이어 ESC 처리 - 어떤 경로로 닫히든(확인 성공/취소·닫기 버튼/ESC) 팝업 스택에서 제거한다.
+            SceneUIManager.Instance?.UnregisterOpenPopup(this);
+        }
+
+        /// <summary>(멤) IEscapeClosablePopup 구현 - 지금 실제로 열려 있는지.</summary>
+        public bool IsPopupOpen => popupRoot != null && popupRoot.activeSelf;
+
+        /// <summary>(멤) IEscapeClosablePopup 구현 - ESC로 이 팝업을 닫아달라는 요청을 그대로 Close로 위임한다.</summary>
+        void IEscapeClosablePopup.CloseFromEscape()
+        {
+            Close();
         }
 
         private void HandleDecrementClicked()

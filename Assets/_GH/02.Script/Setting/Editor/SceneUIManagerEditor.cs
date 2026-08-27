@@ -16,6 +16,10 @@ public sealed class SceneUIManagerEditor : Editor
     private SerializedProperty notifyInputManager;
     private SerializedProperty playerTag;
     private SerializedProperty playerLayerName;
+    private SerializedProperty settingsApplyFadeDuration;
+    private SerializedProperty placementModeUIRoot;
+    private SerializedProperty placementCancelGridManager;
+
 
     private void OnEnable()
     {
@@ -33,6 +37,12 @@ public sealed class SceneUIManagerEditor : Editor
         notifyInputManager = serializedObject.FindProperty("notifyInputManager");
         playerTag = serializedObject.FindProperty("playerTag");
         playerLayerName = serializedObject.FindProperty("playerLayerName");
+        settingsApplyFadeDuration =
+            serializedObject.FindProperty("settingsApplyFadeDuration");
+        placementModeUIRoot = serializedObject.FindProperty("placementModeUIRoot");
+        placementCancelGridManager =
+            serializedObject.FindProperty("placementCancelGridManager");
+
     }
 
     public override void OnInspectorGUI()
@@ -90,6 +100,33 @@ public sealed class SceneUIManagerEditor : Editor
         EditorGUILayout.PropertyField(notifyInputManager);
         EditorGUILayout.PropertyField(playerTag);
         EditorGUILayout.PropertyField(playerLayerName);
+
+        EditorGUILayout.Space();
+        EditorGUILayout.LabelField("Settings Apply Fade", EditorStyles.boldLabel);
+        EditorGUILayout.PropertyField(
+            settingsApplyFadeDuration,
+            new GUIContent(
+                "Settings Apply Fade Duration",
+                "적용 후 환경설정 하위 창이 완전히 닫힐 때까지의 시간입니다."));
+
+        EditorGUILayout.Space();
+        EditorGUILayout.LabelField("배치 모드 연동 (HDY 요청)", EditorStyles.boldLabel);
+        EditorGUILayout.PropertyField(
+            placementModeUIRoot,
+            new GUIContent(
+                "Placement Mode UI Root",
+                "여기 등록한 오브젝트를 닫을 때는 SetActive(false) 대신 GridManager.ChangePlacementMode()를 호출합니다. 배치 모드 UI가 없으면 비워두세요."));
+
+        EditorGUILayout.Space();
+        EditorGUILayout.LabelField(
+            "배치 모드 ESC 취소 연동 (HDY 요청 - PanelManager 흡수)",
+            EditorStyles.boldLabel);
+        EditorGUILayout.PropertyField(
+            placementCancelGridManager,
+            new GUIContent(
+                "Placement Cancel Grid Manager",
+                "(멤) ESC를 눌렀을 때 열려 있는 Managed UI가 없고 이 GridManager가 배치 모드 중이면 CancelPlacement()를 호출합니다. 배치 모드 개념이 없는 씬이면 비워두세요."));
+
 
         serializedObject.ApplyModifiedProperties();
     }

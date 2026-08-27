@@ -80,7 +80,7 @@ namespace HDY.Upgrade
     /// [씬 싱글톤] TerritoryData처럼 DontDestroyOnLoad는 아니고, 이 씬에 하나만 배치되어 있다고
     /// 가정한다. 다른 UI가 Instance로 쉽게 접근할 수 있도록 static 참조만 제공한다.
     /// </summary>
-    public class UpgradePopupUI : MonoBehaviour
+    public class UpgradePopupUI : MonoBehaviour, IEscapeClosablePopup
     {
         public static UpgradePopupUI Instance { get; private set; }
 
@@ -200,7 +200,7 @@ namespace HDY.Upgrade
         /// 보이도록 한다(상점/여신상/창고 등은 이 팝업보다 나중에 Instantiate되어 원래는 이 팝업보다
         /// 위에 그려지기 때문에 매번 다시 맨 앞으로 가져와야 한다).
         /// </summary>
-        public void Show(IUpgradable target)
+public void Show(IUpgradable target)
         {
             if (target == null)
             {
@@ -216,16 +216,32 @@ namespace HDY.Upgrade
                 popupRoot.transform.SetAsLastSibling();
             }
 
+            // (멤) 팝업 레이어 ESC 처리 - SceneUIManager의 별도 팝업 스택에 등록해서, ESC를 누르면 이
+            // 팝업 하나만 먼저 닫히고(그 아래 시설 패널은 그대로 유지) 그 패널은 두 번째 ESC에서 닫히게 한다.
+            SceneUIManager.Instance?.RegisterOpenPopup(this);
+
             RefreshDisplay();
         }
 
         /// <summary>팝업을 닫는다(확인 성공 후 자동 호출/취소 버튼 클릭/다른 UI로 전환되며 UIManager가 강제로 호출 모두 여기로 온다). 닫힐 때마다 OnPopupClosed를 발행한다.</summary>
-        public void Hide()
+public void Hide()
         {
             currentTarget = null;
             if (popupRoot != null) popupRoot.SetActive(false);
 
+            // (멤) 팝업 레이어 ESC 처리 - 어떤 경로로 닫히든(확인 성공/취소 버튼/ESC) 팝업 스택에서 제거한다.
+            SceneUIManager.Instance?.UnregisterOpenPopup(this);
+
             OnPopupClosed?.Invoke();
+        }
+
+        /// <summary>(멤) IEscapeClosablePopup 구현 - 지금 실제로 열려 있는지.</summary>
+        public bool IsPopupOpen => popupRoot != null && popupRoot.activeSelf;
+
+        /// <summary>(멤) IEscapeClosablePopup 구현 - ESC로 이 팝업을 닫아달라는 요청을 그대로 Hide로 위임한다.</summary>
+        void IEscapeClosablePopup.CloseFromEscape()
+        {
+            Hide();
         }
 
         private void RefreshDisplay()

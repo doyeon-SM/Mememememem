@@ -28,7 +28,7 @@ namespace HDY.Tutorial
 
         [SerializeField] private float recheckInterval = 0.5f;
 
-        private UIManager subscribedManager;
+        private SceneUIManager subscribedManager;
 
         private void OnEnable()
         {
@@ -56,24 +56,24 @@ namespace HDY.Tutorial
         /// UIManager.Instance가 아직 없거나(씬에 아직 안 생겼거나), 씬 전환으로 다른 인스턴스로
         /// 바뀌었으면 구독을 다시 맞춘다.
         /// </summary>
-        private void EnsureSubscribed()
+private void EnsureSubscribed()
         {
-            if (subscribedManager == UIManager.Instance) return;
+            if (subscribedManager == SceneUIManager.Instance) return;
 
             Unsubscribe();
 
-            subscribedManager = UIManager.Instance;
+            subscribedManager = SceneUIManager.Instance;
             if (subscribedManager != null)
             {
-                subscribedManager.OnPanelOpened += HandlePanelOpened;
+                subscribedManager.ManagedUIPanelOpened += HandlePanelOpened;
             }
         }
 
-        private void Unsubscribe()
+private void Unsubscribe()
         {
             if (subscribedManager != null)
             {
-                subscribedManager.OnPanelOpened -= HandlePanelOpened;
+                subscribedManager.ManagedUIPanelOpened -= HandlePanelOpened;
             }
             subscribedManager = null;
         }

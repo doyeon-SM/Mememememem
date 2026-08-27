@@ -9,8 +9,8 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 7352502414882451616}
-  - component: {fileID: 7309819358282781941}
   - component: {fileID: 7002788530332014742}
+  - component: {fileID: 7364143611060713656}
   m_Layer: 0
   m_Name: UIManager
   m_TagString: Untagged
@@ -26,58 +26,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2024401072484678538}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &7309819358282781941
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2024401072484678538}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 696a2e79cfc0c7942934fe472c7d12b0, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::HDY.UI.UIManager
-  uiRoot: {fileID: 0}
-  hudEntries:
-  - button: {fileID: 0}
-    prefab: {fileID: 5372853951684140214, guid: ce124fbc8ffead34380770e4c882aae2, type: 3}
-    RequiredLevel: 0
-    PanelKey: 
-  - button: {fileID: 0}
-    prefab: {fileID: 6947569884078246553, guid: 73388961ba2024149adf73e0f355ad57, type: 3}
-    RequiredLevel: 0
-    PanelKey: 
-  - button: {fileID: 0}
-    prefab: {fileID: 559864545230465988, guid: 516fb1ed1fc27b8418b9aab528330db7, type: 3}
-    RequiredLevel: 0
-    PanelKey: 
-  - button: {fileID: 0}
-    prefab: {fileID: 7944377384661857056, guid: b6212d02560ad36479e08ff113730bdb, type: 3}
-    RequiredLevel: 0
-    PanelKey: goddess_panel
-  - button: {fileID: 0}
-    prefab: {fileID: 6255440334052917499, guid: 3d5fa83ef86d6174e971a99b34d52881, type: 3}
-    RequiredLevel: 0
-    PanelKey: 
-  - button: {fileID: 0}
-    prefab: {fileID: 6403727798164101472, guid: 1884a9ccb0e3f1440b2da81a5cd58911, type: 3}
-    RequiredLevel: 5
-    PanelKey: exploration_panel
-  - button: {fileID: 0}
-    prefab: {fileID: 5716294849075549919, guid: cb0dbd8a9d56d2943b8806f92477dd4e, type: 3}
-    RequiredLevel: 5
-    PanelKey: forge_panel
-  territoryData: {fileID: 0}
-  defaultShop: {fileID: 11400000, guid: 983e0923c22ef7645a1ea349678306d2, type: 2}
-  gameTimeManager: {fileID: 0}
 --- !u!114 &7002788530332014742
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -94,3 +49,38 @@ MonoBehaviour:
   goldText: {fileID: 0}
   levelText: {fileID: 0}
   levelButton: {fileID: 0}
+  itemObtainedToastContainer: {fileID: 0}
+  itemObtainedToastTemplate: {fileID: 0}
+  itemObtainedToastDuration: 2.5
+  itemObtainedToastFadeDuration: 0.3
+  maxVisibleItemObtainedToasts: 4
+  playerInventory: {fileID: 0}
+  warehouseInventory: {fileID: 0}
+--- !u!114 &7364143611060713656
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2024401072484678538}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 202e5341e856148419eee71e0be8b8c8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HDY.UI.HudPanelBootstrapper
+  uiRoot: {fileID: 0}
+  hudEntries:
+  - id: Shop
+    prefab: {fileID: 5372853951684140214, guid: ce124fbc8ffead34380770e4c882aae2, type: 3}
+  - id: MemDex
+    prefab: {fileID: 6947569884078246553, guid: 73388961ba2024149adf73e0f355ad57, type: 3}
+  - id: Storage
+    prefab: {fileID: 559864545230465988, guid: 516fb1ed1fc27b8418b9aab528330db7, type: 3}
+  - id: goddess_panel
+    prefab: {fileID: 7944377384661857056, guid: b6212d02560ad36479e08ff113730bdb, type: 3}
+  - id: Mem
+    prefab: {fileID: 6255440334052917499, guid: 3d5fa83ef86d6174e971a99b34d52881, type: 3}
+  - id: exploration_panel
+    prefab: {fileID: 6403727798164101472, guid: 1884a9ccb0e3f1440b2da81a5cd58911, type: 3}
+  - id: forge_panel
+    prefab: {fileID: 5716294849075549919, guid: cb0dbd8a9d56d2943b8806f92477dd4e, type: 3}

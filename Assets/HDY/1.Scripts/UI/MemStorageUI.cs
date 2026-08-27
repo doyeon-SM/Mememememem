@@ -285,15 +285,10 @@ namespace HDY.UI
         /// 반응하지 않는 등의 문제가 생길 수 있다. ESC로 닫는 기능(_GH SceneUIManager가 담당)과는 서로
         /// 다른 경로라 영향을 주고받지 않는다.
         /// </summary>
-        private void HandleCloseButtonClicked()
+private void HandleCloseButtonClicked()
         {
-            if (UIManager.Instance == null)
-            {
-                Debug.LogWarning("[MemStorageUI] UIManager.Instance를 찾을 수 없어 닫기 버튼을 처리할 수 없습니다.", this);
-                return;
-            }
-
-            UIManager.Instance.CloseCurrent();
+            // (멤) 예전에는 UIManager.Instance.CloseCurrent()를 호출했다. 이제는 SceneUIManager가 모든 UI를 관리하므로 자기 자신(gameObject)을 닫아달라고 직접 요청한다.
+            SceneUIManager.TryCloseManagedUI(gameObject);
         }
 
         /// <summary>

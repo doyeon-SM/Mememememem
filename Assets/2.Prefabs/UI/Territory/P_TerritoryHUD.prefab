@@ -13,6 +13,7 @@ GameObject:
   - component: {fileID: 9124597364225703911}
   - component: {fileID: 7471154674250344720}
   - component: {fileID: 1545969268569726837}
+  - component: {fileID: 4459682665857634384}
   m_Layer: 5
   m_Name: B_ShopOpen
   m_TagString: Untagged
@@ -83,7 +84,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 7471154674250344720}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 4459682665857634384}
+        m_TargetAssemblyTypeName: ManagedUIButton, Assembly-CSharp
+        m_MethodName: Open
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!222 &9124597364225703911
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -136,6 +149,19 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::HDY.Tutorial.TutorialUIHighlightTarget
   tutorialManager: {fileID: 0}
   targetKey: shop_button
+--- !u!114 &4459682665857634384
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 366808052816997074}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a6f6d73a5e914a2f9d20953d38c0326e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ManagedUIButton
+  managedUIId: Shop
 --- !u!1 &436841351450461276
 GameObject:
   m_ObjectHideFlags: 0
@@ -863,6 +889,8 @@ GameObject:
   - component: {fileID: 4177257066370206053}
   - component: {fileID: 3766659863547068190}
   - component: {fileID: 2181402483046664271}
+  - component: {fileID: 4695991514967787400}
+  - component: {fileID: 449144140506842586}
   m_Layer: 5
   m_Name: B_Forge
   m_TagString: Untagged
@@ -933,7 +961,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 3766659863547068190}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 449144140506842586}
+        m_TargetAssemblyTypeName: ManagedUIButton, Assembly-CSharp
+        m_MethodName: Open
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!222 &4177257066370206053
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -986,6 +1026,33 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::HDY.Tutorial.TutorialUIHighlightTarget
   tutorialManager: {fileID: 0}
   targetKey: forge_button
+--- !u!114 &4695991514967787400
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2342985956897581857}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 272b04ba0d798114e8594772f8d6d691, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HDY.UI.HudButtonLevelGate
+  requiredLevel: 5
+  territoryData: {fileID: 0}
+--- !u!114 &449144140506842586
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2342985956897581857}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a6f6d73a5e914a2f9d20953d38c0326e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ManagedUIButton
+  managedUIId: forge_panel
 --- !u!1 &2397346963022269540
 GameObject:
   m_ObjectHideFlags: 0
@@ -2044,6 +2111,8 @@ GameObject:
   - component: {fileID: 3824099105040178785}
   - component: {fileID: 2625426909958494154}
   - component: {fileID: 8775322021579607333}
+  - component: {fileID: 4313164008152762023}
+  - component: {fileID: 1879427442695541861}
   m_Layer: 5
   m_Name: B_MemExplore
   m_TagString: Untagged
@@ -2114,7 +2183,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 2625426909958494154}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 1879427442695541861}
+        m_TargetAssemblyTypeName: ManagedUIButton, Assembly-CSharp
+        m_MethodName: Open
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!222 &3824099105040178785
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -2167,6 +2248,33 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::HDY.Tutorial.TutorialUIHighlightTarget
   tutorialManager: {fileID: 0}
   targetKey: exploration_button
+--- !u!114 &4313164008152762023
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4072592678652561416}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 272b04ba0d798114e8594772f8d6d691, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HDY.UI.HudButtonLevelGate
+  requiredLevel: 5
+  territoryData: {fileID: 0}
+--- !u!114 &1879427442695541861
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4072592678652561416}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a6f6d73a5e914a2f9d20953d38c0326e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ManagedUIButton
+  managedUIId: exploration_panel
 --- !u!1 &4302759024844324634
 GameObject:
   m_ObjectHideFlags: 0
@@ -2503,6 +2611,7 @@ GameObject:
   - component: {fileID: 3037125055595422926}
   - component: {fileID: 627899132120859721}
   - component: {fileID: 7002300325526070831}
+  - component: {fileID: 597420772483236379}
   m_Layer: 5
   m_Name: B_Inventory
   m_TagString: Untagged
@@ -2573,7 +2682,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 627899132120859721}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 597420772483236379}
+        m_TargetAssemblyTypeName: ManagedUIButton, Assembly-CSharp
+        m_MethodName: Open
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!222 &3037125055595422926
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -2626,6 +2747,19 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::HDY.Tutorial.TutorialUIHighlightTarget
   tutorialManager: {fileID: 0}
   targetKey: warehouse_button
+--- !u!114 &597420772483236379
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5337423840425083009}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a6f6d73a5e914a2f9d20953d38c0326e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ManagedUIButton
+  managedUIId: Storage
 --- !u!1 &5372563775691717599
 GameObject:
   m_ObjectHideFlags: 0
@@ -2639,6 +2773,7 @@ GameObject:
   - component: {fileID: 4126490637774552557}
   - component: {fileID: 9134210837726724280}
   - component: {fileID: 3316748027461362247}
+  - component: {fileID: 8980879973760694760}
   m_Layer: 5
   m_Name: B_MemStorageOpen
   m_TagString: Untagged
@@ -2709,7 +2844,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 9134210837726724280}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 8980879973760694760}
+        m_TargetAssemblyTypeName: ManagedUIButton, Assembly-CSharp
+        m_MethodName: Open
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!222 &4126490637774552557
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -2762,6 +2909,19 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::HDY.Tutorial.TutorialUIHighlightTarget
   tutorialManager: {fileID: 0}
   targetKey: mem_storage_button
+--- !u!114 &8980879973760694760
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5372563775691717599}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a6f6d73a5e914a2f9d20953d38c0326e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ManagedUIButton
+  managedUIId: Mem
 --- !u!1 &5443307721348952489
 GameObject:
   m_ObjectHideFlags: 0
@@ -3105,6 +3265,7 @@ GameObject:
   - component: {fileID: 8390886950707815604}
   - component: {fileID: 1997540291545829340}
   - component: {fileID: 6922643480332198818}
+  - component: {fileID: 7670815176278695648}
   m_Layer: 5
   m_Name: B_MemDex
   m_TagString: Untagged
@@ -3175,7 +3336,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 1997540291545829340}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 7670815176278695648}
+        m_TargetAssemblyTypeName: ManagedUIButton, Assembly-CSharp
+        m_MethodName: Open
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!222 &8390886950707815604
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -3228,6 +3401,19 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::HDY.Tutorial.TutorialUIHighlightTarget
   tutorialManager: {fileID: 0}
   targetKey: codex_button
+--- !u!114 &7670815176278695648
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5618946111009306578}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a6f6d73a5e914a2f9d20953d38c0326e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ManagedUIButton
+  managedUIId: MemDex
 --- !u!1 &5869752417849815872
 GameObject:
   m_ObjectHideFlags: 0
@@ -4226,6 +4412,7 @@ GameObject:
   - component: {fileID: 5175366437434193531}
   - component: {fileID: 3208901724705215845}
   - component: {fileID: 396560107119425137}
+  - component: {fileID: 1657662779686927033}
   m_Layer: 5
   m_Name: B_GoddessOpen
   m_TagString: Untagged
@@ -4296,7 +4483,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 3208901724705215845}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 1657662779686927033}
+        m_TargetAssemblyTypeName: ManagedUIButton, Assembly-CSharp
+        m_MethodName: Open
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!222 &5175366437434193531
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -4349,6 +4548,19 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::HDY.Tutorial.TutorialUIHighlightTarget
   tutorialManager: {fileID: 0}
   targetKey: goddess_statue_button
+--- !u!114 &1657662779686927033
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7269763910102182340}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a6f6d73a5e914a2f9d20953d38c0326e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ManagedUIButton
+  managedUIId: goddess_panel
 --- !u!1 &7508322600501605303
 GameObject:
   m_ObjectHideFlags: 0

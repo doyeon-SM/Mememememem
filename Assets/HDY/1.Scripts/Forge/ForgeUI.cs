@@ -239,7 +239,7 @@ namespace HDY.Forge
             if (refinementTabButton != null) refinementTabButton.onClick.AddListener(() => SwitchTab(ForgeUITab.Refinement));
             if (inheritanceTabButton != null) inheritanceTabButton.onClick.AddListener(() => SwitchTab(ForgeUITab.Inheritance));
             if (actionButton != null) actionButton.onClick.AddListener(HandleActionButtonClicked);
-            if (closeButton != null) closeButton.onClick.AddListener(() => UIManager.Instance?.CloseCurrent());
+            if (closeButton != null) closeButton.onClick.AddListener(() => SceneUIManager.TryCloseManagedUI(gameObject));
 
             if (selectedSlotDisplay != null) selectedSlotDisplay.Clicked += _ => ClearSelection();
 

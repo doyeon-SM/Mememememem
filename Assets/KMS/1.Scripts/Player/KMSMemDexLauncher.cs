@@ -40,7 +40,7 @@ namespace KMS
         private CanvasGroup preplacedMemDexCanvasGroup;
         private bool usesPreplacedMemDex;
         private bool isOpen;
-        private bool openedThroughHdyUiManager;
+        private bool openedThroughSceneUIManager;
 
         private bool previousGameplayInputBlocked;
         private bool previousCursorReleased;
@@ -66,7 +66,7 @@ namespace KMS
             BindPlayerInput();
         }
 
-        private void Update()
+private void Update()
         {
             if (!isOpen) return;
 
@@ -76,10 +76,9 @@ namespace KMS
                 return;
             }
 
-            // HDY UIManager가 ESC나 다른 HUD 버튼으로 자신의 패널을 닫은 경우에도
+            // (멤) SceneUIManager가 ESC나 다른 UI로 전환하면서 "MemDex" 패널을 닫은 경우에도
             // KMS 플레이어의 이동/커서 상태가 남지 않도록 감시한다.
-            if (openedThroughHdyUiManager &&
-                (UIManager.Instance == null || !UIManager.Instance.HasActivePanel()))
+            if (openedThroughSceneUIManager && !IsMemDexManagedUIOpen())
             {
                 FinishClose();
             }
@@ -93,7 +92,7 @@ namespace KMS
             Close();
         }
 
-        public void Open()
+public void Open()
         {
             if (isOpen || memDexPrefab == null) return;
             PlayerStats stats = GetComponent<PlayerStats>();
@@ -105,8 +104,8 @@ namespace KMS
             inventoryUi?.Close();
             CapturePlayerState();
 
-            openedThroughHdyUiManager = TryOpenThroughHdyUiManager();
-            if (!openedThroughHdyUiManager && !OpenStandalone())
+            openedThroughSceneUIManager = TryOpenThroughSceneUIManager();
+            if (!openedThroughSceneUIManager && !OpenStandalone())
             {
                 RestorePlayerState(true);
                 return;
@@ -116,13 +115,13 @@ namespace KMS
             ApplyModalPlayerState();
         }
 
-        public void Close()
+public void Close()
         {
             if (!isOpen) return;
 
-            if (openedThroughHdyUiManager)
+            if (openedThroughSceneUIManager)
             {
-                UIManager.Instance?.CloseCurrent();
+                SceneUIManager.TryCloseManagedUI("MemDex");
             }
             else if (memDexInstance != null)
             {
@@ -402,10 +401,10 @@ namespace KMS
             GameCursor.visible = restorePreviousCursor && previousCursorVisible;
         }
 
-        private void FinishClose()
+private void FinishClose()
         {
             isOpen = false;
-            openedThroughHdyUiManager = false;
+            openedThroughSceneUIManager = false;
             memDexInstance = null;
             usesPreplacedMemDex = false;
 
@@ -414,13 +413,26 @@ namespace KMS
             RestorePlayerState(false);
         }
 
-        private bool TryOpenThroughHdyUiManager()
+/// <summary>
+        /// (멤) 예전에는 HDY UIManager.HandleHudButtonClicked를 직접 호출했다. 이제는 SceneUIManager가 모든 UI를
+        /// 관리하므로, "MemDex" ID로 등록된 씨에서만(예: 영지) SceneUIManager를 통해 열고, 등록되지 않은
+        /// 씨(예: KMS 단독 테스트 씨)에서는 OpenStandalone()으로 폴백한다.
+        /// </summary>
+        private bool TryOpenThroughSceneUIManager()
         {
-            var uiManager = UIManager.Instance;
-            if (uiManager == null) return false;
+            if (SceneUIManager.Instance == null) return false;
+            if (!SceneUIManager.Instance.IsManagedUI("MemDex")) return false;
 
-            uiManager.HandleHudButtonClicked(memDexPrefab);
-            return uiManager.HasActivePanel();
+            SceneUIManager.TryOpenManagedUI("MemDex");
+            return IsMemDexManagedUIOpen();
+        }
+
+        /// <summary>"MemDex" ID로 등록된 Managed UI가 지금 실제로 열려 있는지 확인한다.</summary>
+        private bool IsMemDexManagedUIOpen()
+        {
+            return SceneUIManager.Instance != null
+                && SceneUIManager.Instance.TryGetManagedUI("MemDex", out GameObject target)
+                && target.activeInHierarchy;
         }
     }
 }

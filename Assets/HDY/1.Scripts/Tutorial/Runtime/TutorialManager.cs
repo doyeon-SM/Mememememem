@@ -503,9 +503,9 @@ private void Start()
 
         private Transform ResolveTutorialPanelParent()
         {
-            if (HDY.UI.UIManager.Instance != null && HDY.UI.UIManager.Instance.UIRoot != null)
+            if (HDY.UI.HudPanelBootstrapper.Instance != null && HDY.UI.HudPanelBootstrapper.Instance.UIRoot != null)
             {
-                return HDY.UI.UIManager.Instance.UIRoot;
+                return HDY.UI.HudPanelBootstrapper.Instance.UIRoot;
             }
 
             // [HDY 요청 - Canvas_Main] UIManager가 없는 씬(탐험)에서는 씬마다 공통으로 쓰는

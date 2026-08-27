@@ -101,7 +101,7 @@ namespace HDY.UI
     /// 남겨뒀다 - 구매창이 열려있는 동안 다른 경로로 마지막 레시피가 먼저 해금되는 등의 경합 상황에서도
     /// 안전하게 처리하기 위한 이중 방어다.
     /// </summary>
-    public class ShopUI : MonoBehaviour
+    public class ShopUI : MonoBehaviour, IManagedUIPanel
     {
         /// <summary>
         /// 상점 이동 탭 버튼 하나와 그 버튼이 여는 상점을 짝짓는 항목.
@@ -169,6 +169,9 @@ namespace HDY.UI
 
         [Header("닫기 버튼")]
         [SerializeField] private Button closeButton;
+
+    [Header("HUD 연동 (SceneUIManager가 이 상점을 열 때 기본으로 보여줄 상점 - 예전 UIManager.hudEntries에서 이관)")]
+    [SerializeField] private ShopData defaultShop;
 
         private readonly List<ShopSlotUI> spawnedSlots = new List<ShopSlotUI>();
 
@@ -328,6 +331,21 @@ public void Open(ShopData shop)
             transactionPopup?.Close();
             if (popupRoot != null) popupRoot.SetActive(false);
         }
+
+/// <summary>
+    /// (멤) SceneUIManager가 이 상점을 실제로 열어줌을 때(닫힘->열림 전환 시에만) 호출된다.
+    /// 예전 UIManager가 Instantiate 직후 Open(defaultShop)을 매번 다시 호출해 항상 기본 상점으로 리셋하던 동작을 그대로 유지한다.
+    /// </summary>
+    public void OnManagedUIOpened()
+    {
+        if (defaultShop != null) Open(defaultShop);
+    }
+
+    /// <summary>(멤) 닫힐 때 별도로 해야 할 일은 없다(SceneUIManager가 SetActive(false)를 이미 처리).</summary>
+    public void OnManagedUIClosed()
+    {
+    }
+
 
         /// <summary>
         /// 지금 보고 있는 상점의 이동 탭 버튼만 interactable=false로 회색 표시하고, 그 버튼 안의

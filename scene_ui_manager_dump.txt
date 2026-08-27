@@ -11,12 +11,15 @@ using UnityEngine.InputSystem;
 /// 현재 씬의 설정 UI와 등록된 일반 패널 UI를 관리합니다.
 /// 씬 사이에서 유지되지 않지만 Instance를 통해 직접 참조 없이 접근할 수 있습니다.
 ///
-/// /// [HDY 요청 - 팝업 레이어 ESC 처리] 업그레이드/상점 구매·판매 팝업처럼 일반 Managed UI 위에 겹쳐 뜨는
-    /// 창은 managedUIObjects(배타적 관리 목록)에 등록하지 않고, RegisterOpenPopup/UnregisterOpenPopup으로
-    /// 별도 스택(IEscapeClosablePopup)에 등록한다. 그래서 이 팝업이 열려 있어도 EnforceExclusiveManagedUIs가
-    /// 그 아래 깔린 시설 패널/상점 창 등을 강제로 닫지 않는다. ESC를 누르면 HandleEscape가 CloseTopPopupOnEscape로
-    /// 이 스택의 맨 위(가장 최근에 연) 팝업 하나만 먼저 닫고, 팝업이 하나도 없을 때만 CloseManagedUIObjects로
-    /// 넘어가 그 아래 패널을 닫는다(두 번째 ESC).
+/// [HDY 요청 - PanelManager 소유 패널 복구 훅] _Kyusoo의 PanelManager가 관리하는 시설 패널
+/// (craftingPanel/productionPanel/ranchPanel/foodWarehousePanel/exploreMapPanel/UIPanel) 중 일부는
+/// 이 매니저의 managedUIObjects 리스트에도 등록되어 있어서(예: Canvas_Map/UI_Map_Panel), ESC를 누르면
+/// PanelManager의 자체 Update() ESC 핸들러가 실행되기도 전에 이 매니저가 먼저 닫아버릴 수 있다. 이 경로로
+/// 닫히면 PanelManager.CloseAllPanels()를 거치지 않으므로, PanelManager가 패널을 열 때 숨겨둔
+/// placeButtonGroup(P_TerritoryObjectButton)이 복구되지 않는 문제가 있었다. PanelManager.cs는 크로스팀
+/// 코드라 직접 수정하지 않고, 대신 CloseSingleManagedUI에서 닫으려는 대상이 PanelManager가 들고 있는
+/// 패널 중 하나(또는 그 하위 계층)인지 리플렉션으로 확인해서, 맞다면 기존 닫기 동작에 추가로
+/// PanelManager.CloseAllPanels()를 한 번 더 호출해 버튼 복구를 보장한다(NotifyPanelManagerIfOwned 참고).
 /// </summary>
 [DefaultExecutionOrder(-1000)]
 [DisallowMultipleComponent]
@@ -96,10 +99,7 @@ public sealed class SceneUIManager : MonoBehaviour
     private GameObject lastRequestedManagedUI;
     private readonly Dictionary<string, GameObject> managedUIById =
         new Dictionary<string, GameObject>(System.StringComparer.OrdinalIgnoreCase);
-    
-    /// <summary>(멤) ESC로 닫을 수 있는 팝업(업그레이드/상점 거래 팝업 등)이 열린 순서대로 쌓이는 스택. RegisterOpenPopup/UnregisterOpenPopup에서만 다룬다 - managedUIObjects와 별개라 배타적 관리(EnforceExclusiveManagedUIs) 대상이 아니다.</summary>
-    private readonly List<IEscapeClosablePopup> openEscapeClosablePopups = new List<IEscapeClosablePopup>();
-private readonly List<bool> previousManagedOpenStates = new List<bool>();
+    private readonly List<bool> previousManagedOpenStates = new List<bool>();
     private readonly List<KmsPlayerInputState> settingsKmsPlayerInputStates =
         new List<KmsPlayerInputState>();
     private readonly List<KmsPlayerInputState> normalKmsPlayerInputStates =
@@ -107,8 +107,8 @@ private readonly List<bool> previousManagedOpenStates = new List<bool>();
     private readonly List<KMS.PlayerCameraController> settingsKmsCameraControllers =
         new List<KMS.PlayerCameraController>();
 
-    
-
+    /// <summary>_Kyusoo PanelManager의 시설 패널 필드들(리플렉션 캐시). NotifyPanelManagerIfOwned에서 사용.</summary>
+    private static FieldInfo[] panelManagerPanelFields;
 
     /// <summary>(멤) GridManager의 private 필드 isPlacementMode 리플렉션 캐시 - ESC 배치모드 취소 훅에서 사용.</summary>
     private static FieldInfo gridManagerPlacementModeField;
@@ -368,49 +368,6 @@ private void Update()
         return true;
     }
 
-/// <summary>(멤) 팝업(업그레이드/상점 거래 팝업 등)이 열릴 때 호출한다. 이미 스택에 있으면 맨 위로 재정렬한다.</summary>
-    public void RegisterOpenPopup(IEscapeClosablePopup popup)
-    {
-        if (popup == null) return;
-
-        openEscapeClosablePopups.Remove(popup);
-        openEscapeClosablePopups.Add(popup);
-    }
-
-    /// <summary>(멤) 팝업이 어떤 경로로든(확인/취소 버튼, ESC) 닫힐 때 호출한다.</summary>
-    public void UnregisterOpenPopup(IEscapeClosablePopup popup)
-    {
-        if (popup == null) return;
-
-        openEscapeClosablePopups.Remove(popup);
-    }
-
-    /// <summary>
-    /// (멤) ESC 우선순위에서 가장 먼저 확인한다. 스택 맨 위(가장 최근에 연) 팝업 하나만 닫고, 그 아래에
-    /// 깔린 일반 Managed UI(시설 패널/상점 창 등)는 건드리지 않는다 - 두 번째 ESC부터 CloseManagedUIObjects로
-    /// 넘어가 그 패널을 닫는다. 이미 다른 경로로 닫힌 항목은 건너뛰고 그다음 것을 확인한다.
-    /// </summary>
-    private bool CloseTopPopupOnEscape()
-    {
-        while (openEscapeClosablePopups.Count > 0)
-        {
-            int lastIndex = openEscapeClosablePopups.Count - 1;
-            IEscapeClosablePopup top = openEscapeClosablePopups[lastIndex];
-            openEscapeClosablePopups.RemoveAt(lastIndex);
-
-            if (top == null || !top.IsPopupOpen)
-            {
-                continue;
-            }
-
-            top.CloseFromEscape();
-            return true;
-        }
-
-        return false;
-    }
-
-
 
     /// <summary>
     /// ESC 우선순위를 실행합니다.
@@ -426,11 +383,6 @@ public void HandleEscape()
             }
 
             CloseSettingsUI();
-            return;
-        }
-
-        if (CloseTopPopupOnEscape())
-        {
             return;
         }
 
@@ -1242,6 +1194,7 @@ private void CloseSingleManagedUI(GameObject target)
 
         if (TryClosePlacementMode(target))
         {
+            NotifyPanelManagerIfOwned(target);
             NotifyManagedUIClosedIfWasOpen(target, wasOpen);
             return;
         }
@@ -1251,6 +1204,7 @@ private void CloseSingleManagedUI(GameObject target)
             target.SetActive(false);
         }
 
+        NotifyPanelManagerIfOwned(target);
         NotifyManagedUIClosedIfWasOpen(target, wasOpen);
     }
 
@@ -1275,9 +1229,55 @@ private void CloseSingleManagedUI(GameObject target)
     /// PanelManager.CloseAllPanels()가 내부에서 다시 UIManager.Instance.CloseCurrent()를 호출하지만,
     /// 이미 확인했듯 최대 1단 재귀로 끝나 무한 재귀로 이어지지 않는다.
     /// </summary>
+    private static void NotifyPanelManagerIfOwned(GameObject target)
+    {
+        if (IsOwnedByPanelManager(target))
+        {
+            PanelManager.Instance?.CloseAllPanels();
+        }
+    }
 
+    private static bool IsOwnedByPanelManager(GameObject target)
+    {
+        PanelManager panelManager = PanelManager.Instance;
+        if (panelManager == null || target == null)
+        {
+            return false;
+        }
 
+        if (panelManagerPanelFields == null)
+        {
+            string[] fieldNames =
+            {
+                "craftingPanel", "productionPanel", "ranchPanel",
+                "foodWarehousePanel", "exploreMapPanel", "UIPanel"
+            };
 
+            var fields = new List<FieldInfo>();
+            foreach (var fieldName in fieldNames)
+            {
+                FieldInfo field = typeof(PanelManager).GetField(
+                    fieldName, BindingFlags.NonPublic | BindingFlags.Instance);
+                if (field != null)
+                {
+                    fields.Add(field);
+                }
+            }
+
+            panelManagerPanelFields = fields.ToArray();
+        }
+
+        for (int i = 0; i < panelManagerPanelFields.Length; i++)
+        {
+            GameObject panelObject = panelManagerPanelFields[i].GetValue(panelManager) as GameObject;
+            if (panelObject != null && AreInSameHierarchy(target, panelObject))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     private bool TryResolveManagedUI(GameObject target, out GameObject managedTarget)
     {
@@ -1855,26 +1855,5 @@ private void CloseSingleManagedUI(GameObject target)
             }
         }
     }
-
-
-
-
 #endif
-}
-
-
-/// <summary>
-/// (멤) ESC로 닫을 수 있는 팝업(업그레이드 팝업, 상점 구매/판매 팝업 등)이 구현하는 인터페이스.
-/// SceneUIManager의 managedUIObjects(배타적 관리 목록)에는 등록하지 않고, 대신
-/// RegisterOpenPopup/UnregisterOpenPopup으로 별도 스택에 등록한다 - 그래야 이 팝업이 열려 있어도
-/// EnforceExclusiveManagedUIs가 그 아래 깔린 일반 패널(시설 패널/상점 창 등)을 강제로 닫지 않고,
-/// ESC를 눌렀을 때도 이 팝업 하나만 먼저 닫히고 그 패널은 그대로 유지된다.
-/// </summary>
-public interface IEscapeClosablePopup
-{
-    /// <summary>지금 실제로 열려 있는지(popupRoot.activeSelf 등). 이미 다른 경로로 닫혔다면 false.</summary>
-    bool IsPopupOpen { get; }
-
-    /// <summary>ESC로 이 팝업을 닫아달라는 요청. 팝업 자신의 Hide()/Close()를 그대로 호출하면 된다.</summary>
-    void CloseFromEscape();
 }

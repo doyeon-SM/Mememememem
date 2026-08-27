@@ -179,15 +179,10 @@ namespace HDY.UI
         /// CloseCurrent()를 거치지 않으면 openStack/currentPrefabKey가 실제 열림 상태와 어긋나 같은 HUD
         /// 버튼을 다시 눌러도 반응하지 않는 등의 문제가 생길 수 있다.
         /// </summary>
-        private void HandleCloseButtonClicked()
+private void HandleCloseButtonClicked()
         {
-            if (UIManager.Instance == null)
-            {
-                Debug.LogWarning("[GoddessStatueUI] UIManager.Instance를 찾을 수 없어 닫기 버튼을 처리할 수 없습니다.", this);
-                return;
-            }
-
-            UIManager.Instance.CloseCurrent();
+            // (멤) 예전에는 UIManager.Instance.CloseCurrent()를 호출했다. 이제는 SceneUIManager가 모든 UI를 관리하므로 자기 자신(gameObject)을 닫아달라고 직접 요청한다.
+            SceneUIManager.TryCloseManagedUI(gameObject);
         }
 
         /// <summary>레시피 해금/영지 확장 상태가 바뀌었을 때(팝업 결제 성공 등) 호출. 선택을 풀고 줄 전체를 다시 그린다.</summary>
