@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Collections;
 using System.Collections.Generic;
@@ -18,7 +18,10 @@ public class PlayerInventoryRecord : MonoBehaviour, IRecord
     private void OnEnable()
     {
         RefreshReference();
-        StartAutoSaveRoutine();
+
+        // [멤] 저장 빈도 감축 - 자체 1분 자동저장 루틴을 돌리지 않는다.
+        // 이제 자동저장은 RecordManager가 5분 주기로 전체 데이터를 한 번에 생성한다.
+        // (StartAutoSaveRoutine/AutoSaveRoutine은 디버그용으로 남겨둔다.)
     }
 
     private void OnDisable()
@@ -77,22 +80,26 @@ public class PlayerInventoryRecord : MonoBehaviour, IRecord
     }
 
     // 🌟 이벤트 발생 시 디스크에 직접 쓰지 않고 Dirty 플래그만 세팅
+    // 🌟 이벤트 발생 시 디스크에 직접 쓰지 않고 Dirty 플래그만 세팅
     private void OnInventoryDataChangedHandler()
     {
         if (RecordManager.IsLoadingData) return;
         isDirty = true;
+        RecordManager.NotifyDataChanged();
     }
 
     private void OnQuickSlotSelectionChangedHandler(int selectedIndex)
     {
         if (RecordManager.IsLoadingData) return;
         isDirty = true;
+        RecordManager.NotifyDataChanged();
     }
 
     private void OnQuickSlotDataChangedHandler(int slotIndex)
     {
         if (RecordManager.IsLoadingData) return;
         isDirty = true;
+        RecordManager.NotifyDataChanged();
     }
 
     private void StartAutoSaveRoutine()

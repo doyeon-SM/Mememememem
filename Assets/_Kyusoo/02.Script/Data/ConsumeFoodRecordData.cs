@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Collections.Generic;
 using UnityEngine;
@@ -21,7 +21,8 @@ public class ConsumeFoodRecordData : MonoBehaviour, IRecord
         if (RecordManager.IsLoadingData || RecordManager.IsSceneUnloading) return;
         if (RecordManager.Instance != null)
         {
-            SaveData(RecordManager.Instance.SaveFilePath);
+                        // [멤] 저장 빈도 감축 - 음식 창고 변동은 고빈도라 변경 표시만 한다.
+            RecordManager.NotifyDataChanged();
         }
     }
 

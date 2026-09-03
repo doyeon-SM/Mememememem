@@ -29,7 +29,18 @@ public class PlayerStatsRecordData : MonoBehaviour, IRecord
         {
             // 🌟 PlayerStats가 파괴될 때(씬 이동 시) 세이브 트리거 구독
             targetPlayerStats.PlayerStatsDestroyed += OnPlayerStatsDestroyedHandler;
+
+            // [멤] 중요행동 - 사망/부활. 굶주림 사망 시 도구를 제외한 아이템이 전손되므로,
+            // 이 순간을 저장해두지 않으면 되감기로 손실을 무효화하거나 반대로 억울한 손해가 생긴다.
+            targetPlayerStats.Died += OnPlayerLifecycleChangedHandler;
+            targetPlayerStats.Revived += OnPlayerLifecycleChangedHandler;
         }
+    }
+
+    private void OnPlayerLifecycleChangedHandler()
+    {
+        if (RecordManager.IsLoadingData) return;
+        RecordManager.NotifyCriticalAction(RecordManager.SaveReason.PlayerLifecycle);
     }
 
     private void UnbindPlayerStats()
@@ -37,6 +48,8 @@ public class PlayerStatsRecordData : MonoBehaviour, IRecord
         if (targetPlayerStats != null)
         {
             targetPlayerStats.PlayerStatsDestroyed -= OnPlayerStatsDestroyedHandler;
+            targetPlayerStats.Died -= OnPlayerLifecycleChangedHandler;
+            targetPlayerStats.Revived -= OnPlayerLifecycleChangedHandler;
             targetPlayerStats = null;
         }
 

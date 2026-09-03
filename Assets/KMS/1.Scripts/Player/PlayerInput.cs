@@ -31,6 +31,8 @@ namespace KMS
         public event Action SecondaryActionPressed;
         public event Action SecondaryActionReleased;
         public event Action ReloadPressed;
+        /// <summary>[멤] 무기 고유 이동기(돌진기) 입력. Gameplay 맵의 "Dash" 액션 - 좌Ctrl / 게임패드 buttonEast.</summary>
+        public event Action DashPressed;
         public event Action InteractPressed;
         public event Action NextPressed;
         public event Action PreviousPressed;
@@ -171,6 +173,7 @@ namespace KMS
             gameplayActions["SecondaryAction"].performed += HandleSecondaryActionPerformed;
             gameplayActions["SecondaryAction"].canceled += HandleSecondaryActionCanceled;
             gameplayActions["Reload"].performed += HandleReloadPerformed;
+            gameplayActions["Dash"].performed += HandleDashPerformed;
             gameplayActions["Interact"].performed += HandleInteractPerformed;
             gameplayActions["Next"].performed += HandleNextPerformed;
             gameplayActions["Previous"].performed += HandlePreviousPerformed;
@@ -202,6 +205,7 @@ namespace KMS
             gameplayActions["SecondaryAction"].performed -= HandleSecondaryActionPerformed;
             gameplayActions["SecondaryAction"].canceled -= HandleSecondaryActionCanceled;
             gameplayActions["Reload"].performed -= HandleReloadPerformed;
+            gameplayActions["Dash"].performed -= HandleDashPerformed;
             gameplayActions["Interact"].performed -= HandleInteractPerformed;
             gameplayActions["Next"].performed -= HandleNextPerformed;
             gameplayActions["Previous"].performed -= HandlePreviousPerformed;
@@ -295,6 +299,11 @@ namespace KMS
         private void HandleReloadPerformed(InputAction.CallbackContext _)
         {
             if (CanProcessGameplayInput) ReloadPressed?.Invoke();
+        }
+
+        private void HandleDashPerformed(InputAction.CallbackContext _)
+        {
+            if (CanProcessGameplayInput) DashPressed?.Invoke();
         }
 
         private void HandleInteractPerformed(InputAction.CallbackContext _)

@@ -2840,9 +2840,6 @@ GameObject:
   - component: {fileID: 1369161375733360660}
   - component: {fileID: 5635534456920349353}
   - component: {fileID: 2308406327688671753}
-  - component: {fileID: 3847820479970314356}
-  - component: {fileID: 3622685747027912639}
-  - component: {fileID: 4470176389164459055}
   - component: {fileID: 1950103391436921439}
   m_Layer: 3
   m_Name: 0720_Player_KMS
@@ -3492,78 +3489,6 @@ MonoBehaviour:
   movement: {fileID: 757377502652196312}
   lightSpeedMultiplier: 0.7
   heavySpeedMultiplier: 0.4
---- !u!114 &3847820479970314356
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5320301024596143200}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e2e286b167b9e7749aea866d6b0d86d7, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::KMS.Combat.PlayerWeaponSkillController
-  input: {fileID: 2825149733357899923}
-  stats: {fileID: 4191295553828768883}
-  combatStats: {fileID: 0}
-  movement: {fileID: 757377502652196312}
-  actionCoordinator: {fileID: 2308406327688671753}
-  inventory: {fileID: 9124669202358280069}
-  cameraTransform: {fileID: 0}
-  projectileOrigin: {fileID: 0}
-  animator: {fileID: 0}
-  catalogManager: {fileID: 0}
-  skillCatalogManager: {fileID: 0}
-  skillLoadout: {fileID: 0}
-  attackOriginHeight: 1.2
-  attackActionDuration: 0.3
-  monsterLayer:
-    serializedVersion: 2
-    m_Bits: 0
-  aimMaxDistance: 100
-  aimObstructionMask:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  stageDuration: 1
---- !u!114 &3622685747027912639
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5320301024596143200}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b317565f95b2e5346bc68bf904bbc59e, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::KMS.Combat.PlayerSkillBookController
-  input: {fileID: 0}
-  inventory: {fileID: 0}
-  catalogManager: {fileID: 0}
-  skillUnlockManager: {fileID: 0}
-  skillCatalogManager: {fileID: 0}
-  hud: {fileID: 0}
---- !u!114 &4470176389164459055
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5320301024596143200}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b670c1adbc145a143a5d640754beafd8, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::KMS.Combat.PlayerSkillLoadout
-  skillCatalogManager: {fileID: 0}
-  skillUnlockManager: {fileID: 0}
-  equippedSkillIds:
-  - 
-  - 
-  - 
-  - 
-  specialSkillId: 
 --- !u!114 &1950103391436921439
 MonoBehaviour:
   m_ObjectHideFlags: 0

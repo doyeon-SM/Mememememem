@@ -31,16 +31,22 @@ public class TerritoryRecordData : MonoBehaviour, IRecord
         UnsubscribeManagers();
         liveTerritoryData = FindFirstObjectByType<TerritoryData>();
 
+        // [멤] 중요행동 - 영지 레벨업은 여신상 해금 조건과 직결되는 큰 진척이라 즉시 저장한다.
+        if (liveTerritoryData != null)
+        {
+            liveTerritoryData.OnLevelChanged += OnTerritoryLevelChangedHandler;
+        }
+
         liveRecipeManager = FindFirstObjectByType<RecipeUnlockManager>();
         if (liveRecipeManager != null)
         {
-            liveRecipeManager.OnRecipeUnlocksChanged += OnTerritoryDataChangedHandler;
+            liveRecipeManager.OnRecipeUnlocksChanged += OnRecipeUnlockChangedHandler;
         }
 
         liveExpansionManager = FindFirstObjectByType<TerritoryExpansionManager>();
         if (liveExpansionManager != null)
         {
-            liveExpansionManager.OnExpansionChanged += OnTerritoryDataChangedHandler;
+            liveExpansionManager.OnExpansionChanged += OnExpansionChangedHandler;
         }
 
         liveShopStockManager = ShopStockManager.Resolve(null);
@@ -49,24 +55,28 @@ public class TerritoryRecordData : MonoBehaviour, IRecord
             liveShopStockManager.OnStockChanged += OnShopStockChangedHandler;
         }
 
-        GridManager.OnGridDataChanged += OnTerritoryDataChangedHandler;
+        GridManager.OnGridDataChanged += OnGridStructureChangedHandler;
     }
 
     private void UnsubscribeManagers()
     {
+        if (liveTerritoryData != null)
+        {
+            liveTerritoryData.OnLevelChanged -= OnTerritoryLevelChangedHandler;
+        }
         if (liveRecipeManager != null)
         {
-            liveRecipeManager.OnRecipeUnlocksChanged -= OnTerritoryDataChangedHandler;
+            liveRecipeManager.OnRecipeUnlocksChanged -= OnRecipeUnlockChangedHandler;
         }
         if (liveExpansionManager != null)
         {
-            liveExpansionManager.OnExpansionChanged -= OnTerritoryDataChangedHandler;
+            liveExpansionManager.OnExpansionChanged -= OnExpansionChangedHandler;
         }
         if (liveShopStockManager != null)
         {
             liveShopStockManager.OnStockChanged -= OnShopStockChangedHandler;
         }
-        GridManager.OnGridDataChanged -= OnTerritoryDataChangedHandler;
+        GridManager.OnGridDataChanged -= OnGridStructureChangedHandler;
         liveTerritoryData = null;
         liveRecipeManager = null;
         liveExpansionManager = null;
@@ -75,12 +85,50 @@ public class TerritoryRecordData : MonoBehaviour, IRecord
 
     private void OnShopStockChangedHandler(ShopItemData item) => OnTerritoryDataChangedHandler();
 
+    /// <summary>[멤] 공통 가드. 로딩 중·씬 언로드 중·복원 중에는 어떤 저장도 하지 않는다.</summary>
+    private bool CanRecordNow()
+    {
+        return RecordManager.Instance != null
+            && !isApplyingData
+            && !RecordManager.IsLoadingData
+            && !RecordManager.IsSceneUnloading;
+    }
+
+    /// <summary>
+    /// [멤] 저장 빈도 감축 - 상점 재고처럼 수시로 바뀌는 값은 변경 표시만 한다.
+    /// </summary>
     private void OnTerritoryDataChangedHandler()
     {
-        if (RecordManager.Instance != null && !isApplyingData && !RecordManager.IsLoadingData && !RecordManager.IsSceneUnloading)
-        {
-            SaveData(RecordManager.Instance.SaveFilePath);
-        }
+        if (!CanRecordNow()) return;
+        RecordManager.NotifyDataChanged();
+    }
+
+    /// <summary>[멤] 중요행동 - 여신상 제작법 해금.</summary>
+    private void OnRecipeUnlockChangedHandler()
+    {
+        if (!CanRecordNow()) return;
+        RecordManager.NotifyCriticalAction(RecordManager.SaveReason.RecipeUnlock);
+    }
+
+    /// <summary>[멤] 중요행동 - 영지 레벨업.</summary>
+    private void OnTerritoryLevelChangedHandler(int newLevel)
+    {
+        if (!CanRecordNow()) return;
+        RecordManager.NotifyCriticalAction(RecordManager.SaveReason.TerritoryLevelUp);
+    }
+
+    /// <summary>[멤] 중요행동 - 영지 타일 확장.</summary>
+    private void OnExpansionChangedHandler()
+    {
+        if (!CanRecordNow()) return;
+        RecordManager.NotifyCriticalAction(RecordManager.SaveReason.TerritoryLevelUp);
+    }
+
+    /// <summary>[멤] 중요행동 - 시설 신축/철거로 영지 레이아웃이 바뀜 때.</summary>
+    private void OnGridStructureChangedHandler()
+    {
+        if (!CanRecordNow()) return;
+        RecordManager.NotifyCriticalAction(RecordManager.SaveReason.FacilityChanged);
     }
 
     public void InitDefaultData(ref SaveData saveData)

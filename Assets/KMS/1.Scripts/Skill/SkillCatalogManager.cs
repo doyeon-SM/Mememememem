@@ -110,6 +110,10 @@ private SkillData ParseSkillRow(string[] cols)
             data.ProjectilePrefab = projectileTable != null ? projectileTable.GetPrefab(data.ProjectileId) : null;
             data.HitCount = cols.Length >= 11 ? System.Math.Max(1, ParseInt(cols[10])) : 1;
             data.DamageType = cols.Length >= 12 ? ParseDamageType(cols[11]) : WeaponDamageType.Physical;
+            // [멤] 무기 고유 스킬(기본공격/돌진기) 지원용 컬럼. 기존 12컬럼 데이터는 그대로 동작한다(Projectile/0/0).
+            data.CastType = cols.Length >= 13 ? ParseCastType(cols[12]) : SkillCastType.Projectile;
+            data.DashDistance = cols.Length >= 14 ? ParseFloat(cols[13]) : 0f;
+            data.DashDuration = cols.Length >= 15 ? ParseFloat(cols[14]) : 0f;
 
 
             return data;
@@ -126,6 +130,13 @@ private SkillData ParseSkillRow(string[] cols)
         {
             var trimmed = s.Trim();
             return System.Enum.TryParse<WeaponDamageType>(trimmed, true, out var value) ? value : WeaponDamageType.Physical;
+        }
+
+        // [멤] csv의 CastType 컬럼("Projectile"/"Dash")을 enum으로 파싱한다. 비어있거나 알 수 없는 값은 Projectile로 처리한다.
+        private static SkillCastType ParseCastType(string s)
+        {
+            var trimmed = s.Trim();
+            return System.Enum.TryParse<SkillCastType>(trimmed, true, out var value) ? value : SkillCastType.Projectile;
         }
 
         private static int ParseInt(string s)

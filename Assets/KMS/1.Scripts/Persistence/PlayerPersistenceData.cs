@@ -93,9 +93,14 @@ namespace KMS.Persistence
     [Serializable]
     public class PlayerSaveData
     {
-        public int version = 4;
+        public int version = 5;
         public PlayerInventorySaveData inventory;
         public PlayerStatsSaveData stats;
         public PlayerCombatStatsSaveData combatStats;
+
+        // [멤] 장비 시스템 - 장착창 12칸(방어구 4 + 장신구 8). 씬 이동 간 유지를 위한 필드이며,
+        // 파일 저장은 EquipmentRecordData(SaveData.playerEquipmentData)가 별도로 담당한다.
+        // 구버전 세이브(version 4 이하)는 이 필드가 null이라 그대로 무시된다.
+        public ItemStack[] equipment;
     }
 }

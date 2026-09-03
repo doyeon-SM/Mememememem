@@ -50,12 +50,15 @@ namespace KMS.Persistence
             }
 
             PlayerCombatStats combatStats = stats.GetComponent<PlayerCombatStats>();
+            // [멤] 장비 시스템 - 장착창 12칸도 씬 이동 간 함께 유지한다.
+            KMS.Equipment.PlayerEquipment equipment = stats.GetComponent<KMS.Equipment.PlayerEquipment>();
 
             currentData = new PlayerSaveData
             {
                 inventory = inventory.CaptureSaveData(),
                 stats = stats.CaptureSaveData(),
-                combatStats = combatStats != null ? combatStats.CaptureSaveData() : null
+                combatStats = combatStats != null ? combatStats.CaptureSaveData() : null,
+                equipment = equipment != null ? equipment.CaptureSaveData() : null
             };
 
             Debug.Log($"[PlayerPersistence] 캡처 완료: 체력={currentData.stats.currentHealth:0.##}, 허기={currentData.stats.currentHunger:0.##}, 일반 슬롯={currentData.inventory.inventory.slots.Length}, 퀵슬롯={currentData.inventory.quickSlots.slots.Length}");
@@ -76,6 +79,16 @@ namespace KMS.Persistence
                 if (combatStats != null)
                 {
                     combatStats.RestoreSaveData(currentData.combatStats);
+                }
+            }
+
+            // [멤] 장비 시스템 - 장착창 복원. 구버전 데이터면 null이라 그대로 무시된다.
+            if (currentData.equipment != null)
+            {
+                KMS.Equipment.PlayerEquipment equipment = stats.GetComponent<KMS.Equipment.PlayerEquipment>();
+                if (equipment != null)
+                {
+                    equipment.RestoreSaveData(currentData.equipment);
                 }
             }
 

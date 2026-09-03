@@ -64,6 +64,10 @@ namespace KMS
         [Tooltip("크리티컬 데미지 보너스(%). 기본 50%에 더해져 최대 200%로 클램프된다.")]
         [SerializeField] private float bonusCritDamagePercent;
 
+        // [멤] 장비 시스템: 지금 장착 중인 방어구/장신구가 주는 보너스 합계(PlayerEquipment가 넣어준다).
+        // 캐릭터 스탯은 "총합 = 투자 포인트 + 장비"로 계산되며(GetTotalStat), 투자/리스펙은 투자분만 다룬다.
+        private KMS.Equipment.EquipmentBonusSnapshot equipmentBonus;
+
         private TerritoryData subscribedTerritoryData;
         private int lastKnownTerritoryLevel = 1;
         private bool hasInitializedLevel;
@@ -76,11 +80,21 @@ namespace KMS
         public int UnspentPoints => unspentPoints;
         public int RespecGoldCost => respecGoldCost;
 
-        public float DefensePercent => CharacterStatFormulas.DefensePercent(strength, willpower);
-        public float ResistancePercent => CharacterStatFormulas.ResistancePercent(intelligence, willpower);
-        public float CritChancePercent => CharacterStatFormulas.CritChancePercent(intelligence);
+        // [멤] 장비 시스템: 아래 5개는 "투자 + 장비"를 합친 총합 스탯이다. 모든 파생 공식은 이 값을 쓴다.
+        public int TotalStrength => GetTotalStat(CharacterStatType.Strength);
+        public int TotalIntelligence => GetTotalStat(CharacterStatType.Intelligence);
+        public int TotalAgility => GetTotalStat(CharacterStatType.Agility);
+        public int TotalLuck => GetTotalStat(CharacterStatType.Luck);
+        public int TotalWillpower => GetTotalStat(CharacterStatType.Willpower);
+
+        /// <summary>[PlayerTerritoryHealthController 전용] 장비가 더해주는 최대 체력 고정 가산치.</summary>
+        public int EquipmentHealthBonus => equipmentBonus.Health;
+
+        public float DefensePercent => CharacterStatFormulas.DefensePercent(TotalStrength, TotalWillpower);
+        public float ResistancePercent => CharacterStatFormulas.ResistancePercent(TotalIntelligence, TotalWillpower);
+        public float CritChancePercent => CharacterStatFormulas.CritChancePercent(TotalIntelligence);
         public float CritDamagePercent => CharacterStatFormulas.CritDamagePercent(bonusCritDamagePercent);
-        public float LuckGatherAmountMultiplier => CharacterStatFormulas.GatherAmountMultiplier(luck);
+        public float LuckGatherAmountMultiplier => CharacterStatFormulas.GatherAmountMultiplier(TotalLuck);
 
         /// <summary>스탯이 새로 투자되거나 재분배/복원될 때마다 발행된다(UI 갱신용).</summary>
         public event Action StatsChanged;
@@ -179,35 +193,40 @@ namespace KMS
 
         // ---- 파생 스탯 적용 ----
 
-        private void ApplyAllDerivedStats()
+        private void ApplyAllDerivedStats(bool preserveMissingHealth = true)
         {
             ApplyHunger();
             ApplyMoveSpeed();
-            ApplyHealth();
+            ApplyHealth(preserveMissingHealth);
         }
 
         private void ApplyHunger()
         {
             if (stats == null) return;
-            stats.SetMaxHunger(baseMaxHunger * CharacterStatFormulas.HungerMultiplier(willpower));
+            stats.SetMaxHunger(baseMaxHunger * CharacterStatFormulas.HungerMultiplier(TotalWillpower));
         }
 
         private void ApplyMoveSpeed()
         {
             if (movement == null) return;
-            movement.SetStatSpeedMultiplier(CharacterStatFormulas.MoveSpeedMultiplier(agility));
+            movement.SetStatSpeedMultiplier(CharacterStatFormulas.MoveSpeedMultiplier(TotalAgility));
         }
 
-        private void ApplyHealth()
+        // [멤] 장비 시스템: preserveMissingHealth=false면 최대 체력이 늘어도 현재 체력이 함께 오르지 않는다
+        // ("방어구로 늘어난 최대체력은 현재체력을 회복시키지 않는다" - 사용자 확정 사양). 레벨업/포인트 투자는
+        // 기존 동작(부족분 유지)을 그대로 두어야 하므로 장비 변경 경로에서만 false를 넘긴다.
+        private void ApplyHealth(bool preserveMissingHealth)
         {
             if (territoryHealthController == null) return;
-            territoryHealthController.RefreshFromExternalStatChange();
+
+            if (preserveMissingHealth) territoryHealthController.RefreshFromExternalStatChange();
+            else territoryHealthController.RefreshFromEquipmentChange();
         }
 
         /// <summary>[PlayerTerritoryHealthController 전용] 힘 스탯 기반 체력 배율. 영지레벨 기본 체력에 곱해서 쓴다.</summary>
         public float GetHealthMultiplier()
         {
-            return CharacterStatFormulas.HealthMultiplier(strength);
+            return CharacterStatFormulas.HealthMultiplier(TotalStrength);
         }
 
         // ---- 공격력/마력/데미지 계산 (PlayerWeaponSkillController에서 호출) ----
@@ -215,8 +234,8 @@ namespace KMS
         /// <summary>물리 무기면 힘(주력)/민첩(부), 마법 무기면 지능(주력)/행운(부)으로 공격력·마력을 계산한다.</summary>
         public float GetAttackOrMagicPower(float weaponPower, WeaponDamageType damageType)
         {
-            int primary = damageType == WeaponDamageType.Physical ? strength : intelligence;
-            int secondary = damageType == WeaponDamageType.Physical ? agility : luck;
+            int primary = damageType == WeaponDamageType.Physical ? TotalStrength : TotalIntelligence;
+            int secondary = damageType == WeaponDamageType.Physical ? TotalAgility : TotalLuck;
             return CharacterStatFormulas.AttackOrMagicPower(weaponPower, primary, secondary);
         }
 
@@ -288,6 +307,29 @@ namespace KMS
                 case CharacterStatType.Willpower: return willpower;
                 default: return 0;
             }
+        }
+
+        /// <summary>
+        /// [멤] 장비 시스템: 투자 포인트 + 장비 보너스를 합친 총합 스탯. 모든 파생 공식(체력/배고픔/이동속도/
+        /// 방어력/저항력/크리티컬/공격력·마력)이 이 값을 쓴다. GetStat은 여전히 "투자분"만 돌려주므로
+        /// 스탯 투자/리스펙 UI는 그대로 GetStat을 쓰면 된다.
+        /// </summary>
+        public int GetTotalStat(CharacterStatType type)
+        {
+            return Mathf.Clamp(GetStat(type) + equipmentBonus.GetStat(type), 0, CharacterStatFormulas.StatValueCap);
+        }
+
+        /// <summary>
+        /// [멤] 장비 시스템: PlayerEquipment가 장착 상태가 바뀔 때마다 호출한다. 값이 실제로 달라졌을 때만
+        /// 파생 스탯을 다시 계산하며, 이때 최대 체력은 현재 체력을 회복시키지 않는 방식으로 갱신된다.
+        /// </summary>
+        public void SetEquipmentBonus(KMS.Equipment.EquipmentBonusSnapshot snapshot)
+        {
+            if (equipmentBonus.Equals(snapshot)) return;
+
+            equipmentBonus = snapshot;
+            ApplyAllDerivedStats(preserveMissingHealth: false);
+            StatsChanged?.Invoke();
         }
 
         private void SetStat(CharacterStatType type, int value)

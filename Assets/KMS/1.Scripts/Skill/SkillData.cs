@@ -15,6 +15,18 @@ namespace KMS.Combat
     }
 
     /// <summary>
+    /// [멤] 스킬이 실제로 무엇을 하는지(발동 방식)를 구분한다. Projectile = 앞으로 투사체를 발사하는
+    /// 공격 스킬, Dash = 캐릭터 자신이 이동하는 이동기(돌진기). 같은 SkillData 구조를 공격 스킬과
+    /// 이동기가 함께 쓰기 위한 분기 키이며, PlayerWeaponSkillController가 이 값으로 발동 경로를 나눈다.
+    /// FormType(즉발형/스택형/버프)은 "효과가 어떻게 적용되는가"라는 별개의 축이라 서로 무관하다.
+    /// </summary>
+    public enum SkillCastType
+    {
+        Projectile = 0,
+        Dash = 1,
+    }
+
+    /// <summary>
     /// [멤] 스킬 하나의 정의 SO. SkillCatalogManager가 csv 시트(Skill_ID 기준)를 파싱해 런타임
     /// 인스턴스를 만들어 채운다 - ItemCatalogManager가 ItemData/CookRecipeData를 만드는 것과 동일한
     /// 패턴이다. 스킬은 인벤토리 아이템이 아니라 "보유 스킬 ID 목록"(SkillUnlockManager)으로만
@@ -62,6 +74,16 @@ namespace KMS.Combat
         public float ProjectileLifetime;
 
         [System.NonSerialized] public GameObject ProjectilePrefab;
+
+        [Header("발동 방식")]
+        [Tooltip("이 스킬이 투사체를 발사하는 공격 스킬(Projectile)인지, 캐릭터가 이동하는 이동기(Dash)인지 구분한다. csv의 CastType 컬럼이 비어있으면 Projectile로 취급한다.")]
+        public SkillCastType CastType = SkillCastType.Projectile;
+
+        [Tooltip("[Dash 전용] 돌진 거리(m). 벽/오브젝트에 막히면 그 지점에서 멈추므로 실제 이동 거리는 이보다 짧을 수 있다.")]
+        public float DashDistance;
+
+        [Tooltip("[Dash 전용] 돌진에 걸리는 시간(초). 돌진 속도 = DashDistance / DashDuration 이다.")]
+        public float DashDuration;
 
 
         [Header("설명")]

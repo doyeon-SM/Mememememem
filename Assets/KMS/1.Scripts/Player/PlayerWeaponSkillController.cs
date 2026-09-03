@@ -74,6 +74,9 @@ namespace KMS.Combat
         private int bankedStageIndex = -1;
         private float basicAttackCooldownTimer;
         private float attackLockTimer;
+        // [멤] 돌진(무기 이동기) 중 Secondary 액션 슬롯을 점유하고 있는 남은 시간. 0보다 크면 돌진 중이라
+        // 공격/장전이 코디네이터에 의해 자동으로 막힌다.
+        private float dashLockTimer;
 
         private const float LightSpeedMultiplierFallback = 0.7f;
         private const float HeavySpeedMultiplierFallback = 0.4f;
@@ -162,6 +165,7 @@ namespace KMS.Combat
                 input.SecondaryActionPressed += BeginCharge;
                 input.SecondaryActionReleased += ReleaseCharge;
                 input.ReloadPressed += HandleSpecialSkillPressed;
+                input.DashPressed += HandleDashPressed;
             }
 
             if (inventory != null)
@@ -178,6 +182,7 @@ namespace KMS.Combat
                 input.SecondaryActionPressed -= BeginCharge;
                 input.SecondaryActionReleased -= ReleaseCharge;
                 input.ReloadPressed -= HandleSpecialSkillPressed;
+                input.DashPressed -= HandleDashPressed;
             }
 
             if (inventory != null)
@@ -186,6 +191,7 @@ namespace KMS.Combat
             }
 
             CancelCharge();
+            CancelActiveDash();
 
             if (attackLockTimer > 0f)
             {
@@ -212,6 +218,19 @@ namespace KMS.Combat
                 if (attackLockTimer <= 0f)
                 {
                     EndAttackLock();
+                }
+            }
+
+            // [멤] 돌진은 PlayerMovement가 실제 이동을 담당하므로, 여기서는 액션 슬롯 점유만 관리한다.
+            // 벽에 막혀 예정보다 일찍 끝나는 경우도 있어서 남은 시간과 movement.IsDashing 둘 다를 본다.
+            if (dashLockTimer > 0f)
+            {
+                dashLockTimer -= Time.deltaTime;
+                bool movementFinished = movement == null || !movement.IsDashing;
+                if (dashLockTimer <= 0f || movementFinished)
+                {
+                    dashLockTimer = 0f;
+                    EndDashLock();
                 }
             }
 
@@ -268,16 +287,37 @@ namespace KMS.Combat
 private void FireBasicAttack(WeaponItemData weapon)
         {
             if (basicAttackCooldownTimer > 0f) return;
+
+            // [멤] 기본공격 스킬화: 무기는 "어떤 기본공격을 쓰는지"(BasicAttackSkillId)만 갖고, 투사체 종류/속도/수명/
+            // 다단히트/데미지%/연사속도는 전부 그 스킬 데이터가 결정한다 - 무기가 강화되어 스킬 ID가 바뀌면 기본공격이
+            // 통째로 교체된다. 데미지 기준값(무기 공격력)과 데미지 타입(물리/마법)만은 여전히 무기의 것을 쓴다.
+            // BasicAttackSkillId가 비어있거나 스킬을 못 찾으면 예전 방식(무기의 Ranged 필드)으로 그대로 폴백한다.
+            SkillData basicSkill = ResolveWeaponSkill(weapon.BasicAttackSkillId, SkillCastType.Projectile);
+
             if (!LockPrimary()) return;
 
-            basicAttackCooldownTimer = Mathf.Max(0f, weapon.ProjectileAttackCooldown);
+            basicAttackCooldownTimer = Mathf.Max(0f, basicSkill != null ? basicSkill.Cooldown : weapon.ProjectileAttackCooldown);
 
             if (animator != null && hasRangedAttackTriggerParam) animator.SetTrigger(RangedAttackHash);
 
             Vector3 origin = GetProjectileOrigin();
             Vector3 direction = GetAimDirection(origin);
-            int damage = ComputeBasicAttackDamage(weapon, out _);
-            FireBasicAttackProjectile(origin, direction, damage, weapon);
+
+            if (basicSkill != null && basicSkill.ProjectilePrefab != null)
+            {
+                int hitCount = Mathf.Max(1, basicSkill.HitCount);
+                for (int i = 0; i < hitCount; i++)
+                {
+                    int hitDamage = ComputeBasicAttackSkillDamage(weapon, basicSkill, out _);
+                    // [멤] 기본공격은 발사 빈도가 높아 오브젝트 풀을 계속 사용한다(스킬 투사체는 저빈도라 Instantiate/Destroy).
+                    FirePooledProjectile(origin, direction, hitDamage, basicSkill.ProjectilePrefab, basicSkill.ProjectileSpeed, basicSkill.ProjectileLifetime);
+                }
+            }
+            else
+            {
+                int damage = ComputeBasicAttackDamage(weapon, out _);
+                FireBasicAttackProjectile(origin, direction, damage, weapon);
+            }
 
             KMSAudioService.PlayAt(GameSfxId.WeaponRangedAttack, origin);
             OnBasicAttackFired?.Invoke();
@@ -381,6 +421,9 @@ private void HandleSpecialSkillPressed()
         {
             if (stats != null && !stats.IsAlive) return;
             if (isCharging) return;
+            // [멤] 돌진 중에는 장전을 시작할 수 없다. Secondary 슬롯을 이 컴포넌트 자신이 이미 점유하고 있어서
+            // TryBeginAction만으로는 걸러지지 않기 때문에(같은 오너는 통과) 명시적으로 막는다.
+            if (dashLockTimer > 0f || (movement != null && movement.IsDashing)) return;
             if (!TryGetSelectedWeapon(out _)) return;
             // [멤] 사용자 확정 사양: 등록된 스킬이 전부(미등록/쿨타임/이미 큐 대기 중이라) 장전할 후보가 하나도
             // 없으면 장전 자체를 시도하지 않는다(액션 슬롯 점유/이동 감속도 걸지 않고 그냥 아무 일도 안 일어남).
@@ -441,6 +484,7 @@ private void HandleSpecialSkillPressed()
         public void CancelActiveCharge()
         {
             CancelCharge();
+            CancelActiveDash();
         }
 
         private void UnlockSecondary()
@@ -455,6 +499,131 @@ private void HandleSpecialSkillPressed()
             }
         }
 
+        // ---- Dash: 무기 고유 이동기(돌진기) ----
+
+        /// <summary>
+        /// [멤] 무기 고유 이동기(돌진기) 발동 - Gameplay 맵의 "Dash" 액션(좌Ctrl / 게임패드 buttonEast).
+        /// 실제 이동은 PlayerMovement.BeginDash가 전담하고(중력·입력 무시, 벽 차단, 오르막 보정), 이 메서드는
+        /// 발동 가능 여부 판정과 액션 슬롯 점유/쿨타임 등록만 담당한다. 쿨타임은 다른 스킬들과 완전히 같은
+        /// 딕셔너리를 쓰므로 HUD 표시/저장·불러오기/영지 초기화가 코드 추가 없이 그대로 적용된다.
+        /// </summary>
+        private void HandleDashPressed()
+        {
+            if (stats != null && !stats.IsAlive) return;
+            if (movement == null) return;
+            if (isCharging) return;
+            if (dashLockTimer > 0f || movement.IsDashing) return;
+            if (!TryGetSelectedWeapon(out WeaponItemData weapon)) return;
+
+            SkillData dashSkill = ResolveWeaponSkill(weapon.DashSkillId, SkillCastType.Dash);
+            if (dashSkill == null) return;
+            if (dashSkill.DashDistance <= 0f || dashSkill.DashDuration <= 0f) return;
+            if (IsSkillOnCooldown(dashSkill.Skill_ID)) return;
+
+            // [멤] 공격(Primary)이 진행 중이면 코디네이터가 여기서 막아준다 - 반대로 돌진 중 공격도 같은 규칙으로 막힌다.
+            bool began = actionCoordinator == null || actionCoordinator.TryBeginAction(this, KMS.ActionInputSlot.Secondary, KMS.ActionSpeedTier.Heavy);
+            if (!began) return;
+
+            if (!movement.BeginDash(GetDashDirection(), dashSkill.DashDistance, dashSkill.DashDuration))
+            {
+                EndDashLock();
+                return;
+            }
+
+            dashLockTimer = dashSkill.DashDuration;
+            StartSkillCooldown(dashSkill.Skill_ID, dashSkill.Cooldown);
+            KMSAudioService.PlayAt(GameSfxId.SkillFire, transform.position);
+            OnSkillFired?.Invoke(dashSkill.Skill_ID);
+        }
+
+        /// <summary>[멤] 사용자 확정 사양: 돌진 방향은 카메라 정면을 수평면에 투영한 방향이다(위/아래 각도 무시).</summary>
+        private Vector3 GetDashDirection()
+        {
+            Vector3 forward = cameraTransform != null ? cameraTransform.forward : transform.forward;
+            forward.y = 0f;
+            if (forward.sqrMagnitude < 0.0001f) forward = transform.forward;
+            forward.y = 0f;
+            return forward.sqrMagnitude > 0.0001f ? forward.normalized : transform.forward;
+        }
+
+        private void EndDashLock()
+        {
+            dashLockTimer = 0f;
+
+            if (actionCoordinator != null)
+            {
+                actionCoordinator.EndAction(this);
+            }
+            else if (movement != null)
+            {
+                movement.SetMoveSpeedOverride(this, null);
+            }
+        }
+
+        /// <summary>[멤] 사망/비활성화 등 외부 상태 전환에서 진행 중인 돌진을 안전하게 중단한다.</summary>
+        public void CancelActiveDash()
+        {
+            if (movement != null) movement.CancelDash();
+            if (dashLockTimer > 0f) EndDashLock();
+        }
+
+        // ---- 무기 고유 스킬(기본공격/이동기) 조회 ----
+
+        /// <summary>
+        /// [멤] 무기에 고정 장착된 고유 스킬을 Skill_ID로 조회한다. 로드아웃(보유/등급 검사)을 전혀 거치지
+        /// 않는 것이 핵심 - 이 스킬들은 플레이어가 등록하는 것이 아니라 무기 데이터가 직접 지정하기 때문이다
+        /// (SkillCatalog.csv에서 Grade 0으로 두어 스킬 등록 UI에는 잡히지 않게 한다).
+        /// </summary>
+        private SkillData ResolveWeaponSkill(string skillId, SkillCastType expectedCastType)
+        {
+            if (string.IsNullOrEmpty(skillId)) return null;
+
+            skillCatalogManager = SkillCatalogManager.Resolve(skillCatalogManager);
+            SkillData skill = skillCatalogManager != null ? skillCatalogManager.FindSkillData(skillId) : null;
+            if (skill == null)
+            {
+                Debug.LogWarning($"[PlayerWeaponSkillController] 무기가 지정한 Skill_ID({skillId})를 스킬 카탈로그에서 찾을 수 없습니다.", this);
+                return null;
+            }
+
+            if (skill.CastType != expectedCastType)
+            {
+                Debug.LogWarning($"[PlayerWeaponSkillController] Skill_ID({skillId})의 CastType이 {skill.CastType}이라 {expectedCastType} 용도로 쓸 수 없습니다.", this);
+                return null;
+            }
+
+            return skill;
+        }
+
+        /// <summary>[HUD 연동용] 지금 들고 있는 무기의 고유 스킬 2종. 매 프레임 호출되므로 경고 로그는 내지 않는다.</summary>
+        public void GetEquippedWeaponSkills(out SkillData basicAttackSkill, out SkillData dashSkill)
+        {
+            basicAttackSkill = null;
+            dashSkill = null;
+
+            if (!TryGetSelectedWeapon(out WeaponItemData weapon)) return;
+
+            skillCatalogManager = SkillCatalogManager.Resolve(skillCatalogManager);
+            if (skillCatalogManager == null) return;
+
+            if (!string.IsNullOrEmpty(weapon.BasicAttackSkillId)) basicAttackSkill = skillCatalogManager.FindSkillData(weapon.BasicAttackSkillId);
+            if (!string.IsNullOrEmpty(weapon.DashSkillId)) dashSkill = skillCatalogManager.FindSkillData(weapon.DashSkillId);
+        }
+
+        // [멤] 스킬화된 기본공격의 히트 1회분 데미지 = 무기 공격력 기반 최종데미지 × 기본공격 스킬의 DamagePercent.
+        // 로드아웃 스킬과 달리 데미지 타입은 스킬이 아니라 무기 것을 쓴다 - 이건 무기 자신의 공격이기 때문이다.
+        private int ComputeBasicAttackSkillDamage(WeaponItemData weapon, SkillData skill, out bool isCritical)
+        {
+            if (combatStats != null)
+            {
+                return combatStats.ComputeSkillHitDamage(weapon.ProjectileDamage, weapon.DamageType, skill.DamagePercent, out isCritical);
+            }
+
+            isCritical = false;
+            int attackPowerBonus = stats != null ? stats.AttackPower : 0;
+            return Mathf.Max(0, Mathf.RoundToInt((weapon.ProjectileDamage + attackPowerBonus) * skill.DamagePercent * 0.01f));
+        }
+
         private void HandleQuickSlotSelectionRequested(int _)
         {
             CancelCharge();
@@ -467,16 +636,34 @@ private void HandleSpecialSkillPressed()
         {
             if (skillLoadout == null) return false;
 
+            // [멤] 버그 수정: 예전에는 타입(물리/마법)이 안 맞는 스킬도 장전은 되고 발동 시점에만 조용히
+            // 무시돼서, 큐에 들어간 채 영원히 빠지지 않고 하이라이트도 계속 켜져 있었다(플레이어가 원인을
+            // 알 수 없음). 사용자 확정 사양에 따라 이제 장전 후보 단계에서 미리 걸러낸다 - 미등록/쿨타임과
+            // 완전히 동일하게 취급한다.
+            if (!TryGetSelectedWeapon(out WeaponItemData weapon)) return false;
+
             for (int i = fromIndex; i < PlayerSkillLoadout.SlotCount; i++)
             {
                 SkillData candidate = skillLoadout.GetEquippedSkill(i);
-                if (candidate != null && !IsSkillOnCooldown(candidate.Skill_ID) && !skillQueue.Contains(candidate.Skill_ID))
+                if (candidate != null
+                    && candidate.DamageType == weapon.DamageType
+                    && !IsSkillOnCooldown(candidate.Skill_ID)
+                    && !skillQueue.Contains(candidate.Skill_ID))
                 {
                     return true;
                 }
             }
 
             return false;
+        }
+
+        /// <summary>[멤] 이 스킬이 지금 장착 중인 무기의 데미지 타입(물리/마법)과 맞는지 확인한다.
+        /// 무기를 안 들고 있으면 false - 발동 시점의 게이팅(FireQueuedSkill)과 동일한 기준이다.</summary>
+        private bool IsSkillTypeUsableWithSelectedWeapon(SkillData skill)
+        {
+            if (skill == null) return false;
+            if (!TryGetSelectedWeapon(out WeaponItemData weapon)) return false;
+            return weapon.DamageType == skill.DamageType;
         }
 
         private void EvaluateNextChargeStage()
@@ -489,7 +676,7 @@ private void HandleSpecialSkillPressed()
             // 같은 스킬이 연달아 여러 번 발동되거나, 중복 때문에 큐가 먼저 가득 차서 이후 정상적인 장전이 조용히
             // 큐에 안 들어가는(장전이 막힌 것처럼 보이는) 문제로 이어졌다. 이미 큐에 대기 중인 스킬은 아직
             // 발동 전이라도 다시 장전(banking) 대상에서 제외한다.
-            bool isValid = skill != null && !IsSkillOnCooldown(skill.Skill_ID) && !skillQueue.Contains(skill.Skill_ID);
+            bool isValid = skill != null && IsSkillTypeUsableWithSelectedWeapon(skill) && !IsSkillOnCooldown(skill.Skill_ID) && !skillQueue.Contains(skill.Skill_ID);
 
             if (isValid)
             {
@@ -647,17 +834,23 @@ private void HandleSpecialSkillPressed()
 
 private void FireBasicAttackProjectile(Vector3 origin, Vector3 direction, int damage, WeaponItemData weapon)
         {
-            GameObject prefab = weapon.ProjectilePrefab;
+            // [멤] BasicAttackSkillId가 없는 무기(예전 방식)용 폴백 경로. 스킬화된 기본공격은 FirePooledProjectile을 직접 쓴다.
+            FirePooledProjectile(origin, direction, damage, weapon.ProjectilePrefab, weapon.ProjectileSpeed, weapon.ProjectileLifetime);
+        }
+
+        /// <summary>[멤] 오브젝트 풀에서 투사체를 꺼내 발사한다(기본공격 전용 - 발사 빈도가 높아 재활용한다).</summary>
+        private void FirePooledProjectile(Vector3 origin, Vector3 direction, int damage, GameObject prefab, float speed, float lifetime)
+        {
             if (prefab == null)
             {
-                Debug.LogError("[PlayerWeaponSkillController] WeaponItemData에 ProjectilePrefab이 연결되지 않았습니다.", this);
+                Debug.LogError("[PlayerWeaponSkillController] 기본공격 투사체 Prefab이 연결되지 않았습니다(무기의 ProjectileId 또는 기본공격 스킬의 ProjectileId를 확인하세요).", this);
                 return;
             }
 
             direction = NormalizeFireDirection(direction);
             GameObject projectileObject = KMS.Combat.ProjectilePool.Get(prefab, origin, Quaternion.LookRotation(direction));
             System.Action<GameObject> release = (obj) => KMS.Combat.ProjectilePool.Release(prefab, obj);
-            ConfigureAndLaunch(projectileObject, direction, damage, weapon.ProjectileSpeed, weapon.ProjectileLifetime, release);
+            ConfigureAndLaunch(projectileObject, direction, damage, speed, lifetime, release);
         }
 
         private void FireSkillProjectile(Vector3 origin, Vector3 direction, int damage, SkillData skill)

@@ -1,2 +1,4 @@
-Skill_ID,Name,DamagePercent,Cooldown,Grade,Description,FormType,ProjectileId,ProjectileSpeed,ProjectileLifetime,HitCount,DamageType
-skill_energy_bolt,에너지 볼트,100,3,1,바라보는 방향으로 원형 투사체를 발사하여 처음 맞는 적에게 데미지를 입힌다.,Instant,proj_energy_bolt,15,5,1,Magic
+Skill_ID,Name,DamagePercent,Cooldown,Grade,Description,FormType,ProjectileId,ProjectileSpeed,ProjectileLifetime,HitCount,DamageType,CastType,DashDistance,DashDuration
+skill_energy_bolt,에너지 볼트,100,3,1,바라보는 방향으로 원형 투사체를 발사하여 처음 맞는 적에게 데미지를 입힌다.,Instant,proj_energy_bolt,15,5,1,Magic,Projectile,0,0
+skill_bell_basic,종 타격,100,0.5,0,훈련용 종을 휘둘러 바라보는 방향으로 소리 파동을 날린다.,Instant,proj_basic,15,5,1,Magic,Projectile,0,0
+skill_bell_dash,종울림 돌진,0,6,0,바라보는 방향으로 빠르게 돌진한다. 벽이나 오브젝트는 통과하지 못한다.,Instant,,0,0,1,Magic,Dash,5,0.25

@@ -61,6 +61,8 @@ namespace HDY.Item
             foodEffectTable = new FoodEffectTable(foodEffectCatalogSheet != null ? foodEffectCatalogSheet.text : string.Empty);
             alchemyExchangeTable = new HDY.Shop.AlchemyExchangeTable(alchemyExchangeCatalogSheet != null ? alchemyExchangeCatalogSheet.text : string.Empty);
             weaponStatsTable = new KMS.Combat.WeaponStatsTable(weaponCatalogSheet != null ? weaponCatalogSheet.text : string.Empty);
+            // [멤] 장비 시스템 - 방어구/장신구 전용 데이터. 무기와 동일하게 BuildDictionary() 전에 구성해야 ParseItemRow에서 참조할 수 있다.
+            equipmentStatsTable = new KMS.Equipment.EquipmentStatsTable(equipmentCatalogSheet != null ? equipmentCatalogSheet.text : string.Empty);
 
 
             BuildDictionary();
@@ -105,6 +107,13 @@ namespace HDY.Item
 
         // [멤] Item_ID -> 무기 전용 데이터 조회 테이블. foodEffectTable과 동일하게 Awake에서 BuildDictionary() 전에 구성한다.
         private KMS.Combat.WeaponStatsTable weaponStatsTable;
+
+        // [멤] 장비 시스템. 무기(weaponCatalogSheet)와 완전히 같은 패턴 - 장비의 기본 데이터(이름/카테고리 등)는
+        // itemCatalogSheet에서, 부위/체력/스탯/기본옵션 같은 장비 전용 데이터는 아래 시트에서 Item_ID 기준으로 들어온다.
+        [Header("장비 전용 데이터 시트 (쉼표 구분 CSV, Item_ID 기준 - EquipSlot,DamageType,HealthBonus,PrimaryStatValue,SecondaryStatValue,BaseOptionStatType,BaseOptionValue)")]
+        [SerializeField] private TextAsset equipmentCatalogSheet;
+
+        private KMS.Equipment.EquipmentStatsTable equipmentStatsTable;
 
         private readonly List<ItemData> itemDataList = new List<ItemData>();
         public IReadOnlyList<ItemData> ItemDataList => itemDataList;
@@ -302,9 +311,20 @@ namespace HDY.Item
 private ItemData ParseItemRow(string[] cols)
         {
             var category = ParseEnum<ItemCategory>(cols[4]);
-            ItemData data = category == ItemCategory.Weapon
-                ? (ItemData)ScriptableObject.CreateInstance<KMS.Combat.WeaponItemData>()
-                : ScriptableObject.CreateInstance<ItemData>();
+            // [멤] 카테고리에 따라 전용 서브타입 인스턴스를 만든다(무기/장비). 그 외에는 기본 ItemData.
+            ItemData data;
+            if (category == ItemCategory.Weapon)
+            {
+                data = ScriptableObject.CreateInstance<KMS.Combat.WeaponItemData>();
+            }
+            else if (category == ItemCategory.Armor || category == ItemCategory.Accessory)
+            {
+                data = ScriptableObject.CreateInstance<KMS.Equipment.EquipmentItemData>();
+            }
+            else
+            {
+                data = ScriptableObject.CreateInstance<ItemData>();
+            }
 
             data.Item_ID = cols[0].Trim();
             data.ItemName = cols[1].Trim();
@@ -333,6 +353,11 @@ private ItemData ParseItemRow(string[] cols)
                 ApplyWeaponStats(weaponData);
             }
 
+            if (data is KMS.Equipment.EquipmentItemData equipmentData)
+            {
+                ApplyEquipmentStats(equipmentData);
+            }
+
             return data;
         }
 
@@ -348,6 +373,10 @@ private ItemData ParseItemRow(string[] cols)
                 weaponData.ProjectileDamage = row.ProjectileDamage;
                 weaponData.ProjectileAttackCooldown = row.ProjectileAttackCooldown;
             weaponData.DamageType = row.DamageType; // [멤] 캐릭터 스탯 시스템 - 물리/마법 판정용
+
+                weaponData.BasicAttackSkillId = row.BasicAttackSkillId; // [멤] 무기 고유 스킬 - 스킬화된 기본공격
+                weaponData.DashSkillId = row.DashSkillId;               // [멤] 무기 고유 스킬 - 돌진기(이동기)
+
                 weaponData.ProjectilePrefab = projectileTable != null ? projectileTable.GetPrefab(row.ProjectileId) : null;
             }
             else
@@ -356,6 +385,26 @@ private ItemData ParseItemRow(string[] cols)
             }
         }
 
+
+        // [멤] EquipmentCatalog.csv에서 이 Item_ID에 해당하는 장비 전용 데이터를 찾아 채운다.
+        // 행이 없으면 경고만 남기고 기본값(0)을 그대로 둔다 - 무기의 ApplyWeaponStats와 동일한 관례.
+        private void ApplyEquipmentStats(KMS.Equipment.EquipmentItemData equipmentData)
+        {
+            if (equipmentStatsTable != null && equipmentStatsTable.TryGetRow(equipmentData.Item_ID, out var row))
+            {
+                equipmentData.EquipSlot = row.EquipSlot;
+                equipmentData.DamageType = row.DamageType;
+                equipmentData.HealthBonus = row.HealthBonus;
+                equipmentData.PrimaryStatValue = row.PrimaryStatValue;
+                equipmentData.SecondaryStatValue = row.SecondaryStatValue;
+                equipmentData.BaseOptionStatType = row.BaseOptionStatType;
+                equipmentData.BaseOptionValue = row.BaseOptionValue;
+            }
+            else
+            {
+                Debug.LogWarning($"[ItemCatalogManager] 장비 Item_ID({equipmentData.Item_ID})에 대한 EquipmentCatalog.csv 행을 찾을 수 없습니다 - 기본값을 사용합니다.");
+            }
+        }
 
         /// <summary>레시피 시트 한 줄(컬럼 배열)을 런타임 RecipeData로 변환한다.</summary>
         private HDY.Recipe.RecipeData ParseRecipeRow(string[] cols)
@@ -482,6 +531,25 @@ private ItemData ParseItemRow(string[] cols)
 
             if (ForgeInstanceRegistry.IsCompositeId(itemId))
             {
+                // [멤] 장비 시스템: 합성 ID는 도구(대장간 강화 개체)와 장비(방어구/장신구 개체)가 같은
+                // "{BaseItemId}@{InstanceId}" 규칙을 공유한다. 예전에는 무조건 도구 프로바이더로 넘겼기 때문에
+                // 장비 개체 ID가 들어오면 null이 되어 인벤토리/툴팁이 전부 깨졌다 - 베이스 Item_ID의 카테고리를
+                // 먼저 조회해서 어느 프로바이더로 보낼지 정한다(도구 경로의 동작은 이전과 완전히 동일하다).
+                if (ForgeInstanceRegistry.TryParseCompositeId(itemId, out var baseItemId, out _)
+                    && itemDictionary.TryGetValue(baseItemId, out var baseTemplate)
+                    && baseTemplate != null
+                    && (baseTemplate.Category == ItemCategory.Armor || baseTemplate.Category == ItemCategory.Accessory))
+                {
+                    var equipmentProvider = KMS.Equipment.EquipmentInstanceItemDataProvider.Instance;
+                    if (equipmentProvider != null)
+                    {
+                        return equipmentProvider.ResolveRuntimeItemData(itemId);
+                    }
+
+                    Debug.LogWarning($"[ItemCatalogManager] 장비 개체 ID이지만 EquipmentInstanceItemDataProvider를 찾을 수 없습니다: {itemId}");
+                    return null;
+                }
+
                 var provider = ForgeInstanceItemDataProvider.Instance;
                 if (provider != null)
                 {

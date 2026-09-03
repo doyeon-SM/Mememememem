@@ -18,7 +18,7 @@ public class ChestRecordData : MonoBehaviour, IRecord
     }
 
     /// <summary>
-    /// ÇöÀç ¾À¿¡ ¹èÄ¡µÈ ¸ğµç Chest ¿ÀºêÁ§Æ®ÀÇ OpenChestId ÀÌº¥Æ®¸¦ Å½»öÇÏ¿© ±¸µ¶
+    /// ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½Ä¡ï¿½ï¿½ ï¿½ï¿½ï¿½ Chest ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ®ï¿½ï¿½ OpenChestId ï¿½Ìºï¿½Æ®ï¿½ï¿½ Å½ï¿½ï¿½ï¿½Ï¿ï¿½ ï¿½ï¿½ï¿½ï¿½
     /// </summary>
     private void SubscribeSceneChests()
     {
@@ -46,7 +46,7 @@ public class ChestRecordData : MonoBehaviour, IRecord
     }
 
     /// <summary>
-    /// »óÀÚ °³¹æ ½Ã ÀÌº¥Æ® ¼ö½Å Ã³¸®
+    /// ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½Ìºï¿½Æ® ï¿½ï¿½ï¿½ï¿½ Ã³ï¿½ï¿½
     /// </summary>
     private void OnChestOpenedHandler(string chestId)
     {
@@ -59,7 +59,8 @@ public class ChestRecordData : MonoBehaviour, IRecord
 
         if (RecordManager.Instance != null)
         {
-            SaveData(RecordManager.Instance.SaveFilePath);
+                        // [ë©¤] ì €ì¥ ë¹ˆë„ ê°ì¶• - ì¦‰ì‹œ ë””ìŠ¤í¬ ì“°ê¸° ëŒ€ì‹  ë³€ê²½ í‘œì‹œë§Œ í•œë‹¤.
+            RecordManager.NotifyDataChanged();
         }
     }
 
@@ -86,7 +87,7 @@ public class ChestRecordData : MonoBehaviour, IRecord
 
         currentData.lastSaveTime = DateTime.UtcNow.ToString("o");
         File.WriteAllText(saveFilePath, JsonUtility.ToJson(currentData, true));
-        Debug.Log("<color=lime>[ChestRecordData]</color> »óÀÚ °³¹æ »óÅÂ µ¥ÀÌÅÍ ÀúÀå ¿Ï·á!");
+        Debug.Log("<color=lime>[ChestRecordData]</color> ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½Ï·ï¿½!");
     }
 
     public void ApplyData(SaveData saveData, SceneType sceneType)
@@ -104,7 +105,7 @@ public class ChestRecordData : MonoBehaviour, IRecord
             }
         }
 
-        // ¾À ³» »óÀÚµé Áß ÀÌ¹Ì ¿­¸°(openedChestIds¿¡ Æ÷ÇÔµÈ) »óÀÚ´Â Áï½Ã ÆÄ±«
+        // ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½Úµï¿½ ï¿½ï¿½ ï¿½Ì¹ï¿½ ï¿½ï¿½ï¿½ï¿½(openedChestIdsï¿½ï¿½ ï¿½ï¿½ï¿½Ôµï¿½) ï¿½ï¿½ï¿½Ú´ï¿½ ï¿½ï¿½ï¿½ ï¿½Ä±ï¿½
         var sceneChests = FindObjectsByType<Chest>(FindObjectsInactive.Include, FindObjectsSortMode.None);
         foreach (var chest in sceneChests)
         {
@@ -118,14 +119,14 @@ public class ChestRecordData : MonoBehaviour, IRecord
             }
         }
 
-        // ÆÄ±«µÇ°í ³²Àº »óÀÚµé¿¡ ´ëÇØ ÀÌº¥Æ® Àç¿¬°á
+        // ï¿½Ä±ï¿½ï¿½Ç°ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½Úµé¿¡ ï¿½ï¿½ï¿½ï¿½ ï¿½Ìºï¿½Æ® ï¿½ç¿¬ï¿½ï¿½
         SubscribeSceneChests();
 
-        Debug.Log("<color=cyan>[ChestRecordData]</color> ÀÌ¹Ì °³¹æµÈ »óÀÚ Á¦°Å ¹× »óÅÂ µ¿±âÈ­ ¿Ï·á!");
+        Debug.Log("<color=cyan>[ChestRecordData]</color> ï¿½Ì¹ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½È­ ï¿½Ï·ï¿½!");
     }
 
     /// <summary>
-    /// Chest ½ºÅ©¸³Æ®ÀÇ chestId ÇÊµå¸¦ ¾ÈÀüÇÏ°Ô °¡Á®¿É´Ï´Ù.
+    /// Chest ï¿½ï¿½Å©ï¿½ï¿½Æ®ï¿½ï¿½ chestId ï¿½Êµå¸¦ ï¿½ï¿½ï¿½ï¿½ï¿½Ï°ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½É´Ï´ï¿½.
     /// </summary>
     private string GetChestIdReflectively(Chest chest)
     {

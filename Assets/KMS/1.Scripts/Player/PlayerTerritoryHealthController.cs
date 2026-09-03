@@ -57,7 +57,18 @@ namespace KMS
 
         public void ApplyTerritoryLevel(int level)
         {
+            ApplyTerritoryLevel(level, true);
+        }
+
+        /// <summary>
+        /// [멤] 장비 시스템: preserveMissingHealth=false로 부르면 최대 체력이 늘어도 현재 체력이 따라 오르지
+        /// 않는다("방어구로 늘어난 최대체력은 현재체력을 회복시키지 않는다" - 사용자 확정 사양).
+        /// 레벨업/포인트 투자는 기존처럼 true(부족분 유지)를 쓴다.
+        /// </summary>
+        public void ApplyTerritoryLevel(int level, bool preserveMissingHealth)
+        {
             ResolveStats();
+            ResolveCombatStats();
             if (stats == null) return;
 
             if (healthTable == null)
@@ -78,7 +89,9 @@ namespace KMS
             // [멤] 힘 스탯 배율(CharacterStatFormulas.HealthMultiplier)을 영지레벨 기반 체력에 곱연산으로 적용한다.
             float baseHealth = healthTable.GetMaxHealth(level);
             float multiplier = combatStats != null ? combatStats.GetHealthMultiplier() : 1f;
-            stats.SetMaxHealth(baseHealth * multiplier);
+            // [멤] 장비 시스템: 방어구의 HealthBonus는 스탯 배율이 아니라 고정 수치라 곱연산 뒤에 더한다.
+            float equipmentHealth = combatStats != null ? combatStats.EquipmentHealthBonus : 0f;
+            stats.SetMaxHealth(baseHealth * multiplier + equipmentHealth, preserveMissingHealth);
         }
 
         private void HandleTerritoryLevelChanged(int level)
@@ -111,9 +124,14 @@ namespace KMS
 
         private void ApplyCurrentTerritoryLevel()
         {
+            ApplyCurrentTerritoryLevel(true);
+        }
+
+        private void ApplyCurrentTerritoryLevel(bool preserveMissingHealth)
+        {
             if (territoryData != null)
             {
-                ApplyTerritoryLevel(territoryData.Level);
+                ApplyTerritoryLevel(territoryData.Level, preserveMissingHealth);
             }
         }
 
@@ -131,6 +149,12 @@ namespace KMS
         public void RefreshFromExternalStatChange()
         {
             ApplyCurrentTerritoryLevel();
+        }
+
+        // [멤] 장비 시스템: 장착/해제로 최대 체력이 바뀐 경우. 현재 체력을 그대로 두고 최대치만 갱신한다.
+        public void RefreshFromEquipmentChange()
+        {
+            ApplyCurrentTerritoryLevel(false);
         }
 
         private void ResolveTerritoryData()

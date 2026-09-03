@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Collections.Generic;
 using UnityEngine;
@@ -47,7 +47,8 @@ public class WarehouseRecordData : MonoBehaviour, IRecord
         if (RecordManager.IsLoadingData) return;
         if (RecordManager.Instance != null)
         {
-            SaveData(RecordManager.Instance.SaveFilePath);
+                        // [멤] 저장 빈도 감축 - 창고 입출고는 고빈도라 변경 표시만 한다.
+            RecordManager.NotifyDataChanged();
         }
     }
 

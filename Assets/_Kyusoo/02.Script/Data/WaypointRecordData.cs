@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Collections.Generic;
 using UnityEngine;
@@ -46,7 +46,8 @@ public class WaypointRecordData : MonoBehaviour, IRecord
 
         if (RecordManager.Instance != null)
         {
-            SaveData(RecordManager.Instance.SaveFilePath);
+                        // [멤] 중요행동 - 웨이포인트 등록은 다시 가서 따야 하는 진척이므로 즉시 저장한다.
+            RecordManager.NotifyCriticalAction(RecordManager.SaveReason.WaypointRegister);
         }
     }
 

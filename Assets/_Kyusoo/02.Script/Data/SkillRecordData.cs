@@ -95,7 +95,8 @@ public class SkillRecordData : MonoBehaviour, IRecord
         if (RecordManager.IsLoadingData) return;
         if (RecordManager.Instance == null) return;
 
-        SaveData(RecordManager.Instance.SaveFilePath);
+        // [멤] 저장 빈도 감축 - 스킬 장착/쿨타임 변동은 고빈도라 변경 표시만 한다.
+        RecordManager.NotifyDataChanged();
     }
 
     public void InitDefaultData(ref SaveData saveData)

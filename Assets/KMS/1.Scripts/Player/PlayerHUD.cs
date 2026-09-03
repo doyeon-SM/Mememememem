@@ -205,6 +205,15 @@ private void Update()
             float specialCooldownRemaining = specialSkill != null ? weaponSkillController.GetSkillCooldownRemaining(specialSkill.Skill_ID) : 0f;
             float specialCooldownTotal = specialSkill != null ? specialSkill.Cooldown : 0f;
             hudView.SetSpecialSkillSlotData(specialIcon, specialCooldownRemaining, specialCooldownTotal);
+
+            // [멤] 무기 고유 스킬 2칸(좌클릭 기본공격 / Ctrl 돌진기). 로드아웃(플레이어가 등록하는 스킬)과 달리
+            // 지금 들고 있는 무기 데이터가 직접 지정하는 스킬이라, 무기를 바꾸면 이 두 칸의 아이콘도 함께 바뀐다.
+            weaponSkillController.GetEquippedWeaponSkills(out SkillData basicAttackSkill, out SkillData dashSkill);
+            Sprite basicAttackIcon = basicAttackSkill != null ? basicAttackSkill.SkillIcon : null;
+            Sprite dashIcon = dashSkill != null ? dashSkill.SkillIcon : null;
+            float dashCooldownRemaining = dashSkill != null ? weaponSkillController.GetSkillCooldownRemaining(dashSkill.Skill_ID) : 0f;
+            float dashCooldownTotal = dashSkill != null ? dashSkill.Cooldown : 0f;
+            hudView.SetWeaponSkillSlots(basicAttackIcon, dashIcon, dashCooldownRemaining, dashCooldownTotal);
         }
 
         // [멤] RecordManager.OnSceneLoadedTrigger와 동일한 방식(씬 이름에 "main_world" 포함 여부)으로

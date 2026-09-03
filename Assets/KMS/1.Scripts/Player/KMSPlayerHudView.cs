@@ -72,6 +72,10 @@ namespace KMS
         [SerializeField] private KMSSkillSlotView[] skillSlots = new KMSSkillSlotView[4];
         [Tooltip("5등급 특수 칸(R키 발동) - 같은 스킬 패널 안에 배치하되 장전 큐 시스템과는 무관해서 배열이 아닌 별도 필드로 관리한다.")]
         [SerializeField] private KMSSkillSlotView specialSkillSlot;
+        [Tooltip("[무기 고유 스킬] 좌클릭 기본공격 칸. 무기 데이터가 지정한 기본공격 스킬의 아이콘을 표시한다(쿨타임은 표시하지 않는다).")]
+        [SerializeField] private KMSSkillSlotView basicAttackSkillSlot;
+        [Tooltip("[무기 고유 스킬] Ctrl 돌진기(이동기) 칸. 아이콘 + 남은 쿨타임을 표시한다.")]
+        [SerializeField] private KMSSkillSlotView dashSkillSlot;
 
         [Header("Responsive Layout")]
         [SerializeField, Range(0.1f, 1f)] private float survivalWidthRatio = 0.42f;
@@ -528,6 +532,26 @@ namespace KMS
             if (specialSkillSlot == null) return;
             specialSkillSlot.SetSkill(icon);
             specialSkillSlot.SetCooldown(cooldownRemaining, cooldownTotal);
+        }
+
+        /// <summary>
+        /// [멤] 무기 고유 스킬 2칸(좌클릭 기본공격 / Ctrl 돌진기)을 갱신한다. 기본공격은 재사용 대기시간을
+        /// 표시하지 않기로 했으므로(사용자 확정 사양) cooldownTotal에 0을 넘겨 오버레이가 자동으로 숨겨지게 한다.
+        /// 두 칸 모두 로드아웃 4칸/특수 칸과 동일한 KMSSkillSlotView를 그대로 재사용한다.
+        /// </summary>
+        public void SetWeaponSkillSlots(Sprite basicAttackIcon, Sprite dashIcon, float dashCooldownRemaining, float dashCooldownTotal)
+        {
+            if (basicAttackSkillSlot != null)
+            {
+                basicAttackSkillSlot.SetSkill(basicAttackIcon);
+                basicAttackSkillSlot.SetCooldown(0f, 0f);
+            }
+
+            if (dashSkillSlot != null)
+            {
+                dashSkillSlot.SetSkill(dashIcon);
+                dashSkillSlot.SetCooldown(dashCooldownRemaining, dashCooldownTotal);
+            }
         }
 
         private KMSSkillSlotView GetSkillSlot(int slotIndex)

@@ -81,6 +81,8 @@ namespace KMS
         public bool IsGrounded { get; private set; }
         public bool IsSprinting { get; private set; }
         public bool IsOnLadder => activeLadder != null;
+        /// <summary>[멤] 지금 무기 이동기(돌진) 중인지 여부. 돌진 중에는 이동/점프 입력이 무시된다.</summary>
+        public bool IsDashing => isDashing;
         public float CurrentSpeed { get; private set; }
         public float VerticalVelocity => verticalVelocity;
         public Vector3 LastMoveDirection { get; private set; } = Vector3.forward;
@@ -110,6 +112,13 @@ namespace KMS
         private LadderVolume activeLadder;
         private float climbAnimationCycle;
         private bool isDead;
+        // [멤] 무기 고유 이동기(돌진기) 상태. 사다리(activeLadder)와 동일하게 "일반 이동 로직을 통째로 대체하는
+        // 별도 이동 모드"로 구현했다 - 돌진 중에는 중력/이동입력/점프를 전부 무시하고 수평 방향으로만 등속 이동한다.
+        private bool isDashing;
+        private Vector3 dashDirection;
+        private float dashSpeed;
+        private float dashRemainingDistance;
+        private float dashTimeRemaining;
         private Vector3 stepVisualBaseLocalPosition;
         private float stepVisualOffset;
         private float stepVisualOffsetVelocity;
@@ -187,7 +196,14 @@ namespace KMS
                 return;
             }
 
-            if (activeLadder != null)
+            // [멤] 돌진 중에는 사다리/일반 이동/점프 로직을 전부 건너뛰고 돌진 전용 이동만 수행한다.
+            if (isDashing)
+            {
+                UpdateGroundedState();
+                UpdateTimers();
+                HandleDashMovement();
+            }
+            else if (activeLadder != null)
             {
                 HandleLadderMovement();
             }
@@ -223,6 +239,8 @@ namespace KMS
 
         public void SetPosition(Vector3 position)
         {
+            CancelDash();
+
             bool wasEnabled = characterController.enabled;
             characterController.enabled = false;
             transform.position = position;
@@ -325,10 +343,98 @@ namespace KMS
             jumpBufferTimer = 0f;
         }
 
+        /// <summary>
+        /// [멤] 무기 고유 이동기(돌진) 시작. direction은 수평 성분만 사용하며(y는 버림), distance(m)를
+        /// duration(초) 동안 등속으로 이동한다. 돌진 중에는 중력이 적용되지 않아 내리막에서는 직선으로
+        /// 날아간 뒤 돌진이 끝나는 시점부터 낙하하고, 오르막/작은 단차는 CharacterController의
+        /// slopeLimit/stepOffset이 자동으로 보정해준다. 벽이나 오브젝트에 막히면 그 자리에서 즉시 종료된다.
+        /// 이미 돌진 중이거나 사망/사다리 상태면 false를 반환한다.
+        /// </summary>
+        public bool BeginDash(Vector3 direction, float distance, float duration)
+        {
+            if (isDashing || isDead || activeLadder != null) return false;
+            if (distance <= 0f || duration <= 0f) return false;
+
+            direction.y = 0f;
+            if (direction.sqrMagnitude < 0.0001f) direction = rotationTransform != null ? rotationTransform.forward : transform.forward;
+            direction.y = 0f;
+            if (direction.sqrMagnitude < 0.0001f) return false;
+
+            isDashing = true;
+            dashDirection = direction.normalized;
+            dashRemainingDistance = distance;
+            dashTimeRemaining = duration;
+            dashSpeed = distance / duration;
+
+            // [멤] 돌진 시작 시점의 관성/낙하 상태를 정리한다 - 돌진 자체는 낙하가 아니므로 낙하 추적도 초기화하고
+            // (돌진 직후의 착지는 낙하 데미지 대상이 아님), 돌진이 끝난 뒤부터 다시 자연스럽게 낙하가 시작된다.
+            verticalVelocity = 0f;
+            externalVelocity = Vector3.zero;
+            CurrentSpeed = 0f;
+            IsSprinting = false;
+            jumpBufferTimer = 0f;
+            ResetFallTracking(true);
+            return true;
+        }
+
+        /// <summary>[멤] 진행 중인 돌진을 즉시 중단한다(사망/씬 전환 등 외부 상태 전환용).</summary>
+        public void CancelDash()
+        {
+            if (isDashing) EndDash();
+        }
+
+        private void HandleDashMovement()
+        {
+            RotateTowards(dashDirection);
+
+            float step = Mathf.Min(dashSpeed * Time.deltaTime, dashRemainingDistance);
+            if (step <= 0f)
+            {
+                EndDash();
+                return;
+            }
+
+            Vector3 previousPosition = transform.position;
+            CollisionFlags collisionFlags = characterController.Move(dashDirection * step);
+            wasGroundedByController = (collisionFlags & CollisionFlags.Below) != 0;
+
+            // [멤] 남은 거리는 "실제로 수평으로 이동한 거리"만큼만 차감한다 - 오르막을 타고 위로 밀려 올라간
+            // 성분은 돌진 거리에 포함하지 않아야 경사 유무와 무관하게 항상 같은 수평 거리를 이동하게 된다.
+            Vector3 delta = transform.position - previousPosition;
+            delta.y = 0f;
+            float traveled = delta.magnitude;
+            dashRemainingDistance -= traveled;
+            dashTimeRemaining -= Time.deltaTime;
+
+            // [멤] 요청한 거리의 25%도 못 갔다면 벽/오브젝트에 막힌 것으로 보고 그 자리에서 돌진을 끝낸다
+            // (막힌 채로 남은 시간 동안 벽에 비벼지는 것을 방지).
+            bool blocked = traveled < step * 0.25f;
+
+            if (blocked || dashRemainingDistance <= 0.001f || dashTimeRemaining <= 0f)
+            {
+                EndDash();
+            }
+        }
+
+        private void EndDash()
+        {
+            isDashing = false;
+            dashRemainingDistance = 0f;
+            dashTimeRemaining = 0f;
+            CurrentSpeed = 0f;
+
+            // [멤] 돌진 종료 시점의 수직 속도를 0으로 맞춰, 여기서부터 중력이 다시 붙어 자연스럽게 낙하하도록 한다.
+            // 이때부터의 낙하는 정상적인 낙하이므로 착지 알림(낙하 데미지)도 다시 활성화한다.
+            verticalVelocity = 0f;
+            ResetFallTracking(false);
+        }
+
         public void SetDead(bool dead)
         {
             isDead = dead;
             if (!dead) return;
+
+            CancelDash();
 
             activeLadder = null;
             candidateLadder = null;

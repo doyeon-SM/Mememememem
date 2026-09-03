@@ -22,7 +22,8 @@ public class ForgeRecordData : MonoBehaviour, IRecord
 
         if (RecordManager.Instance != null)
         {
-            SaveData(RecordManager.Instance.SaveFilePath);
+                        // [ë©¤] ì €ì¥ ë¹ˆë„ ê°ì¶• - ëŒ€ì¥ê°„ ì§„í–‰ ë³€ë™ì€ ê³ ë¹ˆë„ë¼ ë³€ê²½ í‘œì‹œë§Œ í•œë‹¤.
+            RecordManager.NotifyDataChanged();
         }
     }
 
@@ -46,7 +47,7 @@ public class ForgeRecordData : MonoBehaviour, IRecord
         currentData.lastSaveTime = DateTime.UtcNow.ToString("o");
 
         File.WriteAllText(saveFilePath, JsonUtility.ToJson(currentData, true));
-        Debug.Log("<color=lime>[ForgeRecordData]</color> ´ëÀå°£ µµ±¸ ÀÎ½ºÅÏ½º µ¥ÀÌÅÍ ¹é¾÷ ¿Ï·á!");
+        Debug.Log("<color=lime>[ForgeRecordData]</color> ï¿½ï¿½ï¿½å°£ ï¿½ï¿½ï¿½ï¿½ ï¿½Î½ï¿½ï¿½Ï½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ ï¿½Ï·ï¿½!");
     }
 
     public void ApplyData(SaveData saveData, SceneType sceneType)
@@ -57,13 +58,13 @@ public class ForgeRecordData : MonoBehaviour, IRecord
 
         if (registry == null) return;
 
-        // 1. ¸Ş¸ğ¸® ·¹Áö½ºÆ®¸®¿¡ ÀúÀåµÈ ForgeInstanceData ¸®½ºÆ® º¹¿ø
+        // 1. ï¿½Ş¸ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ®ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ ForgeInstanceData ï¿½ï¿½ï¿½ï¿½Æ® ï¿½ï¿½ï¿½ï¿½
         if (saveData.forgeInstanceDataList != null)
         {
             registry.RestoreInstances(saveData.forgeInstanceDataList);
         }
 
-        // 2. ·±Å¸ÀÓ ItemData Ä³½Ã °»½Å
+        // 2. ï¿½ï¿½Å¸ï¿½ï¿½ ItemData Ä³ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
         var itemDataProvider = ForgeInstanceItemDataProvider.Instance != null
             ? ForgeInstanceItemDataProvider.Instance
             : FindFirstObjectByType<ForgeInstanceItemDataProvider>();
@@ -79,6 +80,6 @@ public class ForgeRecordData : MonoBehaviour, IRecord
             }
         }
 
-        Debug.Log("<color=cyan>[ForgeRecordData]</color> ´ëÀå°£ µµ±¸ ÀÎ½ºÅÏ½º µ¥ÀÌÅÍ º¹±¸ ¿Ï·á!");
+        Debug.Log("<color=cyan>[ForgeRecordData]</color> ï¿½ï¿½ï¿½å°£ ï¿½ï¿½ï¿½ï¿½ ï¿½Î½ï¿½ï¿½Ï½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½Ï·ï¿½!");
     }
 }

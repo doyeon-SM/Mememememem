@@ -30,6 +30,8 @@ namespace KMS.Combat
             public int ProjectileDamage;
             public float ProjectileAttackCooldown;
             public WeaponDamageType DamageType;
+            public string BasicAttackSkillId;
+            public string DashSkillId;
         }
 
         private readonly Dictionary<string, Row> rowsByItemId = new Dictionary<string, Row>();
@@ -60,6 +62,9 @@ namespace KMS.Combat
                     ProjectileDamage = ParseInt(cols[6]),
                     ProjectileAttackCooldown = ParseFloat(cols[7]),
                     DamageType = cols.Length >= 9 ? ParseDamageType(cols[8]) : WeaponDamageType.Physical,
+                    // [멤] 무기 고유 스킬(기본공격/돌진기) ID. 기존 9컬럼 데이터는 빈 문자열이 되어 예전 방식으로 자동 폴백된다.
+                    BasicAttackSkillId = cols.Length >= 10 ? cols[9].Trim() : string.Empty,
+                    DashSkillId = cols.Length >= 11 ? cols[10].Trim() : string.Empty,
                 };
             }
         }

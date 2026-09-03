@@ -12,10 +12,16 @@ using System.IO;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using TMPro;
 
 public class RecordManager : MonoBehaviour
 {
     public static RecordManager Instance { get; private set; }
+
+    // [멤] "저장중" 표시에 쓸 폰트. 비워두면 SaveIndicatorUI가 현재 씬 HUD 텍스트에서
+    // 한글을 그릴 수 있는 폰트를 자동으로 찾아 쓴다. (예: Jalnan2 SDF, MaruMinyaHangul SDF)
+    [Header("[멤] 저장중 표시 폰트 (선택)")]
+    [SerializeField] private TMP_FontAsset saveIndicatorFont;
 
     private string saveFilePath;
     public string SaveFilePath => saveFilePath;
@@ -40,7 +46,19 @@ public class RecordManager : MonoBehaviour
             Destroy(gameObject);
             return;
         }
+
+        // [멤] 저장중 표시기를 여기에 붙여둔다. RecordManager가 DontDestroyOnLoad이므로
+        // 캐릭터 씬(월드)든 영지 씬이든 같은 표시기가 그대로 따라다닌다.
+        SaveIndicatorUI.EnsureAttached(gameObject, saveIndicatorFont);
+
         Debug.Log($"[세이브 파일 실물 위치] : {Application.persistentDataPath}");
+    }
+
+    private void Start()
+    {
+        // [멤] 5분 자동저장 시작. Instance가 아닌 중복 오브젝트는 Awake에서 이미 파괴된다.
+        if (Instance != this) return;
+        StartAutoSaveRoutine();
     }
 
     private void OnEnable()
@@ -108,6 +126,7 @@ public class RecordManager : MonoBehaviour
             waypointInfo = new List<WaypointInfo>(),
             chestInfo = new List<ChestInfo>(),
             forgeInstanceDataList = new List<ForgeInstanceData>(),
+            equipmentInstanceDataList = new List<KMS.Equipment.EquipmentInstanceData>(),
             tutorialData = new TutorialProgressSnapshot(),
             playerPosDataList = new List<ScenePlayerPosData>
             {
@@ -128,6 +147,13 @@ public class RecordManager : MonoBehaviour
         for (int i = 0; i < 10; i++)
         {
             data.playerQuickSlotsData.slots.Add(new ItemStackData { itemId = "", amount = 0 });
+        }
+
+        // 3. [멤] 장비 장착창 기본 구조 (12칸: 방어구 4 + 장신구 8)
+        data.playerEquipmentData = new ContainerData { width = KMS.Equipment.EquipmentSlotLayout.TotalSlotCount, height = 1, slots = new List<ItemStackData>() };
+        for (int i = 0; i < KMS.Equipment.EquipmentSlotLayout.TotalSlotCount; i++)
+        {
+            data.playerEquipmentData.slots.Add(new ItemStackData { itemId = "", amount = 0 });
         }
         data.selectedQuickSlotIndex = 0;
         data.unlockedInventorySlotCount = 10;
@@ -164,25 +190,196 @@ public class RecordManager : MonoBehaviour
         return data;
     }
 
+    /// <summary>
+    /// [멤] 씬 전환 등 "무조건 지금 저장해야 하는" 상황용. 쿨다운을 무시하고 즉시 전체 저장한다.
+    /// (기존 호출부 호환용 - LoadingManager가 이 시그니처로 부른다.)
+    /// </summary>
     public void SaveAllData()
     {
+        ExecuteSaveInternal(SaveReason.SceneChange, true);
+    }
+
+    // ==================================================================================
+    // [멤] 저장 빈도 감축 시스템
+    // ----------------------------------------------------------------------------------
+    // 예전에는 각 RecordData가 이벤트(인벤토리 변경, 창고 변경, 시설 가동, 멤 포획, 장비 변경 등)를
+    // 받을 때마다 세이브 파일 전체를 읽고 다시 쓰는 구조였다. 이벤트가 초 단위로 쏟아지는 시스템이
+    // 많아서 디스크 쓰기가 과도했고, 그만큼 프레임 스파이크와 파일 오염 위험도 커졌다.
+    //
+    // 이제는 저장 시점을 아래 3종류로만 좁힌다.
+    //   1) 5분 자동저장       - AutoSaveRoutine (변경사항이 있을 때만)
+    //   2) 중요행동 즉시저장   - NotifyCriticalAction(SaveReason)
+    //   3) 안전장치           - 씬 전환 / 게임 종료 / 일시정지(백그라운드 전환)
+    // 그 외 모든 변경은 NotifyDataChanged()로 "변경됨(dirty)" 표시만 남기고 디스크를 건드리지 않는다.
+    // ==================================================================================
+
+    /// <summary>[멤] 저장이 일어난 이유. 로그와 "저장중" UI 표시에 쓰인다.</summary>
+    public enum SaveReason
+    {
+        AutoSave,          // 5분 자동저장
+        RecipeUnlock,      // 여신상 / 요리 제작법 해금 (레벨업 포함)
+        WaypointRegister,  // 월드 웨이포인트 등록
+        TerritoryLevelUp,  // 영지 레벨업 / 영지 확장
+        FacilityChanged,   // 시설 신축 / 철거
+        PlayerLifecycle,   // 플레이어 사망 / 부활
+        MemFirstCapture,   // 멤 최초 포획 (도감 신규 등록)
+        TutorialStep,      // 튜토리얼 단계 완료
+        SceneChange,       // 씬 전환
+        ApplicationQuit,   // 게임 종료 / 백그라운드 전환
+        Manual             // 수동 호출 (디버그 등)
+    }
+
+    /// <summary>[멤] 디스크 쓰기 직전에 발생. SaveIndicatorUI가 "저장중" 표시에 사용한다.</summary>
+    public static event Action<SaveReason> OnSaveStarted;
+
+    /// <summary>[멤] 디스크 쓰기가 끝난 직후 발생.</summary>
+    public static event Action<SaveReason> OnSaveCompleted;
+
+    [Header("[멤] 저장 빈도 설정")]
+    [Tooltip("변경사항이 있을 때 이 주기마다 한 번씩 자동저장한다.")]
+    [SerializeField, Min(10f)] private float autoSaveInterval = 300f;
+
+    [Tooltip("중요행동이 연달아 발생해도 이 시간 안에는 두 번 쓰지 않는다. 밀린 저장은 곧바로 예약 실행된다.")]
+    [SerializeField, Min(0f)] private float minSaveCooldown = 1f;
+
+    private bool isDirty = false;
+    private float lastSaveRealtime = -999f;
+    private Coroutine autoSaveRoutine;
+    private Coroutine pendingSaveRoutine;
+
+    /// <summary>[멤] 마지막 저장 이후 바뀐 내용이 있는지.</summary>
+    public bool IsDirty => isDirty;
+
+    /// <summary>
+    /// [멤] "데이터가 바뀌었다"고만 알린다. 디스크는 건드리지 않는다.
+    /// 고빈도 이벤트(인벤토리/창고/시설 가동/장비/스킬 등)는 전부 이 메서드를 쓴다.
+    /// </summary>
+    public static void NotifyDataChanged()
+    {
+        if (Instance == null) return;
         if (IsLoadingData || IsSceneUnloading) return;
+
+        Instance.isDirty = true;
+    }
+
+    /// <summary>
+    /// [멤] 중요행동이 일어났으니 지금 저장한다. (여신상 해금, 웨이포인트 등록, 영지 레벨업,
+    /// 시설 신축/철거, 사망/부활, 멤 최초 포획, 튜토리얼 단계 완료)
+    /// </summary>
+    public static void NotifyCriticalAction(SaveReason reason)
+    {
+        if (Instance == null) return;
+
+        Instance.isDirty = true;
+        Instance.ExecuteSaveInternal(reason, false);
+    }
+
+    private void StartAutoSaveRoutine()
+    {
+        StopAutoSaveRoutine();
+        autoSaveRoutine = StartCoroutine(AutoSaveRoutine());
+    }
+
+    private void StopAutoSaveRoutine()
+    {
+        if (autoSaveRoutine != null)
+        {
+            StopCoroutine(autoSaveRoutine);
+            autoSaveRoutine = null;
+        }
+    }
+
+    private IEnumerator AutoSaveRoutine()
+    {
+        while (true)
+        {
+            yield return new WaitForSecondsRealtime(autoSaveInterval);
+
+            if (isDirty)
+            {
+                ExecuteSaveInternal(SaveReason.AutoSave, true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// [멤] 쿨다운에 걸려 미뤄진 저장을 잠시 뒤에 반드시 실행해준다.
+    /// (여신상을 연속으로 해금하는 등 중요행동이 몰려도 마지막 상태가 유실되지 않게 한다.)
+    /// </summary>
+    private IEnumerator DeferredSaveRoutine(SaveReason reason, float delay)
+    {
+        yield return new WaitForSecondsRealtime(delay);
+        pendingSaveRoutine = null;
+
+        if (isDirty)
+        {
+            ExecuteSaveInternal(reason, true);
+        }
+    }
+
+    /// <summary>
+    /// [멤] 실제 디스크 쓰기. 모든 저장 경로는 결국 여기로 모인다.
+    /// </summary>
+    private void ExecuteSaveInternal(SaveReason reason, bool ignoreCooldown)
+    {
+        if (IsLoadingData || IsSceneUnloading) return;
+
         string currentScene = SceneManager.GetActiveScene().name.ToLower();
         if (currentScene.Contains("title"))
         {
             Debug.LogWarning("<color=yellow>[RecordManager]</color> ⚠️ 타이틀 씬에서는 세이브 파일 덮어쓰기를 방지합니다.");
             return;
         }
+
+        float elapsed = Time.realtimeSinceStartup - lastSaveRealtime;
+        if (!ignoreCooldown && elapsed < minSaveCooldown)
+        {
+            isDirty = true;
+            if (pendingSaveRoutine == null && isActiveAndEnabled)
+            {
+                pendingSaveRoutine = StartCoroutine(DeferredSaveRoutine(reason, minSaveCooldown - elapsed));
+            }
+            return;
+        }
+
+        OnSaveStarted?.Invoke(reason);
+
         List<IRecord> subRecords = FindObjectsByType<MonoBehaviour>(FindObjectsInactive.Include, FindObjectsSortMode.None)
                                       .OfType<IRecord>()
                                       .ToList();
 
         foreach (var record in subRecords)
         {
-            record.SaveData(saveFilePath);
+            try
+            {
+                record.SaveData(saveFilePath);
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[RecordManager] {record.GetType().Name}.SaveData 예외: {e.Message}");
+            }
         }
 
-        Debug.Log("<color=lime>[RecordManager]</color> 💾 씬 전환 전 전체 데이터 통합 세이브 완료!");
+        lastSaveRealtime = Time.realtimeSinceStartup;
+        isDirty = false;
+
+        OnSaveCompleted?.Invoke(reason);
+        Debug.Log($"<color=lime>[RecordManager]</color> 💾 전체 데이터 저장 완료! (사유: {reason})");
+    }
+
+    // [멤] 안전장치 - 게임을 정상 종료하거나 창을 이탈할 때는 변경사항을 무조건 밀어 넣는다.
+    private void OnApplicationQuit()
+    {
+        if (Instance != this) return;
+        ExecuteSaveInternal(SaveReason.ApplicationQuit, true);
+    }
+
+    private void OnApplicationPause(bool pauseStatus)
+    {
+        if (Instance != this) return;
+        if (!pauseStatus || !isDirty) return;
+
+        ExecuteSaveInternal(SaveReason.ApplicationQuit, true);
     }
 
     /// <summary>
@@ -333,6 +530,10 @@ public class RecordManager : MonoBehaviour
 
             var forgeRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "ForgeRecordData");
             forgeRecord?.ApplyData(saveData, sceneType);
+
+            // [멤] 장비 시스템 - 이 목록에 등록하지 않으면 EquipmentRecordData.ApplyData가 아예 호출되지 않는다.
+            var equipmentRecord = subRecords.FirstOrDefault(rec => rec.GetType().Name == "EquipmentRecordData");
+            equipmentRecord?.ApplyData(saveData, sceneType);
 
             var playerStatsRecord = subRecords.FirstOrDefault(r => r.GetType().Name == "PlayerStatsRecordData");
             playerStatsRecord?.ApplyData(saveData, sceneType);

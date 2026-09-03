@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Linq;
 using System.Collections.Generic;
@@ -12,7 +12,8 @@ public class FacilityRecordData : MonoBehaviour, IRecord
 {
     private void OnEnable()
     {
-        GridManager.OnGridDataChanged += OnFacilityDataChanged;
+                // [멤] 그리드 변경 = 시설 신축/철거. 중요행동이므로 다른 시설 이벤트와 분리해서 받는다.
+        GridManager.OnGridDataChanged += OnGridStructureChangedHandler;
         FacilityCollectManager.OnFacilityChangedEvent += OnFacilityCollectChangedHandler;
 
         ProductionFacilityRuntime.OnMemDeploymentChanged += OnFacilityDataChanged;
@@ -47,7 +48,7 @@ public class FacilityRecordData : MonoBehaviour, IRecord
 
     private void OnDisable()
     {
-        GridManager.OnGridDataChanged -= OnFacilityDataChanged;
+                GridManager.OnGridDataChanged -= OnGridStructureChangedHandler;
         FacilityCollectManager.OnFacilityChangedEvent -= OnFacilityCollectChangedHandler;
 
         ProductionFacilityRuntime.OnMemDeploymentChanged -= OnFacilityDataChanged;
@@ -94,24 +95,37 @@ public class FacilityRecordData : MonoBehaviour, IRecord
     private void OnFacilityStartedHandler(BuildingType type, List<MemData> mems, List<Transform> positions) => OnFacilityDataChanged();
     private void OnFacilityStoppedHandler(BuildingType type, List<MemData> mems, FacilityStopReason reason, List<Transform> positions) => OnFacilityDataChanged();
 
+    /// <summary>
+    /// [멤] 시설 가동/정지/멤 배치 등 고빈도 변동. 변경 표시만 남기고 디스크는 건드리지 않는다.
+    /// </summary>
     private void OnFacilityDataChanged()
     {
         if (RecordManager.IsLoadingData || RecordManager.IsSceneUnloading) return;
+        if (IsGridInPlacementMode()) return;
 
+        RecordManager.NotifyDataChanged();
+    }
+
+    /// <summary>
+    /// [멤] 중요행동 - 시설 신축/철거는 자원을 소모하는 확정 행동이라 즉시 저장한다.
+    /// 단, 배치 모드(미리보기 드래그 중)에서는 아직 확정된 배치가 아니므로 건너뛴다.
+    /// </summary>
+    private void OnGridStructureChangedHandler()
+    {
+        if (RecordManager.IsLoadingData || RecordManager.IsSceneUnloading) return;
+        if (IsGridInPlacementMode()) return;
+
+        RecordManager.NotifyCriticalAction(RecordManager.SaveReason.FacilityChanged);
+    }
+
+    /// <summary>[멤] 그리드가 배치(미리보기) 모드인지 — 이 상태의 중간 데이터는 저장하면 안 된다.</summary>
+    private bool IsGridInPlacementMode()
+    {
         var gridManager = FindFirstObjectByType<GridManager>();
-        if (gridManager != null)
-        {
-            var fieldInfo = typeof(GridManager).GetField("isPlacementMode", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
-            if (fieldInfo != null && (bool)fieldInfo.GetValue(gridManager))
-            {
-                return;
-            }
-        }
+        if (gridManager == null) return false;
 
-        if (RecordManager.Instance != null)
-        {
-            SaveData(RecordManager.Instance.SaveFilePath);
-        }
+        var fieldInfo = typeof(GridManager).GetField("isPlacementMode", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+        return fieldInfo != null && (bool)fieldInfo.GetValue(gridManager);
     }
 
     public void InitDefaultData(ref SaveData saveData)

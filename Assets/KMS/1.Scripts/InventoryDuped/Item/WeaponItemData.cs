@@ -18,6 +18,13 @@ namespace KMS.Combat
         [Tooltip("이 무기의 데미지 타입 - 공격력(힘/민첩) 또는 마력(지능/행운) 중 어느 스탯 조합을 사용할지 결정한다. 스킬도 자신의 DamageType을 가지며, 장착 무기 타입과 다르면 스킬 사용이 제한된다(PlayerWeaponSkillController 참고).")]
         public WeaponDamageType DamageType = WeaponDamageType.Physical;
 
+        [Header("무기 고유 스킬 (스킬화된 기본공격/이동기)")]
+        [Tooltip("이 무기의 고유 기본공격(좌클릭) 스킬 Skill_ID. SkillCatalog.csv의 Grade 0(무기 전용) 행을 가리킨다. 비어있으면 아래 Ranged Attack 필드(예전 방식)로 폴백한다. 무기가 강화되면 이 ID만 바꿔서 기본공격 자체를 통째로 교체할 수 있다.")]
+        public string BasicAttackSkillId;
+
+        [Tooltip("이 무기의 고유 이동기(Ctrl 돌진) 스킬 Skill_ID. CastType이 Dash인 스킬이어야 하며, 비어있으면 이 무기로는 돌진기를 쓸 수 없다.")]
+        public string DashSkillId;
+
         [Header("Melee Attack")]
 
         [Min(0.1f)]

@@ -39,7 +39,7 @@ public class CookRecipeRecordData : MonoBehaviour, IRecord
     }
 
     /// <summary>
-    /// »õ·Î¿î ¿ä¸® ·¹½ÃÇÇ ÇØ±İ ÀÌº¥Æ® ¹ß»ı ½Ã ½Ç½Ã°£ ¼¼ÀÌºê ÁøÇà
+    /// ï¿½ï¿½ï¿½Î¿ï¿½ ï¿½ä¸® ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ø±ï¿½ ï¿½Ìºï¿½Æ® ï¿½ß»ï¿½ ï¿½ï¿½ ï¿½Ç½Ã°ï¿½ ï¿½ï¿½ï¿½Ìºï¿½ ï¿½ï¿½ï¿½ï¿½
     /// </summary>
     private void OnRecipeUnlockedHandler(CookRecipeData unlockedRecipe)
     {
@@ -47,7 +47,8 @@ public class CookRecipeRecordData : MonoBehaviour, IRecord
 
         if (RecordManager.Instance != null)
         {
-            SaveData(RecordManager.Instance.SaveFilePath);
+                        // [ë©¤] ì¤‘ìš”í–‰ë™ - ì œì‘ë²• í•´ê¸ˆì€ ë˜ëŒë¦¬ê¸° ì–´ë ¤ìš´ ì§„ì²™ì´ë¯€ë¡œ ì¦‰ì‹œ ì €ì¥í•œë‹¤.
+            RecordManager.NotifyCriticalAction(RecordManager.SaveReason.RecipeUnlock);
         }
     }
 

@@ -183,7 +183,58 @@ namespace KMS.InventoryDuped
                 return;
             }
 
+            // [멤] 장비 시스템 - 방어구/장신구는 부위/체력/스탯/옵션을 태그로 보여준다.
+            if (item is KMS.Equipment.EquipmentItemData equipmentData)
+            {
+                CreateEquipmentEffectTags(equipmentData);
+                return;
+            }
+
             CreateRefinementEffectTags(item);
+        }
+
+        /// <summary>
+        /// [멤] 장비 툴팁 태그. 방어구는 체력+주스탯+부스탯을, 장신구는 기본옵션을 보여주고,
+        /// 합성 ID(개체)라면 개체별 연마 옵션/특수옵션도 이어서 표시한다(읽기 전용 조회라 부수효과 없음).
+        /// </summary>
+        private void CreateEquipmentEffectTags(KMS.Equipment.EquipmentItemData item)
+        {
+            CreateTag($"부위: {KMS.Equipment.EquipmentSlotLayout.GetDisplayName(item.EquipSlot)}", categoryBackgroundColor, lightTextColor);
+
+            if (item.IsArmor)
+            {
+                if (item.HealthBonus > 0) CreateTag($"체력 +{item.HealthBonus}", effectBackgroundColor, lightTextColor);
+                if (item.PrimaryStatValue > 0) CreateTag($"{KMS.Equipment.EquipmentOptionData.GetStatDisplayName(item.PrimaryStatType)} +{item.PrimaryStatValue}", effectBackgroundColor, lightTextColor);
+                if (item.SecondaryStatValue > 0) CreateTag($"{KMS.Equipment.EquipmentOptionData.GetStatDisplayName(item.SecondaryStatType)} +{item.SecondaryStatValue}", effectBackgroundColor, lightTextColor);
+            }
+            else if (item.BaseOptionValue > 0)
+            {
+                CreateTag($"기본옵션: {KMS.Equipment.EquipmentOptionData.GetStatDisplayName(item.BaseOptionStatType)} +{item.BaseOptionValue}", effectBackgroundColor, lightTextColor);
+            }
+
+            var registry = KMS.Equipment.EquipmentInstanceRegistry.Resolve(null);
+            var instance = registry != null ? registry.GetInstanceByCompositeId(item.Item_ID) : null;
+            if (instance == null) return;
+
+            if (instance.RefinementOptions != null)
+            {
+                for (int i = 0; i < instance.RefinementOptions.Count; i++)
+                {
+                    var option = instance.RefinementOptions[i];
+                    if (option == null || option.Value == 0) continue;
+                    CreateTag($"연마: {option.Format()}", rareRefinementColor, darkTextColor);
+                }
+            }
+
+            if (instance.SpecialOptions != null)
+            {
+                for (int i = 0; i < instance.SpecialOptions.Count; i++)
+                {
+                    var option = instance.SpecialOptions[i];
+                    if (option == null || option.Value == 0) continue;
+                    CreateTag($"특수옵션: {option.Format()}", epicRefinementColor, lightTextColor);
+                }
+            }
         }
 
         /// <summary>
@@ -252,6 +303,13 @@ namespace KMS.InventoryDuped
                     return "스킬북";
                 case HDY.Item.ItemCategory.UltimateSkillBook:
                     return "궁극의 스킬북";
+                // [멤] 장비 시스템 - 방어구/장신구(및 그동안 빠져있던 무기) 카테고리 표기.
+                case HDY.Item.ItemCategory.Weapon:
+                    return "무기";
+                case HDY.Item.ItemCategory.Armor:
+                    return "방어구";
+                case HDY.Item.ItemCategory.Accessory:
+                    return "장신구";
                 default:
                     return category.ToString();
             }

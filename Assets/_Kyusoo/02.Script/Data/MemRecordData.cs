@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Collections.Generic;
 using System.Reflection;
@@ -79,11 +79,18 @@ public class MemRecordData : MonoBehaviour, IRecord
     private void OnCapturedDataChangedHandler()
     {
         if (RecordManager.IsLoadingData) return;
-        CheckAndRegisterFirstCaptureTimestamps();
 
-        if (RecordManager.Instance != null)
+        // [멤] 저장 빈도 감축 - 멤 보관/배치 변동은 고빈도라 변경 표시만 한다.
+        // 단, 도감에 처음 등록되는 멤이 생겼다면 그건 중요행동이므로 즉시 저장한다.
+        bool hasNewFirstCapture = CheckAndRegisterFirstCaptureTimestamps();
+
+        if (hasNewFirstCapture)
         {
-            SaveData(RecordManager.Instance.SaveFilePath);
+            RecordManager.NotifyCriticalAction(RecordManager.SaveReason.MemFirstCapture);
+        }
+        else
+        {
+            RecordManager.NotifyDataChanged();
         }
     }
 
@@ -98,14 +105,24 @@ public class MemRecordData : MonoBehaviour, IRecord
         {
             firstCaptureDict[memId] = timestamp;
         }
-        OnCapturedDataChangedHandler();
+
+        if (RecordManager.IsLoadingData) return;
+
+        // [멤] 중요행동 - 도감 신규 등록은 다시 잡기 어려울 수 있어 즉시 저장한다.
+        CheckAndRegisterFirstCaptureTimestamps();
+        RecordManager.NotifyCriticalAction(RecordManager.SaveReason.MemFirstCapture);
     }
 
-    private void CheckAndRegisterFirstCaptureTimestamps()
+    /// <summary>
+    /// [멤] 도감 최초 포획 시각을 등록한다. 새로 등록된 멤이 하나라도 있으면 true를 돌려서,
+    /// 호출부가 "중요행동(즉시 저장)"으로 승격할지 판단할 수 있게 한다.
+    /// </summary>
+    private bool CheckAndRegisterFirstCaptureTimestamps()
     {
-        if (liveMemManager == null || liveMemManager.CapturedMems == null) return;
+        if (liveMemManager == null || liveMemManager.CapturedMems == null) return false;
 
         long currentUnixTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        bool registeredAny = false;
 
         foreach (var entry in liveMemManager.CapturedMems)
         {
@@ -114,8 +131,11 @@ public class MemRecordData : MonoBehaviour, IRecord
             if (!firstCaptureDict.ContainsKey(entry.MemId))
             {
                 firstCaptureDict[entry.MemId] = currentUnixTimestamp;
+                registeredAny = true;
             }
         }
+
+        return registeredAny;
     }
 
     public void InitDefaultData(ref SaveData saveData)

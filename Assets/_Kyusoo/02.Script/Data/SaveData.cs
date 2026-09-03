@@ -181,6 +181,14 @@ public class SaveData
     [Header("튜토리얼 진행 스냅샷 데이터")]
     public TutorialProgressSnapshot tutorialData = new TutorialProgressSnapshot();
 
+    // [멤] 장비 시스템. 장착창 12칸(방어구 4 + 장신구 8)과, 개체별 상태(강화/연마/특수옵션)를 담는 개체 목록.
+    // 개체 목록은 대장간 도구(forgeInstanceDataList)와 정확히 대칭되는 구조다.
+    [Header("장비 장착 데이터 (12칸)")]
+    public ContainerData playerEquipmentData;
+
+    [Header("장비 개체(강화/연마/특수옵션) 데이터")]
+    public List<KMS.Equipment.EquipmentInstanceData> equipmentInstanceDataList = new List<KMS.Equipment.EquipmentInstanceData>();
+
     [Header("스킬 보유/장착/쿨타임 데이터")]
     public List<string> unlockedSkillIds = new List<string>();
     public List<string> equippedSkillIds = new List<string>();

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Collections;
 using System.Collections.Generic;
@@ -25,7 +25,9 @@ public class PlayerPosRecordData : MonoBehaviour, IRecord
 
     private void OnEnable()
     {
-        StartAutoSaveRoutine();
+        // [멤] 저장 빈도 감축 - 자체 30초 위치 자동저장 루틴을 돌리지 않는다.
+        // 위치는 RecordManager의 5분 자동저장 / 중요행동 / 씬 전환 시점에 함께 기록된다.
+        // (StartAutoSaveRoutine/AutoSaveRoutine은 디버그용으로 남겨둔다.)
     }
 
     private void Update()
@@ -45,6 +47,12 @@ public class PlayerPosRecordData : MonoBehaviour, IRecord
                 {
                     lastKnownPosition = cachedController.transform.position;
                     hasValidKnownPosition = true;
+
+                    // [멤] 이미 dirty면 중복으로 알릴 필요 없다 - 매 프레임 호출을 피하기 위한 가드.
+                    if (!isDirty)
+                    {
+                        RecordManager.NotifyDataChanged();
+                    }
                     isDirty = true;
                 }
             }

@@ -39,7 +39,7 @@ public class TutorialRecordData : MonoBehaviour, IRecord
     }
 
     /// <summary>
-    /// Æ©Åä¸®¾ó ½ºÅÜ º¯°æ/¸ñÇ¥ ÁøÇà/½ºÅÜ ¿Ï·á ½Ã ½Ç½Ã°£ ¼¼ÀÌºê ½ÇÇà
+    /// Æ©ï¿½ä¸®ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½/ï¿½ï¿½Ç¥ ï¿½ï¿½ï¿½ï¿½/ï¿½ï¿½ï¿½ï¿½ ï¿½Ï·ï¿½ ï¿½ï¿½ ï¿½Ç½Ã°ï¿½ ï¿½ï¿½ï¿½Ìºï¿½ ï¿½ï¿½ï¿½ï¿½
     /// </summary>
     private void OnTutorialProgressChangedHandler()
     {
@@ -47,7 +47,8 @@ public class TutorialRecordData : MonoBehaviour, IRecord
 
         if (RecordManager.Instance != null)
         {
-            SaveData(RecordManager.Instance.SaveFilePath);
+                        // [ë©¤] ì¤‘ìš”í–‰ë™ - íŠœí† ë¦¬ì–¼ ë‹¨ê³„ ì§„í–‰ì€ ë˜ëŒì•„ê°€ë©´ ì²´ê° ì†ì‹¤ì´ ì»¤ì„œ ì¦‰ì‹œ ì €ì¥í•œë‹¤.
+            RecordManager.NotifyCriticalAction(RecordManager.SaveReason.TutorialStep);
         }
     }
 
@@ -64,7 +65,7 @@ public class TutorialRecordData : MonoBehaviour, IRecord
         SaveData currentData = RecordManager.Instance.ReadRawSaveFileOnly();
         if (currentData == null) currentData = new SaveData();
 
-        // TutorialManager·ÎºÎÅÍ ÁøÇà ½º³À¼¦ Ä¸Ã³
+        // TutorialManagerï¿½Îºï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ Ä¸Ã³
         currentData.tutorialData = liveTutorialManager.CaptureSnapshot();
 
         currentData.lastSaveTime = DateTime.UtcNow.ToString("o");
@@ -79,7 +80,7 @@ public class TutorialRecordData : MonoBehaviour, IRecord
 
         if (saveData.tutorialData != null)
         {
-            // ºÒ·¯¿Â ½º³À¼¦À» TutorialManager¿¡ º¹¿ø
+            // ï¿½Ò·ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ TutorialManagerï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
             liveTutorialManager.ApplySnapshot(saveData.tutorialData);
         }
     }
