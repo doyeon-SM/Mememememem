@@ -107,6 +107,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: be8ffed51554cbe4688a27b0fecc16c4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::RecordManager
+  saveIndicatorFont: {fileID: 11400000, guid: 524c8ffa2a0e2414e9cab89410b20246, type: 2}
+  autoSaveInterval: 300
+  minSaveCooldown: 1
 --- !u!114 &1128524540753359576
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -119,6 +122,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e8fb08c6b60622b4a8739ebac243c08a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerInventoryRecord
+  autoSaveInterval: 60
 --- !u!114 &8707449294576367257
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -263,6 +267,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 71898ed31480dca409fee462f879fb76, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerPosRecordData
+  autoSaveInterval: 30
 --- !u!114 &7547150685022506915
 MonoBehaviour:
   m_ObjectHideFlags: 0
